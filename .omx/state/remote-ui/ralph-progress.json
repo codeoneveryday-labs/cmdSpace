@@ -1,0 +1,17 @@
+{
+  "score": 94,
+  "threshold": 90,
+  "passed": true,
+  "verdict": "pass",
+  "category_match": true,
+  "reasoning": "The password screen matches clsh's dark terminal-first category on desktop and a 390px mobile viewport, with the orange accent and compact hierarchy staying readable without overflow.",
+  "differences": [
+    "The reference uses a full-bleed form while cmdSpace keeps a contained card for clearer desktop scaling.",
+    "The reference centers the heading while cmdSpace uses left alignment for faster form scanning."
+  ],
+  "suggestions": [],
+  "next_actions": [
+    "Keep the established password screen styling.",
+    "Exercise the live PTY shell on a phone after packaging to validate device-specific IME behavior."
+  ]
+}

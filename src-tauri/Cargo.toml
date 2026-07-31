@@ -1,0 +1,104 @@
+[package]
+name = "cmdspace"
+version = "0.7.1"
+description = "cmdSpace — the premium AI-agentic terminal workspace"
+authors = ["tranhoangpich"]
+license = "Apache-2.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "cmdspace_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["unstable", "macos-private-api"] }
+tauri-plugin-opener = "2"
+rfd = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+portable-pty = "0.9"
+dirs = "5"
+log = "0.4"
+ignore = "0.4"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+grep-matcher = "0.1"
+globset = "0.4"
+shared_child = "1"
+tauri-plugin-log = "2"
+tauri-plugin-os = "2"
+tauri-plugin-store = "2"
+tauri-plugin-process = "2"
+reqwest = { version = "0.12", default-features = false, features = [
+	"rustls-tls",
+	"stream",
+] }
+bytes = "1"
+base64 = "0.22"
+futures-util = "0.3"
+getrandom = "0.3"
+hmac = "0.12"
+sha2 = "0.10"
+scrypt = "0.11"
+subtle = "2.6"
+tokio = { version = "1", default-features = false, features = ["rt"] }
+tungstenite = "0.27"
+tempfile = "3"
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6", default-features = false, features = [
+	"apple-native",
+] }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+	"NSGraphics",
+	"std",
+	"NSWindow",
+] }
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = "0.3"
+objc2-avf-audio = { version = "0.3", features = ["AVAudioEngine"] }
+objc2-speech = "0.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6", default-features = false, features = [
+	"windows-native",
+] }
+windows-sys = { version = "0.59", features = [
+	"Win32_Foundation",
+	"Win32_NetworkManagement_IpHelper",
+	"Win32_NetworkManagement_Ndis",
+	"Win32_Networking_WinSock",
+	"Win32_Security",
+	"Win32_System_JobObjects",
+	"Win32_System_Threading",
+	"Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-window-state = "2"
+
+[profile.dev]
+incremental = true
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = "s"
+panic = "abort"
+strip = true
