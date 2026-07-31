@@ -22,6 +22,7 @@ describe("BottomTerminalDrawer", () => {
     expect(source).toContain("new ResizeObserver(scheduleFit)");
     expect(source).not.toContain("rounded-xl");
     expect(source).toContain("shadow-[0_-16px_36px_-18px_rgba(0,0,0,0.45)]");
+    expect(source).toContain("dark:bg-zinc-950/95");
   });
 
   it("shares the standard folder and branch controls with its isolated PTY", () => {

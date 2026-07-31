@@ -1990,7 +1990,7 @@ export function ArchitectureCanvas({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-background text-foreground">
-      <div className="absolute bottom-6 left-1/2 z-20 flex min-h-16 max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-[2.5rem] border border-zinc-300/90 bg-white/95 px-3 py-2 text-zinc-800 shadow-[0_10px_28px_rgba(15,23,42,0.15)] backdrop-blur-xl transition-all duration-200 motion-reduce:transition-none">
+      <div className="absolute bottom-6 left-1/2 z-20 flex min-h-16 max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-[2.5rem] border border-zinc-300/90 bg-white/95 px-3 py-2 text-zinc-800 shadow-[0_10px_28px_rgba(15,23,42,0.15)] backdrop-blur-xl transition-all duration-200 motion-reduce:transition-none dark:border-zinc-700/90 dark:bg-zinc-900/95 dark:text-zinc-200 dark:shadow-[0_10px_28px_rgba(0,0,0,0.38)]">
           <ToolButton
             active={mode === "select"}
             icon={Cursor01Icon}
@@ -2059,12 +2059,12 @@ export function ArchitectureCanvas({
             label="Undo"
             onClick={undoCanvas}
           />
-          <span aria-hidden="true" className="mx-1 h-8 w-px shrink-0 bg-zinc-200" />
+          <span aria-hidden="true" className="mx-1 h-8 w-px shrink-0 bg-zinc-200 dark:bg-zinc-700" />
           <Button
             type="button"
             size="icon-xs"
             variant="ghost"
-            className="h-11 w-11 shrink-0 rounded-full text-3xl font-normal text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950"
+            className="h-11 w-11 shrink-0 rounded-full text-3xl font-normal text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
             title="Zoom out"
             aria-label="Zoom out"
             onClick={() => zoomBy(-0.15)}
@@ -2073,7 +2073,7 @@ export function ArchitectureCanvas({
           </Button>
           <span
             aria-label={`Current zoom: ${Math.round(view.scale * 100)}%`}
-            className="min-w-14 shrink-0 text-center text-base font-medium tabular-nums text-zinc-700"
+            className="min-w-14 shrink-0 text-center text-base font-medium tabular-nums text-zinc-700 dark:text-zinc-300"
           >
             {Math.round(view.scale * 100)}%
           </span>
@@ -2081,7 +2081,7 @@ export function ArchitectureCanvas({
             type="button"
             size="icon-xs"
             variant="ghost"
-            className="h-11 w-11 shrink-0 rounded-full text-3xl font-normal text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950"
+            className="h-11 w-11 shrink-0 rounded-full text-3xl font-normal text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
             title="Zoom in"
             aria-label="Zoom in"
             onClick={() => zoomBy(0.15)}
@@ -2091,7 +2091,7 @@ export function ArchitectureCanvas({
       </div>
 
       <div className="min-h-0 flex-1">
-      <main className="relative h-full min-h-0 overflow-hidden bg-[#fbfdfc]">
+      <main className="relative h-full min-h-0 overflow-hidden bg-[#fbfdfc] dark:bg-zinc-950">
           <svg
             ref={svgRef}
             xmlns="http://www.w3.org/2000/svg"
@@ -2122,7 +2122,7 @@ export function ArchitectureCanvas({
                 <path
                   d="M 24 0 L 0 0 0 24"
                   fill="none"
-                  stroke="#dbe7e4"
+                  className="stroke-[#dbe7e4] dark:stroke-zinc-800"
                   strokeOpacity="0.72"
                   strokeWidth="1"
                 />
@@ -2864,8 +2864,8 @@ function ToolButton({
       aria-label={title}
       onClick={onClick}
       className={cn(
-        "h-11 w-11 shrink-0 rounded-full border border-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950",
-        active && "border-zinc-200 bg-zinc-200/90 text-zinc-950 shadow-sm hover:bg-zinc-200",
+        "h-11 w-11 shrink-0 rounded-full border border-transparent text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white",
+        active && "border-zinc-200 bg-zinc-200/90 text-zinc-950 shadow-sm hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white dark:hover:bg-zinc-800",
       )}
     >
       {iconNode ?? (icon ? <HugeiconsIcon icon={icon} size={18} /> : null)}
@@ -3068,7 +3068,7 @@ function DiagramNode({
           width={node.width}
           height={node.height}
           rx="22"
-          className={cn("fill-background/20", selectedClass)}
+          className={cn("fill-background/20 dark:fill-zinc-900/70", selectedClass)}
           strokeDasharray={node.locked ? "8 7" : undefined}
           strokeWidth={selected ? 4 : 3}
         />
@@ -3078,7 +3078,7 @@ function DiagramNode({
           width={Math.max(0, node.width - 32)}
           height={Math.max(0, node.height - 32)}
           fill={`url(#${frameDotsId})`}
-          className="text-muted-foreground"
+          className="text-muted-foreground dark:text-zinc-500"
           opacity="0.65"
         />
         {selected && !node.locked ? (

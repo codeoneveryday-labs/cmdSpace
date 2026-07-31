@@ -19,15 +19,16 @@ cmdSpace is a lightweight open-source terminal (ADE) built on Tauri 2 + Rust and
 
 <table>
   <tr>
-    <td align="center"><img src="docs/terminal.png" alt="Terminal" /><br/><sub>Multi-tab terminal with WebGL rendering</sub></td>
-    <td align="center"><img src="docs/themes.png" alt="Themes and background image" /><br/><sub>Custom themes, presets, and background images</sub></td>
+    <td align="center"><img src="docs/terminal.png" alt="Terminal workspace" /><br/><sub>Native terminal workspace with WebGL rendering</sub></td>
+    <td align="center"><img src="docs/editor.png" alt="Code editor" /><br/><sub>Code editor, file explorer, and AI-assisted workflows</sub></td>
+    <td align="center"><img src="docs/source-control.png" alt="Source control" /><br/><sub>Source control and commit history</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/web-preview.png" alt="Web preview" /><br/><sub>Web preview of local dev servers</sub></td>
-    <td align="center"><img src="docs/source-control.png" alt="Source control and git graph" /><br/><sub>Source control panel with git graph in history</sub></td>
+    <td align="center"><img src="docs/web.png" alt="Web preview" /><br/><sub>Preview local development servers in-app</sub></td>
+    <td colspan="2" align="center"><img src="docs/ai-workflow.png" alt="AI workflow" /><br/><sub>Agentic AI workflow with reviewable code edits</sub></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><img src="docs/ai-workflow.png" alt="AI window" /><br/><sub>Agentic AI workflow with edit diffs in the code editor</sub></td>
+    <td colspan="3" align="center"><img src="docs/remote-access.png" width="280" alt="Remote terminal on a phone" /><br/><sub>Remote terminal access from a mobile browser</sub></td>
   </tr>
 </table>
 

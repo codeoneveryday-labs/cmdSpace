@@ -278,7 +278,7 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
       <section
         data-bottom-terminal-drawer
         className={cn(
-          "relative flex flex-col overflow-hidden border border-border/70 bg-[var(--terminal-background)] shadow-[0_-16px_36px_-18px_rgba(0,0,0,0.45)]",
+          "relative flex flex-col overflow-hidden border border-border/70 bg-[var(--terminal-background)] shadow-[0_-16px_36px_-18px_rgba(0,0,0,0.45)] dark:border-zinc-800/80",
           resizing && "select-none",
         )}
         style={{ height }}
@@ -301,7 +301,7 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
           onPointerCancel={handleResizeEnd}
           className="absolute inset-x-0 -top-1 z-20 h-2 cursor-row-resize touch-none before:absolute before:inset-x-0 before:top-1/2 before:h-px before:bg-border/70 hover:before:bg-primary"
         />
-        <div className="relative flex h-9 shrink-0 items-center border-b border-border/60 bg-background/95 px-3 text-sm shadow-sm backdrop-blur">
+        <div className="relative flex h-9 shrink-0 items-center border-b border-border/60 bg-card/95 px-3 text-sm shadow-sm backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/95">
           <TerminalNavigationControls
             cwd={cwd}
             onChangeDirectory={changeDirectory}
@@ -310,7 +310,7 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onClose}
-            className="ml-auto rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="ml-auto rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
             aria-label="Close bottom terminal"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={1.8} />

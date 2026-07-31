@@ -38,6 +38,8 @@ describe("ArchitectureCanvas", () => {
     expect(markup).toContain('aria-label="Zoom out"');
     expect(markup).toContain('aria-label="Zoom in"');
     expect(markup).toContain('aria-label="Current zoom: 100%"');
+    expect(markup).toContain("dark:bg-zinc-950");
+    expect(markup).toContain("dark:stroke-zinc-800");
     expect(markup).not.toContain('aria-label="Collapse shape palette"');
     expect(markup).not.toContain('aria-label="Collapse inspector"');
     expect(markup).not.toContain('aria-label="Maximize architecture canvas"');

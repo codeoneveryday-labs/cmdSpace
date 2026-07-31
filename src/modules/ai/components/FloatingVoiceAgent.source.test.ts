@@ -19,6 +19,7 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain("void toggle();");
     expect(component).toContain("bottom-5 right-5");
     expect(component).toContain("overflow-hidden rounded-full");
+    expect(component).toContain("dark:bg-zinc-950/95");
     expect(component).toContain("cursor-grab");
     expect(component).toContain("setPointerCapture");
     expect(component).toContain("onPointerMove={move}");

@@ -141,11 +141,11 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
           void toggle();
         }}
         className={cn(
-          "fixed bottom-5 right-5 z-[90] inline-flex h-10 max-w-[min(420px,calc(100vw-24px))] touch-none select-none items-center gap-2 overflow-hidden rounded-full border border-border/80 bg-background/95 px-2.5 pr-3 text-xs font-semibold shadow-lg shadow-black/15 ring-1 ring-border/45 ring-offset-2 ring-offset-background/80 backdrop-blur-md transition-colors cursor-grab",
+          "fixed bottom-5 right-5 z-[90] inline-flex h-10 max-w-[min(420px,calc(100vw-24px))] touch-none select-none items-center gap-2 overflow-hidden rounded-full border border-border/80 bg-background/95 px-2.5 pr-3 text-xs font-semibold shadow-lg shadow-black/15 ring-1 ring-border/45 ring-offset-2 ring-offset-background/80 backdrop-blur-md transition-colors cursor-grab dark:border-zinc-700/80 dark:bg-zinc-950/95 dark:text-zinc-200 dark:shadow-black/40 dark:ring-zinc-800/70 dark:ring-offset-zinc-950/80",
           dragging && "cursor-grabbing",
           status === "listening" && "border-primary/60 bg-primary/10 text-primary",
           status === "ready" && "border-emerald-500/50 text-emerald-600 dark:text-emerald-300",
-          status === "error" && "border-destructive/50 text-destructive",
+          status === "error" && "border-destructive/40 bg-destructive/[0.06] text-destructive dark:border-red-400/25 dark:bg-red-950/25 dark:text-red-300",
         )}
         style={position ? { ...position, right: "auto", bottom: "auto" } : undefined}
       >
