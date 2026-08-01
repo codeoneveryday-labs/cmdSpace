@@ -1,7 +1,10 @@
 use super::remote_tunnel::{
-    cloudflared_quick_tunnel_args, extract_public_https_url, localhost_run_ssh_args,
-    LocalhostRunTunnel, TunnelState,
+    cloudflared_quick_tunnel_args, extract_public_https_url, localhost_run_ssh_args, TunnelState,
 };
+
+#[cfg(unix)]
+use super::remote_tunnel::LocalhostRunTunnel;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 #[test]

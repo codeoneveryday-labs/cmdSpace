@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use std::path::Path;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -50,7 +50,7 @@ impl LocalhostRunTunnel {
         Self::start_command(program, args)
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn start_command_for_test(
         program: &Path,
         args: Vec<OsString>,
