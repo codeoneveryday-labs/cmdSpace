@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "memory-safety-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/systems-programming/skills/memory-safety-patterns/SKILL.md",
+      "computedHash": "a2705450170c7024e669ef5a6881a13010e76c00410e9e20339fd394a980b0bb"
+    },
+    "performance-profiling": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/performance-profiling/SKILL.md",
+      "computedHash": "fd00f71134c3e909fba80ff5abe24ea9ca9b30ba4443b1b8a5e3c795dfc4c373"
+    },
+    "rust-best-practices": {
+      "source": "apollographql/skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust-best-practices/SKILL.md",
+      "computedHash": "fd336f2f772eb46ddf8658de5f9dd8faa1f35615b316665307fc82eeb4b2e658"
+    },
+    "tauri-v2": {
+      "source": "nodnarbnitram/claude-code-extensions",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/tauri-v2/SKILL.md",
+      "computedHash": "377c61c46cf48c35b942042bc8abb9a039049a47f37d7f12b4f491d012777490"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "0a413bf988d06481f69bb81df2070741c3ba12dd9f1be2706d57f259c905992d"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "computedHash": "f3bc47f890f42a44db1007ab390709ec368e4b8c089baee6b0007182236ac474"
+    }
+  }
+}

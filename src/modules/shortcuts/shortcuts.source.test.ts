@@ -1,0 +1,72 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const here = path.dirname(new URL(import.meta.url).pathname);
+const shortcutsPath = path.join(here, "shortcuts.ts");
+const tabBarPath = path.join(here, "../tabs/TabBar.tsx");
+const appPath = path.join(here, "../../app/App.tsx");
+const shortcutsSectionPath = path.join(
+  here,
+  "../../settings/sections/ShortcutsSection.tsx",
+);
+
+describe("tab creation shortcuts", () => {
+  it("registers Git Graph and Architecture shortcuts in the shared settings registry", () => {
+    const shortcutsSource = readFileSync(shortcutsPath, "utf8");
+    const tabBarSource = readFileSync(tabBarPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+    const settingsSource = readFileSync(shortcutsSectionPath, "utf8");
+
+    expect(shortcutsSource).toContain('| "tab.newGitGraph"');
+    expect(shortcutsSource).toContain('| "tab.newArchitecture"');
+    expect(shortcutsSource).toContain('id: "tab.newGitGraph"');
+    expect(shortcutsSource).toContain('label: "New Git Graph tab"');
+    expect(shortcutsSource).toContain('id: "tab.newArchitecture"');
+    expect(shortcutsSource).toContain('label: "New Architecture tab"');
+    expect(shortcutsSource).toContain(
+      'id: "tab.newGitGraph",\n    label: "New Git Graph tab",\n    group: "Tabs",\n    defaultBindings: [{ [MOD_PROP]: true, key: "g" }]',
+    );
+    expect(shortcutsSource).toContain(
+      'id: "tab.newArchitecture",\n    label: "New Architecture tab",\n    group: "Tabs",\n    defaultBindings: [{ [MOD_PROP]: true, key: "a" }]',
+    );
+    expect(appSource).toContain('"tab.newGitGraph": () => {');
+    expect(appSource).toContain("if (sourceControl.hasRepo) void openGitGraphFromContext();");
+    expect(appSource).toContain('"tab.newArchitecture": () => newArchitectureTab()');
+    expect(tabBarSource).toContain('shortcutFor("tab.newGitGraph")');
+    expect(tabBarSource).toContain('shortcutFor("tab.newArchitecture")');
+    expect(settingsSource).not.toContain('s.id !== "tab.newGitGraph"');
+    expect(settingsSource).not.toContain('s.id !== "tab.newArchitecture"');
+  });
+});
+
+describe("voice agent shortcut", () => {
+  it("registers a single cross-platform toggle for the floating voice agent", () => {
+    const shortcutsSource = readFileSync(shortcutsPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+
+    expect(shortcutsSource).toContain('| "voice.toggle"');
+    expect(shortcutsSource).toContain('id: "voice.toggle"');
+    expect(shortcutsSource).toContain('label: "Toggle Voice Agent"');
+    expect(shortcutsSource).toContain(
+      'id: "voice.toggle",\n    label: "Toggle Voice Agent",\n    group: "AI",\n    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }]',
+    );
+    expect(appSource).toContain('"voice.toggle": toggleVoiceAgent');
+  });
+});
+
+describe("bottom terminal shortcut", () => {
+  it("assigns Cmd/Ctrl+I to the bottom terminal instead of the AI composer", () => {
+    const shortcutsSource = readFileSync(shortcutsPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+
+    expect(shortcutsSource).toContain('| "terminal.bottom"');
+    expect(shortcutsSource).toContain('id: "terminal.bottom"');
+    expect(shortcutsSource).toContain('label: "Toggle bottom terminal"');
+    expect(shortcutsSource).toContain('group: "Panes"');
+    expect(shortcutsSource).toContain('defaultBindings: [{ [MOD_PROP]: true, key: "i" }]');
+    expect(shortcutsSource).not.toContain('id: "ai.toggle"');
+    expect(appSource).toContain('"terminal.bottom": toggleBottomTerminal');
+    expect(appSource).not.toContain('"ai.toggle": togglePanelAndFocus');
+  });
+});

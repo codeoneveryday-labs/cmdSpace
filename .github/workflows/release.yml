@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            rust-target: aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            rust-target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+            rust-target: ""
+          - platform: windows-latest
+            args: ""
+            rust-target: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            patchelf
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          key: ${{ matrix.platform }}-${{ matrix.rust-target }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Gate macOS releases so public downloads are never silently unsigned.
+      # Tauri imports the base64-encoded .p12 and notarizes the bundle from
+      # these documented Apple environment variables.
+      - name: Verify macOS signing and notarization credentials
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          : "${APPLE_CERTIFICATE:?Missing APPLE_CERTIFICATE GitHub secret}"
+          : "${APPLE_CERTIFICATE_PASSWORD:?Missing APPLE_CERTIFICATE_PASSWORD GitHub secret}"
+          : "${APPLE_SIGNING_IDENTITY:?Missing APPLE_SIGNING_IDENTITY GitHub secret}"
+          : "${APPLE_ID:?Missing APPLE_ID GitHub secret}"
+          : "${APPLE_PASSWORD:?Missing APPLE_PASSWORD GitHub secret}"
+          : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID GitHub secret}"
+          case "$APPLE_SIGNING_IDENTITY" in
+            "Developer ID Application:"*) ;;
+            *) echo "APPLE_SIGNING_IDENTITY must name a Developer ID Application certificate." >&2; exit 1 ;;
+          esac
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "cmdSpace ${{ github.ref_name }}"
+          releaseBody: "Installers for macOS, Windows, and Linux. macOS artifacts are signed with a Developer ID certificate and notarized by Apple."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

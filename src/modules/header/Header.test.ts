@@ -1,0 +1,27 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const here = path.dirname(new URL(import.meta.url).pathname);
+const headerPath = path.join(here, "Header.tsx");
+
+describe("Header sidebar toggles", () => {
+  it("uses opposite sidebar icons for left workspaces and right sidebar toggles", () => {
+    const source = readFileSync(headerPath, "utf8");
+
+    expect(source).toContain("SidebarLeftIcon");
+    expect(source).toContain("SidebarRightIcon");
+    expect(source).toContain("<HugeiconsIcon icon={SidebarRightIcon}");
+    expect(source).toContain("<HugeiconsIcon icon={SidebarLeftIcon}");
+  });
+
+  it("exposes a persistent background blur toggle", () => {
+    const source = readFileSync(headerPath, "utf8");
+
+    expect(source).toContain("FocusPointIcon");
+    expect(source).toContain('aria-pressed={desktopBlurEnabled}');
+    expect(source).not.toContain("disabled={!backgroundEnabled}");
+    expect(source).toContain("set_desktop_blur");
+    expect(source).toContain("setDesktopBlurEnabled(enabled)");
+  });
+});

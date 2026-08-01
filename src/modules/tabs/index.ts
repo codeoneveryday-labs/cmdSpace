@@ -1,0 +1,26 @@
+export { TabBar } from "./TabBar";
+export {
+  MAX_PANES_PER_TAB,
+  useTabs,
+  type Tab,
+  type TerminalTab,
+  type EditorTab,
+  type PreviewTab,
+  type MarkdownTab,
+  type AiDiffTab,
+  type GitDiffTab,
+  type GitHistoryTab,
+  type ArchitectureTab,
+  type ArchitectureDiagram,
+  type ArchitectureDiagramEdge,
+  type ArchitectureDiagramNode,
+  type ArchitectureShapeKind,
+  type ArchitectureTerminalDockGroup,
+  type ArchitectureTerminalDockNode,
+  type ArchitectureTerminalDockSplit,
+  type ArchitectureTerminalDockTabs,
+  type GitCommitFileDiffTab,
+  type AiDiffStatus,
+  type TabPatch,
+} from "./lib/useTabs";
+export { useWorkspaceCwd } from "./lib/useWorkspaceCwd";

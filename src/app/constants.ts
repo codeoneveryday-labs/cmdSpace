@@ -1,0 +1,15 @@
+export const SIDEBAR_DEFAULT_WIDTH = 320;
+export const SIDEBAR_MIN_WIDTH = 220;
+export const SIDEBAR_COLLAPSE_WIDTH = 140;
+export const SIDEBAR_MAX_WIDTH = 760;
+export const WORKSPACE_MIN_WIDTH = 260;
+export const WORKSPACES_PANEL_WIDTH = 240;
+export const WORKSPACES_PANEL_COMPACT_WIDTH = 152;
+export const WORKSPACES_PANEL_COMPACT_BREAKPOINT = 1180;
+export const CHROME_RESIZE_TRANSITION_MS = 180;
+export const SIDEBAR_WIDTH_STORAGE_KEY = "cmdspace.sidebar.width";
+export const SIDEBAR_VIEW_STORAGE_KEY = "cmdspace.sidebar.view";
+export const SIDEBAR_BROWSER_URL_STORAGE_KEY = "cmdspace.sidebar.browser.url";
+export const WORKSPACE_DELETE_CONFIRM_STORAGE_KEY =
+  "cmdspace.workspace.delete.confirm.skip";
+export const WORKSPACE_LIMIT = 99;

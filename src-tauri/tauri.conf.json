@@ -1,0 +1,84 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "cmdSpace",
+  "version": "0.7.2",
+  "identifier": "app.tranhoangpich.cmdspace",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist",
+    "removeUnusedCommands": true
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "title": "cmdSpace",
+        "width": 1024,
+        "height": 768,
+        "minWidth": 900,
+        "minHeight": 650,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: https://asset.localhost blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https: http://localhost:* http://127.0.0.1:*; frame-src 'self' http: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": false,
+    "copyright": "Copyright 2026 tranhoangpich",
+    "license": "Apache-2.0",
+    "publisher": "tranhoangpich",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    },
+    "linux": {
+      "deb": {
+        "section": "utils",
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      },
+      "rpm": {
+        "depends": ["webkit2gtk4.1", "gtk3"]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "./installer-hooks.nsh"
+      }
+    },
+    "category": "DeveloperTool",
+    "shortDescription": "Premium AI-agentic terminal workspace",
+    "longDescription": "cmdSpace — the premium AI-agentic terminal workspace with tiling grid, file explorer, code editor, browser preview, voice input, and native AI agents."
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNCQUJGRDhBQjYwRTM0NjkKUldScE5BNjJpdjJyT3dIN0dqbUpHaDA4QW1GaDVmTTllRXdZVk96dFNTRUZ3Y2hiVGszYjFqRloK",
+      "endpoints": [
+        "https://github.com/codeoneveryday-labs/cmdSpace/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}
