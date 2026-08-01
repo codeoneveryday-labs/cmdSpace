@@ -5,7 +5,9 @@
 //! therefore live in the macOS Speech framework, while the webview only owns
 //! the voice-agent UI and prompt-rewrite flow.
 
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use tauri::Emitter;
 
 /// Returns the locales that macOS Speech currently makes available to this app.
 ///

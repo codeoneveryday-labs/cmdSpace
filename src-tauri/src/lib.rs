@@ -10,9 +10,11 @@ use std::{
     },
     time::Duration,
 };
-use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-use tauri::{LogicalPosition, LogicalSize};
+use tauri::{Emitter, LogicalPosition, LogicalSize};
+use tauri::{Manager, State};
+#[cfg(target_os = "macos")]
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_window_state::StateFlags;
 
 /// Drained on first read so HMR / re-mounts can't replay the launch dir.
@@ -27,7 +29,11 @@ struct DesktopBlurState {
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 #[derive(Default)]
-struct DesktopBlurState;
+struct DesktopBlurState {
+    // Keep this non-unit on unsupported platforms so constructing the managed
+    // state remains lint-clean under Clippy's cross-platform build.
+    _unsupported: (),
+}
 
 #[cfg(all(test, target_os = "macos"))]
 mod desktop_blur_tests {
@@ -181,9 +187,13 @@ fn set_windows_window_alpha<R: tauri::Runtime>(
         WS_EX_LAYERED,
     };
 
-    let hwnd = window.hwnd().map_err(|e| e.to_string())?.0;
+    // The raw HWND pointer is not Send, while Tauri requires callbacks passed
+    // to `run_on_main_thread` to be Send. Preserve its address as an integer
+    // and reconstruct the HWND inside the main-thread callback.
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as usize;
     window
         .run_on_main_thread(move || unsafe {
+            let hwnd = hwnd as _;
             let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             if style & WS_EX_LAYERED as isize == 0 {
                 let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED as isize);
@@ -203,10 +213,14 @@ fn order_windows_overlay_below<R: tauri::Runtime>(
         SWP_NOSIZE,
     };
 
-    let overlay = window.hwnd().map_err(|e| e.to_string())?.0;
-    let main = relative_to.hwnd().map_err(|e| e.to_string())?.0;
+    // See `set_windows_window_alpha`: integer addresses satisfy the Send
+    // requirement until they are reconstructed on the Windows UI thread.
+    let overlay = window.hwnd().map_err(|e| e.to_string())?.0 as usize;
+    let main = relative_to.hwnd().map_err(|e| e.to_string())?.0 as usize;
     window
         .run_on_main_thread(move || unsafe {
+            let overlay = overlay as _;
+            let main = main as _;
             let flags =
                 SWP_ASYNCWINDOWPOS | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOSIZE;
             // First make the blur layer the highest ordinary window, then put
