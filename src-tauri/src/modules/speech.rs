@@ -394,7 +394,11 @@ mod macos {
     use std::cell::{Cell, RefCell};
     use std::ptr::NonNull;
     use std::slice;
+    use std::time::Duration;
     use tauri::{AppHandle, Emitter};
+
+    const AUDIO_START_RETRY_DELAY: Duration = Duration::from_millis(350);
+    const MAX_AUDIO_START_ATTEMPTS: u8 = 2;
 
     struct SpeechSession {
         id: u64,
@@ -437,8 +441,11 @@ mod macos {
 
     pub fn stop(app: AppHandle) -> Result<(), String> {
         let app_for_main = app.clone();
-        app.run_on_main_thread(move || finish_on_main(&app_for_main))
-            .map_err(|error| error.to_string())
+        app.run_on_main_thread(move || {
+            invalidate_request_on_main();
+            finish_on_main(&app_for_main);
+        })
+        .map_err(|error| error.to_string())
     }
 
     fn start_on_main(app: AppHandle, language: Option<String>) {
@@ -450,7 +457,7 @@ mod macos {
         cancel_session_on_main();
         let status = unsafe { SFSpeechRecognizer::authorizationStatus() };
         if status == SFSpeechRecognizerAuthorizationStatus::Authorized {
-            begin_session(app, request_id, language);
+            begin_session(app, request_id, language, 1);
             return;
         }
 
@@ -464,7 +471,7 @@ mod macos {
                     return;
                 }
                 if next_status == SFSpeechRecognizerAuthorizationStatus::Authorized {
-                    begin_session(app_for_main, request_id, language_for_session);
+                    begin_session(app_for_main, request_id, language_for_session, 1);
                 } else {
                     emit_error(
                         &app_for_main,
@@ -480,7 +487,14 @@ mod macos {
         REQUEST_ID.with(|current| current.get() == request_id)
     }
 
-    fn begin_session(app: AppHandle, request_id: u64, language: Option<String>) {
+    fn invalidate_request_on_main() {
+        REQUEST_ID.with(|current| {
+            let next = current.get().wrapping_add(1).max(1);
+            current.set(next);
+        });
+    }
+
+    fn begin_session(app: AppHandle, request_id: u64, language: Option<String>, attempt: u8) {
         if !is_current_request(request_id) {
             return;
         }
@@ -565,7 +579,16 @@ mod macos {
         unsafe { engine.prepare() };
         if let Err(error) = unsafe { engine.startAndReturnError() } {
             unsafe { input.removeTapOnBus(0) };
-            emit_error(&app, format!("Could not start the microphone: {error}"));
+            if should_retry_audio_start(attempt) {
+                schedule_audio_start_retry(app, request_id, language, attempt);
+            } else {
+                emit_error(
+                    &app,
+                    format!(
+                        "Could not start the microphone. Make sure your Bluetooth headset microphone is selected in macOS System Settings → Sound → Input, then try again. Details: {error}"
+                    ),
+                );
+            }
             return;
         }
 
@@ -580,6 +603,34 @@ mod macos {
             });
         });
         let _ = app.emit("cmdspace:speech-started", ());
+    }
+
+    fn should_retry_audio_start(attempt: u8) -> bool {
+        attempt < MAX_AUDIO_START_ATTEMPTS
+    }
+
+    fn schedule_audio_start_retry(
+        app: AppHandle,
+        request_id: u64,
+        language: Option<String>,
+        attempt: u8,
+    ) {
+        std::thread::spawn(move || {
+            // macOS can report the Bluetooth input before its hardware driver has
+            // finished changing format. Rebuild the graph after the route settles.
+            std::thread::sleep(AUDIO_START_RETRY_DELAY);
+            let app_for_main = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                if is_current_request(request_id) {
+                    begin_session(
+                        app_for_main,
+                        request_id,
+                        language,
+                        attempt.saturating_add(1),
+                    );
+                }
+            });
+        });
     }
 
     fn emit_language_unavailable(app: &AppHandle, locale_identifier: &str) {
@@ -681,5 +732,33 @@ mod macos {
             });
             let _ = app_for_main.emit("cmdspace:speech-stopped", ());
         });
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{
+            invalidate_request_on_main, is_current_request, should_retry_audio_start, REQUEST_ID,
+        };
+
+        #[test]
+        fn retries_audio_start_once() {
+            assert!(should_retry_audio_start(1));
+            assert!(!should_retry_audio_start(2));
+        }
+
+        #[test]
+        fn invalidated_request_cannot_restart_after_retry_delay() {
+            let previous_request_id = REQUEST_ID.with(|current| {
+                let previous = current.get();
+                current.set(42);
+                previous
+            });
+            assert!(is_current_request(42));
+
+            invalidate_request_on_main();
+
+            assert!(!is_current_request(42));
+            REQUEST_ID.with(|current| current.set(previous_request_id));
+        }
     }
 }
