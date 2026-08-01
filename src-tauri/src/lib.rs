@@ -10,11 +10,9 @@ use std::{
     },
     time::Duration,
 };
+use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-use tauri::{Emitter, LogicalPosition, LogicalSize};
-use tauri::{Manager, State};
-#[cfg(target_os = "macos")]
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{LogicalPosition, LogicalSize};
 use tauri_plugin_window_state::StateFlags;
 
 /// Drained on first read so HMR / re-mounts can't replay the launch dir.
