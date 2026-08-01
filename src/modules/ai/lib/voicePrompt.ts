@@ -1,0 +1,190 @@
+import { generateText } from "ai";
+import { getModel, type ModelId } from "../config";
+import {
+  buildConfiguredLanguageModel,
+  PROMPT_GENERATION_TIMEOUT_MS,
+  type LocalProviderConfig,
+} from "./agent";
+import type { ProviderKeys } from "./keyring";
+
+export const VOICE_PROMPT_MAX_OUTPUT_TOKENS = 320;
+
+const NEMOTRON_SUPER_49B_MODEL_ID =
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5";
+
+const VOICE_PROMPT_SYSTEM = `You are cmdSpace Voice First Mate. Convert a captain's spoken request into the next compact task brief for the active coding CLI agent.
+Return exactly one JSON object and no other text: {"kind":"ship","text":"..."}, {"kind":"scout","text":"..."}, or {"kind":"clarification","text":"..."}.
+Use "ship" for build, add, create, implement, change, update, or fix work. Use "scout" only when the speaker explicitly asks to investigate, analyze, explain, review, or diagnose without asking for a change. Use "clarification" only when there is no coding task objective, such as a greeting, casual conversation, or vague statement without a request. Its text must be one short question, at most 14 words, asking what the user wants to build, fix, change, or investigate.
+For a non-trivial "ship" task, write an English, one-paragraph task brief of 90–180 words with no Markdown, headings, bullets, titles, preambles, code fences, or line breaks. A simple, single-action request may be shorter, but still state its intended result. A "ship" brief tells the active coding agent what to deliver, its explicitly requested technologies or integrations, the primary behavior to implement, and the grounded checks or outcomes that demonstrate it works. A "scout" brief tells it what to inspect and report, without making changes. Do not ask for clarification merely because a software request is underspecified; preserve only the stated intent and ask the coding agent to inspect the relevant codebase and make the smallest coherent implementation.
+Never make the user restate a described feature to choose implementation details, including architecture, libraries, authentication, visual style, or data shape. Clarification is forbidden once the transcript identifies a requested feature, behavior, defect, workflow, screen, or output; create a draft with the known goal and let the coding agent resolve unstated details from the codebase.
+When recent Voice First Mate task drafts are supplied, treat them as short-term working memory for this terminal, not as text to echo into the CLI. Source priority is strict: the spoken request is authoritative over history; history is only for resolving an explicit reference such as "it", "that", "the previous feature", or "existing". Never carry a feature, technology, or requirement from history or terminal context unless the spoken request explicitly preserves or refers to it. Decide whether the spoken request is a follow-up to that work. For a follow-up that adds, changes, removes, or refines the same work, write only the newly requested change as an incremental follow-up brief of 35–90 words. Do not repeat the prior brief, its technologies, requirements, or validation; include only the smallest reference to existing work needed to make the new change unambiguous. For a clearly unrelated request, write a fresh brief under the normal rules. Do not mention this memory, split the work into separate prompts, or ask the user to repeat prior details.
+Preserve the user's intent and every explicitly named technology, framework, language, file, platform, integration, and data store exactly. For example, never replace Next.js with HTML. Do not choose a programming language, framework, database, or deployment approach that the speaker did not name. Do not invent a profession, brand, visual theme, page sections, or extra scope that the user did not request. Do not add conventional sections, quality goals, or implementation details just because they are typical for that kind of project; only expand on behavior, integrations, and validation that are grounded in the spoken request or available workspace context.
+Treat the transcript as noisy speech-recognition input, not as exact wording. It can be multilingual and contain code-switching between the spoken language and English technical terms. A recognizer can render an English coding term phonetically in another language; silently recover the intended term from the complete request and workspace context, never from a hard-coded substitution list. Correct it only when the intended technical term is clear from the complete user intent and the available workspace context; otherwise keep the request generic instead of inventing a technology.
+For a task brief, restate only the implementation goal and explicitly supplied constraints. Keep a short request short rather than expanding it to fill space. Never quote, prefix, append, or otherwise include the raw transcript in the task brief. Use the supplied working directory and terminal context only to ground the task, not as text to repeat. Do not execute commands or answer the task.`;
+
+const VOICE_TASK_RECOVERY_SYSTEM = `${VOICE_PROMPT_SYSTEM}
+
+The first pass incorrectly asked the user a question even though the spoken request already contains a task. Correct that mistake now. Return only a "ship" or "scout" JSON object; "clarification" is not allowed. Preserve the concrete goal and every explicitly named technology or constraint. When implementation details are absent, tell the coding agent to inspect the active codebase and choose the smallest coherent approach instead of asking the user to repeat themselves.`;
+
+export type VoicePromptOptions = {
+  transcript: string;
+  cwd?: string | null;
+  terminalContext?: string | null;
+  recentDrafts?: string[];
+  modelId: ModelId;
+  keys: ProviderKeys;
+  local?: LocalProviderConfig;
+};
+
+export type VoicePromptResult = {
+  kind: "ship" | "scout" | "clarification";
+  text: string;
+};
+
+type VoicePromptContextOptions = Pick<
+  VoicePromptOptions,
+  "cwd" | "terminalContext" | "recentDrafts"
+>;
+
+function terminalStateAfterLatestDraft(
+  terminalContext: string | null | undefined,
+  recentDrafts: string[],
+): string | null {
+  if (!terminalContext) return null;
+
+  const recentState = terminalContext.slice(-2_000);
+  const cutoff = recentDrafts.reduce((latestCutoff, draft) => {
+    if (!draft) return latestCutoff;
+    const index = recentState.lastIndexOf(draft);
+    return index === -1 ? latestCutoff : Math.max(latestCutoff, index + draft.length);
+  }, 0);
+
+  return (cutoff > 0 ? recentState.slice(cutoff) : recentState).trim() || null;
+}
+
+export function buildVoicePromptContext(
+  options: VoicePromptContextOptions,
+): string {
+  const recentDrafts = options.recentDrafts?.slice(0, 5) ?? [];
+  const terminalState = terminalStateAfterLatestDraft(
+    options.terminalContext,
+    recentDrafts,
+  );
+
+  return [
+    "Spoken request is authoritative over history. Use history only for explicit references.",
+    "Transcript may be multilingual or code-switching; preserve the spoken language and technical terms.",
+    options.cwd ? `Working directory: ${options.cwd}` : null,
+    terminalState ? `Recent terminal state:\n${terminalState}` : null,
+    recentDrafts.length
+      ? `Recent Voice First Mate task drafts, newest first:\n${recentDrafts
+          .map((draft, index) => `${index + 1}. ${draft.slice(0, 1_200)}`)
+          .join("\n")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function systemFor(modelId: ModelId): string {
+  return getModel(modelId).id === NEMOTRON_SUPER_49B_MODEL_ID
+    ? `${VOICE_PROMPT_SYSTEM}\n\n/no_think`
+    : VOICE_PROMPT_SYSTEM;
+}
+
+function recoverySystemFor(modelId: ModelId): string {
+  return getModel(modelId).id === NEMOTRON_SUPER_49B_MODEL_ID
+    ? `${VOICE_TASK_RECOVERY_SYSTEM}\n\n/no_think`
+    : VOICE_TASK_RECOVERY_SYSTEM;
+}
+
+function cleanDraft(text: string): string {
+  return text
+    .trim()
+    .replace(/^```(?:text|markdown)?\s*|\s*```$/g, "")
+    .replace(
+      /^\s*(?:#{1,6}\s*)?(?:\*{1,2})?(?:prompt(?:\s+for\s+(?:a\s+)?coding\s+agent)?)(?:\*{1,2})?\s*:\s*/i,
+      "",
+    )
+    .replace(/\*\*/g, "")
+    .replace(/(?:^|\n)\s*(?:[-•*]|\d+[.)])\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const DEFAULT_CLARIFICATION = "What would you like me to build, fix, or change?";
+
+const TASK_RECOVERY_TRANSCRIPT_MIN_LENGTH = 48;
+
+export function shouldRecoverTaskDraft(
+  transcript: string,
+  kind: VoicePromptResult["kind"],
+): boolean {
+  return (
+    kind === "clarification" &&
+    transcript.trim().length >= TASK_RECOVERY_TRANSCRIPT_MIN_LENGTH
+  );
+}
+
+function parseVoicePromptResult(text: string): VoicePromptResult {
+  const normalized = text
+    .trim()
+    .replace(/^```(?:json)?\s*|\s*```$/g, "");
+
+  try {
+    const parsed: unknown = JSON.parse(normalized);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "kind" in parsed &&
+      "text" in parsed &&
+      (parsed.kind === "ship" ||
+        parsed.kind === "scout" ||
+        parsed.kind === "clarification") &&
+      typeof parsed.text === "string"
+    ) {
+      const cleaned = cleanDraft(parsed.text);
+      if (cleaned) return { kind: parsed.kind, text: cleaned };
+    }
+  } catch {
+    // A malformed model response must never become terminal input.
+  }
+
+  return { kind: "clarification", text: DEFAULT_CLARIFICATION };
+}
+
+export async function generateVoicePrompt(
+  options: VoicePromptOptions,
+): Promise<VoicePromptResult> {
+  const transcript = options.transcript.trim();
+  if (!transcript) throw new Error("No speech was detected. Try again.");
+
+  const model = await buildConfiguredLanguageModel(
+    options.modelId,
+    options.keys,
+    options.local,
+  );
+  const context = buildVoicePromptContext(options);
+  const prompt = `${context ? `${context}\n\n` : ""}Spoken request:\n${transcript}`;
+  const result = await generateText({
+    model,
+    system: systemFor(options.modelId),
+    prompt,
+    maxOutputTokens: VOICE_PROMPT_MAX_OUTPUT_TOKENS,
+    temperature: 0,
+    abortSignal: AbortSignal.timeout(PROMPT_GENERATION_TIMEOUT_MS),
+  });
+  const firstPass = parseVoicePromptResult(result.text);
+  if (!shouldRecoverTaskDraft(transcript, firstPass.kind)) return firstPass;
+
+  const retry = await generateText({
+    model,
+    system: recoverySystemFor(options.modelId),
+    prompt,
+    maxOutputTokens: VOICE_PROMPT_MAX_OUTPUT_TOKENS,
+    temperature: 0,
+    abortSignal: AbortSignal.timeout(PROMPT_GENERATION_TIMEOUT_MS),
+  });
+  const recovered = parseVoicePromptResult(retry.text);
+  return recovered;
+}

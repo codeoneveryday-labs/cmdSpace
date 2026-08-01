@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "name": "terax-ai",
+  "color": "",
+  "dockState": {
+    "zones": {
+      "left": {
+        "position": "left",
+        "visible": false,
+        "size": 260,
+        "layout": null
+      },
+      "right": {
+        "position": "right",
+        "visible": false,
+        "size": 260,
+        "layout": null
+      },
+      "bottom": {
+        "position": "bottom",
+        "visible": false,
+        "size": 240,
+        "layout": null
+      },
+      "center": {
+        "position": "center",
+        "visible": true,
+        "size": 0,
+        "layout": {
+          "type": "tabs",
+          "id": "6f07178b-1fc9-499f-a631-98855ef5db2d",
+          "panelIds": [
+            "d40ecf79-08bc-4778-8567-1d5db5e0516e"
+          ],
+          "activeIndex": 0
+        }
+      }
+    }
+  },
+  "panels": {
+    "634a857f-dd07-4eb1-8257-eee7c5002ef2": {
+      "type": "terminal",
+      "title": "0xboji@192:~/dev/app/terax-ai"
+    },
+    "d40ecf79-08bc-4778-8567-1d5db5e0516e": {
+      "type": "canvas",
+      "title": "Canvas"
+    }
+  },
+  "canvases": {
+    "d40ecf79-08bc-4778-8567-1d5db5e0516e": {
+      "id": "d40ecf79-08bc-4778-8567-1d5db5e0516e",
+      "canvasNodes": {
+        "7c47afec-1ece-4d27-b568-1a467d956e15": {
+          "id": "7c47afec-1ece-4d27-b568-1a467d956e15",
+          "origin": {
+            "x": 579,
+            "y": 329.5
+          },
+          "size": {
+            "width": 640,
+            "height": 400
+          },
+          "zOrder": 1,
+          "creationIndex": 0,
+          "animationState": "idle",
+          "dockLayout": {
+            "type": "tabs",
+            "id": "880ea8fa-66b1-48a4-ad24-58f46b18e72c",
+            "panelIds": [
+              "634a857f-dd07-4eb1-8257-eee7c5002ef2"
+            ],
+            "activeIndex": 0
+          }
+        }
+      },
+      "zoomLevel": 1,
+      "viewportOffset": {
+        "x": -412.96875,
+        "y": 12
+      }
+    }
+  }
+}
