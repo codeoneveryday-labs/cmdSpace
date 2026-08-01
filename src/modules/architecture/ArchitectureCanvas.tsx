@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { useBackgroundVideoPlayback } from "@/modules/theme/backgroundVideoPlayback";
+import { getBgImage } from "@/modules/theme/bgImageStore";
 import type {
   ArchitectureDiagram,
   ArchitectureDiagramEdge,
@@ -588,6 +590,9 @@ export function ArchitectureCanvas({
   onToggleCanvasFocus,
 }: Props) {
   const appZoom = usePreferencesStore((state) => state.zoomLevel);
+  const canvasBackgroundImageId = usePreferencesStore(
+    (state) => state.canvasBackgroundImageId,
+  );
   const svgRef = useRef<SVGSVGElement | null>(null);
   const initialDiagram = normalizeDiagramSeed(seed);
   const nextNodeRef = useRef(
@@ -1537,9 +1542,9 @@ export function ArchitectureCanvas({
     const point = svgPoint(event);
     const bounds = drawableBounds();
     const dragged = nodes.find((item) => item.id === drag.id);
+    if (!dragged) return;
     const terminalGroupId = drag.terminalGroupId;
     if (terminalGroupId) {
-      if (!dragged) return;
       const nextBounds = draggedNodeAtPoint(dragged, drag, point, bounds);
       setTerminalDockGroups((current) =>
         updateTerminalGroupBounds(current, terminalGroupId, nextBounds),
@@ -1603,6 +1608,35 @@ export function ArchitectureCanvas({
       }
       return;
     }
+    const nextBounds = draggedNodeAtPoint(dragged, drag, point, bounds);
+    const movedIds = new Set(
+      selectedNodeIds.includes(dragged.id) ? selectedNodeIds : [dragged.id],
+    );
+    const attachedTerminalGroupIds = new Set(
+      terminalLayouts
+        .filter((layout) =>
+          layout.terminalIds.some((terminalId) => {
+            const terminal = nodes.find((item) => item.id === terminalId);
+            return (
+              terminal?.kind === "terminal" &&
+              terminal.frameId !== undefined &&
+              movedIds.has(terminal.frameId) &&
+              !movedIds.has(terminal.id)
+            );
+          }),
+        )
+        .map((layout) => layout.groupId),
+    );
+    if (attachedTerminalGroupIds.size > 0) {
+      setTerminalDockGroups((current) =>
+        moveTerminalDockGroups(
+          current,
+          attachedTerminalGroupIds,
+          nextBounds.x - dragged.x,
+          nextBounds.y - dragged.y,
+        ),
+      );
+    }
     setNodes((current) =>
       updateDraggedNodes(current, drag, point, bounds, selectedNodeIds),
     );
@@ -1658,6 +1692,24 @@ export function ArchitectureCanvas({
             detachTerminal(current, dragged.id, terminalDropPreview),
           );
         }
+      }
+    }
+    if (drag?.terminalGroupId && !terminalDockDropTargetRef.current) {
+      const terminalGroup = terminalDockGroups.find(
+        (group) => group.id === drag.terminalGroupId,
+      );
+      if (terminalGroup) {
+        const terminalIds = terminalLayouts
+          .filter((layout) => layout.groupId === terminalGroup.id)
+          .flatMap((layout) => layout.terminalIds);
+        const frameId = snapTerminalFrame(terminalGroup, nodes)?.nodeId;
+        setNodes((current) =>
+          current.map((item) =>
+            terminalIds.includes(item.id)
+              ? { ...item, frameId }
+              : item,
+          ),
+        );
       }
     }
     setDrag(null);
@@ -1961,8 +2013,8 @@ export function ArchitectureCanvas({
     const height = canvasSize.height / scale;
     return {
       scale,
-      x: clampViewCoord(current.x, width, VIEWBOX_WIDTH),
-      y: clampViewCoord(current.y, height, VIEWBOX_HEIGHT),
+      x: clampViewCoord(current.x, width, VIEWBOX_WIDTH, canvasSize.width),
+      y: clampViewCoord(current.y, height, VIEWBOX_HEIGHT, canvasSize.height),
     };
   }
 
@@ -1970,11 +2022,17 @@ export function ArchitectureCanvas({
     value: number,
     viewportSize: number,
     canvasSize: number,
+    canvasPixels: number,
   ): number {
-    const slack = viewportSize * CANVAS_PAN_MARGIN_RATIO;
+    const slack = canvasPanMargin(viewportSize, canvasPixels);
     const min = -slack;
     const max = Math.max(canvasSize - viewportSize, 0) + slack;
     return clamp(value, min, max);
+  }
+
+  function canvasPanMargin(viewportSize: number, canvasPixels: number): number {
+    // Keep the free pan area from shrinking as the camera zooms in.
+    return Math.max(viewportSize, canvasPixels / MIN_ZOOM) * CANVAS_PAN_MARGIN_RATIO;
   }
 
   function drawableBounds(): { x: number; y: number; width: number; height: number } {
@@ -1990,7 +2048,7 @@ export function ArchitectureCanvas({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-background text-foreground">
-      <div className="absolute bottom-6 left-1/2 z-20 flex min-h-16 max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-[2.5rem] border border-zinc-300/90 bg-white/95 px-3 py-2 text-zinc-800 shadow-[0_10px_28px_rgba(15,23,42,0.15)] backdrop-blur-xl transition-all duration-200 motion-reduce:transition-none dark:border-zinc-700/90 dark:bg-zinc-900/95 dark:text-zinc-200 dark:shadow-[0_10px_28px_rgba(0,0,0,0.38)]">
+      <div className="absolute bottom-6 left-1/2 z-30 flex min-h-16 max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-[2.5rem] border border-zinc-300/90 bg-white/95 px-3 py-2 text-zinc-800 shadow-[0_10px_28px_rgba(15,23,42,0.15)] backdrop-blur-xl transition-all duration-200 motion-reduce:transition-none dark:border-zinc-700/90 dark:bg-zinc-900/95 dark:text-zinc-200 dark:shadow-[0_10px_28px_rgba(0,0,0,0.38)]">
           <ToolButton
             active={mode === "select"}
             icon={Cursor01Icon}
@@ -2092,13 +2150,14 @@ export function ArchitectureCanvas({
 
       <div className="min-h-0 flex-1">
       <main className="relative h-full min-h-0 overflow-hidden bg-[#fbfdfc] dark:bg-zinc-950">
+          <CanvasBackgroundMedia imageId={canvasBackgroundImageId} />
           <svg
             ref={svgRef}
             xmlns="http://www.w3.org/2000/svg"
             viewBox={`${view.x} ${view.y} ${viewWidth} ${viewHeight}`}
             preserveAspectRatio="none"
             className={cn(
-              "block h-full w-full",
+              "relative z-10 block h-full w-full",
               mode === "pan" && "cursor-grab active:cursor-grabbing",
               mode === "eraser" && "cursor-cell",
               isShapeDrawingMode(mode) && "cursor-crosshair",
@@ -2152,7 +2211,11 @@ export function ArchitectureCanvas({
               y={view.y}
               width={viewWidth}
               height={viewHeight}
-              fill={`url(#architecture-grid-${tabId})`}
+              fill={
+                canvasBackgroundImageId
+                  ? "transparent"
+                  : `url(#architecture-grid-${tabId})`
+              }
             />
 
             {edges.map((item) => {
@@ -2237,7 +2300,7 @@ export function ArchitectureCanvas({
             })}
           </svg>
 
-          <div className="pointer-events-none absolute inset-0">
+          <div className="pointer-events-none absolute inset-0 z-20">
             {/* Keep terminal boxes in canvas-space and move the whole layer.
                 CSS transforms do not trigger ResizeObserver, so xterm does not
                 fit and resize its PTY on every camera zoom tick. */}
@@ -2776,11 +2839,11 @@ export function ArchitectureCanvas({
             </div>
           ) : null}
 
-          <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-zinc-200 bg-white/85 px-2 py-1 text-[10px] text-zinc-500">
+          <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-border/70 bg-background/85 px-2 py-1 text-[10px] text-muted-foreground shadow-sm backdrop-blur">
             <span>{nodes.length} shapes</span>
-            <span className="h-3 w-px bg-zinc-200" />
+            <span className="h-3 w-px bg-border" />
             <span>{edges.length} connections</span>
-            <span className="h-3 w-px bg-zinc-200" />
+            <span className="h-3 w-px bg-border" />
             <span>{Math.round(view.scale * 100)}%</span>
           </div>
 
@@ -2789,7 +2852,7 @@ export function ArchitectureCanvas({
               type="button"
               variant="ghost"
               size="icon"
-              className="absolute bottom-3 right-3 z-20 size-11 rounded-full border border-zinc-200 bg-white/90 text-zinc-600 shadow-sm backdrop-blur hover:bg-white hover:text-zinc-950"
+              className="absolute bottom-3 right-3 z-30 size-11 rounded-full border border-border/70 bg-background/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-background hover:text-foreground"
               onClick={onToggleCanvasFocus}
               title={canvasFocused ? "Restore canvas sidebars" : "Focus canvas"}
               aria-label={canvasFocused ? "Restore canvas sidebars" : "Focus canvas"}
@@ -2802,6 +2865,65 @@ export function ArchitectureCanvas({
 
       </div>
     </div>
+  );
+}
+
+function CanvasBackgroundMedia({ imageId }: { imageId: string | null }) {
+  const [media, setMedia] = useState<{ url: string; type: string } | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    setMedia(null);
+    if (!imageId) return;
+
+    void getBgImage(imageId)
+      .then((blob) => {
+        if (!blob) return;
+        objectUrl = URL.createObjectURL(blob);
+        if (alive) setMedia({ url: objectUrl, type: blob.type });
+        else URL.revokeObjectURL(objectUrl);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [imageId]);
+
+  useBackgroundVideoPlayback(
+    videoRef,
+    media?.type.startsWith("video/") === true ? media.url : null,
+  );
+
+  if (!media) return null;
+  if (media.type.startsWith("video/")) {
+    return (
+      <video
+        ref={videoRef}
+        aria-hidden
+        loop
+        muted
+        playsInline
+        preload="auto"
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+      />
+    );
+  }
+  return (
+    <div
+      aria-hidden
+      className="absolute inset-0"
+      style={{
+        backgroundImage: `url(${media.url})`,
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
+        pointerEvents: "none",
+      }}
+    />
   );
 }
 
@@ -3513,7 +3635,9 @@ function edgeAnchorPoint(
   };
 }
 
-function nodeCenter(node: ArchitectureNode): Point {
+function nodeCenter(
+  node: Pick<ArchitectureNode, "x" | "y" | "width" | "height">,
+): Point {
   return {
     x: node.x + node.width / 2,
     y: node.y + node.height / 2,
@@ -3707,6 +3831,20 @@ function updateDraggedNodes(
   });
 }
 
+function moveTerminalDockGroups(
+  groups: ArchitectureTerminalDockGroup[],
+  groupIds: ReadonlySet<string>,
+  dx: number,
+  dy: number,
+): ArchitectureTerminalDockGroup[] {
+  if (groupIds.size === 0 || (dx === 0 && dy === 0)) return groups;
+  return groups.map((group) =>
+    groupIds.has(group.id)
+      ? { ...group, x: group.x + dx, y: group.y + dy }
+      : group,
+  );
+}
+
 function draggedNodeAtPoint(
   node: ArchitectureNode,
   drag: DragState,
@@ -3764,7 +3902,7 @@ function snapTextAttachment(
 }
 
 function snapTerminalFrame(
-  terminal: ArchitectureNode,
+  terminal: Pick<ArchitectureNode, "x" | "y" | "width" | "height">,
   nodes: ArchitectureNode[],
 ): { nodeId: string } | null {
   const center = nodeCenter(terminal);

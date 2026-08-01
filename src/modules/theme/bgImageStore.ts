@@ -72,7 +72,9 @@ const MAX_DIM = 2560;
 const JPEG_QUALITY = 0.88;
 const MAX_STATIC_BYTES = 30 * 1024 * 1024;
 const MAX_ANIMATED_BYTES = 10 * 1024 * 1024;
+const MAX_BACKGROUND_VIDEO_BYTES = 65 * 1024 * 1024;
 const WEBP_SNIFF_BYTES = 64;
+const BACKGROUND_VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -137,6 +139,32 @@ export async function importBgImageFromFile(file: File): Promise<{ id: string; b
   } finally {
     bitmap.close();
   }
+}
+
+export async function importBackgroundMediaFromFile(
+  file: File,
+): Promise<{ id: string; blob: Blob }> {
+  const type = backgroundVideoType(file);
+  if (!type) return importBgImageFromFile(file);
+  if (file.size > MAX_BACKGROUND_VIDEO_BYTES) {
+    throw new Error(
+      `Background videos are limited to 65 MB. This one is ${formatBytes(file.size)}.`,
+    );
+  }
+  const id = crypto.randomUUID();
+  const blob = file.slice(0, file.size, type);
+  await putBgImage(id, blob);
+  return { id, blob };
+}
+
+function backgroundVideoType(file: File): "video/mp4" | "video/webm" | null {
+  const type = file.type.toLowerCase();
+  if (BACKGROUND_VIDEO_TYPES.has(type)) {
+    return type as "video/mp4" | "video/webm";
+  }
+  if (/\.mp4$/i.test(file.name)) return "video/mp4";
+  if (/\.webm$/i.test(file.name)) return "video/webm";
+  return null;
 }
 
 async function encodeJpeg(

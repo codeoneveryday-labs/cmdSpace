@@ -5,6 +5,7 @@ import {
 import { BG_OPACITY_RENDER_FACTOR } from "@/modules/settings/store";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useBackgroundVideoPlayback } from "./backgroundVideoPlayback";
 
 const OVERLAY_Z = 2147483646;
 const RESIZE_IDLE_MS = 280;
@@ -18,20 +19,23 @@ export function SurfaceLayer() {
   const hydrated = usePreferencesStore((s) => s.hydrated);
   const active = hydrated ? storeActive : fastPath.active;
   if (!active) return null;
-  return <BackgroundImage fastImageId={fastPath.imageId} />;
+  return <BackgroundMedia fastImageId={fastPath.imageId} />;
 }
 
-function BackgroundImage({ fastImageId }: { fastImageId: string | null }) {
+function BackgroundMedia({ fastImageId }: { fastImageId: string | null }) {
   const storeImageId = usePreferencesStore((s) => s.backgroundImageId);
   const hydrated = usePreferencesStore((s) => s.hydrated);
   const imageId = hydrated ? storeImageId : fastImageId;
   const opacity = usePreferencesStore((s) => s.backgroundOpacity);
   const blur = usePreferencesStore((s) => s.backgroundBlur);
-  const [state, setState] = useState<{ url: string; animated: boolean } | null>(
-    null,
-  );
+  const [media, setMedia] = useState<{
+    url: string;
+    type: string;
+    animated: boolean;
+  } | null>(null);
   const [visible, setVisible] = useState(false);
   const lastUrlRef = useRef<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const resizing = useWindowResizing(RESIZE_IDLE_MS);
   const docHidden = useDocumentHidden();
 
@@ -50,7 +54,7 @@ function BackgroundImage({ fastImageId }: { fastImageId: string | null }) {
       const t = blob.type.toLowerCase();
       const animated =
         t === "image/gif" || t === "image/apng" || t === "image/webp";
-      setState({ url, animated });
+      setMedia({ url, type: t, animated });
       rafId = requestAnimationFrame(() => {
         rafId = null;
         if (alive) setVisible(true);
@@ -62,6 +66,11 @@ function BackgroundImage({ fastImageId }: { fastImageId: string | null }) {
     };
   }, [imageId]);
 
+  useBackgroundVideoPlayback(
+    videoRef,
+    media?.type.startsWith("video/") === true ? media.url : null,
+  );
+
   useEffect(() => {
     return () => {
       if (lastUrlRef.current) {
@@ -71,8 +80,9 @@ function BackgroundImage({ fastImageId }: { fastImageId: string | null }) {
     };
   }, []);
 
-  if (!state || typeof document === "undefined") return null;
-  const { url, animated } = state;
+  if (!media || typeof document === "undefined") return null;
+  const { url, animated } = media;
+  const isVideo = media.type.startsWith("video/");
 
   const suspendAnimated = animated && (resizing || docHidden);
   const blurActive = !animated && blur > 0 && !resizing;
@@ -88,7 +98,9 @@ function BackgroundImage({ fastImageId }: { fastImageId: string | null }) {
         inset: 0,
         zIndex: OVERLAY_Z,
         pointerEvents: "none",
-        backgroundImage: suspendAnimated ? "none" : `url(${url})`,
+        overflow: "hidden",
+        backgroundImage:
+          isVideo || suspendAnimated ? "none" : `url(${url})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         opacity: renderedOpacity,
@@ -96,7 +108,18 @@ function BackgroundImage({ fastImageId }: { fastImageId: string | null }) {
         transform: "translateZ(0)",
         transition: `opacity ${FADE_IN_MS}ms ease-out`,
       }}
-    />,
+    >
+      {isVideo ? (
+        <video
+          ref={videoRef}
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className="h-full w-full object-cover"
+        />
+      ) : null}
+    </div>,
     document.body,
   );
 }
