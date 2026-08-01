@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const sourcePath = path.join(here, "CanvasTerminalNode.tsx");
+const globalsPath = path.join(here, "../../styles/globals.css");
 
 describe("CanvasTerminalNode", () => {
   it("owns an isolated PTY lifecycle instead of the shared terminal pane session", () => {
@@ -61,6 +62,18 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("cmdspace-canvas-terminal-viewport");
     expect(source).toContain("min-h-0 min-w-0 flex-1 overflow-hidden");
     expect(source).not.toContain("transformOrigin: \"top left\"");
+  });
+
+  it("keeps a draggable vertical scrollbar available on canvas terminals", () => {
+    const styles = readFileSync(globalsPath, "utf8");
+
+    expect(styles).toContain(
+      ".cmdspace-canvas-terminal-viewport .xterm .scrollbar.vertical",
+    );
+    expect(styles).toContain(
+      ".cmdspace-canvas-terminal-viewport .xterm .xterm-viewport",
+    );
+    expect(styles).toContain("overflow-y: scroll !important;");
   });
 
   it("keeps the canvas terminal header free of folder and branch controls", () => {
@@ -159,7 +172,7 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain('aria-label="Close terminal group"');
   });
 
-  it("forwards trackpad pan and zoom gestures from a terminal in every canvas mode", () => {
+  it("lets normal trackpad scrolling reach xterm while preserving Canvas pan and zoom", () => {
     const source = readFileSync(sourcePath, "utf8");
 
     expect(source).toContain("panning: boolean");
@@ -170,6 +183,8 @@ describe("CanvasTerminalNode", () => {
   expect(source).toContain("if (!panning) return;");
   expect(source).toContain("onPointerDownCapture");
   expect(source).toContain("onWheelCapture");
-  expect(source).not.toContain("if (!panning && !event.ctrlKey && !event.metaKey) return;");
+  expect(source).toContain(
+    "if (!panning && !event.ctrlKey && !event.metaKey) return;",
+  );
   });
 });
