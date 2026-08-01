@@ -65,7 +65,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Write Apple API key to disk
-        if: startsWith(matrix.platform, 'macos')
+        if: startsWith(matrix.platform, 'macos') && secrets.APPLE_API_KEY_PATH != ''
         shell: bash
         env:
           KEY_CONTENT: ${{ secrets.APPLE_API_KEY_PATH }}
@@ -89,8 +89,8 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Terax ${{ github.ref_name }}"
-          releaseBody: "See the assets to download and install. Auto-update is built in."
-          releaseDraft: true
+          releaseName: "cmdSpace ${{ github.ref_name }}"
+          releaseBody: "Installers for macOS, Windows, and Linux. This first public release is unsigned, so your platform may show a security prompt during installation."
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

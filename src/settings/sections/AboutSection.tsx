@@ -8,8 +8,8 @@ import { arch, platform } from "@tauri-apps/plugin-os";
 import { useEffect, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
 
-const REPO_URL = "https://github.com/tranhoangpich/cmdSpace";
-const WEBSITE = "https://github.com/tranhoangpich/cmdSpace";
+const REPO_URL = "https://github.com/codeoneveryday-labs/cmdSpace";
+const WEBSITE = "https://github.com/codeoneveryday-labs/cmdSpace";
 
 const PLATFORM_LABEL: Record<string, string> = {
   macos: "macOS",
@@ -103,7 +103,7 @@ export function AboutSection() {
             className="inline-flex items-center gap-1.5 rounded-md text-[12px] underline-offset-2 hover:text-foreground hover:underline"
           >
             <HugeiconsIcon icon={GithubIcon} size={12} strokeWidth={1.75} />
-            tranhoangpich/cmdSpace
+            codeoneveryday-labs/cmdSpace
           </button>
         </dd>
         <dt className="text-muted-foreground">Website</dt>
@@ -114,7 +114,7 @@ export function AboutSection() {
             className="inline-flex items-center gap-1.5 rounded-md text-[12px] underline-offset-2 hover:text-foreground hover:underline"
           >
             <HugeiconsIcon icon={Globe02Icon} size={12} strokeWidth={1.75} />
-            github.com/tranhoangpich/cmdSpace
+            github.com/codeoneveryday-labs/cmdSpace
           </button>
         </dd>
       </dl>

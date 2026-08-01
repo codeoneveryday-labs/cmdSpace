@@ -2,7 +2,7 @@
 
 cmdSpace direction, what's shipped, what's coming, and what's deliberately out of scope.
 
-This file is updated as direction evolves. For day-to-day work, see [GitHub Issues](https://github.com/tranhoangpich/cmdSpace/issues) and the Projects board.
+This file is updated as direction evolves. For day-to-day work, see [GitHub Issues](https://github.com/codeoneveryday-labs/cmdSpace/issues) and the Projects board.
 
 ## What cmdSpace is
 

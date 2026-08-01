@@ -8,7 +8,7 @@ const LAST_CHECK_KEY = "cmdspace:updater:last-check";
 const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const AUTO_CHECK_ENABLED = !import.meta.env.DEV;
 const GITHUB_LATEST_RELEASE =
-  "https://api.github.com/repos/tranhoangpich/cmdSpace/releases/latest";
+  "https://api.github.com/repos/codeoneveryday-labs/cmdSpace/releases/latest";
 
 export interface ManualUpdateInfo {
   version: string;

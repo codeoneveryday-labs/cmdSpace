@@ -1,24 +1,33 @@
 mod modules;
 
 use modules::{agent_usage, db, fs, git, net, pty, remote, secrets, shell, speech, workspace};
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc, Mutex,
+use std::sync::Mutex;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
 };
-use std::time::Duration;
-use tauri::{
-    Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindowBuilder,
-};
+use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use tauri::{LogicalPosition, LogicalSize};
 use tauri_plugin_window_state::StateFlags;
 
 /// Drained on first read so HMR / re-mounts can't replay the launch dir.
 #[derive(Default)]
 struct LaunchDir(Mutex<Option<String>>);
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 #[derive(Clone, Default)]
 struct DesktopBlurState {
     transition: Arc<AtomicU64>,
 }
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[derive(Default)]
+struct DesktopBlurState;
 
 #[cfg(all(test, target_os = "macos"))]
 mod desktop_blur_tests {
@@ -172,7 +181,7 @@ fn set_windows_window_alpha<R: tauri::Runtime>(
         WS_EX_LAYERED,
     };
 
-    let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?.0;
     window
         .run_on_main_thread(move || unsafe {
             let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -194,8 +203,8 @@ fn order_windows_overlay_below<R: tauri::Runtime>(
         SWP_NOSIZE,
     };
 
-    let overlay = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
-    let main = relative_to.hwnd().map_err(|e| e.to_string())?.0 as isize;
+    let overlay = window.hwnd().map_err(|e| e.to_string())?.0;
+    let main = relative_to.hwnd().map_err(|e| e.to_string())?.0;
     window
         .run_on_main_thread(move || unsafe {
             let flags =
@@ -411,13 +420,13 @@ async fn set_desktop_blur(
 ) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        return set_windows_desktop_blur(app, state, enabled);
+        set_windows_desktop_blur(app, state, enabled)
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = (app, state, enabled);
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "macos")]

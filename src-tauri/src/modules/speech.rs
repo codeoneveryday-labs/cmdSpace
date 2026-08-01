@@ -373,6 +373,7 @@ exit [CmdSpaceSpeech]::Run($env:CMDSPACE_SPEECH_LANGUAGE)
 "#;
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn emit_error(app: &AppHandle, message: impl Into<String>) {
     let _ = app.emit("cmdspace:speech-error", message.into());
 }
@@ -556,7 +557,7 @@ mod macos {
             },
         );
         let task = unsafe {
-            recognizer.recognitionTaskWithRequest_resultHandler(&request, &*result_handler)
+            recognizer.recognitionTaskWithRequest_resultHandler(&request, &result_handler)
         };
 
         unsafe { engine.prepare() };
@@ -609,7 +610,7 @@ mod macos {
         let Some(channels) = NonNull::new(unsafe { buffer.floatChannelData() }) else {
             return 0.0;
         };
-        let stride = unsafe { buffer.stride() } as usize;
+        let stride = unsafe { buffer.stride() };
         if stride == 0 {
             return 0.0;
         }

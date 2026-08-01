@@ -45,9 +45,7 @@ impl InitialCommandBootstrap {
     }
 
     fn take_when_prompt_ready(&mut self, bytes: &[u8]) -> Option<String> {
-        if self.command.is_none() {
-            return None;
-        }
+        self.command.as_ref()?;
         self.marker_tail.extend_from_slice(bytes);
         if self
             .marker_tail

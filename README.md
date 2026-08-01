@@ -5,7 +5,7 @@
   <p><strong>Lightweight Terminal-first AI-native dev workspace.</strong></p>
 
   <p>
-    <img src="https://img.shields.io/github/v/release/tranhoangpich/cmdSpace?label=version&color=blue" alt="version" />
+    <img src="https://img.shields.io/github/v/release/codeoneveryday-labs/cmdSpace?label=version&color=blue" alt="version" />
     <img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="license" />
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="platform" />
   </p>
@@ -88,7 +88,7 @@ cmdSpace is a lightweight open-source terminal (ADE) built on Tauri 2 + Rust and
 
 ## Install
 
-Latest installers are on the [Releases](https://github.com/tranhoangpich/cmdSpace/releases/latest) page. cmdSpace auto-updates from there.
+Latest installers are on the [Releases](https://github.com/codeoneveryday-labs/cmdSpace/releases/latest) page. Automatic updates will be enabled once release signing is configured.
 
 ### Windows notes
 
