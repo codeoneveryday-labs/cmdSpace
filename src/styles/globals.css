@@ -341,6 +341,29 @@ html[data-chrome="borderless"] #settings-root {
   max-height: 100%;
 }
 
+/* Canvas terminals need a persistent drag target for scrollback. Keep the
+ * app-wide scrollbar suppression for normal panes, but restore xterm's
+ * vertical scrollbar (and the native viewport fallback) inside the canvas. */
+.cmdspace-canvas-terminal-viewport .xterm .xterm-viewport {
+  right: 0 !important;
+  opacity: 1 !important;
+  overflow-y: scroll !important;
+  scrollbar-width: thin !important;
+  -ms-overflow-style: auto !important;
+}
+.cmdspace-canvas-terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar {
+  display: block !important;
+  width: 9px !important;
+}
+.cmdspace-canvas-terminal-viewport .xterm .scrollbar.vertical,
+.cmdspace-canvas-terminal-viewport .xterm .xterm-scrollable-element > .scrollbar.vertical {
+  display: block !important;
+  visibility: visible !important;
+  width: 9px !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+}
+
 /* Prevent WebKit scroll-into-view behavior when xterm's helper textarea is focused.
    Positioning it fixed avoids browser horizontal scrolling, which keeps the WebKit
    IME/NSTextInputContext active and allows Vietnamese typing. */
