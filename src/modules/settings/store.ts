@@ -52,6 +52,7 @@ export type Preferences = {
   backgroundImageId: string | null;
   backgroundOpacity: number;
   backgroundBlur: number;
+  canvasBackgroundImageId: string | null;
   defaultModelId: ModelId;
   editorTheme: EditorThemeId;
   customInstructions: string;
@@ -93,6 +94,7 @@ const KEY_BG_KIND = "backgroundKind";
 const KEY_BG_IMAGE_ID = "backgroundImageId";
 const KEY_BG_OPACITY = "backgroundOpacity";
 const KEY_BG_BLUR = "backgroundBlur";
+const KEY_CANVAS_BG_IMAGE_ID = "canvasBackgroundImageId";
 const KEY_DEFAULT_MODEL = "defaultModelId";
 const KEY_EDITOR_THEME = "editorTheme";
 const KEY_CUSTOM_INSTRUCTIONS = "customInstructions";
@@ -149,6 +151,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   backgroundImageId: null,
   backgroundOpacity: 0.5,
   backgroundBlur: 0,
+  canvasBackgroundImageId: null,
   defaultModelId: DEFAULT_MODEL_ID,
   editorTheme: "atomone",
   customInstructions: "",
@@ -217,6 +220,9 @@ export async function loadPreferences(): Promise<Preferences> {
     backgroundBlur: clampBlur(
       get<number>(KEY_BG_BLUR) ?? DEFAULT_PREFERENCES.backgroundBlur,
     ),
+    canvasBackgroundImageId:
+      get<string | null>(KEY_CANVAS_BG_IMAGE_ID) ??
+      DEFAULT_PREFERENCES.canvasBackgroundImageId,
     defaultModelId:
       get<ModelId>(KEY_DEFAULT_MODEL) ?? DEFAULT_PREFERENCES.defaultModelId,
     editorTheme:
@@ -339,6 +345,12 @@ export async function setBackgroundOpacity(value: number): Promise<void> {
 
 export async function setBackgroundBlur(value: number): Promise<void> {
   await writePref(KEY_BG_BLUR, clampBlur(value));
+}
+
+export async function setCanvasBackgroundImageId(
+  value: string | null,
+): Promise<void> {
+  await writePref(KEY_CANVAS_BG_IMAGE_ID, value);
 }
 
 
@@ -515,6 +527,7 @@ export async function onPreferencesChange(
     [KEY_BG_IMAGE_ID]: "backgroundImageId",
     [KEY_BG_OPACITY]: "backgroundOpacity",
     [KEY_BG_BLUR]: "backgroundBlur",
+    [KEY_CANVAS_BG_IMAGE_ID]: "canvasBackgroundImageId",
     [KEY_DEFAULT_MODEL]: "defaultModelId",
     [KEY_EDITOR_THEME]: "editorTheme",
     [KEY_CUSTOM_INSTRUCTIONS]: "customInstructions",

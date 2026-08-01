@@ -7,11 +7,12 @@ import {
   setBackgroundImageId,
   setBackgroundKind,
   setBackgroundOpacity,
+  setCanvasBackgroundImageId,
 } from "@/modules/settings/store";
 import { useTheme } from "@/modules/theme";
 import {
   deleteBgImage,
-  importBgImageFromFile,
+  importBackgroundMediaFromFile,
 } from "@/modules/theme/bgImageStore";
 import { deleteCustomTheme, saveCustomTheme } from "@/modules/theme/customThemes";
 import { listBuiltinThemes } from "@/modules/theme/themes";
@@ -38,8 +39,10 @@ export function ThemesSection() {
 
   const [importError, setImportError] = useState<string | null>(null);
   const [bgError, setBgError] = useState<string | null>(null);
+  const [canvasBgError, setCanvasBgError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bgInputRef = useRef<HTMLInputElement | null>(null);
+  const canvasBgInputRef = useRef<HTMLInputElement | null>(null);
 
   const onCreateTheme = () => {
     void emitThemeEdit({ action: "create" });
@@ -55,6 +58,9 @@ export function ThemesSection() {
   const backgroundImageId = usePreferencesStore((s) => s.backgroundImageId);
   const backgroundOpacity = usePreferencesStore((s) => s.backgroundOpacity);
   const backgroundBlur = usePreferencesStore((s) => s.backgroundBlur);
+  const canvasBackgroundImageId = usePreferencesStore(
+    (s) => s.canvasBackgroundImageId,
+  );
 
   const handleThemeFiles = async (files: FileList | null) => {
     setImportError(null);
@@ -93,18 +99,14 @@ export function ThemesSection() {
     setBgError(null);
     if (!files || files.length === 0) return;
     const file = files[0];
-    if (!file.type.startsWith("image/")) {
-      setBgError(`${file.name}: not an image`);
-      return;
-    }
     try {
       const prev = backgroundImageId;
-      const { id } = await importBgImageFromFile(file);
+      const { id } = await importBackgroundMediaFromFile(file);
       await setBackgroundImageId(id);
       await setBackgroundKind("image");
       if (prev && prev !== id) await deleteBgImage(prev).catch(() => undefined);
     } catch (e) {
-      setBgError(e instanceof Error ? e.message : "failed to import image");
+      setBgError(e instanceof Error ? e.message : "failed to import media");
     }
   };
 
@@ -116,11 +118,36 @@ export function ThemesSection() {
     if (prev) await deleteBgImage(prev).catch(() => undefined);
   };
 
+  const onPickCanvasBgFile = () => canvasBgInputRef.current?.click();
+
+  const handleCanvasBgFiles = async (files: FileList | null) => {
+    setCanvasBgError(null);
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    try {
+      const prev = canvasBackgroundImageId;
+      const { id } = await importBackgroundMediaFromFile(file);
+      await setCanvasBackgroundImageId(id);
+      if (prev && prev !== id) await deleteBgImage(prev).catch(() => undefined);
+    } catch (e) {
+      setCanvasBgError(
+        e instanceof Error ? e.message : "failed to import media",
+      );
+    }
+  };
+
+  const onRemoveCanvasBackground = async () => {
+    setCanvasBgError(null);
+    const prev = canvasBackgroundImageId;
+    await setCanvasBackgroundImageId(null);
+    if (prev) await deleteBgImage(prev).catch(() => undefined);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <SectionHeader
         title="Themes"
-        description="Theme, background image, and customization."
+        description="Theme, background media, and customization."
       />
 
       <div
@@ -283,12 +310,14 @@ export function ThemesSection() {
               className="h-7 px-2 text-[11px]"
               onClick={onPickBgFile}
             >
-              {backgroundKind === "image" ? "Replace image" : "Choose image"}
+              {backgroundKind === "image"
+                ? "Replace media"
+                : "Choose media"}
             </Button>
             <input
               ref={bgInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/mp4,video/webm"
               className="hidden"
               onChange={(e) => {
                 void handleBgFiles(e.target.files);
@@ -335,10 +364,55 @@ export function ThemesSection() {
           </div>
         ) : (
           <p className="text-[11px] text-muted-foreground">
-            Drop an image here or pick one. Stored locally; doesn't affect the
-            default look until set.
+            Drop an image or video here, or pick one. Stored locally; doesn't
+            affect the default look until set.
           </p>
         )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <Label>Canvas background</Label>
+          <div className="flex items-center gap-2">
+            {canvasBackgroundImageId ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+                onClick={() => void onRemoveCanvasBackground()}
+              >
+                Remove
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={onPickCanvasBgFile}
+            >
+              {canvasBackgroundImageId ? "Replace media" : "Choose media"}
+            </Button>
+            <input
+              ref={canvasBgInputRef}
+              type="file"
+              accept="image/*,video/mp4,video/webm"
+              className="hidden"
+              onChange={(e) => {
+                void handleCanvasBgFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </div>
+        </div>
+        {canvasBgError ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-[11.5px] text-destructive">
+            {canvasBgError}
+          </div>
+        ) : null}
+        <p className="text-[11px] text-muted-foreground">
+          Replaces the Canvas grid. GIF, APNG, animated WebP, MP4, and WebM are
+          supported.
+        </p>
       </div>
     </div>
   );

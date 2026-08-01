@@ -9,6 +9,7 @@ const lazyStackPath = path.join(here, "ArchitectureStackLazy.tsx");
 const errorBoundaryPath = path.join(here, "ArchitectureErrorBoundary.tsx");
 const canvasPath = path.join(here, "ArchitectureCanvas.tsx");
 const canvasTerminalPath = path.join(here, "CanvasTerminalNode.tsx");
+const preferencesPath = path.join(here, "../settings/store.ts");
 const tabsPath = path.join(here, "../tabs/lib/useTabs.ts");
 const tabBarPath = path.join(here, "../tabs/TabBar.tsx");
 const appPath = path.join(here, "../../app/App.tsx");
@@ -41,6 +42,37 @@ describe("Architecture workspace page", () => {
     expect(appSource).toContain('!isArchitectureTab && "hidden pointer-events-none"');
   });
 
+  it("keeps a custom canvas background separate from the app background", () => {
+    const canvasSource = readFileSync(canvasPath, "utf8");
+    const preferencesSource = readFileSync(preferencesPath, "utf8");
+
+    expect(preferencesSource).toContain("canvasBackgroundImageId");
+    expect(preferencesSource).toContain("setCanvasBackgroundImageId");
+    expect(canvasSource).toContain("CanvasBackgroundMedia");
+    expect(canvasSource).toContain("getBgImage");
+    expect(canvasSource).toContain("useBackgroundVideoPlayback");
+    expect(canvasSource).toContain('pointerEvents: "none"');
+    expect(canvasSource).toContain('"relative z-10 block h-full w-full"');
+    expect(canvasSource).toContain('"pointer-events-none absolute inset-0 z-20"');
+    expect(canvasSource).toContain("<video");
+    expect(canvasSource).not.toContain("        autoPlay\n");
+    expect(canvasSource).not.toContain("        src={media.url}\n");
+  });
+
+  it("themes the canvas status and focus controls with semantic colors", () => {
+    const canvasSource = readFileSync(canvasPath, "utf8");
+
+    expect(canvasSource).toContain(
+      "border border-border/70 bg-background/85 px-2 py-1 text-[10px] text-muted-foreground",
+    );
+    expect(canvasSource).toContain(
+      "border border-border/70 bg-background/90 text-muted-foreground",
+    );
+    expect(canvasSource).not.toContain(
+      "border border-zinc-200 bg-white/85 px-2 py-1 text-[10px] text-zinc-500",
+    );
+  });
+
   it("adds Architecture as a first-class tab type", () => {
     const tabsSource = readFileSync(tabsPath, "utf8");
     const tabBarSource = readFileSync(tabBarPath, "utf8");
@@ -71,6 +103,9 @@ describe("Architecture workspace page", () => {
     expect(canvasSource).toContain("frameId: nextFrameId");
     expect(canvasSource).toContain('item.kind === "terminal"');
     expect(canvasSource).toContain("groupIds.has(item.frameId)");
+    expect(canvasSource).toContain("moveTerminalDockGroups");
+    expect(canvasSource).toContain("attachedTerminalGroupIds");
+    expect(canvasSource).toContain("snapTerminalFrame(terminalGroup, nodes)");
   });
 
   it("returns one-shot tools to Select while preserving Pen and Pan", () => {
@@ -185,7 +220,9 @@ describe("Architecture workspace page", () => {
     const canvasSource = readFileSync(canvasPath, "utf8");
 
     expect(canvasSource).toContain("CANVAS_PAN_MARGIN_RATIO");
-    expect(canvasSource).toContain("const slack = viewportSize * CANVAS_PAN_MARGIN_RATIO");
+    expect(canvasSource).toContain("function canvasPanMargin");
+    expect(canvasSource).toContain("Math.max(viewportSize, canvasPixels / MIN_ZOOM)");
+    expect(canvasSource).toContain("const slack = canvasPanMargin(viewportSize, canvasPixels)");
     expect(canvasSource).toContain("const min = -slack");
     expect(canvasSource).toContain("const max = Math.max(canvasSize - viewportSize, 0) + slack");
     expect(canvasSource).toContain("function drawableBounds(): { x: number; y: number; width: number; height: number }");
@@ -374,7 +411,9 @@ describe("Architecture workspace page", () => {
 
     expect(canvasSource).toContain('className="absolute bottom-6 left-1/2');
     expect(canvasSource).toContain('rounded-[2.5rem]');
-    expect(canvasSource).toContain('className="relative h-full min-h-0 overflow-hidden bg-[#fbfdfc]"');
+    expect(canvasSource).toContain(
+      'className="relative h-full min-h-0 overflow-hidden bg-[#fbfdfc] dark:bg-zinc-950"',
+    );
     expect(canvasSource).not.toContain("ARCHITECTURE_PALETTE_SHAPES");
     expect(canvasSource).not.toContain("COMPACT_PALETTE_KINDS");
     expect(canvasSource).not.toContain("Collapse shape palette");

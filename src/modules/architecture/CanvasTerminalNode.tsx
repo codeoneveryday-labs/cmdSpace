@@ -457,6 +457,9 @@ export function CanvasTerminalNode({
         onCanvasPanEnd(event);
       }}
       onWheelCapture={(event) => {
+        // Let ordinary two-finger scrolling reach xterm's scrollback. Canvas
+        // gestures remain available in Pan mode and for pinch/modified zoom.
+        if (!panning && !event.ctrlKey && !event.metaKey) return;
         event.preventDefault();
         event.stopPropagation();
         onCanvasWheel(event);

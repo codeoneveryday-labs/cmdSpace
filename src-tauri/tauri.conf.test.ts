@@ -1,0 +1,39 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const here = path.dirname(new URL(import.meta.url).pathname);
+
+describe("updater release configuration", () => {
+  it("builds signed updater artifacts and provides their signing key to releases", () => {
+    const config = JSON.parse(
+      readFileSync(path.join(here, "tauri.conf.json"), "utf8"),
+    ) as {
+      version: string;
+      bundle: { createUpdaterArtifacts: boolean };
+      plugins: { updater: { endpoints: string[] } };
+    };
+    const releaseWorkflow = readFileSync(
+      path.join(here, "../.github/workflows/release.yml"),
+      "utf8",
+    );
+    const packageManifest = JSON.parse(
+      readFileSync(path.join(here, "../package.json"), "utf8"),
+    ) as { version: string };
+    const cargoManifest = readFileSync(path.join(here, "Cargo.toml"), "utf8");
+
+    expect(config.version).toBe("0.7.25");
+    expect(packageManifest.version).toBe(config.version);
+    expect(cargoManifest).toContain(`version = "${config.version}"`);
+    expect(config.bundle.createUpdaterArtifacts).toBe(true);
+    expect(config.plugins.updater.endpoints).toContain(
+      "https://github.com/codeoneveryday-labs/cmdSpace/releases/latest/download/latest.json",
+    );
+    expect(releaseWorkflow).toContain(
+      "TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
+    );
+    expect(releaseWorkflow).toContain(
+      "TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
+    );
+  });
+});
