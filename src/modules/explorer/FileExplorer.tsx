@@ -31,13 +31,17 @@ import {
 import { ExplorerSearch, type ExplorerSearchHandle } from "./ExplorerSearch";
 import {
   EntryRow,
-  INTERNAL_PATHS_MIME,
   PendingRow,
   StatusRow,
 } from "./TreeRow";
 import { InlineInput } from "./InlineInput";
 import { copyToClipboard, revealInFinder } from "./lib/contextActions";
 import { fileIconUrl, folderIconUrl } from "./lib/iconResolver";
+import {
+  hasInternalPathType,
+  INTERNAL_PATHS_MIME,
+  readInternalPaths,
+} from "./lib/internalDrag";
 import { COMPACT_CONTENT, COMPACT_ITEM } from "./lib/menuItemClass";
 import { dirname, useFileTree, type DeletedPath } from "./lib/useFileTree";
 import { canMovePathsTo, getSelectionRange, removeDescendants } from "./lib/selection";
@@ -96,19 +100,6 @@ async function fileToBase64(file: File): Promise<string> {
 function basename(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : path;
-}
-
-function parseDraggedPaths(serialized: string): string[] {
-  if (!serialized) return [];
-  try {
-    const paths = JSON.parse(serialized) as unknown;
-    return Array.isArray(paths) &&
-      paths.every((candidate) => typeof candidate === "string")
-      ? paths
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 function buildRows(
@@ -552,9 +543,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
 
     const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
       if (isEditableTarget(event.target)) return;
-      const internalPaths = parseDraggedPaths(
-        event.clipboardData.getData(INTERNAL_PATHS_MIME),
-      );
+      const internalPaths = readInternalPaths(event.clipboardData);
       if (internalPaths.length > 0) {
         event.preventDefault();
         void tree.importPaths(internalPaths, dropDestination()).catch((error) => {
@@ -712,7 +701,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
                   if (event.target === event.currentTarget) clearSelection();
                 }}
                 onDragOver={(event) => {
-                  if (event.dataTransfer.types.includes(INTERNAL_PATHS_MIME)) {
+                  if (hasInternalPathType(event.dataTransfer)) {
                     event.preventDefault();
                     event.dataTransfer.dropEffect = "move";
                     return;
@@ -728,14 +717,13 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
                 }}
                 onDrop={(event) => {
                   setIsDroppingFiles(false);
-                  const serialized = event.dataTransfer.getData(INTERNAL_PATHS_MIME);
+                  const paths = readInternalPaths(event.dataTransfer);
                   const target = (event.target as HTMLElement).closest<HTMLElement>(
                     "[data-fs-path]",
                   );
-                  if (serialized && !target) {
+                  if (paths.length > 0 && !target) {
                     event.preventDefault();
-                    const paths = parseDraggedPaths(serialized);
-                    if (paths.length > 0) movePaths(paths, rootPath, true);
+                    movePaths(paths, rootPath, true);
                     return;
                   }
                   const files = Array.from(event.dataTransfer.files);

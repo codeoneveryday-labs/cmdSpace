@@ -16,6 +16,11 @@ import {
   revealInFinder,
 } from "./lib/contextActions";
 import { fileIconUrl, folderIconUrl } from "./lib/iconResolver";
+import {
+  hasInternalPathType,
+  readInternalPaths,
+  writeInternalPaths,
+} from "./lib/internalDrag";
 import { COMPACT_CONTENT, COMPACT_ITEM } from "./lib/menuItemClass";
 import type { useFileTree } from "./lib/useFileTree";
 
@@ -39,8 +44,6 @@ export type EntryRowProps = {
   dragPaths: string[];
   onMovePaths: (paths: string[], targetPath: string, targetIsDir: boolean) => void;
 };
-
-export const INTERNAL_PATHS_MIME = "application/x-cmdspace-paths";
 
 function isMarkdownPath(path: string): boolean {
   return /\.(md|markdown|mdx)$/i.test(path);
@@ -81,28 +84,21 @@ function EntryRowImpl(props: EntryRowProps) {
 
   const handleDragStart = (event: React.DragEvent<HTMLButtonElement>) => {
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData(INTERNAL_PATHS_MIME, JSON.stringify(dragPaths));
-    event.dataTransfer.setData("text/plain", path);
+    writeInternalPaths(event.dataTransfer, dragPaths);
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLButtonElement>) => {
-    if (!event.dataTransfer.types.includes(INTERNAL_PATHS_MIME)) return;
+    if (!hasInternalPathType(event.dataTransfer)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   };
 
   const handleDrop = (event: React.DragEvent<HTMLButtonElement>) => {
-    const serialized = event.dataTransfer.getData(INTERNAL_PATHS_MIME);
-    if (!serialized) return;
+    const paths = readInternalPaths(event.dataTransfer);
+    if (paths.length === 0) return;
     event.preventDefault();
-    try {
-      const paths = JSON.parse(serialized) as unknown;
-      if (Array.isArray(paths) && paths.every((candidate) => typeof candidate === "string")) {
-        onMovePaths(paths, path, isDir);
-      }
-    } catch {
-      // Ignore malformed data from another app or a stale drag session.
-    }
+    event.stopPropagation();
+    onMovePaths(paths, path, isDir);
   };
 
   return (

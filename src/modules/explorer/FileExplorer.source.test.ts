@@ -18,6 +18,10 @@ const appSource = readFileSync(
   resolve(process.cwd(), "src/app/App.tsx"),
   "utf8",
 );
+const internalDragSource = readFileSync(
+  resolve(process.cwd(), "src/modules/explorer/lib/internalDrag.ts"),
+  "utf8",
+);
 
 describe("Explorer file transfer integration", () => {
   it("imports native dropped paths and browser clipboard files", () => {
@@ -29,7 +33,9 @@ describe("Explorer file transfer integration", () => {
   });
 
   it("moves internal Explorer drags with an isolated data-transfer type", () => {
-    expect(rowSource).toContain('application/x-cmdspace-paths');
+    expect(internalDragSource).toContain('application/x-cmdspace-paths');
+    expect(internalDragSource).toContain("INTERNAL_PATHS_TEXT_PREFIX");
+    expect(rowSource).toContain("readInternalPaths(event.dataTransfer)");
     expect(rowSource).toContain("onMovePaths(paths, path, isDir)");
     expect(explorerSource).toContain("tree.movePaths(sources, destination)");
   });
@@ -37,7 +43,7 @@ describe("Explorer file transfer integration", () => {
   it("copies and pastes the selected Explorer paths with platform shortcuts", () => {
     expect(explorerSource).toContain("onCopy={handleCopy}");
     expect(explorerSource).toContain("event.clipboardData.setData(");
-    expect(explorerSource).toContain("event.clipboardData.getData(INTERNAL_PATHS_MIME)");
+    expect(explorerSource).toContain("readInternalPaths(event.clipboardData)");
     expect(explorerSource).toContain("tree.importPaths(internalPaths, dropDestination())");
   });
 
