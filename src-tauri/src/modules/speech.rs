@@ -385,10 +385,8 @@ mod macos {
     use super::emit_error;
     use block2::RcBlock;
     use objc2::{rc::Retained, runtime::Bool, AnyThread};
-    use objc2_avf_audio::{
-        AVAudioApplication, AVAudioApplicationRecordPermission, AVAudioEngine, AVAudioInputNode,
-        AVAudioPCMBuffer, AVAudioTime,
-    };
+    use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
+    use objc2_avf_audio::{AVAudioEngine, AVAudioInputNode, AVAudioPCMBuffer, AVAudioTime};
     use objc2_foundation::{NSError, NSLocale, NSString};
     use objc2_speech::{
         SFSpeechAudioBufferRecognitionRequest, SFSpeechRecognitionResult, SFSpeechRecognitionTask,
@@ -470,12 +468,14 @@ mod macos {
     }
 
     fn request_microphone_permission(app: AppHandle, request_id: u64, language: Option<String>) {
-        let permission = unsafe { AVAudioApplication::sharedInstance().recordPermission() };
-        if permission == AVAudioApplicationRecordPermission::Granted {
+        let media_type =
+            unsafe { AVMediaTypeAudio.expect("AVFoundation must expose the audio media type") };
+        let permission = unsafe { AVCaptureDevice::authorizationStatusForMediaType(media_type) };
+        if permission == AVAuthorizationStatus::Authorized {
             request_speech_authorization(app, request_id, language);
             return;
         }
-        if permission == AVAudioApplicationRecordPermission::Denied {
+        if permission != AVAuthorizationStatus::NotDetermined {
             emit_error(&app, microphone_permission_message());
             return;
         }
@@ -496,7 +496,9 @@ mod macos {
                 }
             });
         });
-        unsafe { AVAudioApplication::requestRecordPermissionWithCompletionHandler(&authorization) };
+        unsafe {
+            AVCaptureDevice::requestAccessForMediaType_completionHandler(media_type, &authorization)
+        };
     }
 
     fn request_speech_authorization(app: AppHandle, request_id: u64, language: Option<String>) {
