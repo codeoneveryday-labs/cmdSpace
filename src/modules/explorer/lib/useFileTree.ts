@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-import { removeDescendants } from "./selection";
+import { canMovePathsTo, removeDescendants } from "./selection";
 
 export type DirEntry = {
   name: string;
@@ -270,6 +270,55 @@ export function useFileTree(rootPath: string | null, options?: Options) {
     [fetchChildren, options],
   );
 
+  const movePaths = useCallback(
+    async (paths: string[], destination: string) => {
+      const sources = removeDescendants(paths);
+      if (!canMovePathsTo(sources, destination)) {
+        throw new Error("A folder cannot be moved into itself.");
+      }
+      const refreshPaths = new Set<string>([destination]);
+      for (const from of sources) {
+        const to = joinPath(destination, from.slice(from.lastIndexOf("/") + 1));
+        await invoke("fs_rename", {
+          from,
+          to,
+          workspace: currentWorkspaceEnv(),
+        });
+        options?.onPathRenamed?.(from, to);
+        refreshPaths.add(dirname(from));
+      }
+      await Promise.all([...refreshPaths].map((path) => fetchChildren(path)));
+    },
+    [fetchChildren, options],
+  );
+
+  const importPaths = useCallback(
+    async (sources: string[], destination: string) => {
+      const imported = await invoke<string[]>("fs_import_paths", {
+        sources,
+        destination,
+        workspace: currentWorkspaceEnv(),
+      });
+      await fetchChildren(destination);
+      return imported;
+    },
+    [fetchChildren],
+  );
+
+  const importClipboardFile = useCallback(
+    async (name: string, dataBase64: string, destination: string) => {
+      const imported = await invoke<string>("fs_import_clipboard_file", {
+        name,
+        dataBase64,
+        destination,
+        workspace: currentWorkspaceEnv(),
+      });
+      await fetchChildren(destination);
+      return imported;
+    },
+    [fetchChildren],
+  );
+
   const restorePaths = useCallback(
     async (records: DeletedPath[]) => {
       const parents = new Set<string>();
@@ -307,6 +356,9 @@ export function useFileTree(rootPath: string | null, options?: Options) {
     commitRename,
     deletePath,
     deletePaths,
+    movePaths,
+    importPaths,
+    importClipboardFile,
     restorePaths,
     joinPath,
   };

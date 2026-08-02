@@ -2,6 +2,7 @@ use std::io::Write;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
 use tauri::Emitter;
 use tempfile::NamedTempFile;
@@ -9,6 +10,7 @@ use tempfile::NamedTempFile;
 use crate::modules::workspace::{resolve_path, WorkspaceEnv};
 
 const MAX_READ_BYTES: u64 = 10 * 1024 * 1024; // 10 MB
+const MAX_IMAGE_BYTES: u64 = 25 * 1024 * 1024;
 const BINARY_SNIFF_BYTES: usize = 8 * 1024;
 
 #[derive(Serialize)]
@@ -26,6 +28,26 @@ pub enum ReadResult {
         size: u64,
         limit: u64,
     },
+}
+
+#[derive(Serialize)]
+pub struct ImageData {
+    pub data_url: String,
+    pub size: u64,
+}
+
+fn image_mime_type(path: &Path) -> Option<&'static str> {
+    match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        "svg" => Some("image/svg+xml"),
+        "bmp" => Some("image/bmp"),
+        "ico" => Some("image/x-icon"),
+        "avif" => Some("image/avif"),
+        _ => None,
+    }
 }
 
 #[derive(Serialize)]
@@ -76,6 +98,28 @@ pub fn fs_read_file(path: String, workspace: Option<WorkspaceEnv>) -> Result<Rea
         Ok(content) => Ok(ReadResult::Text { content, size }),
         Err(_) => Ok(ReadResult::Binary { size }),
     }
+}
+
+#[tauri::command]
+pub fn fs_read_image(path: String, workspace: Option<WorkspaceEnv>) -> Result<ImageData, String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    let image_path = resolve_path(&path, &workspace);
+    let mime = image_mime_type(&image_path)
+        .ok_or_else(|| format!("unsupported image type: {}", image_path.display()))?;
+    let size = std::fs::metadata(&image_path)
+        .map_err(|error| error.to_string())?
+        .len();
+    if size > MAX_IMAGE_BYTES {
+        return Err(format!(
+            "image exceeds the {} MB preview limit",
+            MAX_IMAGE_BYTES / 1024 / 1024
+        ));
+    }
+    let bytes = std::fs::read(&image_path).map_err(|error| error.to_string())?;
+    Ok(ImageData {
+        data_url: format!("data:{mime};base64,{}", STANDARD.encode(bytes)),
+        size,
+    })
 }
 
 #[derive(Serialize, Clone)]
@@ -198,5 +242,18 @@ mod tests {
         assert_eq!(std::fs::read(&target).unwrap(), b"payload");
         // The pre-staged symlink target must not have been written through.
         assert_eq!(std::fs::read(&outside).unwrap(), b"untouched");
+    }
+
+    #[test]
+    fn recognizes_supported_image_extensions_case_insensitively() {
+        assert_eq!(
+            image_mime_type(Path::new("poster.JPEG")),
+            Some("image/jpeg")
+        );
+        assert_eq!(
+            image_mime_type(Path::new("diagram.svg")),
+            Some("image/svg+xml")
+        );
+        assert_eq!(image_mime_type(Path::new("archive.zip")), None);
     }
 }

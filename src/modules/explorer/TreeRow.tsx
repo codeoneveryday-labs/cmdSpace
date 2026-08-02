@@ -36,7 +36,11 @@ export type EntryRowProps = {
   onRevealInTerminal?: (path: string) => void;
   onAttachToAgent?: (path: string) => void;
   onOpenMarkdownPreview?: (path: string) => void;
+  dragPaths: string[];
+  onMovePaths: (paths: string[], targetPath: string, targetIsDir: boolean) => void;
 };
+
+const INTERNAL_PATHS_MIME = "application/x-cmdspace-paths";
 
 function isMarkdownPath(path: string): boolean {
   return /\.(md|markdown|mdx)$/i.test(path);
@@ -58,6 +62,8 @@ function EntryRowImpl(props: EntryRowProps) {
     onRevealInTerminal,
     onAttachToAgent,
     onOpenMarkdownPreview,
+    dragPaths,
+    onMovePaths,
   } = props;
 
   const [isConfirming, setIsConfirming] = useState(false);
@@ -71,6 +77,32 @@ function EntryRowImpl(props: EntryRowProps) {
     if (event.shiftKey) return;
     if (isDir) tree.toggle(path);
     else onOpenFile(path);
+  };
+
+  const handleDragStart = (event: React.DragEvent<HTMLButtonElement>) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(INTERNAL_PATHS_MIME, JSON.stringify(dragPaths));
+    event.dataTransfer.setData("text/plain", path);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLButtonElement>) => {
+    if (!event.dataTransfer.types.includes(INTERNAL_PATHS_MIME)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLButtonElement>) => {
+    const serialized = event.dataTransfer.getData(INTERNAL_PATHS_MIME);
+    if (!serialized) return;
+    event.preventDefault();
+    try {
+      const paths = JSON.parse(serialized) as unknown;
+      if (Array.isArray(paths) && paths.every((candidate) => typeof candidate === "string")) {
+        onMovePaths(paths, path, isDir);
+      }
+    } catch {
+      // Ignore malformed data from another app or a stale drag session.
+    }
   };
 
   return (
@@ -97,7 +129,12 @@ function EntryRowImpl(props: EntryRowProps) {
           <button
             type="button"
             data-fs-path={path}
+            data-fs-is-dir={isDir}
+            draggable
             onClick={handleClick}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
             onContextMenu={() => {
               if (!isSelected) onSelectPath(path, false);
             }}
