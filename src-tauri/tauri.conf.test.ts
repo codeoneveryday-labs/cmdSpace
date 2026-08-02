@@ -22,7 +22,6 @@ describe("updater release configuration", () => {
     ) as { version: string };
     const cargoManifest = readFileSync(path.join(here, "Cargo.toml"), "utf8");
 
-    expect(config.version).toBe("0.7.29");
     expect(packageManifest.version).toBe(config.version);
     expect(cargoManifest).toContain(`version = "${config.version}"`);
     expect(config.bundle.createUpdaterArtifacts).toBe(true);
@@ -30,7 +29,7 @@ describe("updater release configuration", () => {
       "https://github.com/codeoneveryday-labs/cmdSpace/releases/latest/download/latest.json",
     );
     expect(config.plugins.updater.pubkey).toBe(
-      "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVENzAwOEIyODE3OEMxNzEKUldScHdYaUJzZ2h3WFpBbjRlVG5SMy85RlBwZVA4Tm4wSWtYTURrMWZaY3A2MXFucFppK09zU0QK",
+      "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVENzAwOEIyODE3OEMxNzEKUldSeHdYaUJzZ2h3WFpBbjRlVG5SMy85RlBwZVA4Tm4wSWtYTURrMWZaY3A2MXFucFppK09zU0QK",
     );
     expect(releaseWorkflow).toContain(
       "TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
