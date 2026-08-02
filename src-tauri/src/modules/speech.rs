@@ -437,7 +437,7 @@ mod macos {
     pub fn start(app: AppHandle, language: Option<String>) -> Result<(), String> {
         if !runs_from_macos_app_bundle() {
             return Err(
-                "Native voice cannot run from `tauri dev` on macOS. Use a debug app bundle (`pnpm tauri build --debug`) to test it."
+                "Native voice cannot run from `tauri dev` on macOS. Run `pnpm voice:debug` to test it from a debug app bundle."
                     .to_string(),
             );
         }

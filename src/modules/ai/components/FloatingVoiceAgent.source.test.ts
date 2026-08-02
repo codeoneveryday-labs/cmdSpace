@@ -91,9 +91,20 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "FloatingVoiceAgent.tsx"),
       "utf8",
     );
+    const recordingHook = readFileSync(
+      path.join(here, "../hooks/useWhisperRecording.ts"),
+      "utf8",
+    );
+    const packageManifest = JSON.parse(
+      readFileSync(path.join(here, "../../../../package.json"), "utf8"),
+    ) as { scripts: Record<string, string> };
 
     expect(component).toContain("message ?? LABELS[status]");
     expect(component).not.toContain('error: "Try again"');
+    expect(recordingHook).toContain("nativeSpeechStartMessage(error)");
+    expect(packageManifest.scripts["voice:debug"]).toContain(
+      "tauri build --debug --bundles app",
+    );
   });
 
   it("keeps long status messages inside the floating voice pill", () => {
