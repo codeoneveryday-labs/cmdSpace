@@ -67,6 +67,13 @@ describe("ArchitectureCanvas terminal docking integration", () => {
     );
   });
 
+  it("uses rendered dock-group bounds as terminal placement obstacles", () => {
+    expect(source).toContain("const terminalPlacementObstacles = useMemo(() =>");
+    expect(source).toContain("const dockedTerminalIds = new Set(");
+    expect(source).toContain("terminalDockGroups.map(({ x, y, width, height }) => ({");
+    expect(source).toContain("terminalPlacementObstacles,");
+  });
+
   it("keeps single-terminal group drags dockable", () => {
     expect(source).toContain("const isSingleTerminalGroup =");
     expect(source).toContain("if (isSingleTerminalGroup)");
