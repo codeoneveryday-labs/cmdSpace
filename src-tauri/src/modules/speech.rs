@@ -536,6 +536,9 @@ mod macos {
 
         let engine = unsafe { AVAudioEngine::new() };
         let input = unsafe { engine.inputNode() };
+        // A tap must use the input node's negotiated hardware format. Letting
+        // AVFoundation infer it can yield silent PCM buffers in a bundled app.
+        let input_format = unsafe { input.outputFormatForBus(0) };
         let request_for_tap = request.clone();
         let app_for_levels = app.clone();
         let tap = RcBlock::new(
@@ -546,7 +549,12 @@ mod macos {
             },
         );
         unsafe {
-            input.installTapOnBus_bufferSize_format_block(0, 1_024, None, RcBlock::as_ptr(&tap));
+            input.installTapOnBus_bufferSize_format_block(
+                0,
+                1_024,
+                Some(&input_format),
+                RcBlock::as_ptr(&tap),
+            );
         }
 
         let app_for_results = app.clone();
