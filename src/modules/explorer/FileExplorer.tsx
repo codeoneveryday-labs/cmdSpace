@@ -38,7 +38,6 @@ import { InlineInput } from "./InlineInput";
 import { copyToClipboard, revealInFinder } from "./lib/contextActions";
 import { fileIconUrl, folderIconUrl } from "./lib/iconResolver";
 import {
-  hasInternalPathType,
   INTERNAL_PATHS_MIME,
   readInternalPaths,
 } from "./lib/internalDrag";
@@ -76,6 +75,11 @@ type Row =
   | { kind: "rename"; key: string; path: string; name: string; isDir: boolean; depth: number }
   | { kind: "pending"; key: string; depth: number; pendingKind: "file" | "dir" }
   | { kind: "status"; key: string; depth: number; tone: "muted" | "error"; message: string };
+
+type InternalDropTarget = {
+  path: string;
+  isDir: boolean;
+};
 
 const ROW_HEIGHT = 24;
 const OVERSCAN = 8;
@@ -205,6 +209,8 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isDroppingFiles, setIsDroppingFiles] = useState(false);
+    const [internalDropTarget, setInternalDropTarget] =
+      useState<InternalDropTarget | null>(null);
     const searchRef = useRef<ExplorerSearchHandle>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -306,13 +312,68 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
     const movePaths = useCallback(
       (paths: string[], targetPath: string, targetIsDir: boolean) => {
         const destination = dropDestination(targetPath, targetIsDir);
-        const sources = removeDescendants(paths);
+        const sources = removeDescendants(paths).filter(
+          (source) => dirname(source) !== destination,
+        );
+        if (sources.length === 0) return;
         if (!canMovePathsTo(sources, destination)) return;
         void tree.movePaths(sources, destination).catch((error) => {
           console.error("move files failed:", error);
         });
       },
       [dropDestination, tree],
+    );
+
+    const resolveInternalDropTarget = useCallback(
+      (clientX: number, clientY: number): InternalDropTarget | null => {
+        const scrollElement = scrollRef.current;
+        const rect = scrollElement?.getBoundingClientRect();
+        if (
+          !scrollElement ||
+          !rect ||
+          clientX < rect.left ||
+          clientX > rect.right ||
+          clientY < rect.top ||
+          clientY > rect.bottom
+        ) {
+          return null;
+        }
+        const row = document
+          .elementFromPoint(clientX, clientY)
+          ?.closest<HTMLElement>("[data-fs-path]");
+        if (row && scrollElement.contains(row)) {
+          return {
+            path: row.dataset.fsPath ?? rootPath ?? "",
+            isDir: row.dataset.fsIsDir === "true",
+          };
+        }
+        return { path: rootPath ?? "", isDir: true };
+      },
+      [rootPath],
+    );
+
+    const handleInternalDragMove = useCallback(
+      (paths: string[], clientX: number, clientY: number) => {
+        const target = resolveInternalDropTarget(clientX, clientY);
+        if (!target) {
+          setInternalDropTarget(null);
+          return;
+        }
+        const destination = dropDestination(target.path, target.isDir);
+        setInternalDropTarget(
+          canMovePathsTo(removeDescendants(paths), destination) ? target : null,
+        );
+      },
+      [dropDestination, resolveInternalDropTarget],
+    );
+
+    const handleInternalDragEnd = useCallback(
+      (paths: string[], clientX: number, clientY: number) => {
+        const target = resolveInternalDropTarget(clientX, clientY);
+        setInternalDropTarget(null);
+        if (target) movePaths(paths, target.path, target.isDir);
+      },
+      [movePaths, resolveInternalDropTarget],
     );
 
     useEffect(() => {
@@ -593,7 +654,10 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
               onAttachToAgent={onAttachToAgent}
               onOpenMarkdownPreview={onOpenMarkdownPreview}
               dragPaths={selectedPathSet.has(row.path) ? selectedPaths : [row.path]}
-              onMovePaths={movePaths}
+              isDropTarget={internalDropTarget?.path === row.path}
+              onInternalDragMove={handleInternalDragMove}
+              onInternalDragEnd={handleInternalDragEnd}
+              onInternalDragCancel={() => setInternalDropTarget(null)}
             />
           );
         }
@@ -696,16 +760,13 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
                 className={cn(
                   "min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]",
                   isDroppingFiles && "bg-accent/50 ring-1 ring-inset ring-primary/50",
+                  internalDropTarget?.path === rootPath &&
+                    "bg-primary/10 ring-1 ring-inset ring-primary/40",
                 )}
                 onClick={(event) => {
                   if (event.target === event.currentTarget) clearSelection();
                 }}
                 onDragOver={(event) => {
-                  if (hasInternalPathType(event.dataTransfer)) {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    return;
-                  }
                   if (event.dataTransfer.files.length === 0) return;
                   event.preventDefault();
                   event.dataTransfer.dropEffect = "copy";
@@ -717,15 +778,9 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
                 }}
                 onDrop={(event) => {
                   setIsDroppingFiles(false);
-                  const paths = readInternalPaths(event.dataTransfer);
                   const target = (event.target as HTMLElement).closest<HTMLElement>(
                     "[data-fs-path]",
                   );
-                  if (paths.length > 0 && !target) {
-                    event.preventDefault();
-                    movePaths(paths, rootPath, true);
-                    return;
-                  }
                   const files = Array.from(event.dataTransfer.files);
                   if (files.length === 0) return;
                   event.preventDefault();
