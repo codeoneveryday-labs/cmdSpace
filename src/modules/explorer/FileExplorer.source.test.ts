@@ -32,11 +32,13 @@ describe("Explorer file transfer integration", () => {
     expect(explorerSource).toContain("onPaste={handlePaste}");
   });
 
-  it("moves internal Explorer drags with an isolated data-transfer type", () => {
-    expect(internalDragSource).toContain('application/x-cmdspace-paths');
-    expect(internalDragSource).toContain("INTERNAL_PATHS_TEXT_PREFIX");
-    expect(rowSource).toContain("readInternalPaths(event.dataTransfer)");
-    expect(rowSource).toContain("onMovePaths(paths, path, isDir)");
+  it("moves internal Explorer drags with pointer events instead of HTML drag data", () => {
+    expect(internalDragSource).toContain("hasExceededDragThreshold");
+    expect(rowSource).toContain("setPointerCapture(event.pointerId)");
+    expect(rowSource).toContain("onPointerMove={handlePointerMove}");
+    expect(rowSource).toContain("onPointerUp={handlePointerUp}");
+    expect(rowSource).not.toContain("draggable");
+    expect(rowSource).toContain("onInternalDragEnd(dragPaths");
     expect(explorerSource).toContain("tree.movePaths(sources, destination)");
   });
 
@@ -63,7 +65,7 @@ describe("Explorer file transfer integration", () => {
   });
 
   it("moves internal drags dropped on empty Explorer space", () => {
-    expect(explorerSource).toContain("INTERNAL_PATHS_MIME");
-    expect(explorerSource).toContain("movePaths(paths, rootPath, true)");
+    expect(explorerSource).toContain("resolveInternalDropTarget");
+    expect(explorerSource).toContain("scrollRef.current?.getBoundingClientRect()");
   });
 });

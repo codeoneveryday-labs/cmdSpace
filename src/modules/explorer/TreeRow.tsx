@@ -8,7 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { InlineInput } from "./InlineInput";
 import {
   copyToClipboard,
@@ -16,11 +16,7 @@ import {
   revealInFinder,
 } from "./lib/contextActions";
 import { fileIconUrl, folderIconUrl } from "./lib/iconResolver";
-import {
-  hasInternalPathType,
-  readInternalPaths,
-  writeInternalPaths,
-} from "./lib/internalDrag";
+import { hasExceededDragThreshold } from "./lib/internalDrag";
 import { COMPACT_CONTENT, COMPACT_ITEM } from "./lib/menuItemClass";
 import type { useFileTree } from "./lib/useFileTree";
 
@@ -42,7 +38,10 @@ export type EntryRowProps = {
   onAttachToAgent?: (path: string) => void;
   onOpenMarkdownPreview?: (path: string) => void;
   dragPaths: string[];
-  onMovePaths: (paths: string[], targetPath: string, targetIsDir: boolean) => void;
+  isDropTarget: boolean;
+  onInternalDragMove: (paths: string[], clientX: number, clientY: number) => void;
+  onInternalDragEnd: (paths: string[], clientX: number, clientY: number) => void;
+  onInternalDragCancel: () => void;
 };
 
 function isMarkdownPath(path: string): boolean {
@@ -66,15 +65,32 @@ function EntryRowImpl(props: EntryRowProps) {
     onAttachToAgent,
     onOpenMarkdownPreview,
     dragPaths,
-    onMovePaths,
+    isDropTarget,
+    onInternalDragMove,
+    onInternalDragEnd,
+    onInternalDragCancel,
   } = props;
 
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isPointerDragging, setIsPointerDragging] = useState(false);
+  const pointerDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    dragging: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
   const iconUrl = isDir ? folderIconUrl(name, isExpanded) : fileIconUrl(name);
   const createTarget = isDir ? path : path.slice(0, path.lastIndexOf("/")) || rootPath;
   const paddingLeft = 6 + depth * 12;
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if (tree.renaming) return;
     onSelectPath(path, event.shiftKey);
     if (event.shiftKey) return;
@@ -82,23 +98,62 @@ function EntryRowImpl(props: EntryRowProps) {
     else onOpenFile(path);
   };
 
-  const handleDragStart = (event: React.DragEvent<HTMLButtonElement>) => {
-    event.dataTransfer.effectAllowed = "move";
-    writeInternalPaths(event.dataTransfer, dragPaths);
+  const clearPointerDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    pointerDragRef.current = null;
+    setIsPointerDragging(false);
   };
 
-  const handleDragOver = (event: React.DragEvent<HTMLButtonElement>) => {
-    if (!hasInternalPathType(event.dataTransfer)) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    pointerDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dragging: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLButtonElement>) => {
-    const paths = readInternalPaths(event.dataTransfer);
-    if (paths.length === 0) return;
+  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = pointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (
+      !drag.dragging &&
+      !hasExceededDragThreshold(
+        { x: drag.startX, y: drag.startY },
+        { x: event.clientX, y: event.clientY },
+      )
+    ) {
+      return;
+    }
+    if (!drag.dragging) {
+      drag.dragging = true;
+      setIsPointerDragging(true);
+    }
     event.preventDefault();
-    event.stopPropagation();
-    onMovePaths(paths, path, isDir);
+    onInternalDragMove(dragPaths, event.clientX, event.clientY);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = pointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.dragging) {
+      suppressClickRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      onInternalDragEnd(dragPaths, event.clientX, event.clientY);
+    }
+    clearPointerDrag(event);
+  };
+
+  const handlePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = pointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.dragging) onInternalDragCancel();
+    clearPointerDrag(event);
   };
 
   return (
@@ -126,11 +181,11 @@ function EntryRowImpl(props: EntryRowProps) {
             type="button"
             data-fs-path={path}
             data-fs-is-dir={isDir}
-            draggable
             onClick={handleClick}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
             onContextMenu={() => {
               if (!isSelected) onSelectPath(path, false);
             }}
@@ -138,6 +193,8 @@ function EntryRowImpl(props: EntryRowProps) {
             className={cn(
               "group flex h-6 w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 text-left text-[13px] text-foreground/85 transition-colors hover:bg-accent/70",
               isSelected && "bg-accent text-foreground",
+              isDropTarget && "bg-primary/15 ring-1 ring-inset ring-primary/50",
+              isPointerDragging && "cursor-grabbing opacity-60",
             )}
             aria-selected={isSelected}
             style={{ paddingLeft }}
