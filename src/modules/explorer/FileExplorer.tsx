@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ContextMenu,
@@ -28,7 +28,12 @@ import {
   useState,
 } from "react";
 import { ExplorerSearch, type ExplorerSearchHandle } from "./ExplorerSearch";
-import { EntryRow, PendingRow, StatusRow } from "./TreeRow";
+import {
+  EntryRow,
+  INTERNAL_PATHS_MIME,
+  PendingRow,
+  StatusRow,
+} from "./TreeRow";
 import { InlineInput } from "./InlineInput";
 import { copyToClipboard, revealInFinder } from "./lib/contextActions";
 import { fileIconUrl, folderIconUrl } from "./lib/iconResolver";
@@ -90,6 +95,19 @@ async function fileToBase64(file: File): Promise<string> {
 function basename(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : path;
+}
+
+function parseDraggedPaths(serialized: string): string[] {
+  if (!serialized) return [];
+  try {
+    const paths = JSON.parse(serialized) as unknown;
+    return Array.isArray(paths) &&
+      paths.every((candidate) => typeof candidate === "string")
+      ? paths
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function buildRows(
@@ -307,7 +325,6 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
 
     useEffect(() => {
       if (!isTauri()) return;
-      if (!acceptExternalDrops) return;
       const appWindow = getCurrentWindow();
       let disposed = false;
       let unlisten: (() => void) | undefined;
@@ -320,13 +337,28 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
           }
           const scaleFactor = await appWindow.scaleFactor();
           const position = payload.position.toLogical(scaleFactor);
-          setIsDroppingFiles(true);
-          if (payload.type !== "drop") return;
+          const pointTarget = document.elementFromPoint(position.x, position.y);
+          const rect = scrollRef.current?.getBoundingClientRect();
+          const overExplorer = Boolean(
+            rect &&
+              position.x >= rect.left &&
+              position.x <= rect.right &&
+              position.y >= rect.top &&
+              position.y <= rect.bottom,
+          );
+          const overEditor = Boolean(
+            acceptExternalDrops &&
+              pointTarget?.closest("[data-editor-file-drop-region]"),
+          );
+          setIsDroppingFiles(overExplorer);
+          if (payload.type !== "drop" || !(overExplorer || overEditor)) {
+            return;
+          }
 
           setIsDroppingFiles(false);
-          const target = document
-            .elementFromPoint(position.x, position.y)
-            ?.closest<HTMLElement>("[data-fs-path]");
+          const target = overExplorer
+            ? pointTarget?.closest<HTMLElement>("[data-fs-path]")
+            : null;
           const destination = dropDestination(
             target?.dataset.fsPath,
             target?.dataset.fsIsDir === "true",
@@ -508,14 +540,45 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
       }
     };
 
+    const handleCopy = (event: React.ClipboardEvent<HTMLDivElement>) => {
+      if (isEditableTarget(event.target) || selectedPaths.length === 0) return;
+      const paths = removeDescendants(selectedPaths);
+      event.preventDefault();
+      event.clipboardData.setData(INTERNAL_PATHS_MIME, JSON.stringify(paths));
+      event.clipboardData.setData("text/plain", paths.join("\n"));
+    };
+
     const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
       if (isEditableTarget(event.target)) return;
+      const internalPaths = parseDraggedPaths(
+        event.clipboardData.getData(INTERNAL_PATHS_MIME),
+      );
+      if (internalPaths.length > 0) {
+        event.preventDefault();
+        void tree.importPaths(internalPaths, dropDestination()).catch((error) => {
+          console.error("copy files failed:", error);
+        });
+        return;
+      }
       const files = Array.from(event.clipboardData.files);
-      if (files.length === 0) return;
+      if (files.length > 0) {
+        event.preventDefault();
+        void importBrowserFiles(files, dropDestination()).catch((error) => {
+          console.error("paste files failed:", error);
+        });
+        return;
+      }
+      if (!isTauri()) return;
       event.preventDefault();
-      void importBrowserFiles(files, dropDestination()).catch((error) => {
-        console.error("paste files failed:", error);
-      });
+      const destination = dropDestination();
+      void invoke<string[]>("fs_clipboard_paths")
+        .then((paths) => {
+          if (paths.length === 0) return;
+          return tree.importPaths(paths, destination);
+        })
+        .catch((error) => {
+          console.error("paste native files failed:", error);
+        });
     };
 
     const renderRow = (row: Row) => {
@@ -565,6 +628,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
         className="flex h-full flex-col outline-none"
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        onCopy={handleCopy}
         onPaste={handlePaste}
       >
         <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border/60 px-2">
@@ -646,6 +710,11 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
                   if (event.target === event.currentTarget) clearSelection();
                 }}
                 onDragOver={(event) => {
+                  if (event.dataTransfer.types.includes(INTERNAL_PATHS_MIME)) {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    return;
+                  }
                   if (event.dataTransfer.files.length === 0) return;
                   event.preventDefault();
                   event.dataTransfer.dropEffect = "copy";
@@ -657,13 +726,20 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
                 }}
                 onDrop={(event) => {
                   setIsDroppingFiles(false);
+                  const serialized = event.dataTransfer.getData(INTERNAL_PATHS_MIME);
+                  const target = (event.target as HTMLElement).closest<HTMLElement>(
+                    "[data-fs-path]",
+                  );
+                  if (serialized && !target) {
+                    event.preventDefault();
+                    const paths = parseDraggedPaths(serialized);
+                    if (paths.length > 0) movePaths(paths, rootPath, true);
+                    return;
+                  }
                   const files = Array.from(event.dataTransfer.files);
                   if (files.length === 0) return;
                   event.preventDefault();
                   if (isTauri()) return;
-                  const target = (event.target as HTMLElement).closest<HTMLElement>(
-                    "[data-fs-path]",
-                  );
                   void importBrowserFiles(
                     files,
                     dropDestination(

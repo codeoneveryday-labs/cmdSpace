@@ -40,7 +40,7 @@ export type EntryRowProps = {
   onMovePaths: (paths: string[], targetPath: string, targetIsDir: boolean) => void;
 };
 
-const INTERNAL_PATHS_MIME = "application/x-cmdspace-paths";
+export const INTERNAL_PATHS_MIME = "application/x-cmdspace-paths";
 
 function isMarkdownPath(path: string): boolean {
   return /\.(md|markdown|mdx)$/i.test(path);

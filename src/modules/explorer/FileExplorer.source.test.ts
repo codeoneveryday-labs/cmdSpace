@@ -10,6 +10,14 @@ const rowSource = readFileSync(
   resolve(process.cwd(), "src/modules/explorer/TreeRow.tsx"),
   "utf8",
 );
+const tauriSource = readFileSync(
+  resolve(process.cwd(), "src-tauri/src/lib.rs"),
+  "utf8",
+);
+const appSource = readFileSync(
+  resolve(process.cwd(), "src/app/App.tsx"),
+  "utf8",
+);
 
 describe("Explorer file transfer integration", () => {
   it("imports native dropped paths and browser clipboard files", () => {
@@ -24,5 +32,29 @@ describe("Explorer file transfer integration", () => {
     expect(rowSource).toContain('application/x-cmdspace-paths');
     expect(rowSource).toContain("onMovePaths(paths, path, isDir)");
     expect(explorerSource).toContain("tree.movePaths(sources, destination)");
+  });
+
+  it("copies and pastes the selected Explorer paths with platform shortcuts", () => {
+    expect(explorerSource).toContain("onCopy={handleCopy}");
+    expect(explorerSource).toContain("event.clipboardData.setData(");
+    expect(explorerSource).toContain("event.clipboardData.getData(INTERNAL_PATHS_MIME)");
+    expect(explorerSource).toContain("tree.importPaths(internalPaths, dropDestination())");
+  });
+
+  it("falls back to native Finder paths when WebKit exposes no pasted files", () => {
+    expect(explorerSource).toContain('invoke<string[]>("fs_clipboard_paths")');
+    expect(tauriSource).toContain("fs::mutate::fs_clipboard_paths");
+  });
+
+  it("accepts native drops over Explorer independently of the active editor tab", () => {
+    expect(explorerSource).not.toContain("if (!acceptExternalDrops) return");
+    expect(explorerSource).toContain("overExplorer || overEditor");
+    expect(explorerSource).toContain("[data-editor-file-drop-region]");
+    expect(appSource).toContain("data-editor-file-drop-region");
+  });
+
+  it("moves internal drags dropped on empty Explorer space", () => {
+    expect(explorerSource).toContain("INTERNAL_PATHS_MIME");
+    expect(explorerSource).toContain("movePaths(paths, rootPath, true)");
   });
 });

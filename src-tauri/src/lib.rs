@@ -622,6 +622,7 @@ pub fn run() {
             fs::mutate::fs_rename,
             fs::mutate::fs_import_paths,
             fs::mutate::fs_import_clipboard_file,
+            fs::mutate::fs_clipboard_paths,
             fs::mutate::fs_delete,
             fs::mutate::fs_restore,
             fs::search::fs_search,
