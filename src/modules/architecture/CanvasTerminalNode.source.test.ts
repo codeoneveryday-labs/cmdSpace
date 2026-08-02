@@ -97,6 +97,16 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("terminal?.clearSelection()");
   });
 
+  it("routes clipboard paste through one PTY write instead of both xterm and the macOS IME bridge", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("function isTerminalPaste");
+    expect(source).toContain("navigator.clipboard\n              .readText()");
+    expect(source).toContain("trackPromptInput(text)");
+    expect(source).toContain("void sessionRef.current?.write(text)");
+    expect(source).toContain("if (isTerminalPaste(event))");
+  });
+
   it("keeps copy-on-select silent instead of rendering a copy action", () => {
     const source = readFileSync(sourcePath, "utf8");
 
