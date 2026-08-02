@@ -93,6 +93,14 @@ function isTerminalCopy(event: KeyboardEvent): boolean {
   return hasCopyModifier && (event.code === "KeyC" || event.key === "c" || event.key === "C");
 }
 
+function isTerminalPaste(event: KeyboardEvent): boolean {
+  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
+  const hasPasteModifier = isMac
+    ? (event.metaKey || event.ctrlKey) && !event.altKey
+    : event.ctrlKey && !event.altKey && !event.metaKey;
+  return hasPasteModifier && (event.code === "KeyV" || event.key === "v" || event.key === "V");
+}
+
 function copySelection(selection: string): Promise<void> {
 	return navigator.clipboard.writeText(selection);
 }
@@ -291,6 +299,20 @@ export function CanvasTerminalNode({
           if (event.type === "keydown" && terminal?.hasSelection()) {
             const selection = terminal.getSelection();
 			if (selection) void copySelection(selection).catch(() => {});
+          }
+          event.preventDefault();
+          return false;
+        }
+        if (isTerminalPaste(event)) {
+          if (event.type === "keydown") {
+            void navigator.clipboard
+              .readText()
+              .then((text) => {
+                if (!text) return;
+                trackPromptInput(text);
+                void sessionRef.current?.write(text);
+              })
+              .catch(() => {});
           }
           event.preventDefault();
           return false;
