@@ -2386,6 +2386,7 @@ export default function App() {
         />
       </div>
       <div
+        data-editor-file-drop-region
         className={cn(
           "absolute inset-0",
           !isEditorTab && "invisible pointer-events-none",
@@ -2637,6 +2638,7 @@ export default function App() {
                           <FileExplorer
                             ref={explorerRef}
                             rootPath={explorerRoot}
+                            acceptExternalDrops={isEditorTab}
                             onOpenFile={handleOpenFile}
                             onPathRenamed={handlePathRenamed}
                             onPathDeleted={handlePathDeleted}

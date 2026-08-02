@@ -26,6 +26,6 @@ describe("Tauri platform configuration", () => {
   it("allows locally stored video backgrounds to load from blob URLs", () => {
     const base = readTauriConfig("tauri.conf.json");
 
-    expect(base.app.security?.csp).toContain("media-src 'self' blob:");
+    expect(base.app.security?.csp).toContain("media-src 'self' data: blob:");
   });
 });

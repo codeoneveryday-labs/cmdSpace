@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getSelectionRange, removeDescendants } from "./selection";
+import {
+  canMovePathsTo,
+  getSelectionRange,
+  removeDescendants,
+} from "./selection";
 
 describe("explorer selection", () => {
   it("returns the inclusive visible range between anchor and focus", () => {
@@ -28,5 +32,11 @@ describe("explorer selection", () => {
         "/repo/README.md",
       ]),
     ).toEqual(["/repo/src", "/repo/README.md"]);
+  });
+
+  it("rejects dropping a folder into itself or one of its descendants", () => {
+    expect(canMovePathsTo(["/repo/src"], "/repo/src/components")).toBe(false);
+    expect(canMovePathsTo(["/repo/src"], "/repo/src")).toBe(false);
+    expect(canMovePathsTo(["/repo/src"], "/repo/archive")).toBe(true);
   });
 });

@@ -20,3 +20,9 @@ export function removeDescendants(paths: string[]): string[] {
       ),
   );
 }
+
+export function canMovePathsTo(paths: string[], destination: string): boolean {
+  return paths.every(
+    (path) => destination !== path && !destination.startsWith(`${path}/`),
+  );
+}

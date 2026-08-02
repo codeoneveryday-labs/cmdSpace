@@ -7,9 +7,16 @@ type ReadResult =
   | { kind: "binary"; size: number }
   | { kind: "toolarge"; size: number; limit: number };
 
+type ImageResult = {
+  dataUrl: string;
+  size: number;
+};
+
 export type DocumentState =
   | { status: "loading" }
   | { status: "ready"; content: string; size: number }
+  | { status: "image"; dataUrl: string; size: number }
+  | { status: "video"; dataUrl: string; size: number }
   | { status: "binary"; size: number }
   | { status: "toolarge"; size: number; limit: number }
   | { status: "error"; message: string };
@@ -18,6 +25,14 @@ type Options = {
   path: string;
   onDirtyChange?: (dirty: boolean) => void;
 };
+
+function isImagePath(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i.test(path);
+}
+
+function isVideoPath(path: string): boolean {
+  return /\.(mp4|m4v|webm|ogv|mov)$/i.test(path);
+}
 
 export function useDocument({ path, onDirtyChange }: Options) {
   const [doc, setDoc] = useState<DocumentState>({ status: "loading" });
@@ -47,10 +62,29 @@ export function useDocument({ path, onDirtyChange }: Options) {
     setDoc({ status: "loading" });
     setDirty(false);
 
-    invoke<ReadResult>("fs_read_file", { path, workspace: currentWorkspaceEnv() })
+    const read = isImagePath(path)
+      ? invoke<ImageResult>("fs_read_image", {
+          path,
+          workspace: currentWorkspaceEnv(),
+        }).then((image) => ({ kind: "image" as const, ...image }))
+      : isVideoPath(path)
+        ? invoke<ImageResult>("fs_read_video", {
+            path,
+            workspace: currentWorkspaceEnv(),
+          }).then((video) => ({ kind: "video" as const, ...video }))
+        : invoke<ReadResult>("fs_read_file", {
+            path,
+            workspace: currentWorkspaceEnv(),
+          });
+
+    read
       .then((res) => {
         if (cancelled) return;
-        if (res.kind === "text") {
+        if (res.kind === "image") {
+          setDoc({ status: "image", dataUrl: res.dataUrl, size: res.size });
+        } else if (res.kind === "video") {
+          setDoc({ status: "video", dataUrl: res.dataUrl, size: res.size });
+        } else if (res.kind === "text") {
           savedRef.current = res.content;
           bufferRef.current = res.content;
           setDoc({
