@@ -39,3 +39,13 @@ describe("updater release configuration", () => {
     );
   });
 });
+
+describe("main webview configuration", () => {
+  it("keeps native file drag and drop enabled", () => {
+    const config = JSON.parse(
+      readFileSync(path.join(here, "tauri.conf.json"), "utf8"),
+    ) as { app: { windows: Array<{ dragDropEnabled?: boolean }> } };
+
+    expect(config.app.windows[0].dragDropEnabled).toBe(true);
+  });
+});

@@ -48,6 +48,9 @@ describe("Explorer file transfer integration", () => {
 
   it("accepts native drops over Explorer independently of the active editor tab", () => {
     expect(explorerSource).not.toContain("if (!acceptExternalDrops) return");
+    expect(explorerSource).toContain('getCurrentWebview } from "@tauri-apps/api/webview"');
+    expect(explorerSource).toContain("appWebview.onDragDropEvent");
+    expect(explorerSource).not.toContain("getCurrentWindow().onDragDropEvent");
     expect(explorerSource).toContain("overExplorer || overEditor");
     expect(explorerSource).toContain("[data-editor-file-drop-region]");
     expect(appSource).toContain("data-editor-file-drop-region");

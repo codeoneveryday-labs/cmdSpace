@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ContextMenu,
@@ -326,16 +327,18 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
     useEffect(() => {
       if (!isTauri()) return;
       const appWindow = getCurrentWindow();
+      const appWebview = getCurrentWebview();
       let disposed = false;
       let unlisten: (() => void) | undefined;
-      void appWindow
-        .onDragDropEvent(async ({ payload }) => {
+      void (async () => {
+        const scaleFactor = await appWindow.scaleFactor();
+        if (disposed) return;
+        const stop = await appWebview.onDragDropEvent(({ payload }) => {
           if (disposed) return;
           if (payload.type === "leave") {
             setIsDroppingFiles(false);
             return;
           }
-          const scaleFactor = await appWindow.scaleFactor();
           const position = payload.position.toLogical(scaleFactor);
           const pointTarget = document.elementFromPoint(position.x, position.y);
           const rect = scrollRef.current?.getBoundingClientRect();
@@ -351,9 +354,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
               pointTarget?.closest("[data-editor-file-drop-region]"),
           );
           setIsDroppingFiles(overExplorer);
-          if (payload.type !== "drop" || !(overExplorer || overEditor)) {
-            return;
-          }
+          if (payload.type !== "drop" || !(overExplorer || overEditor)) return;
 
           setIsDroppingFiles(false);
           const target = overExplorer
@@ -366,11 +367,12 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
           void tree.importPaths(payload.paths, destination).catch((error) => {
             console.error("import dropped paths failed:", error);
           });
-        })
-        .then((stop) => {
-          if (disposed) stop();
-          else unlisten = stop;
         });
+        if (disposed) stop();
+        else unlisten = stop;
+      })().catch((error) => {
+        console.error("register native file drop failed:", error);
+      });
       return () => {
         disposed = true;
         unlisten?.();
