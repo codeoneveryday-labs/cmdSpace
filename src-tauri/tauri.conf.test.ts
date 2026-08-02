@@ -22,7 +22,7 @@ describe("updater release configuration", () => {
     ) as { version: string };
     const cargoManifest = readFileSync(path.join(here, "Cargo.toml"), "utf8");
 
-    expect(config.version).toBe("0.7.25");
+    expect(config.version).toBe("0.7.26");
     expect(packageManifest.version).toBe(config.version);
     expect(cargoManifest).toContain(`version = "${config.version}"`);
     expect(config.bundle.createUpdaterArtifacts).toBe(true);
