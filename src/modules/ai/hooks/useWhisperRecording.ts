@@ -35,6 +35,12 @@ function recordingFilename(type: string): string {
   return type.includes("mp4") ? "voice.mp4" : "voice.webm";
 }
 
+function nativeSpeechStartMessage(error: unknown): string {
+  if (typeof error === "string" && error.trim()) return error;
+  if (error instanceof Error && error.message) return error.message;
+  return "Speech recognition could not start. Try again.";
+}
+
 /**
  * Uses OpenAI's multilingual transcription when the user supplied an OpenAI
  * key. Native cmdSpace speech remains the baseline and fallback, so voice
@@ -154,7 +160,7 @@ export function useWhisperRecording({
       finishedRef.current = true;
       modeRef.current = null;
       setState("idle");
-      onErrorRef.current?.("Speech recognition could not start. Try again.");
+      onErrorRef.current?.(nativeSpeechStartMessage(error));
     }
   }, []);
 
