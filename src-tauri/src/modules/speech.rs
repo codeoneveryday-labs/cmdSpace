@@ -384,8 +384,11 @@ fn emit_error(app: &AppHandle, message: impl Into<String>) {
 mod macos {
     use super::emit_error;
     use block2::RcBlock;
-    use objc2::{rc::Retained, AnyThread};
-    use objc2_avf_audio::{AVAudioEngine, AVAudioInputNode, AVAudioPCMBuffer, AVAudioTime};
+    use objc2::{rc::Retained, runtime::Bool, AnyThread};
+    use objc2_avf_audio::{
+        AVAudioApplication, AVAudioApplicationRecordPermission, AVAudioEngine, AVAudioInputNode,
+        AVAudioPCMBuffer, AVAudioTime,
+    };
     use objc2_foundation::{NSError, NSLocale, NSString};
     use objc2_speech::{
         SFSpeechAudioBufferRecognitionRequest, SFSpeechRecognitionResult, SFSpeechRecognitionTask,
@@ -462,6 +465,41 @@ mod macos {
             next
         });
         cancel_session_on_main();
+
+        request_microphone_permission(app, request_id, language);
+    }
+
+    fn request_microphone_permission(app: AppHandle, request_id: u64, language: Option<String>) {
+        let permission = unsafe { AVAudioApplication::sharedInstance().recordPermission() };
+        if permission == AVAudioApplicationRecordPermission::Granted {
+            request_speech_authorization(app, request_id, language);
+            return;
+        }
+        if permission == AVAudioApplicationRecordPermission::Denied {
+            emit_error(&app, microphone_permission_message());
+            return;
+        }
+
+        let app_for_permission = app.clone();
+        let language_for_permission = language.clone();
+        let authorization = RcBlock::new(move |granted: Bool| {
+            let app_for_main = app_for_permission.clone();
+            let language_for_session = language_for_permission.clone();
+            let _ = app_for_permission.run_on_main_thread(move || {
+                if !is_current_request(request_id) {
+                    return;
+                }
+                if granted.as_bool() {
+                    request_speech_authorization(app_for_main, request_id, language_for_session);
+                } else {
+                    emit_error(&app_for_main, microphone_permission_message());
+                }
+            });
+        });
+        unsafe { AVAudioApplication::requestRecordPermissionWithCompletionHandler(&authorization) };
+    }
+
+    fn request_speech_authorization(app: AppHandle, request_id: u64, language: Option<String>) {
         let status = unsafe { SFSpeechRecognizer::authorizationStatus() };
         if status == SFSpeechRecognizerAuthorizationStatus::Authorized {
             begin_session(app, request_id, language, 1);
@@ -488,6 +526,10 @@ mod macos {
             });
         });
         unsafe { SFSpeechRecognizer::requestAuthorization(&authorization) };
+    }
+
+    fn microphone_permission_message() -> &'static str {
+        "Microphone access is blocked. Allow cmdSpace in macOS Settings → Privacy & Security → Microphone, then try again."
     }
 
     fn is_current_request(request_id: u64) -> bool {
@@ -812,7 +854,8 @@ mod macos {
     mod tests {
         use super::{
             invalidate_request_on_main, is_current_request, is_macos_app_bundle_executable,
-            should_retry_audio_start, speech_error_message_parts, REQUEST_ID,
+            microphone_permission_message, should_retry_audio_start, speech_error_message_parts,
+            REQUEST_ID,
         };
         use std::path::Path;
 
@@ -852,6 +895,14 @@ mod macos {
             assert_eq!(
                 speech_error_message_parts("kLSRErrorDomain", 201, "ignored"),
                 "Siri or Dictation is disabled. Enable Dictation in macOS Settings → Keyboard → Dictation, then try again."
+            );
+        }
+
+        #[test]
+        fn explains_how_to_restore_microphone_access() {
+            assert_eq!(
+                microphone_permission_message(),
+                "Microphone access is blocked. Allow cmdSpace in macOS Settings → Privacy & Security → Microphone, then try again."
             );
         }
     }
