@@ -392,6 +392,7 @@ mod macos {
         SFSpeechRecognizer, SFSpeechRecognizerAuthorizationStatus,
     };
     use std::cell::{Cell, RefCell};
+    use std::path::Path;
     use std::ptr::NonNull;
     use std::slice;
     use std::time::Duration;
@@ -434,6 +435,12 @@ mod macos {
     }
 
     pub fn start(app: AppHandle, language: Option<String>) -> Result<(), String> {
+        if !runs_from_macos_app_bundle() {
+            return Err(
+                "Native voice cannot run from `tauri dev` on macOS. Use a debug app bundle (`pnpm tauri build --debug`) to test it."
+                    .to_string(),
+            );
+        }
         let app_for_main = app.clone();
         app.run_on_main_thread(move || start_on_main(app_for_main, language))
             .map_err(|error| error.to_string())
@@ -546,10 +553,8 @@ mod macos {
         let result_handler = RcBlock::new(
             move |result: *mut SFSpeechRecognitionResult, error: *mut NSError| {
                 if !error.is_null() {
-                    emit_error(
-                        &app_for_results,
-                        "Speech recognition could not complete. Check Dictation and your network, then try again.",
-                    );
+                    let error = unsafe { &*error };
+                    emit_error(&app_for_results, speech_error_message(error));
                     clear_session_for_result(&app_for_results, request_id);
                     return;
                 }
@@ -607,6 +612,60 @@ mod macos {
 
     fn should_retry_audio_start(attempt: u8) -> bool {
         attempt < MAX_AUDIO_START_ATTEMPTS
+    }
+
+    fn runs_from_macos_app_bundle() -> bool {
+        std::env::current_exe()
+            .ok()
+            .is_some_and(|path| is_macos_app_bundle_executable(&path))
+    }
+
+    fn is_macos_app_bundle_executable(path: &Path) -> bool {
+        path.parent()
+            .zip(path.parent().and_then(Path::parent))
+            .is_some_and(|(macos_dir, contents_dir)| {
+                macos_dir.file_name().is_some_and(|name| name == "MacOS")
+                    && contents_dir
+                        .file_name()
+                        .is_some_and(|name| name == "Contents")
+            })
+    }
+
+    fn speech_error_message(error: &NSError) -> String {
+        speech_error_message_parts(
+            &error.domain().to_string(),
+            error.code(),
+            &error.localizedDescription().to_string(),
+        )
+    }
+
+    fn speech_error_message_parts(domain: &str, code: isize, description: &str) -> String {
+        match (domain, code) {
+            ("kLSRErrorDomain", 102) => {
+                "Speech assets for this language are not installed. Add the Dictation language in macOS Settings → Keyboard → Dictation, then try again.".to_string()
+            }
+            ("kLSRErrorDomain", 201) => {
+                "Siri or Dictation is disabled. Enable Dictation in macOS Settings → Keyboard → Dictation, then try again.".to_string()
+            }
+            ("kLSRErrorDomain", 300) => {
+                "macOS could not initialize speech recognition. Restart cmdSpace and verify Dictation is enabled.".to_string()
+            }
+            ("kAFAssistantErrorDomain", 1100) => {
+                "A previous speech request is still stopping. Wait a moment, then try again.".to_string()
+            }
+            ("kAFAssistantErrorDomain", 1101 | 1107) => {
+                "The macOS speech service was interrupted. Check your network and try again.".to_string()
+            }
+            ("kAFAssistantErrorDomain", 1110) => {
+                "No speech was detected. Check the selected microphone and try again.".to_string()
+            }
+            ("kAFAssistantErrorDomain", 1700) => {
+                "Speech Recognition permission is not authorized. Allow cmdSpace in macOS Settings → Privacy & Security → Speech Recognition.".to_string()
+            }
+            _ => format!(
+                "Speech recognition could not complete. {description} ({domain} {code})"
+            ),
+        }
     }
 
     fn schedule_audio_start_retry(
@@ -709,36 +768,45 @@ mod macos {
     fn cancel_session_on_main() {
         let stopped = SESSION.with(|session| session.borrow_mut().take());
         if let Some(session) = stopped {
-            unsafe {
-                session.input.removeTapOnBus(0);
-                session.engine.stop();
-                session.request.endAudio();
-                session._task.cancel();
-            }
+            dispose_session(session, true);
         }
     }
 
     fn clear_session_for_result(app: &AppHandle, request_id: u64) {
         let app_for_main = app.clone();
         let _ = app.run_on_main_thread(move || {
-            SESSION.with(|session| {
+            let completed = SESSION.with(|session| {
                 let should_clear = session
                     .borrow()
                     .as_ref()
                     .is_some_and(|active| active.id == request_id);
-                if should_clear {
-                    session.borrow_mut().take();
-                }
+                should_clear.then(|| session.borrow_mut().take()).flatten()
             });
+            if let Some(session) = completed {
+                dispose_session(session, false);
+            }
             let _ = app_for_main.emit("cmdspace:speech-stopped", ());
         });
+    }
+
+    fn dispose_session(session: SpeechSession, cancel_task: bool) {
+        unsafe {
+            session.input.removeTapOnBus(0);
+            session.engine.stop();
+            session.request.endAudio();
+            if cancel_task {
+                session._task.cancel();
+            }
+        }
     }
 
     #[cfg(test)]
     mod tests {
         use super::{
-            invalidate_request_on_main, is_current_request, should_retry_audio_start, REQUEST_ID,
+            invalidate_request_on_main, is_current_request, is_macos_app_bundle_executable,
+            should_retry_audio_start, speech_error_message_parts, REQUEST_ID,
         };
+        use std::path::Path;
 
         #[test]
         fn retries_audio_start_once() {
@@ -759,6 +827,24 @@ mod macos {
 
             assert!(!is_current_request(42));
             REQUEST_ID.with(|current| current.set(previous_request_id));
+        }
+
+        #[test]
+        fn only_runs_native_voice_from_a_macos_app_bundle() {
+            assert!(is_macos_app_bundle_executable(Path::new(
+                "/Applications/cmdSpace.app/Contents/MacOS/cmdspace"
+            )));
+            assert!(!is_macos_app_bundle_executable(Path::new(
+                "/Users/me/dev/cmdspace/target/debug/cmdspace"
+            )));
+        }
+
+        #[test]
+        fn explains_the_dictation_setting_error() {
+            assert_eq!(
+                speech_error_message_parts("kLSRErrorDomain", 201, "ignored"),
+                "Siri or Dictation is disabled. Enable Dictation in macOS Settings → Keyboard → Dictation, then try again."
+            );
         }
     }
 }
