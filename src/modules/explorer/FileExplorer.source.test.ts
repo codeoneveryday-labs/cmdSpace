@@ -14,6 +14,7 @@ const rowSource = readFileSync(
 describe("Explorer file transfer integration", () => {
   it("imports native dropped paths and browser clipboard files", () => {
     expect(explorerSource).toContain("onDragDropEvent");
+    expect(explorerSource).toContain("acceptExternalDrops");
     expect(explorerSource).toContain("tree.importPaths(payload.paths, destination)");
     expect(explorerSource).toContain("tree.importClipboardFile(");
     expect(explorerSource).toContain("onPaste={handlePaste}");

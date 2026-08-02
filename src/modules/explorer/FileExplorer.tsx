@@ -44,6 +44,7 @@ export type FileExplorerHandle = {
 
 type Props = {
   rootPath: string | null;
+  acceptExternalDrops?: boolean;
   onOpenFile: (path: string, pin?: boolean) => void;
   onPathRenamed?: (from: string, to: string) => void;
   onPathDeleted?: (path: string) => void;
@@ -168,6 +169,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
   function FileExplorer(
     {
       rootPath,
+      acceptExternalDrops = false,
       onOpenFile,
       onPathRenamed,
       onPathDeleted,
@@ -305,6 +307,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
 
     useEffect(() => {
       if (!isTauri()) return;
+      if (!acceptExternalDrops) return;
       const appWindow = getCurrentWindow();
       let disposed = false;
       let unlisten: (() => void) | undefined;
@@ -317,16 +320,8 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
           }
           const scaleFactor = await appWindow.scaleFactor();
           const position = payload.position.toLogical(scaleFactor);
-          const rect = scrollRef.current?.getBoundingClientRect();
-          const overExplorer = Boolean(
-            rect &&
-              position.x >= rect.left &&
-              position.x <= rect.right &&
-              position.y >= rect.top &&
-              position.y <= rect.bottom,
-          );
-          setIsDroppingFiles(overExplorer);
-          if (payload.type !== "drop" || !overExplorer) return;
+          setIsDroppingFiles(true);
+          if (payload.type !== "drop") return;
 
           setIsDroppingFiles(false);
           const target = document
@@ -348,7 +343,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
         disposed = true;
         unlisten?.();
       };
-    }, [dropDestination, tree.importPaths]);
+    }, [acceptExternalDrops, dropDestination, tree.importPaths]);
 
     const virtualizer = useVirtualizer({
       count: rows.length,

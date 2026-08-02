@@ -12,13 +12,17 @@ const documentSource = readFileSync(
 );
 
 describe("editor image preview", () => {
-  it("loads supported image paths through the native image reader", () => {
+  it("loads supported media paths through native readers", () => {
     expect(documentSource).toContain('invoke<ImageResult>("fs_read_image"');
     expect(documentSource).toContain('status: "image"');
+    expect(documentSource).toContain('invoke<ImageResult>("fs_read_video"');
+    expect(documentSource).toContain('status: "video"');
   });
 
   it("renders image documents outside CodeMirror", () => {
     expect(paneSource).toContain('doc.status === "image"');
     expect(paneSource).toContain("src={doc.dataUrl}");
+    expect(paneSource).toContain('doc.status === "video"');
+    expect(paneSource).toContain("<video");
   });
 });

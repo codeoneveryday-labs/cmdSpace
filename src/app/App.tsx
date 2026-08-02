@@ -2637,6 +2637,7 @@ export default function App() {
                           <FileExplorer
                             ref={explorerRef}
                             rootPath={explorerRoot}
+                            acceptExternalDrops={isEditorTab}
                             onOpenFile={handleOpenFile}
                             onPathRenamed={handlePathRenamed}
                             onPathDeleted={handlePathDeleted}

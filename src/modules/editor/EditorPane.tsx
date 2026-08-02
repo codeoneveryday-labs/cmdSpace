@@ -292,6 +292,21 @@ export const EditorPane = forwardRef<EditorPaneHandle, Props>(
         </div>
       );
     }
+    if (doc.status === "video") {
+      return (
+        <div className="flex h-full min-h-0 items-center justify-center overflow-auto bg-muted/20 p-6">
+          <video
+            src={doc.dataUrl}
+            controls
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="max-h-full max-w-full shadow-sm"
+          />
+        </div>
+      );
+    }
     if (doc.status === "binary") {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">

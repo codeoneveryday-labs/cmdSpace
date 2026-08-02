@@ -8,7 +8,7 @@ Completed
 
 ## Outcome
 
-The editor previews supported image files, Explorer imports external files by drop or paste, and Explorer drag-and-drop moves workspace files without overwriting another path.
+The editor previews supported image and video files, Explorer imports external files by drop or paste, and Explorer drag-and-drop moves workspace files without overwriting another path.
 
 ## Context
 
@@ -20,7 +20,7 @@ The editor previews supported image files, Explorer imports external files by dr
 
 In scope:
 
-- Image preview in editor.
+- Image and video preview in editor.
 - Native and webview file drop/import plus clipboard file paste.
 - Move files and folders between Explorer folders with conflict and descendant guards.
 
@@ -62,6 +62,6 @@ Out of scope:
 
 ## Result
 
-Supported images now render in the editor via a bounded native data-URL read. Explorer accepts native external drops, browser file drops, and clipboard files, and it moves selected files or folders through its internal drag-and-drop path. Imports refuse overwrites and symlinks; moves refuse self-descendant targets.
+Supported images and videos now render in the editor via bounded native data-URL reads. Explorer accepts native external drops across the active Editor, browser file drops, and clipboard files, and it moves selected files or folders through its internal drag-and-drop path. Imports refuse overwrites and symlinks; moves refuse self-descendant targets.
 
 Validation is recorded in the PR after the focused Vitest suite, frontend build, Rust filesystem tests, Cargo check, and Clippy complete. Packaged-app manual verification of Finder drag/drop and Finder clipboard file payloads remains a release QA check.

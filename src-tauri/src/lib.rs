@@ -612,6 +612,7 @@ pub fn run() {
             fs::tree::fs_read_dir,
             fs::file::fs_read_file,
             fs::file::fs_read_image,
+            fs::file::fs_read_video,
             fs::file::fs_write_file,
             fs::file::fs_stat,
             fs::file::select_folder,
