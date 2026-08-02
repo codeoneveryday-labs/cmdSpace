@@ -685,6 +685,25 @@ export function ArchitectureCanvas({
       ),
     [terminalLayouts],
   );
+  const terminalPlacementObstacles = useMemo(() => {
+    const dockedTerminalIds = new Set(
+      terminalLayouts.flatMap((layout) => layout.terminalIds),
+    );
+    return [
+      ...nodes
+        .filter((node) => node.kind !== "terminal")
+        .map(({ x, y, width, height }) => ({ x, y, width, height })),
+      ...terminalDockGroups.map(({ x, y, width, height }) => ({
+        x,
+        y,
+        width,
+        height,
+      })),
+      ...terminalNodes
+        .filter((node) => !dockedTerminalIds.has(node.id))
+        .map(({ x, y, width, height }) => ({ x, y, width, height })),
+    ];
+  }, [nodes, terminalDockGroups, terminalLayouts, terminalNodes]);
   const terminalDockIndicator = terminalDockDropTarget
     ? terminalDockIndicatorRect(terminalDockDropTarget, terminalLayouts)
     : null;
@@ -1858,7 +1877,7 @@ export function ArchitectureCanvas({
     setTerminalPlacements(
       recommendTerminalPlacements(
         { x: view.x, y: view.y, width: viewWidth, height: viewHeight },
-        nodes.map(({ x, y, width, height }) => ({ x, y, width, height })),
+        terminalPlacementObstacles,
         anchor,
       ),
     );
