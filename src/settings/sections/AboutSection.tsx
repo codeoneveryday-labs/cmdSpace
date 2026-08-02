@@ -44,10 +44,11 @@ export function AboutSection() {
               : available
                 ? `Install v${status.update.version}`
                 : manualAvailable
-                  ? `Update to v${status.info.version}`
+                  ? `Download v${status.info.version} manually`
                   : "Check for updates";
   const onUpdateClick = () => {
     if (available) void install();
+    else if (manualAvailable) void openUrl(status.info.releaseUrl);
     else void check({ manual: true });
   };
 
@@ -150,6 +151,13 @@ export function AboutSection() {
             {status.message}
           </p>
         )}
+        {manualAvailable &&
+        status.info.reason === "legacy-key-mismatch" ? (
+          <p className="text-[11px] text-muted-foreground">
+            This installed build uses a legacy updater key. Download the latest
+            release once, then future in-app updates will work again.
+          </p>
+        ) : null}
         {downloading && status.contentLength ? (
           <p className="text-[11px] text-muted-foreground">
             {Math.min(

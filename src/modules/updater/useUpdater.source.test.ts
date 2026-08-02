@@ -15,4 +15,12 @@ describe("useUpdater source contract", () => {
     expect(source).toContain("localStorage.setItem(LAST_CHECK_KEY, String(Date.now()))");
     expect(source).toContain("setStatus({ kind: \"error\", message: String(err) })");
   });
+
+  it("falls back to a manual GitHub release when updater keys do not match", () => {
+    const source = readFileSync(updaterPath, "utf8");
+
+    expect(source).toContain("different key than the one provided");
+    expect(source).toContain('checkManualRelease("legacy-key-mismatch")');
+    expect(source).toContain("setStatus({ kind: \"manual-available\", info })");
+  });
 });

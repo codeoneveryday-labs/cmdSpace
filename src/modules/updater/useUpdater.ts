@@ -9,12 +9,15 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const AUTO_CHECK_ENABLED = !import.meta.env.DEV;
 const GITHUB_LATEST_RELEASE =
   "https://api.github.com/repos/codeoneveryday-labs/cmdSpace/releases/latest";
+const LEGACY_UPDATER_KEY_MISMATCH =
+  "different key than the one provided";
 
 export interface ManualUpdateInfo {
   version: string;
   currentVersion: string;
   body: string;
   releaseUrl: string;
+  reason: "linux" | "legacy-key-mismatch";
 }
 
 export type UpdaterStatus =
@@ -47,7 +50,15 @@ function isNewer(remote: string, current: string): boolean {
   return false;
 }
 
-async function checkLinuxRelease(): Promise<ManualUpdateInfo | null> {
+function isLegacyUpdaterKeyMismatch(error: unknown): boolean {
+  return String(error)
+    .toLowerCase()
+    .includes(LEGACY_UPDATER_KEY_MISMATCH);
+}
+
+async function checkManualRelease(
+  reason: ManualUpdateInfo["reason"],
+): Promise<ManualUpdateInfo | null> {
   const [current, res] = await Promise.all([
     getVersion(),
     fetch(GITHUB_LATEST_RELEASE, {
@@ -69,6 +80,7 @@ async function checkLinuxRelease(): Promise<ManualUpdateInfo | null> {
     currentVersion: current,
     body: data.body ?? "",
     releaseUrl: data.html_url,
+    reason,
   };
 }
 
@@ -93,7 +105,7 @@ export function useUpdater({ autoCheck = true }: HookOptions = {}) {
     setStatus({ kind: "checking" });
     try {
       if (IS_LINUX) {
-        const info = await checkLinuxRelease();
+        const info = await checkManualRelease("linux");
         if (info) {
           setStatus({ kind: "manual-available", info });
         } else {
@@ -110,6 +122,14 @@ export function useUpdater({ autoCheck = true }: HookOptions = {}) {
         setStatus({ kind: "uptodate" });
       }
     } catch (err) {
+      if (isLegacyUpdaterKeyMismatch(err)) {
+        const info = await checkManualRelease("legacy-key-mismatch");
+        if (info) {
+          localStorage.setItem(LAST_CHECK_KEY, String(Date.now()));
+          setStatus({ kind: "manual-available", info });
+          return;
+        }
+      }
       if (!manual) {
         localStorage.setItem(LAST_CHECK_KEY, String(Date.now()));
       }
