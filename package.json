@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "voice:debug": "tauri build --debug --bundles app && open src-tauri/target/debug/bundle/macos/cmdSpace.app",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
