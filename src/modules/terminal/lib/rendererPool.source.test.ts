@@ -97,6 +97,31 @@ describe("rendererPool WebGL stability", () => {
     );
   });
 
+  it("lets xterm own native paste while the IME bridge ignores its duplicate input event", () => {
+    const source = readFileSync(rendererPoolPath, "utf8");
+    const imeSource = readFileSync(macImeBridgePath, "utf8");
+
+    expect(source).not.toContain("function isTerminalPaste");
+    expect(source).not.toContain("navigator.clipboard\n          .readText()");
+    expect(imeSource).toContain('input.inputType === "insertFromPaste"');
+    expect(imeSource).toContain("lastValue = textarea.value;");
+  });
+
+  it("does not forward OSC 10/11 color reports as shell input", () => {
+    const source = readFileSync(rendererPoolPath, "utf8");
+
+    expect(source).toContain("const OSC_COLOR_REPORT");
+    expect(source).toContain("if (OSC_COLOR_REPORT.test(data)) return;");
+  });
+
+  it("reports the visible shell command before forwarding Enter", () => {
+    const source = readFileSync(rendererPoolPath, "utf8");
+
+    expect(source).toContain("observeInputLine?(line: string): void;");
+    expect(source).toContain("currentInputLine(slot.term)");
+    expect(source).toContain("bridge.observeInputLine?.(currentInputLine(slot.term));");
+  });
+
   it("can defer terminal fit work while app chrome is being resized", () => {
     const source = readFileSync(rendererPoolPath, "utf8");
 

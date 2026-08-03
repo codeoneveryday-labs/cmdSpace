@@ -53,7 +53,8 @@ describe("OSC 7 cwd handler — gated by OSC 133 in-command state", () => {
     // Simulate: user runs `ssh attacker.host`, which prints attacker bytes
     // including an OSC 7 trying to silently move the AI's cwd into /etc.
     handlers.get(133)?.("A"); // prompt drawn
-    handlers.get(133)?.("B"); // command begins (user hit enter)
+    handlers.get(133)?.("B"); // prompt boundary; still editable
+    handlers.get(133)?.("C"); // command begins (user hit enter)
     handlers.get(7)?.("file://host/etc"); // attacker injection
 
     expect(onCwd).not.toHaveBeenCalled();
@@ -67,7 +68,8 @@ describe("OSC 7 cwd handler — gated by OSC 133 in-command state", () => {
     registerCwdHandler(term, onCwd, state);
 
     handlers.get(133)?.("A");
-    handlers.get(133)?.("B"); // running
+    handlers.get(133)?.("B"); // prompt boundary
+    handlers.get(133)?.("C"); // running
     handlers.get(7)?.("file://host/etc"); // blocked
     handlers.get(133)?.("D;0"); // command exited
     handlers.get(7)?.("file://host/home/me/new-cwd"); // legitimate post-cmd OSC 7
@@ -105,5 +107,17 @@ describe("OSC 7 cwd handler — gated by OSC 133 in-command state", () => {
     handlers.get(133)?.("B");
 
     expect(onPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the prompt editable after OSC 133 B", () => {
+    const { term, handlers } = makeFakeTerm();
+    const state = createShellIntegrationState();
+    registerPromptTracker(term, state);
+
+    handlers.get(133)?.("B");
+
+    expect(state.inCommand).toBe(false);
+    handlers.get(133)?.("C");
+    expect(state.inCommand).toBe(true);
   });
 });

@@ -21,19 +21,16 @@ import { native } from "@/modules/ai/lib/native";
 import { invoke } from "@tauri-apps/api/core";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setTerminalResizePaused } from "./lib/rendererPool";
+import { useAgentCliCommand } from "./lib/agentActivity";
 import {
   GIT_REPO_CHANGED_EVENT,
   gitRepoRootFromChangedEvent,
   pathBelongsToRepo,
 } from "@/modules/git/events";
 import {
-  ChatGptIcon,
-  ClaudeIcon,
-  CodeIcon,
-  GoogleGeminiIcon,
-  Grok02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+  detectCliAgent,
+} from "./lib/cliAgents";
+import { AgentCliIcon } from "./AgentCliIcon";
 
 const PANE_RESIZE_RESUME_DELAY_MS = 48;
 const PANE_SPLIT_MIN_SIZE = 10;
@@ -100,6 +97,13 @@ export function PaneTreeView({
   const groupRef = useRef<GroupImperativeHandle | null>(null);
   const paneResizeResumeTimerRef = useRef<number | null>(null);
   const paneResizeDragCleanupRef = useRef<(() => void) | null>(null);
+  const [agentResponding, setAgentResponding] = useState(false);
+  const storedAgentCommand = useAgentCliCommand(
+    node.kind === "leaf" ? node.id : undefined,
+  );
+  const [detectedAgentCommand, setDetectedAgentCommand] = useState<string | undefined>(
+    () => (node.kind === "leaf" && detectCliAgent(node.lastCommand) ? node.lastCommand : undefined),
+  );
   const clearPaneResizeResumeTimer = useCallback(() => {
     if (paneResizeResumeTimerRef.current === null) return;
     window.clearTimeout(paneResizeResumeTimerRef.current);
@@ -150,12 +154,16 @@ export function PaneTreeView({
             visible={tabVisible}
             focused={focused}
             initialCwd={node.cwd}
-            initialCommand={node.lastCommand}
+            initialCommand={node.autoLaunch ? node.lastCommand : undefined}
             ref={b.setRef}
             onSearchReady={(_id, addon) => b.onSearch(addon)}
             onCwd={(_id, cwd) => b.onCwd(cwd)}
             onExit={(_id, code) => b.onExit(code)}
-            onCommand={(_id, cmd) => b.onCommand?.(cmd)}
+            onCommand={(_id, cmd) => {
+              if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);
+              b.onCommand?.(cmd);
+            }}
+            onAgentActivity={(_id, responding) => setAgentResponding(responding)}
           />
         ) : null}
 
@@ -187,7 +195,8 @@ export function PaneTreeView({
             if (b.getRef()) writeCd();
             else requestAnimationFrame(writeCd);
           }}
-          agentCommand={node.lastCommand}
+          agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}
+          agentResponding={agentResponding}
           hydrated={hydrated}
         />
       </div>
@@ -449,6 +458,7 @@ function colorWithAlpha(hex: string, alpha: number): string {
 type FloatingTerminalOverlayProps = {
   cwd: string | undefined;
   agentCommand?: string;
+  agentResponding: boolean;
   nodeId: number;
   focused: boolean;
   canMaximize: boolean;
@@ -464,68 +474,21 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
-type CliAgent = "claude" | "codex" | "opencode" | "gemini" | "kimi" | "grok";
-
-const AGENT_CLI_META = {
-  claude: {
-    label: "Claude Code",
-    icon: ClaudeIcon,
-    className: "bg-orange-500/15 text-orange-600 dark:text-orange-300",
-  },
-  codex: {
-    label: "Codex",
-    icon: ChatGptIcon,
-    className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
-  },
-  opencode: {
-    label: "OpenCode",
-    icon: CodeIcon,
-    className: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
-  },
-  gemini: {
-    label: "Gemini CLI",
-    icon: GoogleGeminiIcon,
-    className: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
-  },
-  kimi: {
-    label: "Kimi Code",
-    icon: CodeIcon,
-    className: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300",
-  },
-  grok: {
-    label: "Grok CLI",
-    icon: Grok02Icon,
-    className: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
-  },
-} as const satisfies Record<CliAgent, { label: string; icon: typeof ClaudeIcon; className: string }>;
-
-function detectCliAgent(command?: string): CliAgent | null {
-  if (!command) return null;
-  const normalized = command.toLowerCase();
-  const agents: CliAgent[] = [
-    "claude",
-    "codex",
-    "opencode",
-    "gemini",
-    "kimi",
-    "grok",
-  ];
-  return (
-    agents.find((agent) =>
-      new RegExp(`(?:^|[;|&\\s])${agent}(?=\\s|$)`).test(normalized),
-    ) ?? null
-  );
-}
-
-function AgentCliBadge({ agent }: { agent: CliAgent }) {
-  const meta = AGENT_CLI_META[agent];
+function AgentResponseLoader() {
   return (
     <span
-      className={`inline-flex size-6 shrink-0 items-center justify-center rounded-sm ${meta.className}`}
-      title={meta.label}
-      aria-label={meta.label}
+      aria-label="Agent is responding"
+      className="grid size-3.5 shrink-0 grid-cols-2 grid-rows-2 gap-px text-foreground"
+      role="status"
     >
-      <HugeiconsIcon icon={meta.icon} size={15} strokeWidth={2} />
+      {[0, 1, 2, 3].map((index) => (
+        <span
+          key={index}
+          aria-hidden="true"
+          className="cmdspace-agent-response-dot size-1 rounded-[1px] bg-current"
+          style={{ animationDelay: `${index * 120}ms` }}
+        />
+      ))}
     </span>
   );
 }
@@ -609,6 +572,7 @@ function formatReset(timestamp?: number): string {
 export function FloatingTerminalOverlay({
   cwd,
   agentCommand,
+  agentResponding,
   nodeId,
   focused,
   canMaximize,
@@ -758,7 +722,8 @@ export function FloatingTerminalOverlay({
           : "border-border/70 dark:border-zinc-800/80"
       } hover:border-border dark:hover:border-zinc-500`}
     >
-      {cliAgent ? <AgentCliBadge agent={cliAgent} /> : null}
+      {cliAgent ? <AgentCliIcon agent={cliAgent} /> : null}
+      {cliAgent && agentResponding ? <AgentResponseLoader /> : null}
       {activeAgentUsage ? <AgentUsageBadge status={activeAgentUsage} /> : null}
       {supportsUsage ? (
         <div className="relative" ref={usageMenuRef}>

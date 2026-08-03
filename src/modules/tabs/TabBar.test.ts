@@ -72,4 +72,20 @@ describe("TabBar drag reorder", () => {
     expect(appSource).toContain('if (id === "tab.newGitGraph")');
     expect(appSource).toContain("return !sourceControl.hasRepo;");
   });
+
+  it("shows Music CLI in the main tab menu and animates its icon during playback", () => {
+    const tabBarSource = readFileSync(tabBarPath, "utf8");
+    const headerSource = readFileSync(headerPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+
+    expect(tabBarSource).toContain("onNewMusic");
+    expect(tabBarSource).toContain('label="Music CLI"');
+    expect(tabBarSource).toContain('invoke<boolean>("music_is_playing")');
+    expect(tabBarSource).toContain("cmdspace-music-tab-icon");
+    expect(tabBarSource).toContain("cmdspace-music-playing-tab");
+    expect(tabBarSource).toContain("useAgentResponseLeaves");
+    expect(tabBarSource).toContain("cmdspace-agent-response-tab");
+    expect(headerSource).toContain("onNewMusic");
+    expect(appSource).toContain("openTopMusicTab");
+  });
 });

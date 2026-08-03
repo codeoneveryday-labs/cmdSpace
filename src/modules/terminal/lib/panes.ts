@@ -8,6 +8,7 @@ export type PaneNode =
       id: PaneId;
       cwd?: string;
       lastCommand?: string;
+      autoLaunch?: boolean;
       /** Relative size inside the parent split, in percent. */
       size?: number;
     }
@@ -47,6 +48,11 @@ export function findLeafLastCommand(n: PaneNode, id: PaneId): string | undefined
     if (found !== undefined) return found;
   }
   return undefined;
+}
+
+export function findLeafAutoLaunch(n: PaneNode, id: PaneId): boolean {
+  if (isLeaf(n)) return n.id === id && n.autoLaunch === true;
+  return n.children.some((child) => findLeafAutoLaunch(child, id));
 }
 
 export function setLeafCwd(

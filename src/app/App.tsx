@@ -93,6 +93,7 @@ import {
 import type { ArchitectureDiagram } from "@/modules/tabs";
 import {
   disposeSession,
+  findLeafAutoLaunch,
   findLeafCwd,
   findLeafLastCommand,
   hasLeaf,
@@ -105,6 +106,7 @@ import {
   type BottomTerminalDrawerHandle,
   type TerminalPaneHandle,
 } from "@/modules/terminal";
+import { useAgentResponseLeaves } from "@/modules/terminal/lib/agentActivity";
 import { ThemeProvider } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
 import {
@@ -320,7 +322,6 @@ export default function App() {
     selectByIndex,
     reorderTab,
     setLeafCwd,
-    setLeafLastCommand,
     setTerminalPaneTree,
     focusPane,
     focusNextPaneInTab,
@@ -880,6 +881,7 @@ export default function App() {
     void hydrateSessions(helperSessionScope);
   }, [hydrateSessions, helperSessionScope]);
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
+  const respondingLeaves = useAgentResponseLeaves();
   const pendingDeleteWorkspace =
     pendingDeleteWorkspaceId === null
       ? null
@@ -894,9 +896,10 @@ export default function App() {
         return {
           ...workspace,
           count: leafIds(tab.paneTree).length,
+          responding: leafIds(tab.paneTree).some((leafId) => respondingLeaves.has(leafId)),
         };
       }),
-    [tabs, workspaces],
+    [respondingLeaves, tabs, workspaces],
   );
   const isTerminalTab = activeTab?.kind === "terminal";
   const isEditorTab = activeTab?.kind === "editor";
@@ -1056,11 +1059,7 @@ export default function App() {
     [tabs, activeId, setActiveId],
   );
 
-  const toggleBottomTerminal = useCallback(() => {
-    if (bottomTerminalOpen) {
-      setBottomTerminalOpen(false);
-      return;
-    }
+  const openBottomTerminal = useCallback(() => {
     const activeTerminal = tabs.find((tab) => tab.id === activeId);
     const cwd =
       activeWorkspaceFolder ??
@@ -1077,12 +1076,19 @@ export default function App() {
   }, [
     activeId,
     activeWorkspaceFolder,
-    bottomTerminalOpen,
     explorerRoot,
     home,
     launchCwd,
     tabs,
   ]);
+
+  const toggleBottomTerminal = useCallback(() => {
+    if (bottomTerminalOpen) {
+      setBottomTerminalOpen(false);
+      return;
+    }
+    openBottomTerminal();
+  }, [bottomTerminalOpen, openBottomTerminal]);
 
   useEffect(() => {
     if (!bottomTerminalOpen) return;
@@ -1109,6 +1115,15 @@ export default function App() {
 
   const openNewTab = useCallback(() => {
     newTab(inheritedCwdForNewTab());
+  }, [newTab, inheritedCwdForNewTab]);
+
+  const openTopMusicTab = useCallback(async () => {
+    try {
+      await invoke("install_music_cli_script");
+    } catch (error) {
+      console.error("Failed to install Music CLI script:", error);
+    }
+    newTab(inheritedCwdForNewTab(), 'source "$HOME/.cmdspace/music-cli.zsh"', "Music CLI");
   }, [newTab, inheritedCwdForNewTab]);
 
   const openNewPrivateTab = useCallback(() => {
@@ -1139,6 +1154,7 @@ export default function App() {
               paneIndex,
               workingFolder: effectiveWorkingFolder,
               lastCommand: initialCommands[paneIndex] ?? null,
+              autoLaunch: Boolean(initialCommands[paneIndex]),
             }))
           : undefined;
       const canvasDiagram =
@@ -1194,6 +1210,7 @@ export default function App() {
               paneIndex: pane.paneIndex,
               workingFolder: pane.workingFolder,
               lastCommand: pane.lastCommand,
+              autoLaunch: pane.autoLaunch,
             },
           }).catch((err) => {
             console.error(
@@ -1267,7 +1284,9 @@ export default function App() {
             const diagram = canvasWorkspaceDiagram(
               workspace.count,
               workspace.workingFolder,
-              panes.map((pane) => pane.lastCommand ?? ""),
+              panes.map((pane) =>
+                pane.autoLaunch ? (pane.lastCommand ?? "") : "",
+              ),
             );
             const canvasTabId = workspace.canvasTabId;
             if (canvasTabId !== null) {
@@ -1946,6 +1965,7 @@ export default function App() {
       "pane.source": toggleSourceControl,
       "search.focus": () => searchInlineRef.current?.focus(),
       "terminal.bottom": toggleBottomTerminal,
+      "music.open": openTopMusicTab,
       "voice.toggle": toggleVoiceAgent,
       "shortcuts.open": () => setShortcutsOpen((v) => !v),
       "settings.open": () => void openSettingsWindow(),
@@ -1978,6 +1998,7 @@ export default function App() {
       focusNextPaneInTab,
       toggleSourceControl,
       toggleBottomTerminal,
+      openTopMusicTab,
       toggleVoiceAgent,
       toggleSidebar,
       toggleExplorerFocus,
@@ -2050,12 +2071,14 @@ export default function App() {
           if (paneIndex !== -1) {
             const lastCommand =
               findLeafLastCommand(tab.paneTree, leafId) ?? null;
+            const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);
             invoke("db_save_pane", {
               pane: {
                 workspaceId: ws.id,
                 paneIndex,
                 workingFolder: cwd,
-                lastCommand,
+                lastCommand: autoLaunch ? lastCommand : null,
+                autoLaunch,
               },
             }).catch((err) => {
               console.error("Failed to save terminal pane cwd to DB:", err);
@@ -2068,10 +2091,10 @@ export default function App() {
   );
 
   const handleTerminalCommand = useCallback(
-    (leafId: number, command: string) => {
+    (leafId: number, _command: string) => {
       pendingVoiceDraftsRef.current.delete(leafId);
-      setLeafLastCommand(leafId, command);
-      // Persist to DB if it's a workspace
+      // Runtime shell history belongs to the shell. Keep the pane's saved
+      // command reserved for the workspace launch plan.
       const tab = tabsRef.current.find(
         (t) =>
           t.kind === "terminal" && hasLeaf((t as TerminalTab).paneTree, leafId),
@@ -2082,12 +2105,17 @@ export default function App() {
           const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
           if (paneIndex !== -1) {
             const workingFolder = findLeafCwd(tab.paneTree, leafId) ?? null;
+            const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);
+            const configuredCommand = autoLaunch
+              ? (findLeafLastCommand(tab.paneTree, leafId) ?? null)
+              : null;
             invoke("db_save_pane", {
               pane: {
                 workspaceId: ws.id,
                 paneIndex,
                 workingFolder,
-                lastCommand: command,
+                lastCommand: configuredCommand,
+                autoLaunch,
               },
             }).catch((err) => {
               console.error("Failed to save terminal pane command to DB:", err);
@@ -2096,7 +2124,7 @@ export default function App() {
         }
       }
     },
-    [setLeafLastCommand],
+    [],
   );
 
   const handleTerminalPaneTreeChange = useCallback(
@@ -2231,7 +2259,9 @@ export default function App() {
         return leafIds(activeTerminalTab.paneTree).map((leafId, paneIndex) => ({
           paneIndex,
           cwd: findLeafCwd(activeTerminalTab.paneTree, leafId) ?? null,
-          lastCommand: findLeafLastCommand(activeTerminalTab.paneTree, leafId) ?? null,
+          lastCommand: findLeafAutoLaunch(activeTerminalTab.paneTree, leafId)
+            ? (findLeafLastCommand(activeTerminalTab.paneTree, leafId) ?? null)
+            : null,
           available: terminalRefs.current.has(leafId),
         }));
       },
@@ -2500,6 +2530,7 @@ export default function App() {
             onNewGitGraph={openGitGraphFromContext}
             canNewGitGraph={sourceControl.hasRepo}
             onNewArchitecture={newArchitectureTab}
+            onNewMusic={openTopMusicTab}
             onClose={handleClose}
             onPin={pinTab}
             onToggleWorkspacesPanel={toggleWorkspacesPanel}

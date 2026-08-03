@@ -175,6 +175,8 @@ pub fn pty_close(state: tauri::State<PtyState>, id: u32) -> Result<(), String> {
     state.metadata.write().unwrap().remove(&id);
     state.sizes.write().unwrap().remove(&id);
     if let Some(s) = session {
+        #[cfg(unix)]
+        s.terminate_process_group();
         if let Err(e) = s.killer.lock().unwrap().kill() {
             // Non-fatal: the child may already have exited on its own (e.g. the
             // user ran `exit`). Log so this isn't invisible during debugging.

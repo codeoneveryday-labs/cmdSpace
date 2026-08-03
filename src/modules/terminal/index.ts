@@ -11,6 +11,7 @@ export {
 export { setTerminalResizePaused } from "./lib/rendererPool";
 export {
   findLeafCwd,
+  findLeafAutoLaunch,
   findLeafLastCommand,
   setLeafLastCommand,
   hasLeaf,

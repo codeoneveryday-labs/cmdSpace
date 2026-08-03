@@ -24,7 +24,7 @@ describe("Helper orchestration tools", () => {
   });
 
   it("supports one auto-launched CLI per terminal pane", () => {
-    expect(source).toContain('const agentCli = z.enum(["claude", "codex", "opencode", "gemini", "kimi", "grok"])');
+    expect(source).toContain("const agentCli = z.enum(CLI_AGENT_IDS)");
     expect(source).toContain("agent_commands");
     expect(source).toContain("AGENT_CLI_COMMANDS[agent]");
     expect(source).toContain("agent_commands must contain exactly");

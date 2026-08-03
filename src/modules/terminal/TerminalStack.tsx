@@ -5,6 +5,7 @@ import { PaneTreeView } from "./PaneTreeView";
 import type { TerminalPaneHandle } from "./TerminalPane";
 import {
   findLeafCwd,
+  findLeafAutoLaunch,
   findLeafLastCommand,
   leafIds,
   type PaneNode,
@@ -82,6 +83,10 @@ export function TerminalStack({
       id: maximizedLeafId,
       cwd: findLeafCwd(activeTerminal.paneTree, maximizedLeafId),
       lastCommand: findLeafLastCommand(
+        activeTerminal.paneTree,
+        maximizedLeafId,
+      ),
+      autoLaunch: findLeafAutoLaunch(
         activeTerminal.paneTree,
         maximizedLeafId,
       ),

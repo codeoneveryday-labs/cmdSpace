@@ -27,6 +27,7 @@ export type ShortcutId =
   | "view.zoomOut"
   | "view.zoomReset"
   | "terminal.bottom"
+  | "music.open"
   | "voice.toggle"
   | "shortcuts.open"
   | "settings.open"
@@ -66,6 +67,12 @@ export type Shortcut = {
 };
 
 export const SHORTCUTS: Shortcut[] = [
+  {
+    id: "terminal.bottom",
+    label: "Toggle bottom terminal",
+    group: "Panes",
+    defaultBindings: [{ [MOD_PROP]: true, key: "i" }],
+  },
   {
     id: "settings.open",
     label: "Open settings",
@@ -187,10 +194,10 @@ export const SHORTCUTS: Shortcut[] = [
     defaultBindings: [{ [MOD_PROP]: true, key: "f" }],
   },
   {
-    id: "terminal.bottom",
-    label: "Toggle bottom terminal",
+    id: "music.open",
+    label: "Open Music CLI",
     group: "Panes",
-    defaultBindings: [{ [MOD_PROP]: true, key: "i" }],
+    defaultBindings: [{ [MOD_PROP]: true, key: "j" }],
   },
   {
     id: "voice.toggle",

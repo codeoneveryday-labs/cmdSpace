@@ -1,36 +1,47 @@
-import { ensureMonoFontsLoaded } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
-import { usePreferencesStore } from "@/modules/settings/preferences";
-import { useTheme } from "@/modules/theme";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Cancel01Icon,
+  ComputerTerminal02Icon,
+  PlusSignIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-  attachMacImeBridge,
-  shouldIgnoreMacPrintableTerminalData,
-  shouldUseMacTextInputPath,
-} from "./lib/macImeBridge";
-import {
-  createShellIntegrationState,
-  registerCwdHandler,
-  registerPromptTracker,
-} from "./lib/osc-handlers";
-import { openPty, type PtyHandlers, type PtySession } from "./lib/pty-bridge";
-import { sharedTerminalOptions } from "./lib/terminalOptions";
 import { TerminalNavigationControls } from "./TerminalNavigationControls";
+import { TerminalPane, type TerminalPaneHandle } from "./TerminalPane";
+import { disposeSession } from "./lib/useTerminalSession";
 
 const DEFAULT_HEIGHT = 240;
 const MIN_HEIGHT = 160;
 const MAX_HEIGHT = 560;
+
+type BottomTerminalTab = {
+  id: number;
+  cwd?: string;
+};
+
+type TabPlacement = "before" | "after";
+
+let nextBottomTerminalTabId = 1_000_000;
+
+const createTerminalTab = (cwd?: string): BottomTerminalTab => ({
+  id: nextBottomTerminalTabId++,
+  cwd,
+});
 
 export type BottomTerminalDrawerHandle = {
   focus: () => void;
@@ -41,190 +52,48 @@ type Props = {
   onClose: () => void;
 };
 
-function isRejectedCwdError(error: unknown): boolean {
-  const message = String(error);
-  return (
-    message.includes("cwd not accessible") ||
-    message.includes("cwd is not a directory") ||
-    message.includes("cwd is outside the authorized workspace")
-  );
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
+function tabLabel(tab: BottomTerminalTab): string {
+  return tab.cwd?.replace(/\/$/, "").split("/").pop() || "Terminal";
 }
 
 export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props>(
   function BottomTerminalDrawer({ cwd: initialCwd, onClose }, ref) {
-    const viewportRef = useRef<HTMLDivElement | null>(null);
-    const terminalRef = useRef<Terminal | null>(null);
-    const sessionRef = useRef<PtySession | null>(null);
-    const fitRef = useRef<(() => void) | null>(null);
-    const initialCwdRef = useRef(initialCwd ?? undefined);
+    const firstTabRef = useRef<BottomTerminalTab | null>(null);
+    if (!firstTabRef.current) {
+      firstTabRef.current = createTerminalTab(initialCwd ?? undefined);
+    }
+
+    const terminalRefs = useRef(new Map<number, TerminalPaneHandle>());
+    const tabIdsRef = useRef<number[]>([]);
     const resizeRef = useRef<{
       pointerId: number;
       startY: number;
       startHeight: number;
     } | null>(null);
+    const tabDragRef = useRef<{
+      id: number;
+      pointerId: number;
+      startX: number;
+      dragging: boolean;
+    } | null>(null);
     const resizeFrameRef = useRef<number | null>(null);
     const pendingHeightRef = useRef<number | null>(null);
-    const [cwd, setCwd] = useState(initialCwd ?? undefined);
+    const [tabs, setTabs] = useState<BottomTerminalTab[]>(() => [firstTabRef.current!]);
+    const [activeTabId, setActiveTabId] = useState(firstTabRef.current.id);
     const [height, setHeight] = useState(DEFAULT_HEIGHT);
     const [resizing, setResizing] = useState(false);
-    const { resolvedMode, themeId, customThemes } = useTheme();
-    const terminalFontFamily = usePreferencesStore((state) => state.terminalFontFamily);
-    const terminalFontSize = usePreferencesStore((state) => state.terminalFontSize);
-    const terminalLetterSpacing = usePreferencesStore((state) => state.terminalLetterSpacing);
-    const terminalScrollback = usePreferencesStore((state) => state.terminalScrollback);
-    const backgroundKind = usePreferencesStore((state) => state.backgroundKind);
-    const backgroundImageId = usePreferencesStore((state) => state.backgroundImageId);
-    const zoomLevel = usePreferencesStore((state) => state.zoomLevel);
+    const [draggingTabId, setDraggingTabId] = useState<number | null>(null);
 
-    useImperativeHandle(ref, () => ({
-      focus: () => terminalRef.current?.focus(),
-    }));
+    tabIdsRef.current = tabs.map((tab) => tab.id);
 
-    useEffect(() => {
-      const viewport = viewportRef.current;
-      if (!viewport) return;
-
-      let cancelled = false;
-      let terminal: Terminal | null = null;
-      let resizeObserver: ResizeObserver | null = null;
-      let refreshFrame: number | null = null;
-      let fitFrame: number | null = null;
-      let disposeCwdHandler: (() => void) | null = null;
-      let disposePromptTracker: (() => void) | null = null;
-
-      void (async () => {
-        await ensureMonoFontsLoaded();
-        if (cancelled) return;
-
-        terminal = new Terminal({ convertEol: true, ...sharedTerminalOptions() });
-        terminalRef.current = terminal;
-        const fitAddon = new FitAddon();
-        terminal.loadAddon(fitAddon);
-        terminal.open(viewport);
-
-        const shellState = createShellIntegrationState();
-        const promptTracker = registerPromptTracker(terminal, shellState);
-        disposePromptTracker = promptTracker.dispose;
-        disposeCwdHandler = registerCwdHandler(
-          terminal,
-          (nextCwd) => {
-            setCwd(nextCwd);
-            void sessionRef.current?.setMetadata({ cwd: nextCwd });
-          },
-          shellState,
-        );
-
-        const scheduleRefresh = () => {
-          if (refreshFrame !== null) return;
-          refreshFrame = requestAnimationFrame(() => {
-            refreshFrame = null;
-            terminal?.refresh(0, Math.max(0, terminal.rows - 1));
-          });
-        };
-        terminal.onWriteParsed(scheduleRefresh);
-        attachMacImeBridge(terminal, (data) => void sessionRef.current?.write(data));
-
-        const fit = () => {
-          try {
-            fitAddon.fit();
-          } catch {
-            // The drawer can be measured while the app shell is transitioning.
-          }
-        };
-        const scheduleFit = () => {
-          if (fitFrame !== null) return;
-          fitFrame = requestAnimationFrame(() => {
-            fitFrame = null;
-            fit();
-          });
-        };
-        fitRef.current = fit;
-        resizeObserver = new ResizeObserver(scheduleFit);
-        resizeObserver.observe(viewport);
-        scheduleFit();
-
-        terminal.attachCustomKeyEventHandler((event) => {
-          if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
-            return true;
-          }
-          return !shouldUseMacTextInputPath(event);
-        });
-        terminal.onData((data) => {
-          if (shouldIgnoreMacPrintableTerminalData(data)) return;
-          void sessionRef.current?.write(data);
-        });
-        terminal.onResize(({ cols, rows }) => void sessionRef.current?.resize(cols, rows));
-
-        const handlers: PtyHandlers = {
-          onData: (bytes) => terminal?.write(bytes),
-          onExit: () => {
-            if (terminal) terminal.options.disableStdin = true;
-          },
-        };
-
-        let session: PtySession;
-        try {
-          session = await openPty(80, 24, handlers, initialCwdRef.current);
-        } catch (error) {
-          if (!initialCwdRef.current || !isRejectedCwdError(error)) throw error;
-          console.warn(
-            "[terminal] bottom drawer cwd is unavailable; retrying from the default shell directory",
-          );
-          session = await openPty(80, 24, handlers);
-        }
-        if (cancelled) {
-          void session.close();
-          return;
-        }
-        sessionRef.current = session;
-        fit();
-      })().catch((error) => {
-        console.error("[terminal] bottom drawer could not open:", error);
-      });
-
-      return () => {
-        cancelled = true;
-        resizeObserver?.disconnect();
-        disposeCwdHandler?.();
-        disposePromptTracker?.();
-        if (refreshFrame !== null) cancelAnimationFrame(refreshFrame);
-        if (fitFrame !== null) cancelAnimationFrame(fitFrame);
-        terminal?.dispose();
-        terminalRef.current = null;
-        fitRef.current = null;
-        const session = sessionRef.current;
-        sessionRef.current = null;
-        if (session) void session.close();
-      };
-    }, []);
-
-    useEffect(() => {
-      const terminal = terminalRef.current;
-      if (!terminal) return;
-      Object.assign(terminal.options, sharedTerminalOptions());
-      fitRef.current?.();
-    }, [
-      backgroundImageId,
-      backgroundKind,
-      customThemes,
-      resolvedMode,
-      terminalFontFamily,
-      terminalFontSize,
-      terminalLetterSpacing,
-      terminalScrollback,
-      themeId,
-      zoomLevel,
-    ]);
+    const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
 
     useEffect(() => {
       return () => {
         if (resizeFrameRef.current !== null) {
           cancelAnimationFrame(resizeFrameRef.current);
         }
+        tabIdsRef.current.forEach(disposeSession);
       };
     }, []);
 
@@ -267,25 +136,130 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
       }
       resizeRef.current = null;
       setResizing(false);
-      requestAnimationFrame(() => fitRef.current?.());
+    };
+
+    const addTerminalTab = () => {
+      const tab = createTerminalTab(activeTab?.cwd ?? initialCwd ?? undefined);
+      setTabs((current) => [...current, tab]);
+      setActiveTabId(tab.id);
+    };
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus: () => terminalRefs.current.get(activeTabId)?.focus(),
+      }),
+      [activeTabId, addTerminalTab],
+    );
+
+    const closeTerminalTab = (tabId: number) => {
+      if (tabs.length === 1) return;
+      disposeSession(tabId);
+      setTabs((current) => {
+        const index = current.findIndex((tab) => tab.id === tabId);
+        const nextTabs = current.filter((tab) => tab.id !== tabId);
+        if (tabId === activeTabId) {
+          setActiveTabId(nextTabs[Math.max(0, index - 1)]?.id ?? nextTabs[0].id);
+        }
+        return nextTabs;
+      });
+    };
+
+    const reorderTabs = useCallback(
+      (draggedId: number, targetId: number, placement: TabPlacement) => {
+        setTabs((current) => {
+          const dragged = current.find((tab) => tab.id === draggedId);
+          const targetIndex = current.findIndex((tab) => tab.id === targetId);
+          if (!dragged || targetIndex === -1 || draggedId === targetId) return current;
+          const withoutDragged = current.filter((tab) => tab.id !== draggedId);
+          const targetIndexWithoutDragged = withoutDragged.findIndex((tab) => tab.id === targetId);
+          const insertAt = targetIndexWithoutDragged + (placement === "after" ? 1 : 0);
+          return [
+            ...withoutDragged.slice(0, insertAt),
+            dragged,
+            ...withoutDragged.slice(insertAt),
+          ];
+        });
+      },
+      [],
+    );
+
+    useEffect(() => {
+      const onPointerMove = (event: PointerEvent) => {
+        const drag = tabDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        if (Math.abs(event.clientX - drag.startX) > 4) drag.dragging = true;
+        if (drag.dragging) setDraggingTabId(drag.id);
+      };
+
+      const onPointerUp = (event: PointerEvent) => {
+        const drag = tabDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        tabDragRef.current = null;
+        setDraggingTabId(null);
+
+        if (!drag.dragging) {
+          setActiveTabId(drag.id);
+          requestAnimationFrame(() => terminalRefs.current.get(drag.id)?.focus());
+          return;
+        }
+
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        const targetTab = target instanceof Element
+          ? target.closest<HTMLElement>("[data-bottom-terminal-tab]")
+          : null;
+        const targetId = Number(targetTab?.dataset.bottomTerminalTab);
+        if (!Number.isInteger(targetId) || targetId === drag.id || !targetTab) return;
+        const rect = targetTab.getBoundingClientRect();
+        reorderTabs(drag.id, targetId, event.clientX < rect.left + rect.width / 2 ? "before" : "after");
+      };
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
+      return () => {
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", onPointerUp);
+        window.removeEventListener("pointercancel", onPointerUp);
+      };
+    }, [reorderTabs]);
+
+    const updateTabCwd = (tabId: number, cwd: string) => {
+      setTabs((current) => current.map((tab) => (tab.id === tabId ? { ...tab, cwd } : tab)));
     };
 
     const changeDirectory = (path: string) => {
-      void sessionRef.current?.write(`cd ${shellQuote(path)}\r`);
+      if (!activeTab) return;
+      terminalRefs.current.get(activeTab.id)?.write(`cd '${path.replace(/'/g, "'\\''")}'\r`);
+      terminalRefs.current.get(activeTab.id)?.focus();
+    };
+
+    const handleTabPointerDown = (event: ReactPointerEvent<HTMLElement>, tabId: number) => {
+      if (event.button !== 0) return;
+      tabDragRef.current = {
+        id: tabId,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        dragging: false,
+      };
+    };
+
+    const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLElement>, tabId: number) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      setActiveTabId(tabId);
+      requestAnimationFrame(() => terminalRefs.current.get(tabId)?.focus());
     };
 
     return (
       <section
         data-bottom-terminal-drawer
         className={cn(
-          "relative flex flex-col overflow-hidden border border-border/70 bg-[var(--terminal-background)] shadow-[0_-16px_36px_-18px_rgba(0,0,0,0.45)] dark:border-zinc-800/80",
+          "relative flex flex-col overflow-hidden border border-border/70 bg-[var(--terminal-background)] dark:border-zinc-800/80",
           resizing && "select-none",
         )}
         style={{ height }}
-        onPointerDown={(event) => {
-          event.stopPropagation();
-          terminalRef.current?.focus();
-        }}
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <div
           role="separator"
@@ -301,22 +275,107 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
           onPointerCancel={handleResizeEnd}
           className="absolute inset-x-0 -top-1 z-20 h-2 cursor-row-resize touch-none before:absolute before:inset-x-0 before:top-1/2 before:h-px before:bg-border/70 hover:before:bg-primary"
         />
-        <div className="relative flex h-9 shrink-0 items-center border-b border-border/60 bg-card/95 px-3 text-sm shadow-sm backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/95">
-          <TerminalNavigationControls
-            cwd={cwd}
-            onChangeDirectory={changeDirectory}
-          />
+        <div className="relative flex h-10 shrink-0 items-center gap-1 overflow-hidden border-b border-border/60 bg-card/95 px-3 text-sm shadow-sm backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/95">
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+            {tabs.map((tab) => {
+              const isActive = tab.id === activeTabId;
+              return (
+                <div
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  tabIndex={0}
+                  data-bottom-terminal-tab={tab.id}
+                  onPointerDown={(event) => handleTabPointerDown(event, tab.id)}
+                  onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
+                  className={cn(
+                    "flex h-8 max-w-72 shrink-0 cursor-grab items-center gap-2 rounded-xl px-3 text-sm transition-colors active:cursor-grabbing",
+                    draggingTabId === tab.id && "cursor-grabbing opacity-60 ring-1 ring-primary/50",
+                    isActive
+                      ? "bg-muted text-foreground dark:bg-zinc-900"
+                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-900/70 dark:hover:text-zinc-100",
+                  )}
+                >
+                  <HugeiconsIcon
+                    icon={ComputerTerminal02Icon}
+                    size={18}
+                    strokeWidth={1.9}
+                    className="shrink-0"
+                  />
+                  {isActive ? (
+                    <TerminalNavigationControls
+                      cwd={tab.cwd}
+                      onChangeDirectory={changeDirectory}
+                      className="gap-2"
+                    />
+                  ) : (
+                    <span className="max-w-44 truncate font-semibold">{tabLabel(tab)}</span>
+                  )}
+                  {tabs.length > 1 ? (
+                    <button
+                      type="button"
+                      aria-label={`Close ${tabLabel(tab)}`}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        closeTerminalTab(tab.id);
+                      }}
+                      className="-mr-1 rounded p-0.5 text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={1.8} />
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Open terminal menu"
+                title="Open terminal menu"
+                onPointerDown={(event) => event.stopPropagation()}
+                className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              >
+                <HugeiconsIcon icon={PlusSignIcon} size={22} strokeWidth={1.8} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-40">
+              <DropdownMenuItem aria-label="Open terminal" onSelect={() => addTerminalTab()}>
+                <HugeiconsIcon icon={ComputerTerminal02Icon} size={14} strokeWidth={1.8} />
+                <span>Terminal</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onClose}
-            className="ml-auto rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            className="ml-auto shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
             aria-label="Close bottom terminal"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={1.8} />
           </button>
         </div>
-        <div ref={viewportRef} className="min-h-0 flex-1 overflow-hidden" />
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          {tabs.map((tab) => (
+            <div key={tab.id} className="absolute inset-0">
+              <TerminalPane
+                ref={(handle) => {
+                  if (handle) terminalRefs.current.set(tab.id, handle);
+                  else terminalRefs.current.delete(tab.id);
+                }}
+                leafId={tab.id}
+                visible={tab.id === activeTabId}
+                focused={tab.id === activeTabId}
+                initialCwd={tab.cwd}
+                contentTopPadding={false}
+                onCwd={(_leafId, cwd) => updateTabCwd(tab.id, cwd)}
+              />
+            </div>
+          ))}
+        </div>
       </section>
     );
   },
