@@ -20,6 +20,12 @@ export function shouldIgnoreMacPrintableTerminalData(data: string): boolean {
   );
 }
 
+export function normalizeMacTerminalInput(value: string): string {
+  // WebKit's macOS text bridge can occasionally surface an intended space as
+  // invisible C1 controls. Zsh then treats both visible words as one command.
+  return value.replace(/[\u0080-\u009f]+/g, " ");
+}
+
 export function attachMacImeBridge(
   terminal: Terminal,
   writeToPty: (data: string) => void,
@@ -62,7 +68,9 @@ export function attachMacImeBridge(
 
     const backspaces = fromValue.length - commonPrefixLen;
     const appendText = value.slice(commonPrefixLen);
-    const data = "\x7f".repeat(backspaces) + appendText;
+    const data = normalizeMacTerminalInput(
+      "\x7f".repeat(backspaces) + appendText,
+    );
     if (data) writeToPty(data);
     lastValue = value;
   };
