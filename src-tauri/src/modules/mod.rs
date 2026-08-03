@@ -2,6 +2,7 @@ pub mod agent_usage;
 pub mod db;
 pub mod fs;
 pub mod git;
+pub mod music;
 pub mod net;
 pub mod proc;
 pub mod pty;

@@ -50,6 +50,7 @@ type Props = {
   onNewGitGraph: () => void;
   canNewGitGraph: boolean;
   onNewArchitecture: () => void;
+  onNewMusic: () => void;
   onClose: (id: number) => void;
   /** Promote a preview (transient) tab to persistent. */
   onPin: (id: number) => void;
@@ -78,6 +79,7 @@ export function Header({
   onNewGitGraph,
   canNewGitGraph,
   onNewArchitecture,
+  onNewMusic,
   onClose,
   onPin,
   onToggleWorkspacesPanel,
@@ -265,6 +267,7 @@ export function Header({
           onNewGitGraph={onNewGitGraph}
           canNewGitGraph={canNewGitGraph}
           onNewArchitecture={onNewArchitecture}
+          onNewMusic={onNewMusic}
           onClose={onClose}
           onPin={onPin}
           compact={compact}

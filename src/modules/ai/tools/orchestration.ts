@@ -2,22 +2,22 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { ArchitectureDiagram } from "@/modules/tabs";
 import type { ToolContext } from "./context";
+import {
+  CLI_AGENT_BY_ID,
+  CLI_AGENT_IDS,
+  type CliAgent,
+} from "@/modules/terminal/lib/cliAgents";
 
 const absolutePath = z.string().refine(
   (value) => value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value),
   "folder must be an absolute path",
 );
 
-const agentCli = z.enum(["claude", "codex", "opencode", "gemini", "kimi", "grok"]);
+const agentCli = z.enum(CLI_AGENT_IDS);
 
-const AGENT_CLI_COMMANDS: Record<z.infer<typeof agentCli>, string> = {
-  claude: "claude --dangerously-skip-permissions",
-  codex: "codex --dangerously-bypass-approvals-and-sandbox",
-  opencode: "opencode --auto",
-  gemini: "gemini",
-  kimi: "kimi",
-  grok: "grok",
-};
+const AGENT_CLI_COMMANDS = Object.fromEntries(
+  CLI_AGENT_IDS.map((agent) => [agent, CLI_AGENT_BY_ID[agent].launch]),
+) as Record<CliAgent, string>;
 
 function initialCommandsForWorkspace(input: {
   terminal_count: number;
@@ -150,7 +150,7 @@ export function buildOrchestrationTools(ctx: ToolContext) {
   return {
     execute_plan: tool({
       description:
-        "Execute a reviewed multi-step app plan as one atomic approval flow. Use this whenever the user's request requires two or more app side effects, such as creating a workspace then opening Architecture and a website. For coding agents, set agent_commands with one entry per pane. Supported agents are claude, codex, opencode, gemini, kimi, and grok. Put the exact ordered steps in the plan; after approval, execute them sequentially and stop on the first failure. Requires one user approval.",
+        `Execute a reviewed multi-step app plan as one atomic approval flow. Use this whenever the user's request requires two or more app side effects, such as creating a workspace then opening Architecture and a website. For coding agents, set agent_commands with one entry per pane. Supported agents are ${CLI_AGENT_IDS.join(", ")}. Put the exact ordered steps in the plan; after approval, execute them sequentially and stop on the first failure. Requires one user approval.`,
       inputSchema: z.object({
         title: z.string().min(1).max(120),
         steps: z.array(planStep).min(2).max(12),
@@ -222,7 +222,7 @@ export function buildOrchestrationTools(ctx: ToolContext) {
     }),
     create_workspace: tool({
       description:
-        "Create a cmdSpace workspace at an absolute folder path with the requested number of terminal panes. Each coding agent gets an isolated Git worktree and branch by default, so parallel terminals cannot overwrite each other's files. Pass task_labels with one task name per terminal when the user describes separate work (for example [feature-auth, feature-dashboard]). Set isolated_worktrees false only when terminals intentionally share the same checkout. Each initial command is launched in its corresponding pane. For requests like '4 terminals with 2 Claude and 2 Codex', pass agent_commands: [claude, claude, codex, codex]. Supported agents: claude, codex, opencode, gemini, kimi, grok. Do not emulate this with mkdir or a shell loop. Requires user approval.",
+        `Create a cmdSpace workspace at an absolute folder path with the requested number of terminal panes. Each coding agent gets an isolated Git worktree and branch by default, so parallel terminals cannot overwrite each other's files. Pass task_labels with one task name per terminal when the user describes separate work (for example [feature-auth, feature-dashboard]). Set isolated_worktrees false only when terminals intentionally share the same checkout. Each initial command is launched in its corresponding pane. For requests like '4 terminals with 2 Claude and 2 Codex', pass agent_commands: [claude, claude, codex, codex]. Supported agents: ${CLI_AGENT_IDS.join(", ")}. Do not emulate this with mkdir or a shell loop. Requires user approval.`,
       inputSchema: z.object({
         name: z.string().min(1).max(80).optional(),
         folder: absolutePath,

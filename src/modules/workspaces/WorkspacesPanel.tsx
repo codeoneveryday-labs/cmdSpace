@@ -19,6 +19,8 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { CLI_AGENT_DEFINITIONS } from "@/modules/terminal/lib/cliAgents";
+import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 
 export type WorkspaceItem = {
   id: string;
@@ -28,6 +30,7 @@ export type WorkspaceItem = {
   workspaceMode?: WorkspaceMode;
   workingFolder?: string | null;
   updatedAt?: number;
+  responding?: boolean;
 };
 
 export type WorkspaceMode = "standard" | "canvas";
@@ -45,46 +48,7 @@ const WORKSPACE_SETUP_PRESETS: Array<{
   { name: "Review", description: "2 x 4 grid", count: 8 },
   { name: "Lab", description: "3 x 4 grid", count: 12 },
 ];
-const AGENT_CLI_OPTIONS = [
-  {
-    id: "claude",
-    name: "Claude Code",
-    command: "claude --dangerously-skip-permissions",
-    launch: "claude --dangerously-skip-permissions",
-  },
-  {
-    id: "codex",
-    name: "Codex",
-    command: "codex --dangerously-bypass-approvals-and-sandbox",
-    launch: "codex --dangerously-bypass-approvals-and-sandbox",
-  },
-  {
-    id: "opencode",
-    name: "OpenCode",
-    command: "opencode --auto",
-    launch: "opencode --auto",
-  },
-  {
-    id: "gemini",
-    name: "Gemini CLI",
-    command: "gemini",
-    launch: "gemini",
-  },
-  {
-    id: "kimi",
-    name: "Kimi Code",
-    command: "kimi",
-    launch:
-      'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.kimi-code/bin:$HOME/.local/bin:$PATH"; kimi',
-  },
-  {
-    id: "grok",
-    name: "Grok CLI",
-    command: "grok",
-    launch:
-      'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; grok',
-  },
-] as const;
+const AGENT_CLI_OPTIONS = CLI_AGENT_DEFINITIONS;
 export const WORKSPACE_ACCENT_COLORS = [
   "#10B981",
   "#14B8A6",
@@ -98,6 +62,25 @@ export const WORKSPACE_ACCENT_COLORS = [
   "#65A30D",
 ] as const;
 export const DEFAULT_WORKSPACE_ACCENT_COLOR = WORKSPACE_ACCENT_COLORS[0];
+
+function WorkspaceResponseLoader() {
+  return (
+    <span
+      aria-label="Agent is responding"
+      className="grid size-3.5 shrink-0 grid-cols-2 grid-rows-2 gap-px text-foreground"
+      role="status"
+    >
+      {[0, 1, 2, 3].map((index) => (
+        <span
+          key={index}
+          aria-hidden="true"
+          className="cmdspace-agent-response-dot size-1 rounded-[1px] bg-current"
+          style={{ animationDelay: `${index * 120}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
 
 export function normalizeWorkspaceAccentColor(
   color: string | null | undefined,
@@ -522,6 +505,7 @@ function WorkspaceRow({
         title={workspace.name}
       >
         {colorPicker}
+        {workspace.responding ? <WorkspaceResponseLoader /> : null}
         <button
           type="button"
           onClick={onSelect}
@@ -574,6 +558,7 @@ function WorkspaceRow({
       )}
     >
       {colorPicker}
+      {workspace.responding ? <WorkspaceResponseLoader /> : null}
       {renaming ? (
         <Input
           ref={inputRef}
@@ -1422,6 +1407,7 @@ export function WorkspaceSetupView({
                           strokeWidth={2.4}
                         />
                       </button>
+                      <AgentCliIcon agent={agent.id} size="md" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-semibold text-foreground">
                           {agent.name}

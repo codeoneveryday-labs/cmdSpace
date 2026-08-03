@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const paneTreePath = path.join(here, "PaneTreeView.tsx");
+const agentCliIconPath = path.join(here, "AgentCliIcon.tsx");
 
 describe("FloatingTerminalOverlay", () => {
   it("keeps the terminal header flush without outer padding or rounding", () => {
@@ -26,14 +27,17 @@ describe("FloatingTerminalOverlay", () => {
 
   it("shows the coding CLI identity at the start of the pane header", () => {
     const source = readFileSync(paneTreePath, "utf8");
+    const iconSource = readFileSync(agentCliIconPath, "utf8");
 
-    expect(source).toContain("function detectCliAgent");
-    expect(source).toContain("AgentCliBadge");
-    expect(source).toContain("agentCommand={node.lastCommand}");
-    expect(source).toContain("ClaudeIcon");
-    expect(source).toContain("ChatGptIcon");
-    expect(source).toContain("GoogleGeminiIcon");
-    expect(source).toContain("Grok02Icon");
+    expect(source).toContain("detectCliAgent,");
+    expect(source).toContain("AgentCliIcon");
+    expect(source).toContain(
+      "agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}",
+    );
+    expect(iconSource).toContain("ClaudeIcon");
+    expect(iconSource).toContain("ChatGptIcon");
+    expect(iconSource).toContain("GoogleGeminiIcon");
+    expect(iconSource).toContain("Grok02Icon");
   });
 
   it("shows local coding-agent context and account-limit details without exposing credentials", () => {
