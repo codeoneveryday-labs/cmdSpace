@@ -46,10 +46,11 @@ describe("TerminalStack lazy renderer restore", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
 
     expect(source).toContain("function flushInitialCommand");
-    expect(source).toContain('s.pty.write(s.initialCommand + "\\r")');
-    expect(source).not.toContain('s.pty.write(s.initialCommand + "\\n")');
+    expect(source).toContain('s.pty.write(command + "\\r")');
+    expect(source).not.toContain('s.pty.write(command + "\\n")');
     expect(source).toContain("scheduleInitialCommandFallback");
     expect(source).toContain("registerPromptTracker(term, shellState, () =>");
+    expect(source).toContain("s.callbacks.onCommand?.(command);");
     expect(source).not.toContain(
       "if (s.initialCommand) {\n          pty.write",
     );
@@ -59,9 +60,46 @@ describe("TerminalStack lazy renderer restore", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
 
     expect(source).toContain("interactiveCodingAgent: boolean");
-    expect(source).toContain("function isInteractiveCodingAgentCommand");
+    expect(source).toContain("isInteractiveCodingAgentCommand,");
     expect(source).toContain("s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);");
     expect(source).toContain("s.shellState?.inCommand && !s.interactiveCodingAgent");
+    expect(source).toContain("function trackAgentLaunchInput");
+    expect(source).toContain("detectCodingAgentBanner,");
+    expect(source).toContain("if (isInteractiveCodingAgentCommand(command))");
+    expect(source).toContain("s.callbacks.onCommand?.(command);");
+  });
+
+  it("keeps CLI agent chrome when a user starts an agent after pane creation", () => {
+    const treeSource = readFileSync(paneTreePath, "utf8");
+    const sessionSource = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(treeSource).toContain("const [detectedAgentCommand, setDetectedAgentCommand]");
+    expect(treeSource).toContain("useAgentCliCommand");
+    expect(treeSource).toContain("storedAgentCommand");
+    expect(treeSource).toContain("if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);");
+    expect(treeSource).toContain("agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}");
+    expect(sessionSource).toContain("setAgentCliCommand(leafId, initialCommand);");
+    expect(sessionSource).toContain("if (detectedAgent) {");
+    expect(sessionSource).toContain("setAgentCliCommand(leafId, detectedAgent);");
+  });
+
+  it("only runs a persisted pane command when it is an explicit launch command", () => {
+    const treeSource = readFileSync(paneTreePath, "utf8");
+
+    expect(treeSource).toContain(
+      "initialCommand={node.autoLaunch ? node.lastCommand : undefined}",
+    );
+  });
+
+  it("tracks coding-agent response output without requiring shell OSC command markers", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain(
+      "if (s.interactiveCodingAgent && !outputIsUserEcho)",
+    );
+    expect(source).not.toContain(
+      "s.interactiveCodingAgent && s.shellState?.inCommand && !outputIsUserEcho",
+    );
   });
 
   it("keeps terminal split geometry in the same zoom coordinate space as its handles", () => {
@@ -100,9 +138,7 @@ describe("TerminalStack lazy renderer restore", () => {
     expect(treeSource).not.toContain("startPaneResizeDrag");
     expect(treeSource).not.toContain("<ResizableHandle");
     expect(paneSource).toContain("cmdspace-terminal-viewport");
-    expect(paneSource).toContain(
-      'className="cmdspace-terminal-viewport h-full w-full overflow-hidden pt-12"',
-    );
+    expect(paneSource).toContain('contentTopPadding && "pt-12"');
     expect(paneSource).not.toContain("px-2 pb-2 pt-12");
     expect(sessionSource).toContain("applyZoomLevel(zoomLevel)");
     const optionsSource = readFileSync(terminalOptionsPath, "utf8");
@@ -136,7 +172,7 @@ describe("TerminalStack lazy renderer restore", () => {
     expect(stackSource).toContain("focusAccentColor={focusAccentColor}");
     expect(treeSource).toContain("focusAccentColor: string;");
     expect(treeSource).toContain("paneFocusStyle(focusAccentColor)");
-    expect(treeSource).toContain("border-2 z-10");
+    expect(treeSource).toContain("border-2 z-30");
     expect(treeSource).toContain("borderColor: accent");
     expect(treeSource).toContain("boxShadow: `inset 0 0 8px");
     expect(treeSource).not.toContain("border-[#0088ff]");

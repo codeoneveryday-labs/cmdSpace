@@ -78,6 +78,8 @@ pub struct Session {
     //      is dead and conhost has nothing left to drain.
     #[cfg(windows)]
     _job: Option<super::job::PtyJob>,
+    #[cfg(unix)]
+    process_group: Option<i32>,
     pub killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
     pub writer: Arc<Mutex<Box<dyn Write + Send>>>,
     pub master: Mutex<Box<dyn MasterPty + Send>>,
@@ -87,6 +89,18 @@ pub struct Session {
 }
 
 impl Session {
+    #[cfg(unix)]
+    pub(crate) fn terminate_process_group(&self) {
+        let Some(process_group) = self.process_group else {
+            return;
+        };
+        // The PTY shell is the process-group leader, so this also stops any
+        // foreground pipeline processes it spawned (for example Music CLI).
+        unsafe {
+            libc::kill(-process_group, libc::SIGTERM);
+        }
+    }
+
     pub fn output_snapshot(&self) -> Vec<u8> {
         self.output_replay
             .lock()
@@ -122,6 +136,8 @@ impl Drop for Session {
         // frontend disconnected, window crashed, dev HMR), the reader/flusher
         // threads would otherwise stay alive forever holding the child. Kill
         // the child here so the reader hits EOF and the threads unwind.
+        #[cfg(unix)]
+        self.terminate_process_group();
         if let Ok(mut k) = self.killer.lock() {
             let _ = k.kill();
         }
@@ -187,6 +203,9 @@ pub fn spawn(
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     drop(pair.slave);
 
+    #[cfg(unix)]
+    let process_group = child.process_id().and_then(|pid| i32::try_from(pid).ok());
+
     // Kill the child if any of the pipe setup below fails so the spawned shell
     // can't outlive an aborted pty_open.
     let mut guard = ChildKillGuard::new(child.clone_killer());
@@ -212,6 +231,8 @@ pub fn spawn(
     let session = Arc::new(Session {
         #[cfg(windows)]
         _job: job,
+        #[cfg(unix)]
+        process_group,
         killer: Mutex::new(killer),
         writer: writer.clone(),
         master: Mutex::new(pair.master),

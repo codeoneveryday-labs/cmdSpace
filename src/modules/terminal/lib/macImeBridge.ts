@@ -103,6 +103,12 @@ export function attachMacImeBridge(
       event.stopImmediatePropagation();
       if (composing) return;
       const input = event as InputEvent;
+      // xterm's native paste listener already forwards this payload. Keep the
+      // bridge's textarea state in sync without sending it to the PTY again.
+      if (input.inputType === "insertFromPaste") {
+        lastValue = textarea.value;
+        return;
+      }
       if (input.inputType && !input.inputType.startsWith("insert")) {
         lastValue = textarea.value;
         return;

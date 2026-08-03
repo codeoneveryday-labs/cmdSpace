@@ -32,6 +32,7 @@ import {
   registerPromptTracker,
 } from "@/modules/terminal/lib/osc-handlers";
 import { sharedTerminalOptions } from "@/modules/terminal/lib/terminalOptions";
+import { isInteractiveCodingAgentCommand } from "@/modules/terminal/lib/cliAgents";
 import { useTheme } from "@/modules/theme";
 
 type Props = {
@@ -75,13 +76,6 @@ function isRejectedCwdError(error: unknown): boolean {
     message.includes("cwd not accessible") ||
     message.includes("cwd is not a directory") ||
     message.includes("cwd is outside the authorized workspace")
-  );
-}
-
-function isInteractiveCodingAgentCommand(command?: string): boolean {
-  if (!command) return false;
-  return ["claude", "codex", "opencode", "gemini", "kimi", "grok"].some((agent) =>
-    new RegExp(`(?:^|[;|&\\s])${agent}(?=\\s|$)`, "i").test(command),
   );
 }
 

@@ -3,6 +3,7 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { SearchAddon } from "@xterm/addon-search";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { DormantRing } from "./dormantRing";
+import { setAgentCliCommand, setAgentResponseActivity } from "./agentActivity";
 import {
   createShellIntegrationState,
   registerCwdHandler,
@@ -26,12 +27,17 @@ import {
   releaseSlot,
   setSlotFocused,
 } from "./rendererPool";
+import {
+  detectCodingAgentBanner,
+  isInteractiveCodingAgentCommand,
+} from "./cliAgents";
 
 type Callbacks = {
   onSearchReady?: (addon: SearchAddon) => void;
   onExit?: (code: number) => void;
   onCwd?: (cwd: string) => void;
   onCommand?: (cmd: string) => void;
+  onAgentActivity?: (responding: boolean) => void;
 };
 
 type Session = {
@@ -56,26 +62,27 @@ type Session = {
   hasSlot: boolean;
   altScreenAtRelease: boolean;
   inputBuffer: string;
+  agentLaunchBuffer: string;
+  agentOutputTail: string;
   interactiveCodingAgent: boolean;
   shellState: ShellIntegrationState | null;
   initialCommandFallbackTimer: number | null;
+  agentActivityTimer: number | null;
+  lastLocalInputAt: number;
 };
 
 const sessions = new Map<number, Session>();
-
-function isInteractiveCodingAgentCommand(command?: string): boolean {
-  if (!command) return false;
-  return ["claude", "codex", "opencode", "gemini", "kimi", "grok"].some(
-    (agent) => new RegExp(`(?:^|[;|&\\s])${agent}(?=\\s|$)`, "i").test(command),
-  );
-}
+const LOCAL_INPUT_ECHO_GRACE_MS = 180;
 
 /**
  * Keep the shell's editable prompt in sync regardless of whether input comes
  * from xterm, a shortcut, or an imperative caller such as the voice agent.
  */
-function trackPromptInput(s: Session, data: string): void {
-  if (s.shellState?.inCommand) return;
+function trackPromptInput(leafId: number, s: Session, data: string): void {
+  if (s.shellState?.inCommand) {
+    trackAgentLaunchInput(leafId, s, data);
+    return;
+  }
 
   if (data.includes("\r") || data.includes("\n")) {
     const [beforeEnter = ""] = data.split(/[\r\n]+/);
@@ -83,6 +90,11 @@ function trackPromptInput(s: Session, data: string): void {
     const command = s.inputBuffer.trim();
     if (command.length > 0) {
       s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);
+      if (s.interactiveCodingAgent) setAgentCliCommand(leafId, command);
+      if (!s.interactiveCodingAgent) {
+        setAgentResponseActivity(leafId, false);
+        s.callbacks.onAgentActivity?.(false);
+      }
       void s.pty?.setMetadata({ agent: command });
       s.callbacks.onCommand?.(command);
     }
@@ -102,9 +114,53 @@ function trackPromptInput(s: Session, data: string): void {
   }
 }
 
-function writeToSessionPty(s: Session, data: string): void {
+/**
+ * Some zsh integrations emit OSC 133 C before the editable prompt. Preserve
+ * agent detection in that case without treating arbitrary TUI input as shell
+ * command history.
+ */
+function trackAgentLaunchInput(leafId: number, s: Session, data: string): void {
+  if (data.includes("\r") || data.includes("\n")) {
+    const [beforeEnter = ""] = data.split(/[\r\n]+/);
+    const command = (s.agentLaunchBuffer + beforeEnter).trim();
+    if (isInteractiveCodingAgentCommand(command)) {
+      s.interactiveCodingAgent = true;
+      setAgentCliCommand(leafId, command);
+      void s.pty?.setMetadata({ agent: command });
+      s.callbacks.onCommand?.(command);
+    }
+    s.agentLaunchBuffer = "";
+    return;
+  }
+
+  for (let index = 0; index < data.length; index += 1) {
+    const char = data[index];
+    if (char === "\x7f" || char === "\b") {
+      s.agentLaunchBuffer = s.agentLaunchBuffer.slice(0, -1);
+    } else if (char === "\u0015" || char === "\u0003") {
+      s.agentLaunchBuffer = "";
+    } else if (char.charCodeAt(0) >= 32) {
+      s.agentLaunchBuffer += char;
+    }
+  }
+}
+
+function writeToSessionPty(leafId: number, s: Session, data: string): void {
+  s.lastLocalInputAt = Date.now();
   s.pty?.write(data);
-  trackPromptInput(s, data);
+  trackPromptInput(leafId, s, data);
+}
+
+function observeTerminalInputLine(
+  leafId: number,
+  s: Session,
+  line: string,
+): void {
+  if (s.shellState?.inCommand || !isInteractiveCodingAgentCommand(line)) return;
+  s.interactiveCodingAgent = true;
+  setAgentCliCommand(leafId, line);
+  void s.pty?.setMetadata({ agent: line });
+  s.callbacks.onCommand?.(line);
 }
 
 configureRendererPool({
@@ -113,7 +169,10 @@ configureRendererPool({
     if (!s) return null;
     return {
       writeToPty: (data) => {
-        writeToSessionPty(s, data);
+        writeToSessionPty(leafId, s, data);
+      },
+      observeInputLine: (line) => {
+        observeTerminalInputLine(leafId, s, line);
       },
       resizePty: (cols, rows) => {
         s.cols = cols;
@@ -174,10 +233,17 @@ function ensureSession(
     hasSlot: false,
     altScreenAtRelease: false,
     inputBuffer: "",
+    agentLaunchBuffer: "",
+    agentOutputTail: "",
     interactiveCodingAgent: isInteractiveCodingAgentCommand(initialCommand),
     shellState: null,
     initialCommandFallbackTimer: null,
+    agentActivityTimer: null,
+    lastLocalInputAt: 0,
   };
+  if (session.interactiveCodingAgent && initialCommand) {
+    setAgentCliCommand(leafId, initialCommand);
+  }
   sessions.set(leafId, session);
 
   session.ready = (async () => {
@@ -191,6 +257,29 @@ function ensureSession(
 function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   const s = sessions.get(leafId);
   if (!s) return;
+  const output = s.agentOutputTail + new TextDecoder().decode(bytes);
+  s.agentOutputTail = output.slice(-512);
+  const detectedAgent = detectCodingAgentBanner(output);
+  if (detectedAgent) {
+    const wasInteractiveCodingAgent = s.interactiveCodingAgent;
+    s.interactiveCodingAgent = true;
+    setAgentCliCommand(leafId, detectedAgent);
+    if (!wasInteractiveCodingAgent) {
+      void s.pty?.setMetadata({ agent: detectedAgent });
+      s.callbacks.onCommand?.(detectedAgent);
+    }
+  }
+  const outputIsUserEcho = Date.now() - s.lastLocalInputAt < LOCAL_INPUT_ECHO_GRACE_MS;
+  if (s.interactiveCodingAgent && !outputIsUserEcho) {
+    setAgentResponseActivity(leafId, true);
+    s.callbacks.onAgentActivity?.(true);
+    if (s.agentActivityTimer !== null) window.clearTimeout(s.agentActivityTimer);
+    s.agentActivityTimer = window.setTimeout(() => {
+      s.agentActivityTimer = null;
+      setAgentResponseActivity(leafId, false);
+      s.callbacks.onAgentActivity?.(false);
+    }, 900);
+  }
   const slot = getSlotForLeaf(leafId);
   if (slot) slot.term.write(bytes);
   else s.dormantRing.push(bytes);
@@ -221,21 +310,34 @@ async function openPtyForSession(
   );
 }
 
-function flushInitialCommand(s: Session): void {
+function flushInitialCommand(leafId: number, s: Session): void {
   if (!s.pty || !s.initialCommand) return;
-  s.pty.write(s.initialCommand + "\r");
+  const command = s.initialCommand;
+  s.pty.write(command + "\r");
+  // Initial commands bypass normal keyboard input, so publish them explicitly.
+  // The pane chrome uses this metadata to identify coding CLIs such as Codex.
+  if (isInteractiveCodingAgentCommand(command)) {
+    setAgentCliCommand(leafId, command);
+  }
+  void s.pty.setMetadata({ agent: command });
+  s.callbacks.onCommand?.(command);
   s.initialCommand = undefined;
   if (s.initialCommandFallbackTimer !== null) {
     window.clearTimeout(s.initialCommandFallbackTimer);
     s.initialCommandFallbackTimer = null;
   }
+  if (s.agentActivityTimer !== null) {
+    window.clearTimeout(s.agentActivityTimer);
+    s.agentActivityTimer = null;
+  }
+  s.callbacks.onAgentActivity?.(false);
 }
 
-function scheduleInitialCommandFallback(s: Session): void {
+function scheduleInitialCommandFallback(leafId: number, s: Session): void {
   if (!s.initialCommand || s.initialCommandFallbackTimer !== null) return;
   s.initialCommandFallbackTimer = window.setTimeout(() => {
     s.initialCommandFallbackTimer = null;
-    flushInitialCommand(s);
+    flushInitialCommand(leafId, s);
   }, 900);
 }
 
@@ -261,7 +363,7 @@ function bindLeafToSlot(leafId: number, s: Session): void {
       const shellState = createShellIntegrationState();
       s.shellState = shellState;
       const prompt = registerPromptTracker(term, shellState, () => {
-        flushInitialCommand(s);
+        flushInitialCommand(leafId, s);
       });
       const cwd = registerCwdHandler(
         term,
@@ -323,7 +425,7 @@ function attachSession(
         }
         s.pty = pty;
         if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
-        scheduleInitialCommandFallback(s);
+        scheduleInitialCommandFallback(leafId, s);
       })
       .catch((e) => {
         s.ptyOpening = false;
@@ -348,6 +450,7 @@ export async function respawnSession(
 ): Promise<void> {
   const s = sessions.get(leafId);
   if (!s || s.disposed) return;
+  setAgentResponseActivity(leafId, false);
   s.pty?.close();
   s.pty = null;
   s.snapshot = null;
@@ -360,6 +463,11 @@ export async function respawnSession(
     window.clearTimeout(s.initialCommandFallbackTimer);
     s.initialCommandFallbackTimer = null;
   }
+  if (s.agentActivityTimer !== null) {
+    window.clearTimeout(s.agentActivityTimer);
+    s.agentActivityTimer = null;
+  }
+  s.callbacks.onAgentActivity?.(false);
 
   const slot = getSlotForLeaf(leafId);
   if (slot) {
@@ -390,10 +498,16 @@ export function disposeSession(leafId: number): void {
   const s = sessions.get(leafId);
   if (!s) return;
   s.disposed = true;
+  setAgentResponseActivity(leafId, false);
   if (s.initialCommandFallbackTimer !== null) {
     window.clearTimeout(s.initialCommandFallbackTimer);
     s.initialCommandFallbackTimer = null;
   }
+  if (s.agentActivityTimer !== null) {
+    window.clearTimeout(s.agentActivityTimer);
+    s.agentActivityTimer = null;
+  }
+  s.callbacks.onAgentActivity?.(false);
   unbindLeafFromSlot(leafId, s);
   s.snapshot = null;
   s.pty?.close();
@@ -412,6 +526,7 @@ type Options = {
   onExit?: (code: number) => void;
   onCwd?: (cwd: string) => void;
   onCommand?: (cmd: string) => void;
+  onAgentActivity?: (responding: boolean) => void;
 };
 
 export function useTerminalSession({
@@ -425,9 +540,10 @@ export function useTerminalSession({
   onExit,
   onCwd,
   onCommand,
+  onAgentActivity,
 }: Options) {
-  const cbRef = useRef({ onSearchReady, onExit, onCwd, onCommand });
-  cbRef.current = { onSearchReady, onExit, onCwd, onCommand };
+  const cbRef = useRef({ onSearchReady, onExit, onCwd, onCommand, onAgentActivity });
+  cbRef.current = { onSearchReady, onExit, onCwd, onCommand, onAgentActivity };
 
   useEffect(() => {
     let cancelled = false;
@@ -441,6 +557,7 @@ export function useTerminalSession({
         onExit: (c) => cbRef.current.onExit?.(c),
         onCwd: (c) => cbRef.current.onCwd?.(c),
         onCommand: (cmd) => cbRef.current.onCommand?.(cmd),
+        onAgentActivity: (responding) => cbRef.current.onAgentActivity?.(responding),
       });
       if (s.visibleNow && s.focusedNow) focusSlot(leafId);
     });
@@ -503,7 +620,7 @@ export function useTerminalSession({
 
   const write = useCallback((data: string) => {
     const s = sessions.get(leafId);
-    if (s) writeToSessionPty(s, data);
+    if (s) writeToSessionPty(leafId, s, data);
   }, [leafId]);
 
   /**
@@ -516,8 +633,8 @@ export function useTerminalSession({
       if (!s?.pty || s.shellState?.inCommand || s.inputBuffer !== expected) {
         return false;
       }
-      if (expected.length > 0) writeToSessionPty(s, "\u0015");
-      writeToSessionPty(s, next);
+      if (expected.length > 0) writeToSessionPty(leafId, s, "\u0015");
+      writeToSessionPty(leafId, s, next);
       return true;
     },
     [leafId],
@@ -534,8 +651,8 @@ export function useTerminalSession({
       if (!s?.pty || (s.shellState?.inCommand && !s.interactiveCodingAgent)) {
         return false;
       }
-      if (s.inputBuffer.length > 0) writeToSessionPty(s, "\u0015");
-      writeToSessionPty(s, next);
+      if (s.inputBuffer.length > 0) writeToSessionPty(leafId, s, "\u0015");
+      writeToSessionPty(leafId, s, next);
       return true;
     },
     [leafId],

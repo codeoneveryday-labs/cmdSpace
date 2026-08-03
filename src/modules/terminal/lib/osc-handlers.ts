@@ -3,7 +3,7 @@ import type { IMarker, Terminal } from "@xterm/xterm";
 /**
  * Cross-handler state shared between the OSC 7 cwd handler and the OSC 133
  * prompt-marker handler. Tracks whether we are currently inside a running
- * command (between OSC 133 B and the next OSC 133 D / A), so the cwd handler
+ * command (between OSC 133 C and the next OSC 133 D / A), so the cwd handler
  * can ignore OSC 7 updates emitted by *command output* (e.g. a remote SSH
  * server, a `cat` of an attacker-controlled file). Only OSC 7 issued by the
  * local shell — which fires between commands — should be honored.
@@ -53,9 +53,9 @@ export function registerPromptTracker(
       marker = term.registerMarker(0);
       onPrompt?.();
     } else if (data.startsWith("B")) {
-      // OSC 133 B — command begins. From here on, treat all output as
-      // untrusted until we see D (command exit) or the next A (new prompt).
-      if (state) state.inCommand = true;
+      // OSC 133 B marks the prompt boundary, not command execution. Keep the
+      // terminal editable so typed commands can be tracked before OSC 133 C.
+      if (state) state.inCommand = false;
     } else if (data.startsWith("C")) {
       // OSC 133 C — command pre-execution marker; still inside command.
       if (state) state.inCommand = true;

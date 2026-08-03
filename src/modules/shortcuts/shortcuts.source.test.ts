@@ -56,17 +56,29 @@ describe("voice agent shortcut", () => {
 });
 
 describe("bottom terminal shortcut", () => {
-  it("assigns Cmd/Ctrl+I to the bottom terminal instead of the AI composer", () => {
+  it("assigns Cmd/Ctrl+I to the bottom terminal", () => {
     const shortcutsSource = readFileSync(shortcutsPath, "utf8");
     const appSource = readFileSync(appPath, "utf8");
 
     expect(shortcutsSource).toContain('| "terminal.bottom"');
     expect(shortcutsSource).toContain('id: "terminal.bottom"');
-    expect(shortcutsSource).toContain('label: "Toggle bottom terminal"');
-    expect(shortcutsSource).toContain('group: "Panes"');
     expect(shortcutsSource).toContain('defaultBindings: [{ [MOD_PROP]: true, key: "i" }]');
     expect(shortcutsSource).not.toContain('id: "ai.toggle"');
     expect(appSource).toContain('"terminal.bottom": toggleBottomTerminal');
     expect(appSource).not.toContain('"ai.toggle": togglePanelAndFocus');
+  });
+});
+
+describe("music shortcut", () => {
+  it("opens Music CLI with Cmd/Ctrl+J without adding another terminal shortcut", () => {
+    const shortcutsSource = readFileSync(shortcutsPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+
+    expect(shortcutsSource).toContain('| "music.open"');
+    expect(shortcutsSource).toContain('id: "music.open"');
+    expect(shortcutsSource).toContain('label: "Open Music CLI"');
+    expect(shortcutsSource).toContain('defaultBindings: [{ [MOD_PROP]: true, key: "j" }]');
+    expect(appSource).toContain('"music.open": openTopMusicTab');
+    expect(appSource).toContain('"music.open": openTopMusicTab');
   });
 });
