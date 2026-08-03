@@ -35,6 +35,8 @@ pub struct WorkspacePaneRow {
     pub working_folder: Option<String>,
     #[serde(rename = "lastCommand")]
     pub last_command: Option<String>,
+    #[serde(rename = "autoLaunch", default)]
+    pub auto_launch: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -70,6 +72,70 @@ fn get_db_path() -> std::path::PathBuf {
         path.push("cmdspace.db");
         path
     }
+}
+
+fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS workspace_panes (
+            workspace_id TEXT NOT NULL,
+            pane_index INTEGER NOT NULL,
+            working_folder TEXT,
+            last_command TEXT,
+            auto_launch INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (workspace_id, pane_index)
+        );",
+        [],
+    )
+    .map_err(|e| format!("Failed to create workspace_panes table: {e}"))?;
+
+    let has_auto_launch = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(workspace_panes)")
+            .map_err(|e| format!("Failed to inspect workspace_panes table: {e}"))?;
+        let columns = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| format!("Failed to read workspace_panes table columns: {e}"))?;
+        let mut found = false;
+        for column in columns {
+            if column.map_err(|e| format!("Failed to read column name: {e}"))? == "auto_launch" {
+                found = true;
+                break;
+            }
+        }
+        found
+    };
+    if has_auto_launch {
+        return Ok(());
+    }
+
+    conn.execute(
+        "ALTER TABLE workspace_panes ADD COLUMN auto_launch INTEGER NOT NULL DEFAULT 0",
+        [],
+    )
+    .map_err(|e| format!("Failed to add auto_launch column: {e}"))?;
+    conn.execute(
+        "UPDATE workspace_panes SET auto_launch = 1
+         WHERE lower(trim(last_command)) IN ('codex', 'claude', 'opencode', 'gemini', 'kimi', 'grok', 'copilot', 'cursor-agent', 'aider', 'pi', 'amp', 'cline', 'goose', 'qwen', 'openhands', 'kiro-cli')
+            OR lower(trim(last_command)) LIKE 'codex %'
+            OR lower(trim(last_command)) LIKE 'claude %'
+            OR lower(trim(last_command)) LIKE 'opencode %'
+            OR lower(trim(last_command)) LIKE 'gemini %'
+            OR lower(trim(last_command)) LIKE 'kimi %'
+            OR lower(trim(last_command)) LIKE 'grok %'
+            OR lower(trim(last_command)) LIKE 'copilot %'
+            OR lower(trim(last_command)) LIKE 'cursor-agent %'
+            OR lower(trim(last_command)) LIKE 'aider %'
+            OR lower(trim(last_command)) LIKE 'pi %'
+            OR lower(trim(last_command)) LIKE 'amp %'
+            OR lower(trim(last_command)) LIKE 'cline %'
+            OR lower(trim(last_command)) LIKE 'goose %'
+            OR lower(trim(last_command)) LIKE 'qwen %'
+            OR lower(trim(last_command)) LIKE 'openhands %'
+            OR lower(trim(last_command)) LIKE 'kiro-cli %'",
+        [],
+    )
+    .map_err(|e| format!("Failed to migrate pane launch commands: {e}"))?;
+    Ok(())
 }
 
 pub fn init_db() -> Result<Connection, String> {
@@ -130,18 +196,7 @@ pub fn init_db() -> Result<Connection, String> {
             .map_err(|e| format!("Failed to add workspace_mode column: {e}"))?;
     }
 
-    // Migrate workspace_panes table for CLI & CWD persistence
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS workspace_panes (
-            workspace_id TEXT NOT NULL,
-            pane_index INTEGER NOT NULL,
-            working_folder TEXT,
-            last_command TEXT,
-            PRIMARY KEY (workspace_id, pane_index)
-        );",
-        [],
-    )
-    .map_err(|e| format!("Failed to create workspace_panes table: {e}"))?;
+    migrate_workspace_panes(&conn)?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS recent_workspaces (
@@ -249,7 +304,7 @@ pub fn list_panes_inner(
     workspace_id: &str,
 ) -> Result<Vec<WorkspacePaneRow>, String> {
     let mut stmt = conn
-        .prepare("SELECT workspace_id, pane_index, working_folder, last_command FROM workspace_panes WHERE workspace_id = ?1 ORDER BY pane_index ASC")
+        .prepare("SELECT workspace_id, pane_index, working_folder, last_command, auto_launch FROM workspace_panes WHERE workspace_id = ?1 ORDER BY pane_index ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -259,6 +314,7 @@ pub fn list_panes_inner(
                 pane_index: row.get(1)?,
                 working_folder: row.get(2)?,
                 last_command: row.get(3)?,
+                auto_launch: row.get(4)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -273,13 +329,14 @@ pub fn list_panes_inner(
 
 pub fn save_pane_inner(conn: &Connection, pane: &WorkspacePaneRow) -> Result<(), String> {
     conn.execute(
-        "INSERT OR REPLACE INTO workspace_panes (workspace_id, pane_index, working_folder, last_command)
-         VALUES (?1, ?2, ?3, ?4)",
+        "INSERT OR REPLACE INTO workspace_panes (workspace_id, pane_index, working_folder, last_command, auto_launch)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
         params![
             pane.workspace_id,
             pane.pane_index,
             pane.working_folder,
-            pane.last_command
+            pane.last_command,
+            pane.auto_launch
         ],
     )
     .map_err(|e| format!("Failed to save workspace pane: {e}"))?;
@@ -401,6 +458,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn pane_migration_should_not_replay_ordinary_shell_history() {
+        let conn = Connection::open_in_memory().expect("open in-memory database");
+        conn.execute_batch(
+            "CREATE TABLE workspace_panes (
+                workspace_id TEXT NOT NULL,
+                pane_index INTEGER NOT NULL,
+                working_folder TEXT,
+                last_command TEXT,
+                PRIMARY KEY (workspace_id, pane_index)
+            );
+            INSERT INTO workspace_panes VALUES ('ws', 0, NULL, 'hello');
+            INSERT INTO workspace_panes VALUES ('ws', 1, NULL, 'codex --full-auto');",
+        )
+        .expect("create legacy workspace panes");
+
+        migrate_workspace_panes(&conn).expect("migrate workspace panes");
+
+        let panes = list_panes_inner(&conn, "ws").expect("list migrated panes");
+        assert!(!panes[0].auto_launch);
+        assert!(panes[1].auto_launch);
+    }
+
+    #[test]
     fn test_sqlite_crud_operations() {
         // Clean up any test database from previous runs
         let test_path = get_db_path();
@@ -438,12 +518,14 @@ mod tests {
             pane_index: 0,
             working_folder: Some("/path/to/project/src".to_string()),
             last_command: Some("npm run dev".to_string()),
+            auto_launch: false,
         };
         let p2 = WorkspacePaneRow {
             workspace_id: "ws-1".to_string(),
             pane_index: 1,
             working_folder: None,
             last_command: Some("codex".to_string()),
+            auto_launch: true,
         };
         save_pane_inner(&conn, &p1).expect("save pane 1");
         save_pane_inner(&conn, &p2).expect("save pane 2");

@@ -132,8 +132,7 @@ describe("CanvasTerminalNode", () => {
   it("allows Voice to draft into an interactive coding CLI without unblocking busy shell commands", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("function isInteractiveCodingAgentCommand");
-    expect(source).toContain('"claude", "codex", "opencode", "gemini", "kimi", "grok"');
+    expect(source).toContain("import { isInteractiveCodingAgentCommand }");
     expect(source).toContain("shellStateRef.current.inCommand &&");
     expect(source).toContain("interactiveCodingAgentRef.current");
     expect(source).toContain("trackPromptInput(data)");

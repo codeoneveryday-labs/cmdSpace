@@ -29,6 +29,7 @@ const AUTO_COPY_BADGE_MS = 1_200;
 const SNAPSHOT_SCROLLBACK_CAP = 5_000;
 const MCR_BG_ACTIVE = 4.5;
 const MCR_BG_INACTIVE = 1;
+const OSC_COLOR_REPORT = /^(?:\x1b](?:10|11);rgb:[0-9a-f]{4}\/[0-9a-f]{4}\/[0-9a-f]{4}\x1b\\)+$/i;
 
 export type SlotAdapter = {
   resolveLeaf(leafId: number): LeafBridge | null;
@@ -38,6 +39,7 @@ export type SlotAdapter = {
 
 export type LeafBridge = {
   writeToPty(data: string): void;
+  observeInputLine?(line: string): void;
   resizePty(cols: number, rows: number): void;
   // Force a SIGWINCH on the underlying PTY at the given dims. Implemented
   // as a +1 row / restore bump because the Linux kernel suppresses winsize
@@ -233,18 +235,6 @@ function createSlot(): Slot {
       event.preventDefault();
       return false;
     }
-    if (isTerminalPaste(event)) {
-      if (event.type === "keydown") {
-        void navigator.clipboard
-          .readText()
-          .then((text) => {
-            if (text) bridge.writeToPty(text);
-          })
-          .catch(() => {});
-      }
-      event.preventDefault();
-      return false;
-    }
     return true;
   });
 
@@ -252,13 +242,31 @@ function createSlot(): Slot {
     const leafId = slot.currentLeafId;
     if (leafId === null) return;
 
+    // xterm emits OSC 10/11 color reports on its input channel. They are
+    // terminal metadata, not user input; forwarding them can corrupt zsh's
+    // history recall when a report arrives alongside an arrow key sequence.
+    if (OSC_COLOR_REPORT.test(data)) return;
     if (shouldIgnoreMacPrintableTerminalData(data)) return;
 
-    adapter?.resolveLeaf(leafId)?.writeToPty(data);
+    const bridge = adapter?.resolveLeaf(leafId);
+    if (!bridge) return;
+    if (data.includes("\r") || data.includes("\n")) {
+      bridge.observeInputLine?.(currentInputLine(slot.term));
+    }
+    bridge.writeToPty(data);
   });
 
   slots.push(slot);
   return slot;
+}
+
+function currentInputLine(term: Terminal): string {
+  const buffer = term.buffer.active;
+  return (
+    buffer
+      .getLine(buffer.baseY + buffer.cursorY)
+      ?.translateToString(true) ?? ""
+  );
 }
 
 function attachCopyOnSelection(slot: Slot): void {
@@ -893,17 +901,6 @@ function isTerminalCopy(e: KeyboardEvent): boolean {
     !e.altKey &&
     !e.metaKey &&
     (e.code === "KeyC" || e.key === "c" || e.key === "C")
-  );
-}
-
-function isTerminalPaste(e: KeyboardEvent): boolean {
-  return (
-    !IS_MAC &&
-    e.ctrlKey &&
-    e.shiftKey &&
-    !e.altKey &&
-    !e.metaKey &&
-    (e.code === "KeyV" || e.key === "v" || e.key === "V")
   );
 }
 

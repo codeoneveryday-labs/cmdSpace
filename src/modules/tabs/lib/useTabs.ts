@@ -228,6 +228,7 @@ type SavedPaneInfo = {
   paneIndex: number;
   workingFolder: string | null;
   lastCommand: string | null;
+  autoLaunch: boolean;
 };
 
 function sanitizePaneSize(size: unknown): number | undefined {
@@ -289,6 +290,7 @@ function createPaneTree(
           id: nextId(),
           cwd: savedPane?.workingFolder ?? cwd,
           lastCommand: savedPane?.lastCommand ?? undefined,
+          autoLaunch: savedPane?.autoLaunch ?? false,
           ...(size !== undefined && { size }),
         };
       }
@@ -351,6 +353,7 @@ function createPaneTree(
           id: nextId(),
           cwd: savedPane?.workingFolder ?? cwd,
           lastCommand: savedPane?.lastCommand ?? undefined,
+          autoLaunch: savedPane?.autoLaunch ?? false,
         };
       }),
       "col",
@@ -383,7 +386,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     tabsRef.current = tabs;
   }, [tabs]);
 
-  const newTab = useCallback((cwd?: string) => {
+  const newTab = useCallback((cwd?: string, initialCommand?: string, title = "shell") => {
     const tabId = nextIdRef.current++;
     const leafId = nextIdRef.current++;
     setTabs((t) => [
@@ -391,9 +394,15 @@ export function useTabs(initial?: Partial<TerminalTab>) {
       {
         id: tabId,
         kind: "terminal",
-        title: "shell",
+        title,
         cwd,
-        paneTree: { kind: "leaf", id: leafId, cwd },
+        paneTree: {
+          kind: "leaf",
+          id: leafId,
+          cwd,
+          lastCommand: initialCommand,
+          autoLaunch: Boolean(initialCommand),
+        },
         activeLeafId: leafId,
       },
     ]);

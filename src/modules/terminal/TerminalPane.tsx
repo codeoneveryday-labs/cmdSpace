@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useTheme } from "@/modules/theme";
 import type { SearchAddon } from "@xterm/addon-search";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
@@ -21,10 +22,13 @@ type Props = {
   focused?: boolean;
   initialCwd?: string;
   initialCommand?: string;
+  /** The Cmd+I drawer owns its own tab chrome, so it does not need this inset. */
+  contentTopPadding?: boolean;
   onSearchReady?: (leafId: number, addon: SearchAddon) => void;
   onExit?: (leafId: number, code: number) => void;
   onCwd?: (leafId: number, cwd: string) => void;
   onCommand?: (leafId: number, cmd: string) => void;
+  onAgentActivity?: (leafId: number, responding: boolean) => void;
 };
 
 export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
@@ -35,10 +39,12 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
       focused = true,
       initialCwd,
       initialCommand,
+      contentTopPadding = true,
       onSearchReady,
       onExit,
       onCwd,
       onCommand,
+      onAgentActivity,
     },
     ref,
   ) {
@@ -56,6 +62,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
       onExit: (c) => onExit?.(leafId, c),
       onCwd: (c) => onCwd?.(leafId, c),
       onCommand: (c) => onCommand?.(leafId, c),
+      onAgentActivity: (responding) => onAgentActivity?.(leafId, responding),
     });
 
     useEffect(() => {
@@ -81,7 +88,10 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
     return (
       <div
         ref={containerRef}
-        className="cmdspace-terminal-viewport h-full w-full overflow-hidden pt-12"
+        className={cn(
+          "cmdspace-terminal-viewport h-full w-full overflow-hidden",
+          contentTopPadding && "pt-12",
+        )}
         style={{
           visibility: visible ? "visible" : "hidden",
           pointerEvents: visible ? "auto" : "none",

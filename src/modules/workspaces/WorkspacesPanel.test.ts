@@ -9,6 +9,8 @@ const appConstantsPath = path.join(here, "../../app/constants.ts");
 const headerPath = path.join(here, "../header/Header.tsx");
 const useTabsPath = path.join(here, "../tabs/lib/useTabs.ts");
 const rendererPoolPath = path.join(here, "../terminal/lib/rendererPool.ts");
+const dbPath = path.join(here, "../../../src-tauri/src/modules/db.rs");
+const cliAgentsPath = path.join(here, "../terminal/lib/cliAgents.ts");
 
 describe("WorkspacesPanel", () => {
   it("provides the left workspaces surface shown in the app shell", () => {
@@ -20,6 +22,7 @@ describe("WorkspacesPanel", () => {
     const headerSource = readFileSync(headerPath, "utf8");
     const useTabsSource = readFileSync(useTabsPath, "utf8");
     const rendererPoolSource = readFileSync(rendererPoolPath, "utf8");
+    const cliAgentsSource = readFileSync(cliAgentsPath, "utf8");
 
     expect(panelSource).toContain("WORKSPACES");
     expect(panelSource).toContain("Set up your workspace");
@@ -60,23 +63,39 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain('name: "Focus"');
     expect(panelSource).toContain('name: "Lab"');
     expect(panelSource).toContain("AGENT_CLI_OPTIONS");
+    expect(panelSource).toContain("AgentCliIcon");
+    expect(panelSource).toContain('<AgentCliIcon agent={agent.id} size="md" />');
     expect(panelSource).toContain("Add AI coding agents");
-    expect(panelSource).toContain('name: "Claude Code"');
-    expect(panelSource).toContain('name: "Codex"');
-    expect(panelSource).toContain('name: "OpenCode"');
-    expect(panelSource).toContain('name: "Gemini CLI"');
-    expect(panelSource).toContain('name: "Kimi Code"');
-    expect(panelSource).toContain('name: "Grok CLI"');
-    expect(panelSource).toContain(
+    expect(cliAgentsSource).toContain('name: "Claude Code"');
+    expect(cliAgentsSource).toContain('name: "Codex"');
+    expect(cliAgentsSource).toContain('name: "OpenCode"');
+    expect(cliAgentsSource).toContain('name: "Gemini CLI"');
+    expect(cliAgentsSource).toContain('name: "Kimi Code"');
+    expect(cliAgentsSource).toContain('name: "Grok CLI"');
+    for (const name of [
+      "GitHub Copilot",
+      "Cursor Agent",
+      "Aider",
+      "Pi Coding Agent",
+      "Amp CLI",
+      "Cline CLI",
+      "Goose",
+      "Qwen Code",
+      "OpenHands CLI",
+      "Kiro CLI",
+    ]) {
+      expect(cliAgentsSource).toContain(name);
+    }
+    expect(cliAgentsSource).toContain(
       'command: "claude --dangerously-skip-permissions"',
     );
-    expect(panelSource).toContain(
+    expect(cliAgentsSource).toContain(
       'command: "codex --dangerously-bypass-approvals-and-sandbox"',
     );
-    expect(panelSource).toContain(
+    expect(cliAgentsSource).toContain(
       'launch: "claude --dangerously-skip-permissions"',
     );
-    expect(panelSource).toContain(
+    expect(cliAgentsSource).toContain(
       'launch: "codex --dangerously-bypass-approvals-and-sandbox"',
     );
     expect(panelSource).not.toContain("CODEX_CONFIG");
@@ -217,6 +236,9 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain(
       "lastCommand: initialCommands[paneIndex] ?? null",
     );
+    expect(appSource).toContain(
+      "autoLaunch: Boolean(initialCommands[paneIndex])",
+    );
     expect(appSource).toContain("paneLaunchPlan");
     expect(appSource).toContain("savePaneLaunchPlan");
     expect(appSource).toContain("db_save_pane");
@@ -258,5 +280,24 @@ describe("WorkspacesPanel", () => {
     expect(rendererPoolSource).toContain("POOL_MAX_SIZE = 12");
     expect(rendererPoolSource).toContain("webglDisabledAfterContextLoss");
     expect(rendererPoolSource).not.toContain("WEBGL_RECOVERY_DELAY_MS");
+  });
+
+  it("does not persist runtime shell history as a workspace launch command", () => {
+    const appSource = readFileSync(appPath, "utf8");
+    const dbSource = readFileSync(dbPath, "utf8");
+
+    expect(appSource).not.toContain("setLeafLastCommand(leafId, command)");
+    expect(appSource).not.toContain("lastCommand: command");
+    expect(appSource).toContain(
+      "const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);",
+    );
+    expect(appSource).toContain("const configuredCommand = autoLaunch");
+    expect(appSource).toContain("lastCommand: configuredCommand");
+    expect(appSource).toContain("autoLaunch,");
+    expect(dbSource).toContain("auto_launch INTEGER NOT NULL DEFAULT 0");
+    expect(dbSource).toContain(
+      "ALTER TABLE workspace_panes ADD COLUMN auto_launch INTEGER NOT NULL DEFAULT 0",
+    );
+    expect(dbSource).toContain("auto_launch: row.get(4)?");
   });
 });

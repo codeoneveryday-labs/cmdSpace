@@ -10,6 +10,9 @@ import { KEY_SEP } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { fileIconUrl } from "@/modules/explorer/lib/iconResolver";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { useAgentResponseLeaves } from "@/modules/terminal/lib/agentActivity";
+import { leafIds } from "@/modules/terminal/lib/panes";
+import { invoke } from "@tauri-apps/api/core";
 import {
   getBindingTokens,
   SHORTCUTS,
@@ -24,6 +27,7 @@ import {
   Globe02Icon,
   AiNetworkIcon,
   IncognitoIcon,
+  MusicNote01Icon,
   PencilEdit02Icon,
   PlusSignIcon,
 } from "@hugeicons/core-free-icons";
@@ -68,6 +72,7 @@ type Props = {
   onNewGitGraph: () => void;
   canNewGitGraph: boolean;
   onNewArchitecture: () => void;
+  onNewMusic: () => void;
   onClose: (id: number) => void;
   /** Pin (promote) a preview tab to persistent on double-click. */
   onPin: (id: number) => void;
@@ -86,6 +91,7 @@ export function TabBar({
   onNewGitGraph,
   canNewGitGraph,
   onNewArchitecture,
+  onNewMusic,
   onClose,
   onPin,
   compact,
@@ -93,7 +99,10 @@ export function TabBar({
   const scrollRef = useRef<HTMLDivElement>(null);
   const pointerDragRef = useRef<PointerDragState | null>(null);
   const [dragVisual, setDragVisual] = useState<DragVisualState | null>(null);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const respondingLeaves = useAgentResponseLeaves();
   const userShortcuts = usePreferencesStore((s) => s.shortcuts);
+  const hasMusicTab = tabs.some((tab) => tab.kind === "terminal" && tab.title === "Music CLI");
 
   const shortcutFor = (id: ShortcutId): string => {
     const shortcut = SHORTCUTS.find((item) => item.id === id);
@@ -123,6 +132,30 @@ export function TabBar({
     const active = el.querySelector<HTMLElement>(`[data-tab-id="${activeId}"]`);
     active?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeId, tabs.length]);
+
+  useEffect(() => {
+    if (!hasMusicTab) {
+      setIsMusicPlaying(false);
+      return;
+    }
+
+    let disposed = false;
+    const refresh = () => {
+      void invoke<boolean>("music_is_playing")
+        .then((playing) => {
+          if (!disposed) setIsMusicPlaying(playing);
+        })
+        .catch(() => {
+          if (!disposed) setIsMusicPlaying(false);
+        });
+    };
+    refresh();
+    const intervalId = window.setInterval(refresh, 2_000);
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+    };
+  }, [hasMusicTab]);
 
   useEffect(() => {
     const previewIndexForPointer = (drag: PointerDragState, clientX: number) => {
@@ -233,6 +266,9 @@ export function TabBar({
                     ]
                   : [];
               const isPreview = t.kind === "editor" && (t as EditorTab).preview;
+              const agentResponding =
+                t.kind === "terminal" &&
+                leafIds(t.paneTree).some((leafId) => respondingLeaves.has(leafId));
               return [
                 ...placeholder,
                 <TabsTrigger
@@ -263,6 +299,9 @@ export function TabBar({
                   className={cn(
                     "group h-7 shrink-0 gap-1.5 rounded-md text-xs text-muted-foreground transition-colors data-[state=active]:bg-accent data-[state=active]:text-foreground hover:text-foreground/80 justify-between",
                     "cursor-default",
+                    t.kind === "terminal" && t.title === "Music CLI" && isMusicPlaying &&
+                      "cmdspace-music-playing-tab",
+                    agentResponding && "cmdspace-agent-response-tab",
                     compact
                       ? "px-1.5!"
                       : tabs.length === 1
@@ -270,7 +309,7 @@ export function TabBar({
                         : "ps-2! pe-1!",
                   )}
                 >
-                  <TabTriggerContent tab={t} compact={compact} />
+                  <TabTriggerContent tab={t} compact={compact} musicPlaying={isMusicPlaying} />
                   {tabs.length > 1 && (
                     <span
                       role="button"
@@ -346,6 +385,12 @@ export function TabBar({
               onSelect={onNewGitGraph}
             />
             <NewTabMenuItem
+              icon={MusicNote01Icon}
+              label="Music CLI"
+              shortcut={shortcutFor("music.open")}
+              onSelect={onNewMusic}
+            />
+            <NewTabMenuItem
               icon={AiNetworkIcon}
               label="Architecture"
               shortcut={shortcutFor("tab.newArchitecture")}
@@ -365,7 +410,7 @@ export function TabBar({
             width: dragVisual.width,
           }}
         >
-          <TabTriggerContent tab={draggedTab} compact={compact} />
+          <TabTriggerContent tab={draggedTab} compact={compact} musicPlaying={isMusicPlaying} />
         </div>
       ) : null}
     </div>
@@ -406,9 +451,11 @@ function NewTabMenuItem({
 function TabTriggerContent({
   tab,
   compact,
+  musicPlaying,
 }: {
   tab: Tab;
   compact?: boolean;
+  musicPlaying: boolean;
 }) {
   const isPreview = tab.kind === "editor" && (tab as EditorTab).preview;
   return (
@@ -418,7 +465,7 @@ function TabTriggerContent({
         compact ? "max-w-48" : "max-w-80",
       )}
     >
-      <TabIcon tab={tab} />
+      <TabIcon tab={tab} musicPlaying={musicPlaying} />
       {/* Preview tabs use italic to signal the transient state,
           matching the visual convention from VSCode. */}
       <span className={cn("truncate", isPreview && "italic")}>
@@ -434,7 +481,17 @@ function TabTriggerContent({
   );
 }
 
-function TabIcon({ tab }: { tab: Tab }) {
+function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
+  if (tab.kind === "terminal" && tab.title === "Music CLI") {
+    return (
+      <HugeiconsIcon
+        icon={MusicNote01Icon}
+        size={14}
+        strokeWidth={2}
+        className={cn("shrink-0", musicPlaying && "cmdspace-music-tab-icon")}
+      />
+    );
+  }
   if (tab.kind === "editor" || tab.kind === "markdown") {
     const url = fileIconUrl(tab.title);
     return url ? <img src={url} alt="" className="size-3.5 shrink-0" /> : null;

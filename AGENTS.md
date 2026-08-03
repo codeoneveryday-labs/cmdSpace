@@ -1,5 +1,7 @@
 # Agent Instructions
 
+All commits must follow `commit_conventional.md`.
+
 ## Terax-AI Project Guidance
 
 - The desktop app is React 19 + Vite + TypeScript under `src/`; native and

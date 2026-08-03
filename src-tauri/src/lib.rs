@@ -1,6 +1,8 @@
 mod modules;
 
-use modules::{agent_usage, db, fs, git, net, pty, remote, secrets, shell, speech, workspace};
+use modules::{
+    agent_usage, db, fs, git, music, net, pty, remote, secrets, shell, speech, workspace,
+};
 use std::sync::Mutex;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::{
@@ -670,6 +672,8 @@ pub fn run() {
             net::lm_ping,
             net::ai_http_request,
             net::ai_http_stream,
+            music::music_is_playing,
+            music::install_music_cli_script,
             remote::remote_access_status,
             remote::remote_access_start,
             remote::remote_access_stop,
