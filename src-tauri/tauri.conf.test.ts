@@ -49,3 +49,17 @@ describe("main webview configuration", () => {
     expect(config.app.windows[0].dragDropEnabled).toBe(true);
   });
 });
+
+describe("macOS microphone signing", () => {
+  it("ships the hardened-runtime audio input entitlement", () => {
+    const config = JSON.parse(
+      readFileSync(path.join(here, "tauri.conf.json"), "utf8"),
+    ) as { bundle: { macOS: { entitlements?: string } } };
+    const entitlementsPath = path.join(here, "Entitlements.plist");
+
+    expect(config.bundle.macOS.entitlements).toBe("./Entitlements.plist");
+    expect(readFileSync(entitlementsPath, "utf8")).toContain(
+      "com.apple.security.device.audio-input",
+    );
+  });
+});
