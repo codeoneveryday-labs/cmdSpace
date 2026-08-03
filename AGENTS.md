@@ -2,6 +2,12 @@
 
 All commits must follow `commit_conventional.md`.
 
+## GitHub delivery
+
+Before any GitHub-backed delivery work, read and follow
+[`docs/AGENT_GITHUB_DELIVERY.md`](docs/AGENT_GITHUB_DELIVERY.md). This rule is
+mandatory for creating issues, branches, commits, pushes, and pull requests.
+
 ## Terax-AI Project Guidance
 
 - The desktop app is React 19 + Vite + TypeScript under `src/`; native and
