@@ -10,9 +10,9 @@ describe("parseSpaceCommand", () => {
     ).toEqual({ kind: "play-music", query: "Son Tung playlist" });
   });
 
-  it("leaves requests without the Space wake phrase for the Voice Agent draft flow", () => {
+  it("handles music requests when speech recognition drops the Space wake phrase", () => {
     expect(
       parseSpaceCommand("Create a music terminal and play a Son Tung playlist"),
-    ).toBeNull();
+    ).toEqual({ kind: "play-music", query: "Son Tung playlist" });
   });
 });
