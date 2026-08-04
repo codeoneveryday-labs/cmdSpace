@@ -96,17 +96,32 @@ describe("voice prompt refinement", () => {
     );
   });
 
-  it("treats the latest speech as authoritative and keeps saved drafts out of terminal context", () => {
+  it("keeps prior drafts and terminal output out of an independent request", () => {
     const previousDraft =
       "Create a React portfolio with a progress bar feature for storytelling.";
     const context = buildVoicePromptContext({
+      transcript: "Read this codebase and write a report when you are done.",
       terminalContext: `shell output\n${previousDraft}\nagent output after the draft`,
       recentDrafts: [previousDraft],
     });
 
     expect(context).toContain("Spoken request is authoritative over history");
+    expect(context).not.toContain("agent output after the draft");
+    expect(context).not.toContain(previousDraft);
+  });
+
+  it("keeps bounded context for an explicit follow-up", () => {
+    const previousDraft =
+      "Create a React portfolio with a progress bar feature for storytelling.";
+    const context = buildVoicePromptContext({
+      transcript: "Tiếp tục phần trước và thêm dark mode.",
+      terminalContext: `shell output\n${previousDraft}\nagent output after the draft`,
+      recentDrafts: [previousDraft],
+    });
+
     expect(context).toContain("agent output after the draft");
     expect(context).not.toContain(`Recent terminal state:\n${previousDraft}`);
+    expect(context).toContain(previousDraft);
     expect(source).toContain(
       "Never carry a feature, technology, or requirement from history",
     );
