@@ -22,6 +22,10 @@ import {
   type ProviderInfo,
 } from "@/modules/ai/config";
 import { clearKey, getAllKeys, setKey } from "@/modules/ai/lib/keyring";
+import {
+  DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
+  SPEECH_TO_TEXT_MODELS,
+} from "@/modules/ai/lib/speechToText";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   emitKeysChanged,
@@ -38,6 +42,7 @@ import {
   setOpenaiCompatibleBaseURL,
   setOpenaiCompatibleContextLimit,
   setOpenaiCompatibleModelId,
+  setSpeechToTextModelId,
 } from "@/modules/settings/store";
 import {
   Add01Icon,
@@ -375,6 +380,7 @@ function DefaultsBlock({
           />
         </FieldRow>
         <AutocompleteRow keys={keys} configuredIds={configuredIds} />
+        <SpeechToTextRow keys={keys} />
       </div>
     </div>
   );
@@ -451,6 +457,97 @@ function DefaultModelPicker({
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function SpeechToTextRow({ keys }: { keys: KeysMap }) {
+  const modelId = usePreferencesStore((s) => s.speechToTextModelId);
+  const currentModel =
+    SPEECH_TO_TEXT_MODELS.find((model) => model.modelId === modelId) ??
+    SPEECH_TO_TEXT_MODELS.find(
+      (model) => model.modelId === DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
+    )!;
+  const connected = !!keys[currentModel.provider];
+
+  return (
+    <>
+      <FieldRow label="STT model">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              className="h-8 flex-1 justify-between gap-2 px-2.5 text-[11.5px]"
+            >
+              <span className="flex items-center gap-2 truncate">
+                <ProviderIcon provider={currentModel.provider} size={12} />
+                <span className="truncate">{currentModel.label}</span>
+                {currentModel.developmentOnly ? (
+                  <span className="text-muted-foreground">· dev</span>
+                ) : null}
+              </span>
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                size={11}
+                strokeWidth={2}
+                className="opacity-70"
+              />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            collisionPadding={12}
+            className="min-w-70 p-1"
+          >
+            {PROVIDERS.map((provider) => {
+              const models = SPEECH_TO_TEXT_MODELS.filter(
+                (model) => model.provider === provider.id,
+              );
+              if (models.length === 0) return null;
+              const providerConnected = !!keys[provider.id];
+              return (
+                <div key={provider.id} className="px-1 pt-1.5 first:pt-1">
+                  <div className="mb-0.5 flex items-center gap-1.5 px-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+                    <ProviderIcon provider={provider.id} size={11} />
+                    <span>{provider.label}</span>
+                    {!providerConnected ? (
+                      <span className="ml-auto text-[9.5px] normal-case tracking-normal text-muted-foreground/70">
+                        not connected
+                      </span>
+                    ) : null}
+                  </div>
+                  {models.map((model) => (
+                    <DropdownMenuItem
+                      key={model.modelId}
+                      disabled={!providerConnected}
+                      onSelect={() =>
+                        providerConnected &&
+                        void setSpeechToTextModelId(model.modelId)
+                      }
+                      className={cn(
+                        "text-[11.5px]",
+                        model.modelId === modelId && "bg-accent/50",
+                      )}
+                    >
+                      <span className="flex flex-col">
+                        <span>{model.label}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {model.description}
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </FieldRow>
+      {!connected ? (
+        <p className="pl-19 text-[10.5px] text-muted-foreground">
+          {getProvider(currentModel.provider).label} isn't connected — add it below.
+        </p>
+      ) : null}
+    </>
   );
 }
 

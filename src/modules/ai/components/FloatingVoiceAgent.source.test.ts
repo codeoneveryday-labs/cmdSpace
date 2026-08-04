@@ -119,7 +119,7 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain('status === "error" ? "…" : status === "clarification" ? label : LABELS[status]');
   });
 
-  it("upgrades to automatic OpenAI transcription when a key exists and keeps native speech as fallback", () => {
+  it("uses the selected shared-key STT provider and keeps native speech as fallback", () => {
     const recordingHook = readFileSync(
       path.join(here, "../hooks/useWhisperRecording.ts"),
       "utf8",
@@ -133,22 +133,23 @@ describe("FloatingVoiceAgent", () => {
       "utf8",
     );
 
-    expect(recordingHook).toContain('OPENAI_TRANSCRIPTION_MODEL = "gpt-4o-transcribe"');
-    expect(recordingHook).toContain('formData.append("model", OPENAI_TRANSCRIPTION_MODEL)');
-    expect(recordingHook).toContain('OPENAI_TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions"');
-    expect(recordingHook).toContain("fetch(OPENAI_TRANSCRIPTION_URL");
-    expect(recordingHook).toContain("openAiApiKey?: string | null");
+    expect(recordingHook).toContain("getSpeechToTextRequest");
+    expect(recordingHook).toContain('formData.append("model", request.modelId)');
+    expect(recordingHook).toContain("fetch(request.endpoint");
+    expect(recordingHook).toContain("speechToTextModelId: string");
+    expect(recordingHook).toContain("apiKeys: Partial<Record<ProviderId, string | null>>");
     expect(recordingHook).toContain("startNativeRecognition");
-    expect(recordingHook).toContain("openAiUnavailableRef.current");
-    expect(recordingHook).toContain("!openAiApiKey");
-    expect(recordingHook).toContain("!canRecordOpenAiAudio()");
+    expect(recordingHook).toContain("unavailableRequestRef.current");
+    expect(recordingHook).toContain("!cloudRequest");
+    expect(recordingHook).toContain("!canRecordCloudAudio()");
     expect(recordingHook).toContain('invoke("speech_stop")');
     expect(recordingHook).toContain('listen<SpeechResult>("cmdspace:speech-result"');
     expect(recordingHook).not.toContain("webkitSpeechRecognition");
-    expect(voiceAgent).toContain("openAiApiKey: keys.openai");
-    expect(composer).toContain("openAiApiKey");
-    expect(composer).toContain("apiKeys.openai");
-    expect(recordingHook).not.toContain('formData.append("language"');
+    expect(voiceAgent).toContain("speechToTextModelId");
+    expect(voiceAgent).toContain("apiKeys: keys");
+    expect(composer).toContain("speechToTextModelId");
+    expect(composer).toContain("apiKeys,");
+    expect(recordingHook).toContain('formData.append("language", request.language)');
   });
 
   it("discovers the exact speech locales available on this Mac", () => {
