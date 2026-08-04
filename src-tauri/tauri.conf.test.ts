@@ -21,9 +21,13 @@ describe("updater release configuration", () => {
       readFileSync(path.join(here, "../package.json"), "utf8"),
     ) as { version: string };
     const cargoManifest = readFileSync(path.join(here, "Cargo.toml"), "utf8");
+    const cargoLock = readFileSync(path.join(here, "Cargo.lock"), "utf8");
 
     expect(packageManifest.version).toBe(config.version);
     expect(cargoManifest).toContain(`version = "${config.version}"`);
+    expect(cargoLock).toContain(
+      `name = "cmdspace"\nversion = "${config.version}"`,
+    );
     expect(config.bundle.createUpdaterArtifacts).toBe(true);
     expect(config.plugins.updater.endpoints).toContain(
       "https://github.com/codeoneveryday-labs/cmdSpace/releases/latest/download/latest.json",
