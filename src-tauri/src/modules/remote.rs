@@ -12,6 +12,7 @@ use super::workspace;
 #[cfg(windows)]
 use super::workspace::WorkspaceEnv;
 use serde::Serialize;
+use tauri::Manager;
 use std::{
     collections::{HashMap, VecDeque},
     fs,
@@ -125,6 +126,7 @@ pub fn remote_access_status(state: tauri::State<'_, RemoteAccessState>) -> Remot
 
 #[tauri::command]
 pub fn remote_access_start(
+    app: tauri::AppHandle,
     state: tauri::State<'_, RemoteAccessState>,
     pty_state: tauri::State<'_, PtyState>,
 ) -> Result<RemoteAccessStatus, String> {
@@ -164,6 +166,7 @@ pub fn remote_access_start(
     let thread_pty_state = pty_state.inner().clone();
     let thread_auth = Arc::clone(&auth);
     let thread_password_store_path = Arc::clone(&password_store_path);
+    let remote_ui_dir = Arc::new(remote_ui_dir(&app));
     let handle = thread::Builder::new()
         .name("cmdspace-remote-access".to_string())
         .spawn(move || {
@@ -174,6 +177,7 @@ pub fn remote_access_start(
                 thread_pty_state,
                 thread_auth,
                 thread_password_store_path,
+                remote_ui_dir,
             )
         })
         .map_err(|e| format!("remote access thread failed: {e}"))?;
@@ -530,6 +534,7 @@ fn serve(
     pty_state: PtyState,
     auth: Arc<Mutex<RemoteAuth>>,
     password_store_path: Arc<PathBuf>,
+    remote_ui_dir: Arc<PathBuf>,
 ) {
     while !shutdown.load(Ordering::Relaxed) {
         match listener.accept() {
@@ -539,6 +544,7 @@ fn serve(
                 let pty_state = pty_state.clone();
                 let auth = Arc::clone(&auth);
                 let password_store_path = Arc::clone(&password_store_path);
+                let remote_ui_dir = Arc::clone(&remote_ui_dir);
                 thread::spawn(move || {
                     handle_connection(
                         &mut stream,
@@ -547,6 +553,7 @@ fn serve(
                         pty_state,
                         auth,
                         password_store_path,
+                        remote_ui_dir,
                     )
                 });
             }
@@ -568,6 +575,7 @@ fn handle_connection(
     pty_state: PtyState,
     auth: Arc<Mutex<RemoteAuth>>,
     password_store_path: Arc<PathBuf>,
+    remote_ui_dir: Arc<PathBuf>,
 ) {
     if shutdown.load(Ordering::Relaxed) {
         return;
@@ -831,7 +839,7 @@ fn handle_connection(
         return;
     }
 
-    let response = remote_asset_response(path, &remote_dist_dir())
+    let response = remote_asset_response(path, remote_ui_dir.as_ref())
         .unwrap_or_else(|error| remote_fallback_response(&error));
     write_binary_response(stream, &response);
 }
@@ -1961,11 +1969,18 @@ fn request_path(request: &[u8]) -> Option<&str> {
     first_line.split_whitespace().nth(1)
 }
 
-fn remote_dist_dir() -> PathBuf {
-    let cwd = match std::env::current_dir() {
-        Ok(cwd) => cwd,
-        Err(_) => return PathBuf::from("dist"),
-    };
+fn remote_ui_dir(app: &tauri::AppHandle) -> PathBuf {
+    let resource_dir = app.path().resource_dir().ok();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    remote_ui_dir_from(resource_dir.as_deref(), &cwd)
+}
+
+fn remote_ui_dir_from(resource_dir: Option<&Path>, cwd: &Path) -> PathBuf {
+    if let Some(packaged) = resource_dir.map(|dir| dir.join("remote-ui")) {
+        if packaged.join("remote.html").is_file() {
+            return packaged;
+        }
+    }
 
     let direct = cwd.join("dist");
     if direct.exists() {
@@ -2250,6 +2265,30 @@ mod tests {
     }
 
     #[test]
+    fn packaged_builds_bundle_the_remote_ui_as_a_named_resource() {
+        let config: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tauri.conf.json"
+        )))
+        .unwrap();
+
+        assert_eq!(config["bundle"]["resources"]["../dist"], "remote-ui");
+    }
+
+    #[test]
+    fn remote_ui_dir_prefers_the_packaged_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let resources = dir.path().join("resources");
+        let packaged = resources.join("remote-ui");
+        fs::create_dir_all(&packaged).unwrap();
+        fs::write(packaged.join("remote.html"), "remote ui").unwrap();
+
+        let resolved = remote_ui_dir_from(Some(&resources), dir.path());
+
+        assert_eq!(resolved, packaged);
+    }
+
+    #[test]
     fn remote_asset_response_rejects_path_traversal() {
         let dir = tempfile::tempdir().unwrap();
         let error = remote_asset_response("/../Cargo.toml", dir.path()).unwrap_err();
@@ -2307,6 +2346,7 @@ mod tests {
             PtyState::default(),
             Arc::new(Mutex::new(RemoteAuth::new().unwrap().0)),
             Arc::new(std::env::temp_dir().join("cmdspace-remote-health-password.txt")),
+            Arc::new(std::env::temp_dir()),
         );
         drop(accepted);
         let response = client_thread.join().unwrap();
@@ -2588,6 +2628,7 @@ mod tests {
                 PtyState::default(),
                 Arc::new(Mutex::new(remote_auth)),
                 Arc::new(std::env::temp_dir().join("cmdspace-remote-ws-test-password")),
+                Arc::new(std::env::temp_dir()),
             );
         });
 
