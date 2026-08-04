@@ -29,8 +29,10 @@ transport or create a second chat state model.
 
 Settings -> General can enable the Floating Voice Agent. The draggable control
 can also be toggled with `Cmd/Ctrl+Shift+V`. It captures the current
-non-private terminal pane when recording begins, transcribes speech natively,
-and asks the selected chat model to act as a Voice Agent. It turns a
+non-private terminal pane when recording begins, transcribes with the selected
+shared-key STT provider when one is available, and immediately falls back to
+native speech if that provider fails. It ignores silent microphone sessions,
+then asks the selected chat model to act as a Voice Agent. It turns a
 spoken coding request into a compact but implementation-ready `ship` task
 brief, or an explicitly requested investigation into a `scout` task brief.
 For non-trivial implementation requests, the brief preserves the named
