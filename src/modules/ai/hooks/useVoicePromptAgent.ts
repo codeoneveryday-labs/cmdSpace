@@ -30,7 +30,6 @@ export type VoiceAgentStatus =
   | "transcribing"
   | "refining"
   | "ready"
-  | "clarification"
   | "error";
 
 type Options = {
@@ -53,7 +52,7 @@ export function useVoicePromptAgent({ captureTarget, insertDraft }: Options) {
     (state) => state.speechToTextModelId,
   );
   const [phase, setPhase] = useState<
-    "idle" | "refining" | "ready" | "clarification" | "error"
+    "idle" | "refining" | "ready" | "error"
   >(
     "idle",
   );
@@ -109,30 +108,19 @@ export function useVoicePromptAgent({ captureTarget, insertDraft }: Options) {
             openaiCompatibleModelId: preferences.openaiCompatibleModelId,
           },
         });
-        if (result.kind === "clarification") {
-          setPhase("clarification");
-          setMessage(result.text);
-          clearLater();
-          return;
-        }
-        if (result.kind === "ship" || result.kind === "scout") {
-          if (!insertDraft(target, result.text)) {
-            throw new Error(
-              "The terminal is busy. Wait for the command to finish, then try again.",
-            );
-          }
-          await saveVoicePromptHistory(historyScope, result);
-          setPhase("ready");
-          setMessage(
-            result.kind === "ship"
-              ? "Task ready — review, then press Enter."
-              : "Investigation ready — review, then press Enter.",
+        if (!insertDraft(target, result.text)) {
+          throw new Error(
+            "The terminal is busy. Wait for the command to finish, then try again.",
           );
-          clearLater();
-          return;
         }
-
-        throw new Error("Voice task compilation returned an unsupported task kind.");
+        await saveVoicePromptHistory(historyScope, result);
+        setPhase("ready");
+        setMessage(
+          result.kind === "ship"
+            ? "Task ready — review, then press Enter."
+            : "Investigation ready — review, then press Enter.",
+        );
+        clearLater();
       } catch (error) {
         setError(messageFor(error));
       }

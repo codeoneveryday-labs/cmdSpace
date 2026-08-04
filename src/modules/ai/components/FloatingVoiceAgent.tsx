@@ -28,7 +28,6 @@ const LABELS: Record<VoiceAgentStatus, string> = {
   transcribing: "Transcribing",
   refining: "Refining",
   ready: "Task ready",
-  clarification: "Need details",
   error: "Voice unavailable",
 };
 
@@ -43,12 +42,8 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
       captureTarget,
       insertDraft,
     });
-    const label =
-      status === "error" || status === "clarification"
-        ? message ?? LABELS[status]
-        : LABELS[status];
-    const visibleLabel =
-      status === "error" ? "…" : status === "clarification" ? label : LABELS[status];
+    const label = status === "error" ? message ?? LABELS[status] : LABELS[status];
+    const visibleLabel = status === "error" ? "…" : LABELS[status];
     const isListening = status === "listening";
     const dragRef = useRef<{
       pointerId: number;
