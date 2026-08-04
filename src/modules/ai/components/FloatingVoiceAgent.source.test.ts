@@ -150,6 +150,17 @@ describe("FloatingVoiceAgent", () => {
     expect(recordingHook).toContain('formData.append("language", request.language)');
   });
 
+  it("falls back to native speech immediately and does not turn silence into a draft", () => {
+    const recordingHook = readFileSync(
+      path.join(here, "../hooks/useWhisperRecording.ts"),
+      "utf8",
+    );
+
+    expect(recordingHook).toContain("hasDetectedVoiceActivity");
+    expect(recordingHook).toContain("No speech was detected. Try again.");
+    expect(recordingHook).toContain("void startNativeRecognition();");
+  });
+
   it("discovers the exact speech locales available on this Mac", () => {
     const speech = readFileSync(
       path.join(here, "../../../../src-tauri/src/modules/speech.rs"),

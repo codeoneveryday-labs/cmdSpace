@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/logo.png" width="144" height="144" alt="cmdSpace" />
+  <img src="docs/cmdspace-logo-rounded.png" width="144" height="144" alt="cmdSpace" />
   <h1>cmdSpace</h1>
   <p><strong>A terminal-first, AI-native development workspace.</strong></p>
   <p>
