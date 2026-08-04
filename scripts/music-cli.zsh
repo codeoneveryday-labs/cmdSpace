@@ -189,8 +189,15 @@ cmdspace_music_play() {
 }
 
 cmdspace_mcli() {
-  local query="$*" results choice entry title url index search_status attempt relaxed_query
+  local query results choice entry title url index search_status attempt relaxed_query
+  local play_first=false
   local -a cookie_args
+
+  if [[ "${1:-}" == "--play-first" ]]; then
+    play_first=true
+    shift
+  fi
+  query="$*"
 
   case "${1:-}" in
     "status") cmdspace_music_status; return ;;
@@ -260,6 +267,14 @@ cmdspace_mcli() {
   if [[ -z "$results" ]]; then
     printf "No results found.\n"
     return 1
+  fi
+
+  if [[ "$play_first" == true ]]; then
+    entry="${results%%$'\n'*}"
+    url="${entry#*::CMDSPACE_URL::}"
+    title="${entry%%::CMDSPACE_URL::*}"
+    cmdspace_music_play "$title" "$url"
+    return
   fi
 
   index=1

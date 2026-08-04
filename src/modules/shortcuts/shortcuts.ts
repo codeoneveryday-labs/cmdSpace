@@ -201,7 +201,7 @@ export const SHORTCUTS: Shortcut[] = [
   },
   {
     id: "voice.toggle",
-    label: "Toggle Voice Agent",
+    label: "Toggle Space",
     group: "AI",
     defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }],
   },

@@ -452,8 +452,8 @@ export function GeneralSection() {
           />
         </SettingRow>
         <SettingRow
-          title="Floating Voice Agent"
-          description="Show a draggable voice control over terminal panes. Cmd/Ctrl+Shift+V starts or stops recording."
+          title="Space"
+          description="Show the draggable Space voice control over terminal panes. Cmd/Ctrl+Shift+V starts or stops recording."
         >
           <Switch
             checked={floatingVoiceAgentEnabled}

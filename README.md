@@ -69,9 +69,10 @@ No account is required. There is no telemetry. AI can use your own provider keys
 - Reviewable code edits with accept/reject controls and plan mode.
 - Standard and Canvas terminals can start configured CLI agents in the selected working directory.
 
-### Voice input
+### Space voice input
 
-- Voice agent controls are available across normal workspaces, Canvas, and terminal surfaces.
+- Space is available across normal workspaces, Canvas, and terminal surfaces.
+- Say “Space” to invoke supported direct actions. For example, ask it to create a music terminal and play a playlist; cmdSpace opens Music CLI and starts the first result.
 - Automatic language detection supports Vietnamese, English, and other spoken languages without a manual language selector.
 - Voice can remain active while a CLI agent is running.
 - The voice control is draggable and stays above the workspace UI.

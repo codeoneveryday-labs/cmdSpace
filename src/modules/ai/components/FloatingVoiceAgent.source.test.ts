@@ -25,7 +25,7 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain("onPointerMove={move}");
     expect(component).toContain("suppressClickRef");
     expect(component).toContain('draggable={false}');
-    expect(component).toContain("Toggle Voice Agent");
+    expect(component).toContain("Toggle Space");
     expect(app).toContain("captureVoiceTarget");
     expect(app).toContain("insertVoiceDraft");
     expect(app).toContain('"voice.toggle": toggleVoiceAgent');
@@ -82,6 +82,27 @@ describe("FloatingVoiceAgent", () => {
     );
     expect(voiceAgent).not.toContain('setPhase("clarification")');
     expect(voiceAgent).toContain('"Task ready — review, then press Enter."');
+  });
+
+  it("lets Space handle a spoken music request without inserting a terminal draft", () => {
+    const component = readFileSync(
+      path.join(here, "FloatingVoiceAgent.tsx"),
+      "utf8",
+    );
+    const voiceAgent = readFileSync(
+      path.join(here, "../hooks/useVoicePromptAgent.ts"),
+      "utf8",
+    );
+    const app = readFileSync(
+      path.join(here, "../../../app/App.tsx"),
+      "utf8",
+    );
+
+    expect(component).toContain("Toggle Space");
+    expect(voiceAgent).toContain("parseSpaceCommand");
+    expect(voiceAgent).toContain("executeSpaceCommand(spaceCommand)");
+    expect(app).toContain("mcli --play-first");
+    expect(app).toContain("executeSpaceCommand={executeSpaceCommand}");
   });
 
   it("shows the actionable voice failure instead of a generic retry label", () => {

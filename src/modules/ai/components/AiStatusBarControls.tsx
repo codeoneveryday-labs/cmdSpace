@@ -110,7 +110,7 @@ export function AiStatusBarControls() {
               ? "Stop listening"
               : c.voice.transcribing
                 ? "Processing speech…"
-                : "Voice input"
+                : "Space voice input"
           }
           onClick={() =>
             c.voice.recording ? c.voice.stop() : void c.voice.start()

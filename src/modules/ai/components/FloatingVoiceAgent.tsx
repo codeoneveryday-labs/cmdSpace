@@ -12,6 +12,7 @@ import {
   type VoiceAgentStatus,
   type VoiceDraftTarget,
 } from "../hooks/useVoicePromptAgent";
+import type { SpaceCommand } from "../lib/spaceCommand";
 
 export type { VoiceDraftTarget } from "../hooks/useVoicePromptAgent";
 
@@ -20,15 +21,16 @@ export type FloatingVoiceAgentHandle = { toggle: () => void };
 type Props = {
   captureTarget: () => VoiceDraftTarget | null;
   insertDraft: (target: VoiceDraftTarget, draft: string) => boolean;
+  executeSpaceCommand: (command: SpaceCommand) => Promise<void>;
 };
 
 const LABELS: Record<VoiceAgentStatus, string> = {
-  idle: "Voice",
+  idle: "Space",
   listening: "Listening",
   transcribing: "Transcribing",
   refining: "Refining",
-  ready: "Task ready",
-  error: "Voice unavailable",
+  ready: "Space ready",
+  error: "Space unavailable",
 };
 
 const WAVEFORM_WEIGHTS = [0.55, 0.8, 1, 0.8, 0.55];
@@ -36,11 +38,15 @@ const VOICE_DRAG_THRESHOLD_PX = 4;
 const VOICE_SCREEN_EDGE_PX = 12;
 
 export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
-  function FloatingVoiceAgent({ captureTarget, insertDraft }, ref) {
+  function FloatingVoiceAgent(
+    { captureTarget, insertDraft, executeSpaceCommand },
+    ref,
+  ) {
     const enabled = usePreferencesStore((state) => state.floatingVoiceAgentEnabled);
     const { status, message, toggle, audioLevel } = useVoicePromptAgent({
       captureTarget,
       insertDraft,
+      executeSpaceCommand,
     });
     const label = status === "error" ? message ?? LABELS[status] : LABELS[status];
     const visibleLabel = status === "error" ? "…" : LABELS[status];
@@ -121,7 +127,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     return (
       <button
         type="button"
-        aria-label="Toggle Voice Agent"
+        aria-label="Toggle Space"
         aria-pressed={status === "listening"}
         title={label}
         onPointerDown={startDrag}
