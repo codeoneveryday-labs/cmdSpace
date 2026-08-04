@@ -66,7 +66,7 @@ describe("FloatingVoiceAgent", () => {
     expect(canvasTerminal).toContain("getBuffer");
   });
 
-  it("writes every Voice First Mate draft into the active terminal", () => {
+  it("writes every Voice Agent draft into the active terminal", () => {
     const voiceAgent = readFileSync(
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",

@@ -30,15 +30,16 @@ transport or create a second chat state model.
 Settings -> General can enable the Floating Voice Agent. The draggable control
 can also be toggled with `Cmd/Ctrl+Shift+V`. It captures the current
 non-private terminal pane when recording begins, transcribes speech natively,
-and asks the selected chat model to act as a Voice First Mate. It turns a
+and asks the selected chat model to act as a Voice Agent. It turns a
 spoken coding request into a compact but implementation-ready `ship` task
 brief, or an explicitly requested investigation into a `scout` task brief.
 For non-trivial implementation requests, the brief preserves the named
 technologies, integrations, primary behavior, and grounded checks without
 inventing an unstated language or stack. The brief is written into that
 captured pane without a carriage return, so the user can edit it and explicitly
-press Enter. Greetings and speech without a task objective remain in the Voice
-control as a short clarification instead of entering a terminal.
+press Enter. Speech without a clear task objective becomes a compact,
+reviewable draft instead of interrupting the voice-to-terminal flow with a
+follow-up question.
 
 Voice audio, transcript, and generated task brief are transient. cmdSpace does
 not persist them. The raw transcript is never appended to the CLI brief. If

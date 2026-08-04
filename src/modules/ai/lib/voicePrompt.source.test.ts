@@ -9,12 +9,13 @@ const source = readFileSync(
 );
 
 describe("voice prompt refinement", () => {
-  it("asks the model to compile spoken requests into First Mate task kinds", () => {
+  it("asks the model to compile spoken requests into Voice Agent task kinds", () => {
     expect(source).toContain("generateText");
     expect(source).toContain('{"kind":"ship","text":"..."}');
     expect(source).toContain('{"kind":"scout","text":"..."}');
     expect(source).not.toContain('{"kind":"clarification","text":"..."}');
-    expect(source).toContain("Voice First Mate");
+    expect(source).toContain("Voice Agent");
+    expect(source).not.toContain("Voice First Mate");
     expect(source).toContain("Do not execute commands");
     expect(source).toContain("maxOutputTokens: VOICE_PROMPT_MAX_OUTPUT_TOKENS");
     expect(source).toContain("AbortSignal.timeout(PROMPT_GENERATION_TIMEOUT_MS)");
