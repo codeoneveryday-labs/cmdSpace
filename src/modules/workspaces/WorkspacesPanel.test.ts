@@ -118,6 +118,16 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain('setSetupStep("agents")');
     expect(panelSource).toContain("Skip - no agents");
     expect(panelSource).toContain("Launch {terminalCount} terminals");
+    expect(panelSource).toContain("isEditableKeyboardTarget");
+    expect(panelSource).toContain(
+      'window.addEventListener("keydown", handleKeyboardShortcut)',
+    );
+    expect(panelSource).toContain(
+      'window.removeEventListener("keydown", handleKeyboardShortcut)',
+    );
+    expect(panelSource).toContain('event.key === "Escape"');
+    expect(panelSource).toContain("handlePrimaryAction");
+    expect(panelSource).toContain("handleBack");
     expect(panelSource).toContain("function recentWorkspaceFolderLabel");
     expect(panelSource).toContain("function coerceTerminalCount");
     expect(panelSource).toContain("const [terminalCount, setTerminalCount]");

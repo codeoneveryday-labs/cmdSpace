@@ -836,6 +836,17 @@ function agentCommandPlan(
   return commands;
 }
 
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
+
 export function WorkspaceSetupView({
   workingFolder,
   suggestedWorkspaceName,
@@ -918,6 +929,70 @@ export function WorkspaceSetupView({
     setSelectedFolder(nextFolder);
     setFolderCommand("");
   };
+
+  const openWorkspace = useCallback(
+    (initialCommands?: string[]) => {
+      onOpenWithoutAi(
+        terminalCount,
+        selectedFolder || null,
+        initialCommands,
+        workspaceName,
+        workspaceColor,
+        workspaceMode,
+      );
+      onCancel();
+    },
+    [
+      onCancel,
+      onOpenWithoutAi,
+      selectedFolder,
+      terminalCount,
+      workspaceColor,
+      workspaceMode,
+      workspaceName,
+    ],
+  );
+
+  const handleBack = useCallback(() => {
+    if (setupStep === "agents") {
+      setSetupStep("layout");
+      return;
+    }
+    onCancel();
+  }, [onCancel, setupStep]);
+
+  const handlePrimaryAction = useCallback(() => {
+    if (setupStep === "layout") {
+      setSetupStep("agents");
+      return;
+    }
+    if (plannedAgentCommands.length > 0) {
+      openWorkspace(plannedAgentCommands);
+    }
+  }, [openWorkspace, plannedAgentCommands, setupStep]);
+
+  useEffect(() => {
+    const handleKeyboardShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isEditableKeyboardTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleBack();
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handlePrimaryAction();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyboardShortcut);
+    return () =>
+      window.removeEventListener("keydown", handleKeyboardShortcut);
+  }, [handleBack, handlePrimaryAction]);
 
   const setAgentCount = (id: string, nextCount: number) => {
     setAgentCounts((current) => {
@@ -1517,13 +1592,7 @@ export function WorkspaceSetupView({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => {
-              if (setupStep === "agents") {
-                setSetupStep("layout");
-                return;
-              }
-              onCancel();
-            }}
+            onClick={handleBack}
             className="w-full justify-center text-muted-foreground sm:w-auto"
           >
             <HugeiconsIcon icon={ArrowLeft02Icon} size={14} strokeWidth={2} />
@@ -1535,24 +1604,14 @@ export function WorkspaceSetupView({
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => {
-                    onOpenWithoutAi(
-                      terminalCount,
-                      selectedFolder || null,
-                      undefined,
-                      workspaceName,
-                      workspaceColor,
-                      workspaceMode,
-                    );
-                    onCancel();
-                  }}
+                  onClick={() => openWorkspace()}
                   className="w-full justify-center text-muted-foreground sm:w-auto"
                 >
                   Open without AI
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => setSetupStep("agents")}
+                  onClick={handlePrimaryAction}
                   className="w-full justify-center sm:w-auto"
                 >
                   Next: Add AI agents
@@ -1569,17 +1628,7 @@ export function WorkspaceSetupView({
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => {
-                    onOpenWithoutAi(
-                      terminalCount,
-                      selectedFolder || null,
-                      undefined,
-                      workspaceName,
-                      workspaceColor,
-                      workspaceMode,
-                    );
-                    onCancel();
-                  }}
+                  onClick={() => openWorkspace()}
                   className="w-full justify-center text-muted-foreground sm:w-auto"
                 >
                   Skip - no agents
@@ -1587,17 +1636,7 @@ export function WorkspaceSetupView({
                 <Button
                   type="button"
                   disabled={plannedAgentCommands.length === 0}
-                  onClick={() => {
-                    onOpenWithoutAi(
-                      terminalCount,
-                      selectedFolder || null,
-                      plannedAgentCommands,
-                      workspaceName,
-                      workspaceColor,
-                      workspaceMode,
-                    );
-                    onCancel();
-                  }}
+                  onClick={handlePrimaryAction}
                   className="w-full justify-center sm:w-auto"
                 >
                   Launch {terminalCount} terminals
