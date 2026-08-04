@@ -138,6 +138,18 @@ describe("FloatingVoiceAgent", () => {
     expect(component).not.toContain('status === "clarification"');
   });
 
+  it("gives the listening waveform a voice-reactive ember glow", () => {
+    const component = readFileSync(
+      path.join(here, "FloatingVoiceAgent.tsx"),
+      "utf8",
+    );
+
+    expect(component).toContain("spaceEmberGlow");
+    expect(component).toContain("audioLevel * 26");
+    expect(component).toContain("transition-[box-shadow,color,border-color,background-color]");
+    expect(component).toContain("motion-reduce:transition-none");
+  });
+
   it("uses the selected shared-key STT provider and keeps native speech as fallback", () => {
     const recordingHook = readFileSync(
       path.join(here, "../hooks/useWhisperRecording.ts"),
