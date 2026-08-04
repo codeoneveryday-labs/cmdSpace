@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { useWhisperRecording } from "../hooks/useWhisperRecording";
+import { usePreferencesStore } from "@/modules/settings/preferences";
 import { expandSnippetTokens, type Snippet } from "../lib/snippets";
 import { tryRunSlashCommand, type SlashCommandMeta } from "./slashCommands";
 import { getOrCreateChat, useChatStore } from "../store/chatStore";
@@ -73,7 +74,10 @@ type ProviderProps = {
 export function AiComposerProvider({ children }: ProviderProps) {
   const sessionId = useChatStore((s) => s.activeSessionId);
   const status = useChatStore((s) => s.agentMeta.status);
-  const openAiApiKey = useChatStore((s) => s.apiKeys.openai);
+  const apiKeys = useChatStore((s) => s.apiKeys);
+  const speechToTextModelId = usePreferencesStore(
+    (s) => s.speechToTextModelId,
+  );
   const isBusy = status === "thinking" || status === "streaming";
 
   const [value, setValue] = useState("");
@@ -151,7 +155,8 @@ export function AiComposerProvider({ children }: ProviderProps) {
       setValue((v) => (v ? `${v} ${transcript}` : transcript));
       requestAnimationFrame(() => textareaRef.current?.focus());
     },
-    openAiApiKey,
+    speechToTextModelId,
+    apiKeys,
   });
 
   const addFiles = async (list: FileList | null) => {

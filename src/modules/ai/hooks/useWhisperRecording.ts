@@ -1,19 +1,21 @@
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ProviderId } from "../config";
+import {
+  getSpeechToTextRequest,
+  type SpeechToTextRequest,
+} from "../lib/speechToText";
 
 type State = "idle" | "recording" | "transcribing";
-type CaptureMode = "native" | "openai";
+type CaptureMode = "native" | "cloud";
 
 type SpeechResult = {
   text: string;
   final: boolean;
 };
 
-const OPENAI_TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions";
-const OPENAI_TRANSCRIPTION_MODEL = "gpt-4o-transcribe";
-
-function canRecordOpenAiAudio(): boolean {
+function canRecordCloudAudio(): boolean {
   return (
     typeof window !== "undefined" &&
     typeof navigator !== "undefined" &&
@@ -42,19 +44,21 @@ function nativeSpeechStartMessage(error: unknown): string {
 }
 
 /**
- * Uses OpenAI's multilingual transcription when the user supplied an OpenAI
- * key. Native cmdSpace speech remains the baseline and fallback, so voice
- * input keeps working without a cloud key, when browser audio capture fails,
- * and on the next attempt after a cloud transcription failure.
+ * Uses the selected cloud transcription model when its provider key is
+ * connected. Native cmdSpace speech remains the baseline and fallback, so
+ * voice input keeps working without a cloud key, when browser audio capture
+ * fails, and on the next attempt after a cloud transcription failure.
  */
 export function useWhisperRecording({
   onResult,
   onError,
-  openAiApiKey,
+  speechToTextModelId,
+  apiKeys,
 }: {
   onResult: (text: string) => void | Promise<void>;
   onError?: (message: string) => void;
-  openAiApiKey?: string | null;
+  speechToTextModelId: string;
+  apiKeys: Partial<Record<ProviderId, string | null>>;
 }) {
   const [state, setState] = useState<State>("idle");
   const [audioLevel, setAudioLevel] = useState(0);
@@ -66,10 +70,10 @@ export function useWhisperRecording({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const openAiUnavailableRef = useRef(false);
-  const previousOpenAiKeyRef = useRef(openAiApiKey);
+  const unavailableRequestRef = useRef<string | null>(null);
+  const cloudRequest = getSpeechToTextRequest(speechToTextModelId, apiKeys);
 
-  const stopOpenAiTracks = useCallback(() => {
+  const stopCloudTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
   }, []);
@@ -94,12 +98,6 @@ export function useWhisperRecording({
     onResultRef.current = onResult;
     onErrorRef.current = onError;
   }, [onError, onResult]);
-
-  useEffect(() => {
-    if (previousOpenAiKeyRef.current === openAiApiKey) return;
-    previousOpenAiKeyRef.current = openAiApiKey;
-    openAiUnavailableRef.current = false;
-  }, [openAiApiKey]);
 
   useEffect(() => {
     let unlistenResult: (() => void) | undefined;
@@ -146,10 +144,10 @@ export function useWhisperRecording({
       unlistenError?.();
       unlistenLevel?.();
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-      stopOpenAiTracks();
+      stopCloudTracks();
       void invoke("speech_stop").catch(() => undefined);
     };
-  }, [finishWithTranscript, stopOpenAiTracks]);
+  }, [finishWithTranscript, stopCloudTracks]);
 
   const startNativeRecognition = useCallback(async () => {
     modeRef.current = "native";
@@ -164,8 +162,8 @@ export function useWhisperRecording({
     }
   }, []);
 
-  const transcribeOpenAiRecording = useCallback(
-    async (recording: Blob, apiKey: string) => {
+  const transcribeCloudRecording = useCallback(
+    async (recording: Blob, request: SpeechToTextRequest) => {
       const formData = new FormData();
       formData.append(
         "file",
@@ -173,15 +171,18 @@ export function useWhisperRecording({
           type: recording.type || "audio/webm",
         }),
       );
-      formData.append("model", OPENAI_TRANSCRIPTION_MODEL);
+      if (request.sendModel !== false) {
+        formData.append("model", request.modelId);
+      }
+      if (request.language) formData.append("language", request.language);
 
-      const response = await fetch(OPENAI_TRANSCRIPTION_URL, {
+      const response = await fetch(request.endpoint, {
         method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
+        headers: { Authorization: `Bearer ${request.apiKey}` },
         body: formData,
       });
       if (!response.ok) {
-        throw new Error(`OpenAI transcription failed (${response.status}).`);
+        throw new Error(`${request.provider} transcription failed (${response.status}).`);
       }
       const payload: unknown = await response.json();
       if (
@@ -190,28 +191,28 @@ export function useWhisperRecording({
         !("text" in payload) ||
         typeof payload.text !== "string"
       ) {
-        throw new Error("OpenAI transcription returned no text.");
+        throw new Error(`${request.provider} transcription returned no text.`);
       }
       await finishWithTranscript(payload.text);
     },
     [finishWithTranscript],
   );
 
-  const startOpenAiRecording = useCallback(
-    async (apiKey: string) => {
+  const startCloudRecording = useCallback(
+    async (request: SpeechToTextRequest) => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const recorder = new MediaRecorder(stream, recorderOptions());
       recorderRef.current = recorder;
       chunksRef.current = [];
-      modeRef.current = "openai";
+      modeRef.current = "cloud";
 
       recorder.ondataavailable = ({ data }) => {
         if (data.size > 0) chunksRef.current.push(data);
       };
       recorder.onstop = () => {
         recorderRef.current = null;
-        stopOpenAiTracks();
+        stopCloudTracks();
         const audio = new Blob(chunksRef.current, {
           type: recorder.mimeType || "audio/webm",
         });
@@ -222,9 +223,9 @@ export function useWhisperRecording({
           return;
         }
         setState("transcribing");
-        void transcribeOpenAiRecording(audio, apiKey).catch((error) => {
-          console.error("openaiSpeech.transcribe", error);
-          openAiUnavailableRef.current = true;
+        void transcribeCloudRecording(audio, request).catch((error) => {
+          console.error("cloudSpeech.transcribe", error);
+          unavailableRequestRef.current = `${request.modelId}:${request.apiKey}`;
           finishedRef.current = true;
           modeRef.current = null;
           setState("idle");
@@ -233,12 +234,12 @@ export function useWhisperRecording({
       };
       recorder.start();
     },
-    [stopOpenAiTracks, transcribeOpenAiRecording],
+    [stopCloudTracks, transcribeCloudRecording],
   );
 
   const stop = useCallback(() => {
     setAudioLevel(0);
-    if (modeRef.current === "openai") {
+    if (modeRef.current === "cloud") {
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       return;
     }
@@ -259,25 +260,28 @@ export function useWhisperRecording({
     setAudioLevel(0);
     setState("recording");
     try {
+      const requestId = cloudRequest
+        ? `${cloudRequest.modelId}:${cloudRequest.apiKey}`
+        : null;
       if (
-        !openAiApiKey ||
-        openAiUnavailableRef.current ||
-        !canRecordOpenAiAudio()
+        !cloudRequest ||
+        unavailableRequestRef.current === requestId ||
+        !canRecordCloudAudio()
       ) {
         await startNativeRecognition();
         return;
       }
       try {
-        await startOpenAiRecording(openAiApiKey);
+        await startCloudRecording(cloudRequest);
       } catch (error) {
-        console.warn("openaiSpeech.capture", error);
-        stopOpenAiTracks();
+        console.warn("cloudSpeech.capture", error);
+        stopCloudTracks();
         await startNativeRecognition();
       }
     } finally {
       startingRef.current = false;
     }
-  }, [openAiApiKey, startNativeRecognition, startOpenAiRecording, state, stopOpenAiTracks]);
+  }, [cloudRequest, startCloudRecording, startNativeRecognition, state, stopCloudTracks]);
 
   return {
     state,
