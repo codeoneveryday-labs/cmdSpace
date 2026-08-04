@@ -55,7 +55,7 @@ describe("Architecture workspace page", () => {
     expect(canvasSource).toContain('"relative z-10 block h-full w-full"');
     expect(canvasSource).toContain('"pointer-events-none absolute inset-0 z-20"');
     expect(canvasSource).toContain("<video");
-    expect(canvasSource).not.toContain("        autoPlay\n");
+    expect(canvasSource).toContain("        autoPlay\n");
     expect(canvasSource).not.toContain("        src={media.url}\n");
   });
 

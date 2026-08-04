@@ -2923,6 +2923,7 @@ function CanvasBackgroundMedia({ imageId }: { imageId: string | null }) {
       <video
         ref={videoRef}
         aria-hidden
+        autoPlay
         loop
         muted
         playsInline
