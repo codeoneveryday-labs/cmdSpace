@@ -43,4 +43,17 @@ describe("Music CLI shell entrypoint", () => {
     expect(output).toContain("exit:130");
     expect(output).not.toContain("No results found.");
   });
+
+  it("plays the top result when Space requests automatic playback", () => {
+    const output = runZsh(`
+      source "$MUSIC_CLI_TEST_SCRIPT" >/dev/null
+      yt-dlp() { print 'Son Tung Playlist::CMDSPACE_URL::https://example.com/son-tung'; }
+      ffmpeg() { :; }
+      mpg123() { :; }
+      cmdspace_music_play() { print "play:$1|$2"; }
+      mcli --play-first "Son Tung playlist"
+    `);
+
+    expect(output).toContain("play:Son Tung Playlist|https://example.com/son-tung");
+  });
 });

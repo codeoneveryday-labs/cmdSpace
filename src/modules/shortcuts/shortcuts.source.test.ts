@@ -47,9 +47,9 @@ describe("voice agent shortcut", () => {
 
     expect(shortcutsSource).toContain('| "voice.toggle"');
     expect(shortcutsSource).toContain('id: "voice.toggle"');
-    expect(shortcutsSource).toContain('label: "Toggle Voice Agent"');
+    expect(shortcutsSource).toContain('label: "Toggle Space"');
     expect(shortcutsSource).toContain(
-      'id: "voice.toggle",\n    label: "Toggle Voice Agent",\n    group: "AI",\n    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }]',
+      'id: "voice.toggle",\n    label: "Toggle Space",\n    group: "AI",\n    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }]',
     );
     expect(appSource).toContain('"voice.toggle": toggleVoiceAgent');
   });

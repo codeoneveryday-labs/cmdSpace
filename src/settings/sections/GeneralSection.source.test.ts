@@ -18,12 +18,12 @@ describe("GeneralSection terminal settings", () => {
     );
   });
 
-  it("lets the user opt into the floating voice agent", () => {
+  it("lets the user opt into Space", () => {
     const source = readFileSync(generalSectionPath, "utf8");
 
     expect(source).toContain("floatingVoiceAgentEnabled");
     expect(source).toContain("setFloatingVoiceAgentEnabled");
-    expect(source).toContain("Floating Voice Agent");
+    expect(source).toContain('title="Space"');
     expect(source).toContain(
       "onCheckedChange={(v) => void setFloatingVoiceAgentEnabled(v)}",
     );

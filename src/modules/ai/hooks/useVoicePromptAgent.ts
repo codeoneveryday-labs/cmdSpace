@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { generateVoicePrompt } from "../lib/voicePrompt";
+import { parseSpaceCommand, type SpaceCommand } from "../lib/spaceCommand";
 import {
   loadVoicePromptHistory,
   saveVoicePromptHistory,
@@ -35,6 +36,7 @@ export type VoiceAgentStatus =
 type Options = {
   captureTarget: () => VoiceDraftTarget | null;
   insertDraft: (target: VoiceDraftTarget, draft: string) => boolean;
+  executeSpaceCommand: (command: SpaceCommand) => Promise<void>;
 };
 
 const READY_DURATION_MS = 2_800;
@@ -45,7 +47,11 @@ function messageFor(error: unknown): string {
     : "Voice prompt generation failed. Try again.";
 }
 
-export function useVoicePromptAgent({ captureTarget, insertDraft }: Options) {
+export function useVoicePromptAgent({
+  captureTarget,
+  insertDraft,
+  executeSpaceCommand,
+}: Options) {
   const modelId = useChatStore((state) => state.selectedModelId);
   const keys = useChatStore((state) => state.apiKeys);
   const speechToTextModelId = usePreferencesStore(
@@ -76,6 +82,21 @@ export function useVoicePromptAgent({ captureTarget, insertDraft }: Options) {
 
   const refineTranscript = useCallback(
     async (transcript: string) => {
+      const spaceCommand = parseSpaceCommand(transcript);
+      if (spaceCommand) {
+        setPhase("refining");
+        setMessage("Space is starting music…");
+        try {
+          await executeSpaceCommand(spaceCommand);
+          setPhase("ready");
+          setMessage("Music is playing.");
+          clearLater();
+        } catch (error) {
+          setError(messageFor(error));
+        }
+        return;
+      }
+
       const target = targetRef.current;
       if (!target) {
         setError("The target terminal is no longer available.");
@@ -125,7 +146,7 @@ export function useVoicePromptAgent({ captureTarget, insertDraft }: Options) {
         setError(messageFor(error));
       }
     },
-    [clearLater, insertDraft, keys, modelId, setError],
+    [clearLater, executeSpaceCommand, insertDraft, keys, modelId, setError],
   );
 
   const recorder = useWhisperRecording({
@@ -145,12 +166,7 @@ export function useVoicePromptAgent({ captureTarget, insertDraft }: Options) {
       setError("Voice recording is not supported in this window.");
       return;
     }
-    const target = captureTarget();
-    if (!target) {
-      setError("Select a non-private terminal pane before starting voice input.");
-      return;
-    }
-    targetRef.current = target;
+    targetRef.current = captureTarget();
     if (clearTimerRef.current !== null) window.clearTimeout(clearTimerRef.current);
     setPhase("idle");
     setMessage(null);

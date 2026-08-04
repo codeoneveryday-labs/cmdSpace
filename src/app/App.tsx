@@ -30,6 +30,7 @@ import {
 } from "@/modules/ai/components/FloatingVoiceAgent";
 import { redactSensitive } from "@/modules/ai/lib/redact";
 import { native } from "@/modules/ai/lib/native";
+import type { SpaceCommand } from "@/modules/ai/lib/spaceCommand";
 import { useAgentsStore } from "@/modules/ai/store/agentsStore";
 import { useSnippetsStore } from "@/modules/ai/store/snippetsStore";
 import {
@@ -297,6 +298,10 @@ function readSidebarBrowserUrl(): string {
   } catch {
     return "";
   }
+}
+
+function quoteShellArgument(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
 export default function App() {
@@ -1125,6 +1130,23 @@ export default function App() {
     }
     newTab(inheritedCwdForNewTab(), 'source "$HOME/.cmdspace/music-cli.zsh"', "Music CLI");
   }, [newTab, inheritedCwdForNewTab]);
+
+  const executeSpaceCommand = useCallback(
+    async (command: SpaceCommand) => {
+      if (command.kind !== "play-music") return;
+      try {
+        await invoke("install_music_cli_script");
+      } catch (error) {
+        console.error("Failed to install Music CLI script:", error);
+      }
+      newTab(
+        inheritedCwdForNewTab(),
+        `source "$HOME/.cmdspace/music-cli.zsh"; mcli --play-first ${quoteShellArgument(command.query)}`,
+        "Music CLI",
+      );
+    },
+    [newTab, inheritedCwdForNewTab],
+  );
 
   const openNewPrivateTab = useCallback(() => {
     newPrivateTab(inheritedCwdForNewTab());
@@ -2739,6 +2761,7 @@ export default function App() {
             ref={voiceAgentRef}
             captureTarget={captureVoiceTarget}
             insertDraft={insertVoiceDraft}
+            executeSpaceCommand={executeSpaceCommand}
           />
 
           <ShortcutsDialog
