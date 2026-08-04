@@ -49,6 +49,9 @@ function messageFor(error: unknown): string {
 export function useVoicePromptAgent({ captureTarget, insertDraft }: Options) {
   const modelId = useChatStore((state) => state.selectedModelId);
   const keys = useChatStore((state) => state.apiKeys);
+  const speechToTextModelId = usePreferencesStore(
+    (state) => state.speechToTextModelId,
+  );
   const [phase, setPhase] = useState<
     "idle" | "refining" | "ready" | "clarification" | "error"
   >(
@@ -140,7 +143,8 @@ export function useVoicePromptAgent({ captureTarget, insertDraft }: Options) {
   const recorder = useWhisperRecording({
     onResult: refineTranscript,
     onError: setError,
-    openAiApiKey: keys.openai,
+    speechToTextModelId,
+    apiKeys: keys,
   });
 
   const toggle = useCallback(async () => {

@@ -8,6 +8,7 @@ import {
   type AutocompleteProviderId,
   type ModelId,
 } from "@/modules/ai/config";
+import { DEFAULT_SPEECH_TO_TEXT_MODEL_ID } from "@/modules/ai/lib/speechToText";
 import type { KeyBinding, ShortcutId } from "@/modules/shortcuts/shortcuts";
 import { DEFAULT_THEME_ID } from "@/modules/theme/constants";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -62,6 +63,7 @@ export type Preferences = {
   autocompleteEnabled: boolean;
   autocompleteProvider: AutocompleteProviderId;
   autocompleteModelId: string;
+  speechToTextModelId: string;
   lmstudioBaseURL: string;
   lmstudioModelId: string;
   mlxBaseURL: string;
@@ -104,6 +106,7 @@ const KEY_RESTORE_WINDOW = "restoreWindowState";
 const KEY_AUTOCOMPLETE_ENABLED = "autocompleteEnabled";
 const KEY_AUTOCOMPLETE_PROVIDER = "autocompleteProvider";
 const KEY_AUTOCOMPLETE_MODEL = "autocompleteModelId";
+const KEY_SPEECH_TO_TEXT_MODEL = "speechToTextModelId";
 const KEY_LMSTUDIO_BASE_URL = "lmstudioBaseURL";
 const KEY_LMSTUDIO_MODEL_ID = "lmstudioModelId";
 const KEY_MLX_BASE_URL = "mlxBaseURL";
@@ -161,6 +164,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   autocompleteEnabled: false,
   autocompleteProvider: "cerebras",
   autocompleteModelId: DEFAULT_AUTOCOMPLETE_MODEL.cerebras ?? "",
+  speechToTextModelId: DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
   lmstudioBaseURL: LMSTUDIO_DEFAULT_BASE_URL,
   lmstudioModelId: "",
   mlxBaseURL: MLX_DEFAULT_BASE_URL,
@@ -246,6 +250,9 @@ export async function loadPreferences(): Promise<Preferences> {
     autocompleteModelId:
       get<string>(KEY_AUTOCOMPLETE_MODEL) ??
       DEFAULT_PREFERENCES.autocompleteModelId,
+    speechToTextModelId:
+      get<string>(KEY_SPEECH_TO_TEXT_MODEL) ??
+      DEFAULT_PREFERENCES.speechToTextModelId,
     lmstudioBaseURL:
       get<string>(KEY_LMSTUDIO_BASE_URL) ?? DEFAULT_PREFERENCES.lmstudioBaseURL,
     lmstudioModelId:
@@ -390,6 +397,10 @@ export async function setAutocompleteProvider(
 
 export async function setAutocompleteModelId(value: string): Promise<void> {
   await writePref(KEY_AUTOCOMPLETE_MODEL, value);
+}
+
+export async function setSpeechToTextModelId(value: string): Promise<void> {
+  await writePref(KEY_SPEECH_TO_TEXT_MODEL, value);
 }
 
 export async function setLmstudioBaseURL(value: string): Promise<void> {
@@ -537,6 +548,7 @@ export async function onPreferencesChange(
     [KEY_AUTOCOMPLETE_ENABLED]: "autocompleteEnabled",
     [KEY_AUTOCOMPLETE_PROVIDER]: "autocompleteProvider",
     [KEY_AUTOCOMPLETE_MODEL]: "autocompleteModelId",
+    [KEY_SPEECH_TO_TEXT_MODEL]: "speechToTextModelId",
     [KEY_LMSTUDIO_BASE_URL]: "lmstudioBaseURL",
     [KEY_LMSTUDIO_MODEL_ID]: "lmstudioModelId",
     [KEY_MLX_BASE_URL]: "mlxBaseURL",
