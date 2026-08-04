@@ -102,9 +102,12 @@ describe("CanvasTerminalNode", () => {
 
     expect(source).toContain("function isTerminalPaste");
     expect(source).toContain("navigator.clipboard\n              .readText()");
-    expect(source).toContain("trackPromptInput(text)");
-    expect(source).toContain("void sessionRef.current?.write(text)");
+    expect(source).toContain("trackPromptInput(normalized)");
+    expect(source).toContain("void sessionRef.current?.write(normalized)");
     expect(source).toContain("if (isTerminalPaste(event))");
+    // C1 normalization must be applied before the PTY write on macOS WebKit
+    expect(source).toContain("normalizeMacTerminalInput(text)");
+    expect(source).toContain("IS_MAC_TEXT_INPUT_PLATFORM");
   });
 
   it("keeps copy-on-select silent instead of rendering a copy action", () => {
