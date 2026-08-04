@@ -39,10 +39,10 @@ For non-trivial implementation requests, the brief preserves the named
 technologies, integrations, primary behavior, and grounded checks without
 inventing an unstated language or stack. The brief is written into that
 captured pane without a carriage return, so the user can edit it and explicitly
-press Enter. When addressed as Space, a supported app request can be performed
-directly; for example, asking it to create a music terminal and play a playlist
-opens Music CLI and starts the top result. Speech without a clear task objective
-becomes a compact, reviewable draft instead of interrupting the
+press Enter. A supported Space app request can be performed directly; for
+example, asking it to create a music terminal and play a playlist opens Music
+CLI and starts the top result, even when speech recognition omits the wake word.
+Speech without a clear task objective becomes a compact, reviewable draft instead of interrupting the
 voice-to-terminal flow with a follow-up question.
 
 Voice audio, transcript, and generated task brief are transient. cmdSpace does
