@@ -23,6 +23,8 @@ import {
 } from "@/modules/terminal/lib/pty-bridge";
 import {
   attachMacImeBridge,
+  IS_MAC_TEXT_INPUT_PLATFORM,
+  normalizeMacTerminalInput,
   shouldIgnoreMacPrintableTerminalData,
   shouldUseMacTextInputPath,
 } from "@/modules/terminal/lib/macImeBridge";
@@ -341,8 +343,15 @@ export function CanvasTerminalNode({
               .readText()
               .then((text) => {
                 if (!text) return;
-                trackPromptInput(text);
-                void sessionRef.current?.write(text);
+                // WebKit on macOS can surface space characters in clipboard
+                // content as invisible C1 control chars (U+0080–U+009F),
+                // causing pasted words to fuse into a single token at the
+                // shell. Normalize before forwarding to the PTY.
+                const normalized = IS_MAC_TEXT_INPUT_PLATFORM
+                  ? normalizeMacTerminalInput(text)
+                  : text;
+                trackPromptInput(normalized);
+                void sessionRef.current?.write(normalized);
               })
               .catch(() => {});
           }

@@ -11,6 +11,8 @@ import { Terminal } from "@xterm/xterm";
 import { terminalWordNavigationSequence } from "./keymap";
 import {
   attachMacImeBridge,
+  IS_MAC_TEXT_INPUT_PLATFORM,
+  normalizeMacTerminalInput,
   shouldIgnoreMacPrintableTerminalData,
   shouldUseMacTextInputPath,
 } from "./macImeBridge";
@@ -250,10 +252,17 @@ function createSlot(): Slot {
 
     const bridge = adapter?.resolveLeaf(leafId);
     if (!bridge) return;
-    if (data.includes("\r") || data.includes("\n")) {
+    // WebKit on macOS can surface space characters in clipboard content as
+    // invisible C1 control chars (U+0080–U+009F), causing pasted words to
+    // fuse into a single token at the shell. xterm's native paste listener
+    // feeds this path, so normalize before forwarding to the PTY.
+    const normalized = IS_MAC_TEXT_INPUT_PLATFORM
+      ? normalizeMacTerminalInput(data)
+      : data;
+    if (normalized.includes("\r") || normalized.includes("\n")) {
       bridge.observeInputLine?.(currentInputLine(slot.term));
     }
-    bridge.writeToPty(data);
+    bridge.writeToPty(normalized);
   });
 
   slots.push(slot);
