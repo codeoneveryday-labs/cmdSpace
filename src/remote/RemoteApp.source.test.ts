@@ -52,7 +52,19 @@ describe("RemoteApp transport", () => {
     expect(styles).toContain(".remote-auth-card {");
     expect(styles).toContain("box-sizing: border-box;");
     expect(styles).toContain(".remote-auth-logo");
+    expect(styles).toContain("border-radius: 10px;");
     expect(styles).toContain("@media (max-width: 520px)");
+  });
+
+  it("provides browser voice typing that inserts the final transcript into the terminal", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("webkitSpeechRecognition");
+    expect(source).toContain("SpeechRecognition");
+    expect(source).toContain('aria-label={voiceInput.listening ? "Stop voice input" : "Start voice input"}');
+    expect(source).toContain("recognition.onresult");
+    expect(source).toContain("sendKey(transcript)");
+    expect(source).toContain("recognition?.abort()");
   });
 
   it("accepts Android-safe setup paths and scrubs the one-time secret", () => {

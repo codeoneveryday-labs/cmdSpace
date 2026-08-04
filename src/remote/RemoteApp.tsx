@@ -2,6 +2,7 @@ import {
   ArrowRight01Icon,
   File01Icon,
   Folder01Icon,
+  Mic01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -22,6 +23,38 @@ import {
 
 const REMOTE_TOKEN_STORAGE_KEY = "cmdspace.remote.token";
 const REMOTE_CWD_STORAGE_KEY = "cmdspace.remote.cwd";
+
+type BrowserSpeechRecognitionResult = {
+  0?: { transcript?: string };
+};
+
+type BrowserSpeechRecognitionEvent = Event & {
+  resultIndex: number;
+  results: ArrayLike<BrowserSpeechRecognitionResult>;
+};
+
+type BrowserSpeechRecognitionErrorEvent = Event & {
+  error: string;
+};
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onend: (() => void) | null;
+  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  abort: () => void;
+  start: () => void;
+  stop: () => void;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+type BrowserWindow = Window & {
+  SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+};
 
 type RemoteFolder = {
   name: string;
@@ -53,6 +86,19 @@ function remoteFolderName(path: string): string {
   const normalized = path.replace(/\/+$/, "");
   const segments = normalized.split("/").filter(Boolean);
   return segments[segments.length - 1] ?? path;
+}
+
+function getSpeechRecognitionConstructor(): BrowserSpeechRecognitionConstructor | null {
+  const browserWindow = window as BrowserWindow;
+  return browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition ?? null;
+}
+
+function speechRecognitionErrorMessage(error: string): string {
+  if (error === "not-allowed" || error === "service-not-allowed") {
+    return "Allow microphone access in your browser, then try again.";
+  }
+  if (error === "no-speech") return "No speech detected. Try again.";
+  return "Voice input failed. Try again.";
 }
 
 function readRemoteBootstrapSecret(): string {
@@ -283,6 +329,11 @@ function AuthenticatedRemoteApp({
   const [keyboardVisible, setKeyboardVisible] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches,
   );
+  const [voiceInput, setVoiceInput] = useState({
+    listening: false,
+    error: null as string | null,
+  });
+  const speechRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   useEffect(() => {
     if (!remoteCwd) return;
     const next = new RemoteTerminalClient({ token: authToken, onUnauthorized });
@@ -333,6 +384,59 @@ function AuthenticatedRemoteApp({
     );
   }, [client, cwdSessions, remoteCwd, sessionsLoaded]);
 
+  const sendKey = useCallback((value: string) => {
+    if (client && activeSessionId !== null) client.sendInput(activeSessionId, value);
+  }, [activeSessionId, client]);
+
+  useEffect(() => () => {
+    const recognition = speechRecognitionRef.current;
+    speechRecognitionRef.current = null;
+    recognition?.abort();
+  }, []);
+
+  const toggleVoiceInput = useCallback(() => {
+    if (speechRecognitionRef.current) {
+      speechRecognitionRef.current.stop();
+      return;
+    }
+
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      setVoiceInput({ listening: false, error: "Voice input is not supported by this browser." });
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = navigator.language || "en-US";
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .slice(event.resultIndex)
+        .map((result) => result[0]?.transcript ?? "")
+        .join("")
+        .trim();
+      if (transcript) sendKey(transcript);
+    };
+    recognition.onerror = (event) => {
+      setVoiceInput({ listening: false, error: speechRecognitionErrorMessage(event.error) });
+    };
+    recognition.onend = () => {
+      if (speechRecognitionRef.current === recognition) {
+        speechRecognitionRef.current = null;
+        setVoiceInput((current) => ({ ...current, listening: false }));
+      }
+    };
+    speechRecognitionRef.current = recognition;
+    setVoiceInput({ listening: true, error: null });
+    try {
+      recognition.start();
+    } catch {
+      speechRecognitionRef.current = null;
+      setVoiceInput({ listening: false, error: "Voice input could not start. Try again." });
+    }
+  }, [sendKey]);
+
   if (!remoteCwd) {
     return (
       <RemoteFolderPicker
@@ -347,9 +451,6 @@ function AuthenticatedRemoteApp({
   }
 
   const activeSession = cwdSessions.find((session) => session.id === activeSessionId) ?? null;
-  const sendKey = (value: string) => {
-    if (client && activeSessionId !== null) client.sendInput(activeSessionId, value);
-  };
 
   return (
     <main className="remote-shell">
@@ -371,6 +472,16 @@ function AuthenticatedRemoteApp({
             data-active={keyboardVisible || undefined}
             onClick={() => setKeyboardVisible((value) => !value)}
           >⌨</button>
+          <button
+            type="button"
+            aria-label={voiceInput.listening ? "Stop voice input" : "Start voice input"}
+            aria-pressed={voiceInput.listening}
+            title={voiceInput.error ?? "Speak to type into the terminal"}
+            data-active={voiceInput.listening || undefined}
+            data-error={voiceInput.error || undefined}
+            disabled={!client || activeSessionId === null}
+            onClick={toggleVoiceInput}
+          ><HugeiconsIcon icon={Mic01Icon} size={18} /></button>
           <button
             type="button"
             aria-label="Change folder"
@@ -396,6 +507,7 @@ function AuthenticatedRemoteApp({
         />
       ) : (
         <section className="remote-terminal-screen">
+          {voiceInput.error ? <p className="remote-voice-error" role="status">{voiceInput.error}</p> : null}
           <div className="remote-terminal-stage">
             {client && activeSession ? (
               <RemoteTerminal client={client} sessionId={activeSession.id} />
