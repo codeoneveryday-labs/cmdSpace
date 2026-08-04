@@ -132,10 +132,23 @@ describe("CanvasTerminalNode", () => {
   it("allows Voice to draft into an interactive coding CLI without unblocking busy shell commands", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("import { isInteractiveCodingAgentCommand }");
+    expect(source).toContain("isInteractiveCodingAgentCommand,");
     expect(source).toContain("shellStateRef.current.inCommand &&");
     expect(source).toContain("interactiveCodingAgentRef.current");
     expect(source).toContain("trackPromptInput(data)");
+  });
+
+  it("shows Canvas-only agent response and completion borders", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("type AgentResponseState = \"idle\" | \"responding\" | \"completed\"");
+    expect(source).toContain("setAgentResponseState(\"responding\")");
+    expect(source).toContain("setAgentResponseState(\"completed\")");
+    expect(source).toContain("setAgentResponseState(\"idle\")");
+    expect(source).toContain("cmdspace-canvas-agent-responding");
+    expect(source).toContain("cmdspace-canvas-agent-completed");
+    expect(source).toContain("rounded-[inherit]");
+    expect(source).toContain("shadow-[0_0_18px_rgba(16,185,129,0.55)]");
   });
 
   it("renders dock tabs without changing the isolated PTY lifecycle", () => {

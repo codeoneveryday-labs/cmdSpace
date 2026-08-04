@@ -32,8 +32,16 @@ import {
   registerPromptTracker,
 } from "@/modules/terminal/lib/osc-handlers";
 import { sharedTerminalOptions } from "@/modules/terminal/lib/terminalOptions";
-import { isInteractiveCodingAgentCommand } from "@/modules/terminal/lib/cliAgents";
+import {
+  detectCodingAgentBanner,
+  isInteractiveCodingAgentCommand,
+} from "@/modules/terminal/lib/cliAgents";
 import { useTheme } from "@/modules/theme";
+
+type AgentResponseState = "idle" | "responding" | "completed";
+
+const AGENT_RESPONSE_IDLE_MS = 900;
+const LOCAL_INPUT_ECHO_GRACE_MS = 180;
 
 type Props = {
   initialCwd?: string;
@@ -135,6 +143,9 @@ export function CanvasTerminalNode({
   const promptInputRef = useRef("");
   const initialCwdRef = useRef(initialCwd);
   const initialCommandRef = useRef(initialCommand);
+  const agentActivityTimerRef = useRef<number | null>(null);
+  const agentOutputTailRef = useRef("");
+  const lastLocalInputAtRef = useRef(0);
   const interactiveCodingAgentRef = useRef(
     isInteractiveCodingAgentCommand(initialCommand),
   );
@@ -142,6 +153,8 @@ export function CanvasTerminalNode({
   const handleChangeRef = useRef(onHandleChange);
   const resizePausedRef = useRef(resizePaused);
   const [cwd, setCwd] = useState(initialCwd);
+  const [agentResponseState, setAgentResponseState] =
+    useState<AgentResponseState>("idle");
 	const [copyBadgeVisible, setCopyBadgeVisible] = useState(false);
   const { resolvedMode, themeId, customThemes } = useTheme();
   const terminalFontFamily = usePreferencesStore((state) => state.terminalFontFamily);
@@ -155,6 +168,7 @@ export function CanvasTerminalNode({
   handleChangeRef.current = onHandleChange;
   const tabLabel = cwd ? cwd.replace(/\/$/, "").split("/").pop() || cwd : "Terminal";
   const trackPromptInput = (data: string) => {
+    lastLocalInputAtRef.current = Date.now();
     if (shellStateRef.current.inCommand) return;
 
     if (data.includes("\r") || data.includes("\n")) {
@@ -233,6 +247,30 @@ export function CanvasTerminalNode({
 		let lastAutoCopiedSelection = "";
     let disposeCwdHandler: (() => void) | null = null;
     let disposePromptTracker: (() => void) | null = null;
+    const outputDecoder = new TextDecoder();
+
+    const trackAgentResponse = (bytes: Uint8Array) => {
+      const output = agentOutputTailRef.current + outputDecoder.decode(bytes);
+      agentOutputTailRef.current = output.slice(-512);
+      if (detectCodingAgentBanner(output)) {
+        interactiveCodingAgentRef.current = true;
+      }
+      if (
+        !interactiveCodingAgentRef.current ||
+        Date.now() - lastLocalInputAtRef.current < LOCAL_INPUT_ECHO_GRACE_MS
+      ) {
+        return;
+      }
+
+      setAgentResponseState("responding");
+      if (agentActivityTimerRef.current !== null) {
+        window.clearTimeout(agentActivityTimerRef.current);
+      }
+      agentActivityTimerRef.current = window.setTimeout(() => {
+        agentActivityTimerRef.current = null;
+        setAgentResponseState("completed");
+      }, AGENT_RESPONSE_IDLE_MS);
+    };
 
     void (async () => {
       await ensureMonoFontsLoaded();
@@ -356,6 +394,7 @@ export function CanvasTerminalNode({
       try {
         const handlers: PtyHandlers = {
           onData: (bytes) => {
+            trackAgentResponse(bytes);
             terminal?.write(bytes);
           },
           onExit: () => {
@@ -408,6 +447,10 @@ export function CanvasTerminalNode({
       if (fitFrame !== null) cancelAnimationFrame(fitFrame);
       if (copyOnSelectionTimer) clearTimeout(copyOnSelectionTimer);
 			if (copyBadgeTimer) clearTimeout(copyBadgeTimer);
+      if (agentActivityTimerRef.current !== null) {
+        window.clearTimeout(agentActivityTimerRef.current);
+        agentActivityTimerRef.current = null;
+      }
       terminal?.dispose();
       terminalRef.current = null;
       fitRef.current = null;
@@ -442,7 +485,10 @@ export function CanvasTerminalNode({
   return (
     <div
       className={cn(
-        "relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-none bg-[var(--terminal-background)] shadow-[0_12px_36px_-14px_rgba(0,0,0,0.32)]",
+        "relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-none bg-[var(--terminal-background)]",
+        agentResponseState === "completed"
+          ? "shadow-[0_0_18px_rgba(16,185,129,0.55)]"
+          : "shadow-[0_12px_36px_-14px_rgba(0,0,0,0.32)]",
         cornerClassName,
       )}
       onPointerDownCapture={(event) => {
@@ -482,6 +528,9 @@ export function CanvasTerminalNode({
       }}
       onPointerDown={(event) => {
         onActivate();
+        if (agentResponseState === "completed") {
+          setAgentResponseState("idle");
+        }
         const target = event.target as HTMLElement;
         const topBar = event.clientY - event.currentTarget.getBoundingClientRect().top < 28;
         if (topBar && !target.closest("button")) {
@@ -492,6 +541,17 @@ export function CanvasTerminalNode({
         event.stopPropagation();
       }}
     >
+      {agentResponseState !== "idle" ? (
+        <div
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-0 z-30 rounded-[inherit] border-2",
+            agentResponseState === "responding"
+              ? "cmdspace-canvas-agent-responding border-dashed border-primary"
+              : "cmdspace-canvas-agent-completed border-emerald-500",
+          )}
+        />
+      ) : null}
       <div className="relative z-20 flex h-7 shrink-0 items-center gap-0.5 border-b border-border/60 bg-white/95 px-1 text-muted-foreground shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300">
         <div
           role="tablist"
