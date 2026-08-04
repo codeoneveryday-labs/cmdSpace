@@ -182,6 +182,18 @@ describe("FloatingVoiceAgent", () => {
     expect(recordingHook).toContain("void startNativeRecognition();");
   });
 
+  it("stops capture after the speaker finishes a request", () => {
+    const recordingHook = readFileSync(
+      path.join(here, "../hooks/useWhisperRecording.ts"),
+      "utf8",
+    );
+
+    expect(recordingHook).toContain("AUTO_STOP_AFTER_VOICE_SILENCE_MS");
+    expect(recordingHook).toContain("scheduleSilenceStop");
+    expect(recordingHook).toContain("window.setTimeout(");
+    expect(recordingHook).toContain("stopCapture,");
+  });
+
   it("discovers the exact speech locales available on this Mac", () => {
     const speech = readFileSync(
       path.join(here, "../../../../src-tauri/src/modules/speech.rs"),
