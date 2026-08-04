@@ -51,6 +51,9 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     const label = status === "error" ? message ?? LABELS[status] : LABELS[status];
     const visibleLabel = status === "error" ? "…" : LABELS[status];
     const isListening = status === "listening";
+    const spaceEmberGlow = isListening
+      ? `0 0 ${10 + audioLevel * 26}px rgb(251 146 60 / ${0.2 + audioLevel * 0.48}), 0 -${2 + audioLevel * 8}px ${8 + audioLevel * 20}px rgb(239 68 68 / ${0.12 + audioLevel * 0.3})`
+      : undefined;
     const dragRef = useRef<{
       pointerId: number;
       startX: number;
@@ -142,13 +145,16 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
           void toggle();
         }}
         className={cn(
-          "fixed bottom-5 right-5 z-[90] inline-flex h-10 max-w-[min(420px,calc(100vw-24px))] touch-none select-none items-center gap-2 overflow-hidden rounded-full border border-border/80 bg-background/95 px-2.5 pr-3 text-xs font-semibold shadow-lg shadow-black/15 ring-1 ring-border/45 ring-offset-2 ring-offset-background/80 backdrop-blur-md transition-colors cursor-grab dark:border-zinc-700/80 dark:bg-zinc-950/95 dark:text-zinc-200 dark:shadow-black/40 dark:ring-zinc-800/70 dark:ring-offset-zinc-950/80",
+          "fixed bottom-5 right-5 z-[90] inline-flex h-10 max-w-[min(420px,calc(100vw-24px))] touch-none select-none items-center gap-2 overflow-hidden rounded-full border border-border/80 bg-background/95 px-2.5 pr-3 text-xs font-semibold shadow-lg shadow-black/15 ring-1 ring-border/45 ring-offset-2 ring-offset-background/80 backdrop-blur-md transition-[box-shadow,color,border-color,background-color] duration-100 ease-out motion-reduce:transition-none cursor-grab dark:border-zinc-700/80 dark:bg-zinc-950/95 dark:text-zinc-200 dark:shadow-black/40 dark:ring-zinc-800/70 dark:ring-offset-zinc-950/80",
           dragging && "cursor-grabbing",
           status === "listening" && "border-primary/60 bg-primary/10 text-primary",
           status === "ready" && "border-emerald-500/50 text-emerald-600 dark:text-emerald-300",
           status === "error" && "border-destructive/40 bg-destructive/[0.06] text-destructive dark:border-red-400/25 dark:bg-red-950/25 dark:text-red-300",
         )}
-        style={position ? { ...position, right: "auto", bottom: "auto" } : undefined}
+        style={{
+          ...(position ? { ...position, right: "auto", bottom: "auto" } : {}),
+          boxShadow: spaceEmberGlow,
+        }}
       >
         <span className="size-5 shrink-0 overflow-hidden rounded-full" aria-hidden="true">
           <img
