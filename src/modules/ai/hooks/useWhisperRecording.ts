@@ -11,6 +11,8 @@ import { hasDetectedVoiceActivity } from "../lib/voiceActivity";
 type State = "idle" | "recording" | "transcribing";
 type CaptureMode = "native" | "cloud";
 
+const AUTO_STOP_AFTER_VOICE_SILENCE_MS = 1_200;
+
 type SpeechResult = {
   text: string;
   final: boolean;
@@ -75,7 +77,44 @@ export function useWhisperRecording({
   const activityFrameRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const unavailableRequestRef = useRef<string | null>(null);
+  const silenceTimerRef = useRef<number | null>(null);
   const cloudRequest = getSpeechToTextRequest(speechToTextModelId, apiKeys);
+
+  const clearSilenceStop = useCallback(() => {
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }, []);
+
+  const stopCapture = useCallback(() => {
+    clearSilenceStop();
+    setAudioLevel(0);
+    if (modeRef.current === "cloud") {
+      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      return;
+    }
+    void invoke("speech_stop").catch((error) => {
+      console.error("nativeSpeech.stop", error);
+      finishedRef.current = true;
+      modeRef.current = null;
+      setState("idle");
+      onErrorRef.current?.("Speech recognition could not stop cleanly. Try again.");
+    });
+  }, [clearSilenceStop]);
+
+  const scheduleSilenceStop = useCallback(
+    (level: number) => {
+      if (!hasDetectedVoiceActivity(level)) return;
+      voiceDetectedRef.current = true;
+      clearSilenceStop();
+      silenceTimerRef.current = window.setTimeout(
+        stopCapture,
+        AUTO_STOP_AFTER_VOICE_SILENCE_MS,
+      );
+    },
+    [clearSilenceStop, stopCapture],
+  );
 
   const stopCloudActivityMonitor = useCallback(() => {
     if (activityFrameRef.current !== null) {
@@ -110,7 +149,7 @@ export function useWhisperRecording({
           }, 0) / samples.length,
         );
         const level = Math.min(1, rms * 8);
-        if (hasDetectedVoiceActivity(level)) voiceDetectedRef.current = true;
+        scheduleSilenceStop(level);
         setAudioLevel((previous) => Math.max(level, previous * 0.72));
         activityFrameRef.current = window.requestAnimationFrame(measure);
       };
@@ -118,11 +157,12 @@ export function useWhisperRecording({
     } catch (error) {
       console.warn("cloudSpeech.activity", error);
     }
-  }, []);
+  }, [scheduleSilenceStop]);
 
   const finishWithTranscript = useCallback(async (text: string) => {
     const transcript = text.trim();
     if (finishedRef.current) return;
+    clearSilenceStop();
     if (!transcript || !voiceDetectedRef.current) {
       finishedRef.current = true;
       modeRef.current = null;
@@ -142,7 +182,7 @@ export function useWhisperRecording({
       modeRef.current = null;
       setState("idle");
     }
-  }, []);
+  }, [clearSilenceStop]);
 
   useEffect(() => {
     onResultRef.current = onResult;
@@ -173,7 +213,7 @@ export function useWhisperRecording({
         const nextLevel = Number.isFinite(payload)
           ? Math.min(1, Math.max(0, payload))
           : 0;
-        if (hasDetectedVoiceActivity(nextLevel)) voiceDetectedRef.current = true;
+        scheduleSilenceStop(nextLevel);
         setAudioLevel((previous) => Math.max(nextLevel, previous * 0.72));
       }),
     ]).then(([result, error, level]) => {
@@ -191,6 +231,7 @@ export function useWhisperRecording({
     return () => {
       disposed = true;
       finishedRef.current = true;
+      clearSilenceStop();
       unlistenResult?.();
       unlistenError?.();
       unlistenLevel?.();
@@ -198,7 +239,7 @@ export function useWhisperRecording({
       stopCloudTracks();
       void invoke("speech_stop").catch(() => undefined);
     };
-  }, [finishWithTranscript, stopCloudTracks]);
+  }, [clearSilenceStop, finishWithTranscript, scheduleSilenceStop, stopCloudTracks]);
 
   const startNativeRecognition = useCallback(async () => {
     modeRef.current = "native";
@@ -289,20 +330,7 @@ export function useWhisperRecording({
     [monitorCloudActivity, startNativeRecognition, stopCloudTracks, transcribeCloudRecording],
   );
 
-  const stop = useCallback(() => {
-    setAudioLevel(0);
-    if (modeRef.current === "cloud") {
-      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-      return;
-    }
-    void invoke("speech_stop").catch((error) => {
-      console.error("nativeSpeech.stop", error);
-      finishedRef.current = true;
-      modeRef.current = null;
-      setState("idle");
-      onErrorRef.current?.("Speech recognition could not stop cleanly. Try again.");
-    });
-  }, []);
+  const stop = useCallback(() => stopCapture(), [stopCapture]);
 
   const start = useCallback(async () => {
     if (state !== "idle" || startingRef.current) return;
@@ -310,6 +338,7 @@ export function useWhisperRecording({
     startingRef.current = true;
     finishedRef.current = false;
     voiceDetectedRef.current = false;
+    clearSilenceStop();
     setAudioLevel(0);
     setState("recording");
     try {
@@ -334,7 +363,7 @@ export function useWhisperRecording({
     } finally {
       startingRef.current = false;
     }
-  }, [cloudRequest, startCloudRecording, startNativeRecognition, state, stopCloudTracks]);
+  }, [clearSilenceStop, cloudRequest, startCloudRecording, startNativeRecognition, state, stopCloudTracks]);
 
   return {
     state,
