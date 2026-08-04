@@ -39,8 +39,15 @@ export type VoicePromptResult = {
 
 type VoicePromptContextOptions = Pick<
   VoicePromptOptions,
-  "cwd" | "terminalContext" | "recentDrafts"
+  "transcript" | "cwd" | "terminalContext" | "recentDrafts"
 >;
+
+const FOLLOW_UP_REFERENCE_PATTERN =
+  /\b(?:it|that|them|those)\b|\b(?:previous|prior|same)\s+(?:feature|task|work|change|request)\b|\b(?:continue|resume|follow[- ]?up|again)\b|\b(?:based on|from)\s+(?:the\s+)?(?:previous|prior|last)\b|\b(?:nó|đó|đấy)\b|\b(?:tiếp tục|làm tiếp|sửa thêm|bổ sung|như trước|ban nãy|hồi nãy|trước đó|dựa trên)\b|\b(?:cái|phần|việc|tính năng|lỗi)\s+(?:đó|trước)\b/iu;
+
+export function isVoicePromptFollowUp(transcript: string): boolean {
+  return FOLLOW_UP_REFERENCE_PATTERN.test(transcript);
+}
 
 function terminalStateAfterLatestDraft(
   terminalContext: string | null | undefined,
@@ -61,15 +68,21 @@ function terminalStateAfterLatestDraft(
 export function buildVoicePromptContext(
   options: VoicePromptContextOptions,
 ): string {
-  const recentDrafts = options.recentDrafts?.slice(0, 5) ?? [];
+  const isFollowUp = isVoicePromptFollowUp(options.transcript);
+  const recentDrafts = isFollowUp
+    ? options.recentDrafts?.slice(0, 5) ?? []
+    : [];
   const terminalState = terminalStateAfterLatestDraft(
-    options.terminalContext,
+    isFollowUp ? options.terminalContext : null,
     recentDrafts,
   );
 
   return [
     "Spoken request is authoritative over history. Use history only for explicit references.",
     "Transcript may be multilingual or code-switching; preserve the spoken language and technical terms.",
+    isFollowUp
+      ? "This request explicitly follows prior work; use the bounded context below only to resolve that reference."
+      : "This is an independent request. Do not infer prior work or requirements.",
     options.cwd ? `Working directory: ${options.cwd}` : null,
     terminalState ? `Recent terminal state:\n${terminalState}` : null,
     recentDrafts.length
