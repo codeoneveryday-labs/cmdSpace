@@ -26,6 +26,7 @@ const REMOTE_CWD_STORAGE_KEY = "cmdspace.remote.cwd";
 
 type BrowserSpeechRecognitionResult = {
   0?: { transcript?: string };
+  isFinal?: boolean;
 };
 
 type BrowserSpeechRecognitionEvent = Event & {
@@ -407,22 +408,34 @@ function AuthenticatedRemoteApp({
     }
 
     const recognition = new SpeechRecognition();
+    let pendingTranscript = "";
+    let recognitionFailed = false;
+    let transcriptCommitted = false;
+    const commitTranscript = () => {
+      if (transcriptCommitted || !pendingTranscript) return;
+      transcriptCommitted = true;
+      sendKey(pendingTranscript);
+    };
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = navigator.language || "en-US";
     recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .slice(event.resultIndex)
+      const results = Array.from(event.results);
+      const transcript = results
         .map((result) => result[0]?.transcript ?? "")
         .join("")
         .trim();
-      if (transcript) sendKey(transcript);
+      if (!transcript) return;
+      pendingTranscript = transcript;
+      if (results.some((result) => result.isFinal)) commitTranscript();
     };
     recognition.onerror = (event) => {
+      recognitionFailed = true;
       setVoiceInput({ listening: false, error: speechRecognitionErrorMessage(event.error) });
     };
     recognition.onend = () => {
       if (speechRecognitionRef.current === recognition) {
+        if (!recognitionFailed) commitTranscript();
         speechRecognitionRef.current = null;
         setVoiceInput((current) => ({ ...current, listening: false }));
       }

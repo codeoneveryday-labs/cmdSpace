@@ -63,8 +63,18 @@ describe("RemoteApp transport", () => {
     expect(source).toContain("SpeechRecognition");
     expect(source).toContain('aria-label={voiceInput.listening ? "Stop voice input" : "Start voice input"}');
     expect(source).toContain("recognition.onresult");
-    expect(source).toContain("sendKey(transcript)");
+    expect(source).toContain("sendKey(pendingTranscript)");
     expect(source).toContain("recognition?.abort()");
+  });
+
+  it("commits the latest Android voice transcript when recognition ends normally", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("recognition.interimResults = true");
+    expect(source).toContain('let pendingTranscript = ""');
+    expect(source).toContain("const commitTranscript = () =>");
+    expect(source).toContain("result.isFinal");
+    expect(source).toContain("if (!recognitionFailed) commitTranscript()");
   });
 
   it("accepts Android-safe setup paths and scrubs the one-time secret", () => {
