@@ -18,4 +18,15 @@ describe("RemoteKeyboard mobile events", () => {
     expect(source).not.toContain("onPointerDown");
     expect(source).not.toContain("onClick");
   });
+
+  it("repeats Backspace while it is held and clears timers when released", () => {
+    const source = readFileSync(path.join(here, "RemoteKeyboard.tsx"), "utf8");
+
+    expect(source).toContain("BACKSPACE_REPEAT_DELAY_MS");
+    expect(source).toContain("BACKSPACE_REPEAT_INTERVAL_MS");
+    expect(source).toContain("window.setInterval");
+    expect(source).toContain("window.clearInterval");
+    expect(source).toContain("onHoldStart={startBackspaceRepeat}");
+    expect(source).toContain("onHoldEnd={stopBackspaceRepeat}");
+  });
 });
