@@ -50,7 +50,6 @@ export async function saveVoicePromptHistory(
   scope: string,
   draft: Pick<VoicePromptResult, "kind" | "text">,
 ): Promise<void> {
-  if (draft.kind === "clarification") return;
   const history = await loadVoicePromptHistory(scope);
   await store.set(
     keyFor(scope),

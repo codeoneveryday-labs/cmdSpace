@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildVoicePromptContext, shouldRecoverTaskDraft } from "./voicePrompt";
+import { buildVoicePromptContext, createFallbackVoiceDraft } from "./voicePrompt";
 
 const source = readFileSync(
   resolve(process.cwd(), "src/modules/ai/lib/voicePrompt.ts"),
@@ -13,18 +13,22 @@ describe("voice prompt refinement", () => {
     expect(source).toContain("generateText");
     expect(source).toContain('{"kind":"ship","text":"..."}');
     expect(source).toContain('{"kind":"scout","text":"..."}');
-    expect(source).toContain('{"kind":"clarification","text":"..."}');
+    expect(source).not.toContain('{"kind":"clarification","text":"..."}');
     expect(source).toContain("Voice First Mate");
     expect(source).toContain("Do not execute commands");
     expect(source).toContain("maxOutputTokens: VOICE_PROMPT_MAX_OUTPUT_TOKENS");
     expect(source).toContain("AbortSignal.timeout(PROMPT_GENERATION_TIMEOUT_MS)");
   });
 
-  it("keeps greetings out of the active terminal", () => {
+  it("always produces a terminal draft instead of a clarification question", () => {
     expect(source).toContain("type VoicePromptResult");
     expect(source).toContain("parseVoicePromptResult");
-    expect(source).toContain('kind: "clarification"');
-    expect(source).toContain("there is no coding task objective");
+    expect(source).not.toContain('kind: "clarification"');
+    expect(source).toContain("createFallbackVoiceDraft");
+    expect(createFallbackVoiceDraft("Fix the terminal resize bug")).toEqual({
+      kind: "ship",
+      text: "Implement the requested change: Fix the terminal resize bug",
+    });
   });
 
   it("keeps implementation requests actionable without repeated clarification", () => {
@@ -44,27 +48,13 @@ describe("voice prompt refinement", () => {
       "Never make the user restate a described feature to choose implementation details",
     );
     expect(source).toContain(
-      "Clarification is forbidden once the transcript identifies a requested feature, behavior, defect, workflow, screen, or output",
+      "Always return a draft, even when the transcript is vague or conversational",
     );
   });
 
-  it("recompiles a detailed request but never invents a generic task after clarification", () => {
-    expect(
-      shouldRecoverTaskDraft(
-        "Could you help me create a Next.js portfolio website with a login flow?",
-        "clarification",
-      ),
-    ).toBe(true);
-    expect(shouldRecoverTaskDraft("Hello", "clarification")).toBe(false);
-    expect(
-      shouldRecoverTaskDraft(
-        "Could you help me create a Next.js portfolio website with a login flow?",
-        "ship",
-      ),
-    ).toBe(false);
-    expect(source).toContain("The first pass incorrectly asked the user a question");
-    expect(source).not.toContain("DEFAULT_TASK_RECOVERY");
-    expect(source).toContain("return recovered;");
+  it("falls back to a safe ship draft when the model output is malformed", () => {
+    expect(source).toContain("return parsed ?? createFallbackVoiceDraft(transcript);");
+    expect(source).not.toContain("VOICE_TASK_RECOVERY_SYSTEM");
   });
 
   it("requires a detailed, terminal-safe brief that never embeds the raw speech", () => {
@@ -120,9 +110,9 @@ describe("voice prompt refinement", () => {
     );
   });
 
-  it("keeps the spoken transcript transient and never creates a fallback draft", () => {
+  it("keeps the spoken transcript transient and uses it only in the fallback draft", () => {
     expect(source).not.toContain("localStorage");
     expect(source).not.toContain("sessionStorage");
-    expect(source).not.toContain("Build the requested feature:");
+    expect(source).toContain("Implement the requested change:");
   });
 });

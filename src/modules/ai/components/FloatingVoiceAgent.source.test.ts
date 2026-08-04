@@ -66,15 +66,13 @@ describe("FloatingVoiceAgent", () => {
     expect(canvasTerminal).toContain("getBuffer");
   });
 
-  it("writes only Voice First Mate ship/scout briefs and keeps greetings out of the active terminal", () => {
+  it("writes every Voice First Mate draft into the active terminal", () => {
     const voiceAgent = readFileSync(
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",
     );
 
-    expect(voiceAgent).toContain('result.kind === "clarification"');
     expect(voiceAgent).toContain('result.kind === "ship"');
-    expect(voiceAgent).toContain('result.kind === "scout"');
     expect(voiceAgent).toContain("insertDraft(target, result.text)");
     expect(voiceAgent).toContain(
       "The terminal is busy. Wait for the command to finish, then try again.",
@@ -82,8 +80,8 @@ describe("FloatingVoiceAgent", () => {
     expect(voiceAgent).not.toContain(
       "Review or submit the current terminal draft before replacing it.",
     );
-    expect(voiceAgent).toContain('setPhase("clarification")');
-    expect(voiceAgent).toContain("setMessage(result.text)");
+    expect(voiceAgent).not.toContain('setPhase("clarification")');
+    expect(voiceAgent).toContain('"Task ready — review, then press Enter."');
   });
 
   it("shows the actionable voice failure instead of a generic retry label", () => {
@@ -116,7 +114,7 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain("max-w-[min(420px,calc(100vw-24px))]");
     expect(component).toContain("min-w-0 flex-1 truncate whitespace-nowrap");
     expect(component).toContain("title={label}");
-    expect(component).toContain('status === "error" ? "…" : status === "clarification" ? label : LABELS[status]');
+    expect(component).not.toContain('status === "clarification"');
   });
 
   it("uses the selected shared-key STT provider and keeps native speech as fallback", () => {
