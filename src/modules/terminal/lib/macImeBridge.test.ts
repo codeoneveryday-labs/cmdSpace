@@ -20,4 +20,24 @@ describe("normalizeMacTerminalInput", () => {
 
     expect(normalize?.("mcli status\r")).toBe("mcli status\r");
   });
+
+  it("turns a corrupted no-break space into a shell word separator", () => {
+    const normalize = (macImeBridge as MacImeBridgeModule)
+      .normalizeMacTerminalInput;
+
+    expect(normalize?.("git clone\u00a0https://example.com/repo.git")).toBe(
+      "git clone https://example.com/repo.git",
+    );
+  });
+
+  it("normalizes C1 and regular spaces identically so a follow-up keystroke never diffs into a spurious DEL", () => {
+    const normalize = (macImeBridge as MacImeBridgeModule)
+      .normalizeMacTerminalInput;
+
+    // "mcli " as stored by WebKit (space arrives as C1 0x83) then a real space
+    const from = normalize?.("mcli\u0083") ?? "?";
+    const to = normalize?.("mcli ") ?? "?";
+    expect(from).toBe("mcli ");
+    expect(to).toBe(from);
+  });
 });
