@@ -22,8 +22,15 @@ export function shouldIgnoreMacPrintableTerminalData(data: string): boolean {
 
 export function normalizeMacTerminalInput(value: string): string {
   // WebKit's macOS text bridge can occasionally surface an intended space as
-  // invisible C1 controls. Zsh then treats both visible words as one command.
-  return value.replace(/[\u0080-\u009f]+/g, " ");
+  // invisible C1 controls (U+0080–U+009F) or as Unicode space lookalikes
+  // (no-break space U+00A0, thin/medium spaces U+2000–U+200A, narrow no-break
+  // space U+202F, word joiner U+2060, ideographic space U+3000). Zsh then
+  // treats both visible words as one command. Collapse every such separator
+  // into a regular space so the shell can split it.
+  return value.replace(
+    /[\u0080-\u009f\u00a0\u2000-\u200a\u202f\u205f\u2060\u3000]+/g,
+    " ",
+  );
 }
 
 export function attachMacImeBridge(
@@ -55,19 +62,26 @@ export function attachMacImeBridge(
 
   const writeDiff = (fromValue: string) => {
     const value = textarea.value;
-    if (value === fromValue) return;
+    // WebKit can store the intended space as a C1 control or NBSP in the
+    // textarea, while the next keystroke arrives as a regular space. Compare
+    // both sides normalized so the common-prefix diff never mistakes the
+    // lookalike for a real character change (which would emit a spurious
+    // DEL and delete the previous character).
+    const from = normalizeMacTerminalInput(fromValue);
+    const to = normalizeMacTerminalInput(value);
+    if (to === from) return;
 
     let commonPrefixLen = 0;
-    const minLength = Math.min(fromValue.length, value.length);
+    const minLength = Math.min(from.length, to.length);
     while (
       commonPrefixLen < minLength &&
-      fromValue.charCodeAt(commonPrefixLen) === value.charCodeAt(commonPrefixLen)
+      from.charCodeAt(commonPrefixLen) === to.charCodeAt(commonPrefixLen)
     ) {
       commonPrefixLen++;
     }
 
-    const backspaces = fromValue.length - commonPrefixLen;
-    const appendText = value.slice(commonPrefixLen);
+    const backspaces = from.length - commonPrefixLen;
+    const appendText = to.slice(commonPrefixLen);
     const data = normalizeMacTerminalInput(
       "\x7f".repeat(backspaces) + appendText,
     );
