@@ -66,7 +66,6 @@ type Session = {
   agentOutputTail: string;
   interactiveCodingAgent: boolean;
   shellState: ShellIntegrationState | null;
-  initialCommandFallbackTimer: number | null;
   agentActivityTimer: number | null;
   lastLocalInputAt: number;
 };
@@ -237,7 +236,6 @@ function ensureSession(
     agentOutputTail: "",
     interactiveCodingAgent: isInteractiveCodingAgentCommand(initialCommand),
     shellState: null,
-    initialCommandFallbackTimer: null,
     agentActivityTimer: null,
     lastLocalInputAt: 0,
   };
@@ -310,37 +308,6 @@ async function openPtyForSession(
   );
 }
 
-function flushInitialCommand(leafId: number, s: Session): void {
-  if (!s.pty || !s.initialCommand) return;
-  const command = s.initialCommand;
-  s.pty.write(command + "\r");
-  // Initial commands bypass normal keyboard input, so publish them explicitly.
-  // The pane chrome uses this metadata to identify coding CLIs such as Codex.
-  if (isInteractiveCodingAgentCommand(command)) {
-    setAgentCliCommand(leafId, command);
-  }
-  void s.pty.setMetadata({ agent: command });
-  s.callbacks.onCommand?.(command);
-  s.initialCommand = undefined;
-  if (s.initialCommandFallbackTimer !== null) {
-    window.clearTimeout(s.initialCommandFallbackTimer);
-    s.initialCommandFallbackTimer = null;
-  }
-  if (s.agentActivityTimer !== null) {
-    window.clearTimeout(s.agentActivityTimer);
-    s.agentActivityTimer = null;
-  }
-  s.callbacks.onAgentActivity?.(false);
-}
-
-function scheduleInitialCommandFallback(leafId: number, s: Session): void {
-  if (!s.initialCommand || s.initialCommandFallbackTimer !== null) return;
-  s.initialCommandFallbackTimer = window.setTimeout(() => {
-    s.initialCommandFallbackTimer = null;
-    flushInitialCommand(leafId, s);
-  }, 900);
-}
-
 function bindLeafToSlot(leafId: number, s: Session): void {
   if (!s.container) return;
   const altScreen = s.altScreenAtRelease;
@@ -362,9 +329,7 @@ function bindLeafToSlot(leafId: number, s: Session): void {
       // attacker file, etc.).
       const shellState = createShellIntegrationState();
       s.shellState = shellState;
-      const prompt = registerPromptTracker(term, shellState, () => {
-        flushInitialCommand(leafId, s);
-      });
+      const prompt = registerPromptTracker(term, shellState);
       const cwd = registerCwdHandler(
         term,
         (next) => {
@@ -425,7 +390,6 @@ function attachSession(
         }
         s.pty = pty;
         if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
-        scheduleInitialCommandFallback(leafId, s);
       })
       .catch((e) => {
         s.ptyOpening = false;
@@ -459,10 +423,6 @@ export async function respawnSession(
   s.pendingExit = null;
   s.altScreenAtRelease = false;
   s.inputBuffer = "";
-  if (s.initialCommandFallbackTimer !== null) {
-    window.clearTimeout(s.initialCommandFallbackTimer);
-    s.initialCommandFallbackTimer = null;
-  }
   if (s.agentActivityTimer !== null) {
     window.clearTimeout(s.agentActivityTimer);
     s.agentActivityTimer = null;
@@ -499,10 +459,6 @@ export function disposeSession(leafId: number): void {
   if (!s) return;
   s.disposed = true;
   setAgentResponseActivity(leafId, false);
-  if (s.initialCommandFallbackTimer !== null) {
-    window.clearTimeout(s.initialCommandFallbackTimer);
-    s.initialCommandFallbackTimer = null;
-  }
   if (s.agentActivityTimer !== null) {
     window.clearTimeout(s.agentActivityTimer);
     s.agentActivityTimer = null;

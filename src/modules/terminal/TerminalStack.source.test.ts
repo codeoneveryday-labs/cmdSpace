@@ -42,14 +42,21 @@ describe("TerminalStack lazy renderer restore", () => {
     expect(source).toContain("s.focusedNow = false;");
   });
 
-  it("waits for the first shell prompt before sending an initial command", () => {
+  it("lets the Rust PTY bootstrap send the initial command exactly once", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
 
-    expect(source).toContain("function flushInitialCommand");
-    expect(source).toContain('s.pty.write(command + "\\r")');
-    expect(source).not.toContain('s.pty.write(command + "\\n")');
-    expect(source).toContain("scheduleInitialCommandFallback");
-    expect(source).toContain("registerPromptTracker(term, shellState, () =>");
+    // The Rust side (InitialCommandBootstrap in pty/session.rs) waits for the
+    // first OSC 133 A prompt marker and writes the initial command. The
+    // frontend must NOT also write it — that double-send broke agent CLIs on
+    // Windows (empty panes, no input response).
+    expect(source).not.toContain("function flushInitialCommand");
+    expect(source).not.toContain("scheduleInitialCommandFallback");
+    expect(source).not.toContain("initialCommandFallbackTimer");
+    expect(source).not.toContain("s.pty.write(command + \"\\r\")");
+    expect(source).not.toContain(
+      "registerPromptTracker(term, shellState, () =>",
+    );
+    expect(source).toContain("registerPromptTracker(term, shellState)");
     expect(source).toContain("s.callbacks.onCommand?.(command);");
     expect(source).not.toContain(
       "if (s.initialCommand) {\n          pty.write",
