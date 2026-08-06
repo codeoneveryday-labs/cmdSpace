@@ -224,6 +224,11 @@ function createSlot(): Slot {
       if (event.type === "keydown") bridge.writeToPty("\x17");
       return false;
     }
+    if (isDeleteToEndOfLine(event)) {
+      event.preventDefault();
+      if (event.type === "keydown") bridge.writeToPty("\x0b");
+      return false;
+    }
     if (isShiftEnter(event)) {
       event.preventDefault();
       if (event.type === "keydown") bridge.writeToPty("\x1b\r");
@@ -918,6 +923,15 @@ function isCtrlBackspace(e: KeyboardEvent): boolean {
   const isMac = /Mac|iPhone|iPad/.test(ua);
   const mod = isMac ? e.metaKey : e.ctrlKey;
   return mod && (e.key === "Backspace" || e.code === "Backspace");
+}
+
+/** Cmd+Delete (macOS) / Ctrl+Delete (elsewhere): delete from the cursor to
+ *  the end of the line, like Ctrl+K in readline/vim. Sends `\x0b`. */
+function isDeleteToEndOfLine(e: KeyboardEvent): boolean {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const isMac = /Mac|iPhone|iPad/.test(ua);
+  const mod = isMac ? e.metaKey : e.ctrlKey;
+  return mod && (e.key === "Delete" || e.code === "Delete");
 }
 
 function isShiftEnter(e: KeyboardEvent): boolean {

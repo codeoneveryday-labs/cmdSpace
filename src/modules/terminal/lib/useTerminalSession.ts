@@ -3,7 +3,13 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { SearchAddon } from "@xterm/addon-search";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { DormantRing } from "./dormantRing";
-import { setAgentCliCommand, setAgentResponseActivity } from "./agentActivity";
+import {
+  clearPtyLeaf,
+  ensureAgentActivityListener,
+  setAgentCliCommand,
+  setAgentResponseActivity,
+  setPtyLeaf,
+} from "./agentActivity";
 import {
   createShellIntegrationState,
   registerCwdHandler,
@@ -73,6 +79,9 @@ type Session = {
 
 const sessions = new Map<number, Session>();
 const LOCAL_INPUT_ECHO_GRACE_MS = 180;
+const FONT_READY_TIMEOUT_MS = 1500;
+
+ensureAgentActivityListener();
 
 /**
  * Keep the shell's editable prompt in sync regardless of whether input comes
@@ -247,8 +256,16 @@ function ensureSession(
   sessions.set(leafId, session);
 
   session.ready = (async () => {
-    await ensureMonoFontsLoaded();
-    await document.fonts.ready;
+    // Race font readiness against a timeout: a stalled font load (e.g. slow
+    // WebView2 on a Windows VM) must not block the first PTY spawn forever.
+    const fontReady = (async () => {
+      await ensureMonoFontsLoaded();
+      await document.fonts.ready;
+    })();
+    await Promise.race([
+      fontReady,
+      new Promise((resolve) => setTimeout(resolve, FONT_READY_TIMEOUT_MS)),
+    ]);
   })();
 
   return session;
@@ -292,7 +309,7 @@ async function openPtyForSession(
 ): Promise<PtySession> {
   const startCols = s.cols > 0 ? s.cols : 80;
   const startRows = s.rows > 0 ? s.rows : 24;
-  return openPty(
+  const pty = await openPty(
     startCols,
     startRows,
     {
@@ -300,6 +317,7 @@ async function openPtyForSession(
       onExit: (code) => {
         s.shellExited = true;
         s.pty = null;
+        clearPtyLeaf(pty.id);
         const slot = getSlotForLeaf(leafId);
         if (slot) slot.term.options.disableStdin = true;
         if (s.callbacks.onExit) s.callbacks.onExit(code);
@@ -308,6 +326,8 @@ async function openPtyForSession(
     },
     cwd,
   );
+  setPtyLeaf(pty.id, leafId);
+  return pty;
 }
 
 function flushInitialCommand(leafId: number, s: Session): void {
@@ -451,6 +471,7 @@ export async function respawnSession(
   const s = sessions.get(leafId);
   if (!s || s.disposed) return;
   setAgentResponseActivity(leafId, false);
+  if (s.pty) clearPtyLeaf(s.pty.id);
   s.pty?.close();
   s.pty = null;
   s.snapshot = null;
@@ -510,6 +531,7 @@ export function disposeSession(leafId: number): void {
   s.callbacks.onAgentActivity?.(false);
   unbindLeafFromSlot(leafId, s);
   s.snapshot = null;
+  if (s.pty) clearPtyLeaf(s.pty.id);
   s.pty?.close();
   s.pty = null;
   sessions.delete(leafId);

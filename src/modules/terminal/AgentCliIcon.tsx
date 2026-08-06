@@ -80,6 +80,10 @@ const AGENT_CLI_ICON_META = {
     icon: Grok02Icon,
     className: "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
   },
+  cmd: {
+    icon: CodeIcon,
+    className: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
+  },
 } as const satisfies Record<
   CliAgent,
   { icon: typeof ClaudeIcon; className: string }

@@ -87,6 +87,7 @@ export type Preferences = {
   lastWslDistro: string | null;
   zoomLevel: number;
   shortcuts: Record<ShortcutId, KeyBinding[]>;
+  agentLaunchCommands: Record<string, string>;
 };
 
 const STORE_PATH = "cmdspace-settings.json";
@@ -131,6 +132,7 @@ const KEY_TERMINAL_SCROLLBACK = "terminalScrollback";
 const KEY_LAST_WSL_DISTRO = "lastWslDistro";
 const KEY_ZOOM_LEVEL = "zoomLevel";
 const KEY_SHORTCUTS = "shortcuts";
+const KEY_AGENT_LAUNCH_COMMANDS = "agentLaunchCommands";
 
 export const TERMINAL_FONT_SIZE_DEFAULT = 14;
 export const TERMINAL_FONT_SIZE_MIN = 8;
@@ -188,6 +190,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   lastWslDistro: null,
   zoomLevel: 1.0,
   shortcuts: {} as Record<ShortcutId, KeyBinding[]>,
+  agentLaunchCommands: {},
 };
 
 const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
@@ -313,6 +316,9 @@ export async function loadPreferences(): Promise<Preferences> {
     shortcuts:
       get<Record<ShortcutId, KeyBinding[]>>(KEY_SHORTCUTS) ??
       DEFAULT_PREFERENCES.shortcuts,
+    agentLaunchCommands:
+      get<Record<string, string>>(KEY_AGENT_LAUNCH_COMMANDS) ??
+      DEFAULT_PREFERENCES.agentLaunchCommands,
   };
 }
 
@@ -525,6 +531,12 @@ export async function resetShortcuts(): Promise<void> {
   await writePref(KEY_SHORTCUTS, DEFAULT_PREFERENCES.shortcuts);
 }
 
+export async function setAgentLaunchCommands(
+  value: Record<string, string>,
+): Promise<void> {
+  await writePref(KEY_AGENT_LAUNCH_COMMANDS, value);
+}
+
 export type PrefKey = keyof Preferences;
 
 /** Subscribe to changes from any window (settings → main). */
@@ -572,6 +584,7 @@ export async function onPreferencesChange(
     [KEY_LAST_WSL_DISTRO]: "lastWslDistro",
     [KEY_ZOOM_LEVEL]: "zoomLevel",
     [KEY_SHORTCUTS]: "shortcuts",
+    [KEY_AGENT_LAUNCH_COMMANDS]: "agentLaunchCommands",
   };
   // Same-process writes still fire onChange immediately; cross-window writes
   // arrive via the Tauri event emitted by writePref().
