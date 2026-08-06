@@ -66,12 +66,23 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("AgentCliIcon");
     expect(panelSource).toContain('<AgentCliIcon agent={agent.id} size="md" />');
     expect(panelSource).toContain("Add AI coding agents");
+    expect(panelSource).toContain("check_agent_clis");
+    expect(panelSource).toContain("currentWorkspaceEnv()");
+    expect(panelSource).toContain("availableAgents");
+    expect(panelSource).toContain("installedAgents");
+    expect(panelSource).toContain("Scanning installed agents");
+    expect(panelSource).toContain("AGENT_CLI_OPTIONS.map((agent) => agent.executable)");
+    expect(panelSource).toContain("agentLaunchCommands");
+    expect(panelSource).toContain("effectiveAgentCommands");
+    expect(panelSource).toContain("persistAgentCommand");
+    expect(panelSource).toContain("setAgentLaunchCommands");
     expect(cliAgentsSource).toContain('name: "Claude Code"');
     expect(cliAgentsSource).toContain('name: "Codex"');
     expect(cliAgentsSource).toContain('name: "OpenCode"');
     expect(cliAgentsSource).toContain('name: "Gemini CLI"');
     expect(cliAgentsSource).toContain('name: "Kimi Code"');
     expect(cliAgentsSource).toContain('name: "Grok CLI"');
+    expect(cliAgentsSource).toContain('name: "Command Code"');
     for (const name of [
       "GitHub Copilot",
       "Cursor Agent",
@@ -93,10 +104,16 @@ describe("WorkspacesPanel", () => {
       'command: "codex --dangerously-bypass-approvals-and-sandbox"',
     );
     expect(cliAgentsSource).toContain(
+      'command: "cmd --dangerously-skip-permissions"',
+    );
+    expect(cliAgentsSource).toContain(
       'launch: "claude --dangerously-skip-permissions"',
     );
     expect(cliAgentsSource).toContain(
       'launch: "codex --dangerously-bypass-approvals-and-sandbox"',
+    );
+    expect(cliAgentsSource).toContain(
+      'launch: "cmd --dangerously-skip-permissions"',
     );
     expect(panelSource).not.toContain("CODEX_CONFIG");
     expect(panelSource).not.toContain("trust_level");
@@ -110,9 +127,9 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).not.toContain("curl -fsSL");
     expect(panelSource).not.toContain("git worktree");
     expect(panelSource).not.toContain("worktree_parent");
+    expect(panelSource).not.toContain("command -v");
     expect(panelSource).toContain("function buildAgentCliCommand");
     expect(panelSource).toContain("function agentCommandPlan");
-    expect(panelSource).not.toContain("command -v");
     expect(panelSource).toContain("plannedAgentCommands");
     expect(panelSource).toContain("initialCommands?: string[]");
     expect(panelSource).toContain('setSetupStep("agents")');

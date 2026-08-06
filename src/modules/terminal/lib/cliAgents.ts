@@ -15,6 +15,7 @@ export const CLI_AGENT_IDS = [
   "openhands",
   "kiro",
   "grok",
+  "cmd",
 ] as const;
 
 export type CliAgent = (typeof CLI_AGENT_IDS)[number];
@@ -50,6 +51,7 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "openhands", name: "OpenHands CLI", executable: "openhands", command: "openhands", launch: "openhands", bannerPatterns: [/\bopenhands\b/i] },
   { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli", launch: "kiro-cli", bannerPatterns: [/\bkiro cli\b/i] },
   { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: grokLaunch, bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
+  { id: "cmd", name: "Command Code", executable: "cmd", command: "cmd --dangerously-skip-permissions", launch: "cmd --dangerously-skip-permissions", bannerPatterns: [/\bcommand code\b/i] },
 ];
 
 export const CLI_AGENT_BY_ID = Object.fromEntries(
@@ -70,15 +72,30 @@ function segmentExecutable(segment: string): string | null {
   return words[index]?.replace(/^['"]|['"]$/g, "") ?? null;
 }
 
+/** True for a segment that launches the Command Code CLI rather than the
+ *  Windows built-in `cmd` shell. The bare name and `/c`, `/k`, `/d` shell
+ *  invocations are deliberately excluded. */
+function isCommandCodeSegment(segment: string): boolean {
+  const words = segment.trim().split(/\s+/);
+  if (words[0] !== "cmd") return false;
+  const arg = words[1];
+  if (!arg) return false;
+  return arg.startsWith("--");
+}
+
 export function detectCliAgent(command?: string): CliAgent | null {
   if (!command) return null;
-  const executables = command
+  const segments = command
     .split(/&&|\|\||[;|\n]/)
-    .map(segmentExecutable)
-    .filter((value): value is string => Boolean(value));
+    .map((segment) => segment.trim())
+    .filter(Boolean);
   return (
-    CLI_AGENT_DEFINITIONS.find(({ executable }) =>
-      executables.some((candidate) => candidate === executable),
+    CLI_AGENT_DEFINITIONS.find(({ executable, id }) =>
+      segments.some((segment) => {
+        if (segmentExecutable(segment) !== executable) return false;
+        if (id === "cmd") return isCommandCodeSegment(segment);
+        return true;
+      }),
     )?.id ?? null
   );
 }

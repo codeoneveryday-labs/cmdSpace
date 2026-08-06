@@ -24,6 +24,7 @@ describe("CLI agent registry", () => {
       openhands: "openhands",
       kiro: "kiro-cli",
       grok: "grok",
+      cmd: "cmd --dangerously-skip-permissions",
     } as const;
 
     expect(CLI_AGENT_DEFINITIONS.map(({ id }) => id)).toEqual(
@@ -39,5 +40,16 @@ describe("CLI agent registry", () => {
     expect(detectCliAgent("echo codex")).toBeNull();
     expect(detectCliAgent("open cursor-agent.log")).toBeNull();
     expect(isInteractiveCodingAgentCommand("compile project")).toBe(false);
+  });
+
+  it("does not mistake the Windows cmd shell for Command Code", () => {
+    expect(detectCliAgent("cmd")).toBeNull();
+    expect(detectCliAgent("cmd /c echo hi")).toBeNull();
+    expect(detectCliAgent("cmd //c echo hi")).toBeNull();
+    expect(detectCliAgent("cmd.exe /c dir")).toBeNull();
+    expect(detectCliAgent("cmd --dangerously-skip-permissions")).toBe("cmd");
+    expect(detectCliAgent("cd ~; cmd --dangerously-skip-permissions")).toBe(
+      "cmd",
+    );
   });
 });

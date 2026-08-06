@@ -1,5 +1,7 @@
 # cmdspace-shell-integration (PowerShell)
-# Emits OSC 7 (cwd) + OSC 133 A/B/D so the host tracks cwd and prompt boundaries.
+# Emits OSC 7 (cwd) + OSC 133 A/B/C/D so the host tracks cwd and prompt
+# boundaries. C comes from a PSConsoleHostReadLine wrapper (PowerShell has no
+# preexec hook).
 
 if ($global:__CMDSPACE_HOOKS_LOADED) { return }
 $global:__CMDSPACE_HOOKS_LOADED = $true
@@ -12,6 +14,38 @@ try {
 
 if (Test-Path Function:prompt) {
     Copy-Item Function:prompt Function:__cmdspace_user_prompt -Force -ErrorAction SilentlyContinue
+}
+
+# Wrap PSConsoleHostReadLine (defined by PSReadLine) to emit OSC 133 C with
+# the accepted command line just before execution. Installed lazily from
+# prompt: PSReadLine may finish loading only after this profile has run.
+function global:__cmdspace_install_readline {
+    if ($global:__cmdspace_readline_done) { return }
+    if (-not (Test-Path Function:PSConsoleHostReadLine)) { return }
+    $global:__cmdspace_readline_done = $true
+    # global: is required -- a plain Function: copy made inside a function
+    # lands in its local scope and vanishes when it returns, leaving the
+    # wrapper calling a missing command on every read (empty-input loop).
+    Copy-Item Function:PSConsoleHostReadLine Function:global:__cmdspace_user_readline -Force
+    function global:PSConsoleHostReadLine {
+        try {
+            $line = __cmdspace_user_readline
+        } catch {
+            # Self-heal: restore the original reader so a broken wrapper can
+            # never lock the shell out of input.
+            Copy-Item Function:__cmdspace_user_readline Function:global:PSConsoleHostReadLine -Force
+            return ''
+        }
+        try {
+            if ($line -is [string] -and $line.Trim().Length -gt 0) {
+                $esc = [char]27
+                $cmd = $line -replace '[\x00-\x1F\x7F]', ' '
+                if ($cmd.Length -gt 256) { $cmd = $cmd.Substring(0, 256) }
+                [Console]::Write("$esc]133;C;$cmd$esc\")
+            }
+        } catch {}
+        $line
+    }
 }
 
 function global:__cmdspace_urlencode {
@@ -33,6 +67,7 @@ function global:__cmdspace_urlencode {
 }
 
 function global:prompt {
+    __cmdspace_install_readline
     $lec = $LASTEXITCODE
     if ($null -eq $lec) { $lec = if ($?) { 0 } else { 1 } }
     $esc = [char]27

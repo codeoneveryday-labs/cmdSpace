@@ -115,7 +115,7 @@ fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
     .map_err(|e| format!("Failed to add auto_launch column: {e}"))?;
     conn.execute(
         "UPDATE workspace_panes SET auto_launch = 1
-         WHERE lower(trim(last_command)) IN ('codex', 'claude', 'opencode', 'gemini', 'kimi', 'grok', 'copilot', 'cursor-agent', 'aider', 'pi', 'amp', 'cline', 'goose', 'qwen', 'openhands', 'kiro-cli')
+         WHERE lower(trim(last_command)) IN ('codex', 'claude', 'opencode', 'gemini', 'kimi', 'grok', 'copilot', 'cursor-agent', 'aider', 'pi', 'amp', 'cline', 'goose', 'qwen', 'openhands', 'kiro-cli', 'cmd')
             OR lower(trim(last_command)) LIKE 'codex %'
             OR lower(trim(last_command)) LIKE 'claude %'
             OR lower(trim(last_command)) LIKE 'opencode %'
@@ -131,7 +131,8 @@ fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
             OR lower(trim(last_command)) LIKE 'goose %'
             OR lower(trim(last_command)) LIKE 'qwen %'
             OR lower(trim(last_command)) LIKE 'openhands %'
-            OR lower(trim(last_command)) LIKE 'kiro-cli %'",
+            OR lower(trim(last_command)) LIKE 'kiro-cli %'
+            OR lower(trim(last_command)) LIKE 'cmd --%'",
         [],
     )
     .map_err(|e| format!("Failed to migrate pane launch commands: {e}"))?;
