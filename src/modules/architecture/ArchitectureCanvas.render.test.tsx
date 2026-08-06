@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { ArchitectureDiagram } from "@/modules/tabs";
 import { ThemeProvider } from "@/modules/theme";
 
-import { ArchitectureCanvas } from "./ArchitectureCanvas";
+import {
+  ArchitectureCanvas,
+  findNearestTerminalInDirection,
+} from "./ArchitectureCanvas";
 
 vi.mock("./CanvasTerminalNode", () => ({
   CanvasTerminalNode: ({
@@ -255,6 +258,47 @@ describe("ArchitectureCanvas", () => {
     expect(markup).toContain(
       "left:100px;top:120px;width:640px;height:400px",
     );
+  });
+});
+
+describe("findNearestTerminalInDirection", () => {
+  const t = (id: string, x: number, y: number) => ({
+    id,
+    kind: "terminal" as const,
+    label: "Terminal",
+    technology: "zsh",
+    cwd: `/tmp/${id}`,
+    x,
+    y,
+    width: 200,
+    height: 100,
+  });
+  const current = t("current", 400, 300);
+
+  it("picks the nearest terminal to the right", () => {
+    const candidates = [t("far", 900, 300), t("near", 700, 320)];
+    expect(findNearestTerminalInDirection(current, candidates, "right")?.id).toBe(
+      "near",
+    );
+  });
+
+  it("picks the nearest terminal above", () => {
+    const candidates = [t("far", 100, 40), t("near", 420, 180)];
+    expect(findNearestTerminalInDirection(current, candidates, "up")?.id).toBe(
+      "near",
+    );
+  });
+
+  it("returns null when nothing lies in that direction", () => {
+    const candidates = [t("left", 100, 300)];
+    expect(findNearestTerminalInDirection(current, candidates, "down")).toBeNull();
+  });
+
+  it("does not select the node itself as a candidate", () => {
+    const candidates = [t("current-copy", 400, 300)];
+    expect(
+      findNearestTerminalInDirection(current, candidates, "left"),
+    ).toBeNull();
   });
 });
 
