@@ -105,6 +105,21 @@ function isTerminalPaste(event: KeyboardEvent): boolean {
   return hasPasteModifier && (event.code === "KeyV" || event.key === "v" || event.key === "V");
 }
 
+/** Cmd+Backspace (macOS) / Ctrl+Backspace (elsewhere): delete previous word. */
+function isDeletePreviousWord(event: KeyboardEvent): boolean {
+  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
+  const mod = isMac ? event.metaKey : event.ctrlKey;
+  return mod && !event.shiftKey && !event.altKey && (event.key === "Backspace" || event.code === "Backspace");
+}
+
+/** Cmd+Delete (macOS) / Ctrl+Delete (elsewhere): delete from the cursor to
+ *  the end of the line, like Ctrl+K in readline/vim. Sends `\x0b`. */
+function isDeleteToEndOfLine(event: KeyboardEvent): boolean {
+  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
+  const mod = isMac ? event.metaKey : event.ctrlKey;
+  return mod && !event.shiftKey && !event.altKey && (event.key === "Delete" || event.code === "Delete");
+}
+
 function copySelection(selection: string): Promise<void> {
 	return navigator.clipboard.writeText(selection);
 }
@@ -354,6 +369,20 @@ export function CanvasTerminalNode({
                 void sessionRef.current?.write(normalized);
               })
               .catch(() => {});
+          }
+          event.preventDefault();
+          return false;
+        }
+        if (isDeletePreviousWord(event)) {
+          if (event.type === "keydown") {
+            void sessionRef.current?.write("\x17");
+          }
+          event.preventDefault();
+          return false;
+        }
+        if (isDeleteToEndOfLine(event)) {
+          if (event.type === "keydown") {
+            void sessionRef.current?.write("\x0b");
           }
           event.preventDefault();
           return false;
