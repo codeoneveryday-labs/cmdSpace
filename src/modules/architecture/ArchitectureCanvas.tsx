@@ -989,6 +989,8 @@ export function ArchitectureCanvas({
           // Move real input focus to the newly active terminal so keystrokes
           // go to it, not the previously focused terminal node.
           terminalHandleRef.current.get(best.id)?.focus();
+          // Center the view on the newly active terminal, like creating one.
+          setView((current) => centerViewOnPlacement(current, best));
         }
         return;
       }
