@@ -994,7 +994,7 @@ export function ArchitectureCanvas({
         }
         return;
       }
-      if (event.key.toLowerCase() === "m") {
+      if (event.key === "Enter") {
         event.preventDefault();
         const current = terminalNodes.find(
           (node) => node.id === activeTerminalId,
