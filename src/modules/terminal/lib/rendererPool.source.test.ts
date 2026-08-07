@@ -191,4 +191,16 @@ describe("rendererPool WebGL stability", () => {
     expect(canvasSource).toContain("isPlainSpaceKey(event)");
     expect(canvasSource).toContain('sessionRef.current?.write(" ")');
   });
+
+  it("force-clears a stuck IME composition so typing is not swallowed (#126)", () => {
+    const source = readFileSync(macImeBridgePath, "utf8");
+
+    // A compositionend that is never delivered must not leave `composing`
+    // stuck, otherwise every following printable input is swallowed until the
+    // next space/arrow key.
+    expect(source).toContain("compositionStartTime");
+    expect(source).toContain("COMPOSITION_WATCHDOG_MS");
+    expect(source).toContain("staleComposition");
+    expect(source).toContain('input.inputType !== "insertCompositionText"');
+  });
 });
