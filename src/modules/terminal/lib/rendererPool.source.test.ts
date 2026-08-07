@@ -8,6 +8,10 @@ const macImeBridgePath = path.join(here, "macImeBridge.ts");
 const terminalOptionsPath = path.join(here, "terminalOptions.ts");
 const settingsStorePath = path.join(here, "../../settings/store.ts");
 const globalsCssPath = path.join(here, "../../../styles/globals.css");
+const canvasTerminalNodePath = path.join(
+  here,
+  "../../architecture/CanvasTerminalNode.tsx",
+);
 
 describe("rendererPool WebGL stability", () => {
   it("keeps the renderer pool inside the pane cap", () => {
@@ -170,5 +174,21 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain("writeSelectionToClipboard(slot, selection, true)");
     expect(source).toContain("clearSelectionAfterCopy");
     expect(source).toContain("slot.term.clearSelection()");
+  });
+
+  it("intercepts a plain space once so it is not double-written on macOS (#125)", () => {
+    const rendererSource = readFileSync(rendererPoolPath, "utf8");
+    const imeSource = readFileSync(macImeBridgePath, "utf8");
+    const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");
+
+    // The bridge exposes a plain-space predicate, and both terminal surfaces
+    // (renderer pool + canvas node) must preventDefault and write it exactly
+    // once instead of letting both the bridge input diff and xterm keypress
+    // onData fire.
+    expect(imeSource).toContain("export function isPlainSpaceKey");
+    expect(rendererSource).toContain("isPlainSpaceKey(event)");
+    expect(rendererSource).toContain('adapter?.resolveLeaf(leafId)?.writeToPty(" ")');
+    expect(canvasSource).toContain("isPlainSpaceKey(event)");
+    expect(canvasSource).toContain('sessionRef.current?.write(" ")');
   });
 });

@@ -56,4 +56,41 @@ describe("normalizeMacTerminalInput", () => {
     expect(normalize?.("\u00a0")).toBe(" ");
     expect(normalize?.(" ")).toBe(" ");
   });
+
+  describe("isPlainSpaceKey", () => {
+    it("is true only for an unmodified space keydown/keypress", () => {
+      const key = (type: string, keyValue: string, extra: Partial<KeyboardEvent> = {}) =>
+        ({ type, key: keyValue, ...extra }) as KeyboardEvent;
+      expect(macImeBridge.isPlainSpaceKey?.(key("keydown", " "))).toBe(true);
+      expect(macImeBridge.isPlainSpaceKey?.(key("keypress", " "))).toBe(true);
+    });
+
+    it("is false when a modifier is held", () => {
+      const key = (type: string, keyValue: string, extra: Partial<KeyboardEvent> = {}) =>
+        ({ type, key: keyValue, ...extra }) as KeyboardEvent;
+      expect(
+        macImeBridge.isPlainSpaceKey?.(
+          key("keydown", " ", { ctrlKey: true }),
+        ),
+      ).toBe(false);
+      expect(
+        macImeBridge.isPlainSpaceKey?.(
+          key("keydown", " ", { metaKey: true }),
+        ),
+      ).toBe(false);
+    });
+
+    it("is false for non-space keys and during composition", () => {
+      const key = (type: string, keyValue: string, extra: Partial<KeyboardEvent> = {}) =>
+        ({ type, key: keyValue, ...extra }) as KeyboardEvent;
+      expect(macImeBridge.isPlainSpaceKey?.(key("keydown", "a"))).toBe(false);
+      expect(macImeBridge.isPlainSpaceKey?.(key("keyup", " "))).toBe(false);
+      expect(
+        macImeBridge.isPlainSpaceKey?.(key("keydown", " ", { isComposing: true })),
+      ).toBe(false);
+      expect(
+        macImeBridge.isPlainSpaceKey?.(key("keydown", " ", { keyCode: 229 })),
+      ).toBe(false);
+    });
+  });
 });
