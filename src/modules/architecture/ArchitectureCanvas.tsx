@@ -952,7 +952,9 @@ export function ArchitectureCanvas({
         event.defaultPrevented ||
         !(event.metaKey || event.ctrlKey) ||
         event.shiftKey ||
-        isEditableShortcutTarget(event.target)
+        // Ignore text inputs, but NOT the xterm surface — the whole point is
+        // navigating terminal nodes with Cmd+Arrow while one is focused.
+        isCanvasNavBlockedTarget(event.target)
       ) {
         return;
       }
@@ -4370,6 +4372,20 @@ export function findNearestTerminalInDirection(
 function isEditableShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.closest(".xterm")) return true;
+  const tag = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tag === "input" ||
+    tag === "textarea" ||
+    tag === "select"
+  );
+}
+
+/** Like isEditableShortcutTarget, but does NOT treat the xterm surface as
+ *  blocking — used by the canvas terminal-navigation handler so Cmd+Arrow /
+ *  Cmd+M work while a canvas terminal node has focus. */
+function isCanvasNavBlockedTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName.toLowerCase();
   return (
     target.isContentEditable ||
