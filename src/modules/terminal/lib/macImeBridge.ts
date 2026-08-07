@@ -22,6 +22,20 @@ export function shouldIgnoreMacPrintableTerminalData(data: string): boolean {
   );
 }
 
+/** True for an unmodified space keypress on macOS. A plain space is never IME
+ *  composition: xterm's `evaluateKeyboardEvent` maps it to no key and does not
+ *  preventDefault, so both the browser textarea insertion (→ bridge `input`)
+ *  and the follow-up `keypress` (→ xterm `onData`) would fire. Callers should
+ *  `preventDefault()` and write the space exactly once instead. */
+export function isPlainSpaceKey(event: KeyboardEvent): boolean {
+  if (event.type !== "keydown" && event.type !== "keypress") return false;
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
+    return false;
+  }
+  return event.key === " ";
+}
+
 export function normalizeMacTerminalInput(value: string): string {
   // WebKit's macOS text bridge can occasionally surface an intended space as
   // invisible C1 controls (U+0080–U+009F) or as Unicode space lookalikes
