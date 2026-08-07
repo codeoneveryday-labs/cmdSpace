@@ -947,7 +947,9 @@ export function ArchitectureCanvas({
   };
 
   // Cmd+Arrow switches the active terminal node in that direction; Cmd+M
-  // toggles the maximized terminal node (zoom without the mouse).
+  // toggles the maximized terminal node (zoom without the mouse). Cmd+M is
+  // deliberately not Cmd+G (bound to Git Graph / Source panel) or Cmd+Enter
+  // (its key-repeat toggles trigger a fit + PTY resize storm per repeat).
   useEffect(() => {
     if (!active) return;
     const handleCanvasTerminalNav = (event: KeyboardEvent) => {
@@ -994,7 +996,7 @@ export function ArchitectureCanvas({
         }
         return;
       }
-      if (event.key === "Enter") {
+      if (event.key.toLowerCase() === "m") {
         event.preventDefault();
         const current = terminalNodes.find(
           (node) => node.id === activeTerminalId,
