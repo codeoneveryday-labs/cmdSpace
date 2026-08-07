@@ -2041,6 +2041,17 @@ export default function App() {
       if (id === "tab.newGitGraph") {
         return !sourceControl.hasRepo;
       }
+      // Canvas owns Cmd+Arrow / Cmd+M for terminal-node navigation; let the
+      // canvas keydown handler consume them instead of the pane shortcuts.
+      if (
+        activeTab?.kind === "architecture" &&
+        (id === "pane.focusLeft" ||
+          id === "pane.focusRight" ||
+          id === "pane.focusUp" ||
+          id === "pane.focusDown")
+      ) {
+        return true;
+      }
       return false;
     },
     [activeTab, sourceControl.hasRepo],
