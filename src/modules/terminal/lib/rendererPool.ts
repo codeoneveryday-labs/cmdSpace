@@ -806,13 +806,7 @@ export function applyFontSize(size: number): void {
     const next = effectiveTerminalFontSize(size, zoomLevel);
     if (slot.term.options.fontSize === next) continue;
     slot.term.options.fontSize = next;
-    fitSlot(slot);
-    if (slot.currentLeafId !== null) {
-      slot.lastCols = slot.term.cols;
-      slot.lastRows = slot.term.rows;
-      const bridge = adapter?.resolveLeaf(slot.currentLeafId);
-      bridge?.resizePty(slot.term.cols, slot.term.rows);
-    }
+    scheduleFitAndPtyResize(slot);
   }
 }
 
@@ -825,14 +819,38 @@ export function applyZoomLevel(zoomLevel: number): void {
     if (slot.term.options.fontSize !== nextFontSize) {
       slot.term.options.fontSize = nextFontSize;
     }
+    // Defer fit + PTY resize: Cmd+=/- key-repeat fires this on every step,
+    // and re-fitting every slot synchronously per step stutters the app.
+    // Debounce so the work only runs once the zoom settles.
+    scheduleFitAndPtyResize(slot);
+  }
+}
+
+/** Debounced fit + PTY resize, coalescing rapid preference changes (zoom,
+ *  font size, letter spacing) into one layout pass per slot. */
+function scheduleFitAndPtyResize(slot: Slot): void {
+  if (slot.fitTimer) clearTimeout(slot.fitTimer);
+  slot.fitTimer = setTimeout(() => {
+    slot.fitTimer = null;
+    const leafId = slot.currentLeafId;
+    if (leafId === null) return;
+    const container = slot.host.parentElement;
+    if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) {
+      return;
+    }
+    const beforeCols = slot.term.cols;
+    const beforeRows = slot.term.rows;
     fitSlot(slot);
-    if (slot.currentLeafId !== null) {
+    if (slot.ptyTimer) clearTimeout(slot.ptyTimer);
+    slot.ptyTimer = setTimeout(() => {
+      slot.ptyTimer = null;
+      if (slot.currentLeafId !== leafId) return;
+      if (slot.term.cols === beforeCols && slot.term.rows === beforeRows) return;
       slot.lastCols = slot.term.cols;
       slot.lastRows = slot.term.rows;
-      const bridge = adapter?.resolveLeaf(slot.currentLeafId);
-      bridge?.resizePty(slot.term.cols, slot.term.rows);
-    }
-  }
+      adapter?.resolveLeaf(leafId)?.resizePty(slot.term.cols, slot.term.rows);
+    }, PTY_RESIZE_DEBOUNCE_MS);
+  }, FIT_DEBOUNCE_MS);
 }
 
 export function applyLetterSpacing(spacing: number): void {
