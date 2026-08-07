@@ -59,6 +59,12 @@ export function attachMacImeBridge(
   let lastValue = textarea.value;
   let composing = false;
   let compositionStartValue = textarea.value;
+  let compositionStartTime = 0;
+  /** Guard against a composition that never fires `compositionend` (user
+   *  cancels, clicks away, the keydown was consumed elsewhere). If the flag is
+   *  stuck, every subsequent `input` is swallowed and typed characters never
+   *  reach the PTY until a non-input key (space/arrow) breaks the pattern. */
+  const COMPOSITION_WATCHDOG_MS = 1_000;
   const descriptor = Object.getOwnPropertyDescriptor(
     HTMLTextAreaElement.prototype,
     "value",
@@ -111,6 +117,7 @@ export function attachMacImeBridge(
       event.stopImmediatePropagation();
       composing = true;
       compositionStartValue = textarea.value;
+      compositionStartTime = Date.now();
     },
     true,
   );
@@ -124,6 +131,7 @@ export function attachMacImeBridge(
     (event) => {
       event.stopImmediatePropagation();
       composing = false;
+      compositionStartTime = 0;
       writeDiff(compositionStartValue);
     },
     true,
@@ -139,8 +147,25 @@ export function attachMacImeBridge(
     "input",
     (event) => {
       event.stopImmediatePropagation();
-      if (composing) return;
       const input = event as InputEvent;
+      // A real, active composition produces insertCompositionText inputs with
+      // isComposing true. If we're flagged composing but the textarea receives
+      // non-composition text instead — the browser says composition is over, or
+      // the flag has been stuck past the watchdog window — the compositionend
+      // was lost. Force-clear so typing isn't swallowed until the next
+      // space/arrow, and sync lastValue so no stale diff is emitted.
+      const staleComposition =
+        composing &&
+        (input.isComposing === false ||
+          (input.inputType &&
+            input.inputType !== "insertCompositionText" &&
+            Date.now() - compositionStartTime > COMPOSITION_WATCHDOG_MS));
+      if (staleComposition) {
+        composing = false;
+        compositionStartTime = 0;
+        lastValue = textarea.value;
+      }
+      if (composing) return;
       // xterm's native paste listener already forwards this payload. Keep the
       // bridge's textarea state in sync without sending it to the PTY again.
       if (input.inputType === "insertFromPaste") {
