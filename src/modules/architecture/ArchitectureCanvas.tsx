@@ -943,6 +943,62 @@ export function ArchitectureCanvas({
     );
   };
 
+  // Cmd+Arrow switches the active terminal node in that direction; Cmd+M
+  // toggles the maximized terminal node (zoom without the mouse).
+  useEffect(() => {
+    if (!active) return;
+    const handleCanvasTerminalNav = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        !(event.metaKey || event.ctrlKey) ||
+        event.shiftKey ||
+        isEditableShortcutTarget(event.target)
+      ) {
+        return;
+      }
+      const direction: "left" | "right" | "up" | "down" | null =
+        event.key === "ArrowLeft"
+          ? "left"
+          : event.key === "ArrowRight"
+            ? "right"
+            : event.key === "ArrowUp"
+              ? "up"
+              : event.key === "ArrowDown"
+                ? "down"
+                : null;
+      if (direction) {
+        event.preventDefault();
+        const current = terminalNodes.find(
+          (node) => node.id === activeTerminalId,
+        );
+        if (!current) return;
+        if (maximizedTerminalId) setMaximizedTerminalId("");
+        const best = findNearestTerminalInDirection(
+          current,
+          terminalNodes.filter((node) => node.id !== current.id),
+          direction,
+        );
+        if (best) {
+          setActiveTerminalId(best.id);
+          selectSingleNode(best.id);
+        }
+        return;
+      }
+      if (event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        const current = terminalNodes.find(
+          (node) => node.id === activeTerminalId,
+        );
+        if (!current) return;
+        setMaximizedTerminalId((prev) => (prev === current.id ? "" : current.id));
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleCanvasTerminalNav);
+    return () => window.removeEventListener("keydown", handleCanvasTerminalNav);
+  }, [active, activeTerminalId, maximizedTerminalId, terminalNodes]);
+
   const removeSelectedNode = () => {
     const targets = selectedNodeIds.length
       ? nodes.filter((item) => selectedNodeIds.includes(item.id) && !item.locked)
@@ -4246,6 +4302,69 @@ function isShapeDrawingMode(mode: CanvasMode): mode is ShapeDrawingMode {
 
 function isConnectorKind(kind: ShapeKind): boolean {
   return kind === "line" || kind === "arrow";
+}
+
+/** Pick the terminal node closest in the given direction from `current`,
+ *  based on node centers. Returns null when nothing lies in that direction. */
+export function findNearestTerminalInDirection(
+  current: ArchitectureNode,
+  candidates: ArchitectureNode[],
+  direction: "left" | "right" | "up" | "down",
+): ArchitectureNode | null {
+  const currentCenter = {
+    x: current.x + current.width / 2,
+    y: current.y + current.height / 2,
+  };
+  return candidates.reduce<ArchitectureNode | null>((nearest, node) => {
+    const cx = node.x + node.width / 2;
+    const cy = node.y + node.height / 2;
+    let valid = false;
+    let primary = 0;
+    let secondary = Math.abs(cy - currentCenter.y);
+    if (direction === "left") {
+      valid = cx < currentCenter.x - 2;
+      primary = currentCenter.x - cx;
+      secondary = Math.abs(cy - currentCenter.y);
+    } else if (direction === "right") {
+      valid = cx > currentCenter.x + 2;
+      primary = cx - currentCenter.x;
+      secondary = Math.abs(cy - currentCenter.y);
+    } else if (direction === "up") {
+      valid = cy < currentCenter.y - 2;
+      primary = currentCenter.y - cy;
+      secondary = Math.abs(cx - currentCenter.x);
+    } else if (direction === "down") {
+      valid = cy > currentCenter.y + 2;
+      primary = cy - currentCenter.y;
+      secondary = Math.abs(cx - currentCenter.x);
+    }
+    if (!valid) return nearest;
+    if (!nearest) return node;
+    const nearestCx = nearest.x + nearest.width / 2;
+    const nearestCy = nearest.y + nearest.height / 2;
+    let nearestPrimary = 0;
+    let nearestSecondary = Math.abs(nearestCy - currentCenter.y);
+    if (direction === "left") {
+      nearestPrimary = currentCenter.x - nearestCx;
+      nearestSecondary = Math.abs(nearestCy - currentCenter.y);
+    } else if (direction === "right") {
+      nearestPrimary = nearestCx - currentCenter.x;
+      nearestSecondary = Math.abs(nearestCy - currentCenter.y);
+    } else if (direction === "up") {
+      nearestPrimary = currentCenter.y - nearestCy;
+      nearestSecondary = Math.abs(nearestCx - currentCenter.x);
+    } else if (direction === "down") {
+      nearestPrimary = nearestCy - currentCenter.y;
+      nearestSecondary = Math.abs(nearestCx - currentCenter.x);
+    }
+    if (
+      primary < nearestPrimary - 0.5 ||
+      (Math.abs(primary - nearestPrimary) <= 0.5 && secondary < nearestSecondary)
+    ) {
+      return node;
+    }
+    return nearest;
+  }, null);
 }
 
 function isEditableShortcutTarget(target: EventTarget | null): boolean {
