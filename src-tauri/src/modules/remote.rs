@@ -1536,11 +1536,23 @@ fn create_remote_session(
     Ok(serde_json::json!({"id": id, "cols": 120, "rows": 40}).to_string())
 }
 
+/// `std::fs::canonicalize` returns Windows paths with a `\\?\` extended-length
+/// prefix, while `dirs::home_dir()` and the launch-dir snapshot don't. Strip
+/// the prefix so both sides compare in the same form.
+fn strip_verbatim_prefix(path: &Path) -> PathBuf {
+    let s = path.to_string_lossy();
+    s.strip_prefix(r"\\?\")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| path.to_path_buf())
+}
+
 fn authorize_remote_cwd(cwd: Option<&str>) -> Result<Option<String>, String> {
     let Some(cwd) = cwd else {
         return Ok(None);
     };
-    let path = std::fs::canonicalize(cwd).map_err(|e| format!("cwd is not accessible: {e}"))?;
+    let path = strip_verbatim_prefix(
+        &std::fs::canonicalize(cwd).map_err(|e| format!("cwd is not accessible: {e}"))?,
+    );
     if !path.is_dir() {
         return Err("cwd is not a directory".to_string());
     }
@@ -2431,6 +2443,61 @@ mod tests {
         assert!(body.contains("\"recentWorkspaces\""));
         assert!(body.contains("\"Remote Workspace\""));
         assert!(body.contains("\"accentColor\":\"#10B981\""));
+    }
+
+    #[test]
+    fn authorize_remote_cwd_accepts_path_inside_home() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+        let inside = tempfile::Builder::new()
+            .prefix("cmdspace-remote-home-test")
+            .tempdir_in(&home)
+            .expect("tempdir inside home");
+        let inner = inside.path().to_string_lossy().into_owned();
+
+        let authorized = authorize_remote_cwd(Some(&inner)).unwrap();
+        let expected = fs::canonicalize(inside.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(authorized, Some(expected));
+    }
+
+    #[test]
+    fn authorize_remote_cwd_rejects_path_outside_home() {
+        let foreign = tempfile::tempdir().unwrap();
+        let outer = foreign.path().to_string_lossy().into_owned();
+
+        let rejected = authorize_remote_cwd(Some(&outer)).unwrap_err();
+        assert!(rejected.contains("inside the user home"), "got: {rejected}");
+    }
+
+    #[test]
+    fn strip_verbatim_prefix_normalizes_windows_and_unix_paths() {
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\C:\Users\dev\repo")),
+            PathBuf::from(r"C:\Users\dev\repo")
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new("/home/dev/repo")),
+            PathBuf::from("/home/dev/repo")
+        );
+    }
+
+    #[test]
+    fn authorize_remote_cwd_rejects_missing_path() {
+        let missing = std::env::temp_dir().join(format!(
+            "cmdspace-remote-missing-{}",
+            std::process::id()
+        ));
+        let error = authorize_remote_cwd(missing.to_str()).unwrap_err();
+        assert!(error.contains("not accessible"), "got: {error}");
+    }
+
+    #[test]
+    fn authorize_remote_cwd_accepts_none() {
+        assert_eq!(authorize_remote_cwd(None).unwrap(), None);
     }
 
     #[test]
