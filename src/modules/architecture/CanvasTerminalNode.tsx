@@ -257,7 +257,6 @@ export function CanvasTerminalNode({
     let cancelled = false;
     let terminal: Terminal | null = null;
     let resizeObserver: ResizeObserver | null = null;
-    let refreshFrame: number | null = null;
     let fitFrame: number | null = null;
 		let copyOnSelectionTimer: ReturnType<typeof setTimeout> | null = null;
 		let copyBadgeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -311,19 +310,10 @@ export function CanvasTerminalNode({
         },
         shellState,
       );
-      const scheduleRefresh = () => {
-        if (refreshFrame !== null) return;
-        refreshFrame = requestAnimationFrame(() => {
-          refreshFrame = null;
-          terminal?.refresh(0, Math.max(0, terminal.rows - 1));
-        });
-      };
-      terminal.onWriteParsed(scheduleRefresh);
       attachMacImeBridge(terminal, (data) => {
         trackPromptInput(data);
         void sessionRef.current?.write(data);
       });
-
       const fit = () => {
         try {
           fitAddon.fit();
@@ -481,7 +471,6 @@ export function CanvasTerminalNode({
       resizeObserver?.disconnect();
       disposeCwdHandler?.();
       disposePromptTracker?.();
-      if (refreshFrame !== null) cancelAnimationFrame(refreshFrame);
       if (fitFrame !== null) cancelAnimationFrame(fitFrame);
       if (copyOnSelectionTimer) clearTimeout(copyOnSelectionTimer);
 			if (copyBadgeTimer) clearTimeout(copyBadgeTimer);

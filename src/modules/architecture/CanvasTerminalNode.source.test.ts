@@ -54,8 +54,8 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("attachMacImeBridge");
     expect(source).toContain("shouldUseMacTextInputPath");
     expect(source).toContain("shouldIgnoreMacPrintableTerminalData");
-    expect(source).toContain("terminal.onWriteParsed(scheduleRefresh)");
-    expect(source).toContain("terminal?.refresh(0, Math.max(0, terminal.rows - 1))");
+    expect(source).not.toContain("onWriteParsed");
+    expect(source).not.toContain("terminal?.refresh(");
     expect(source).toContain("const scheduleFit = () =>");
     expect(source).toContain("resizeObserver = new ResizeObserver(scheduleFit)");
     expect(source).toContain("void session.resize(terminal.cols, terminal.rows);");
