@@ -12,6 +12,7 @@ import { terminalWordNavigationSequence } from "./keymap";
 import {
   attachMacImeBridge,
   IS_MAC_TEXT_INPUT_PLATFORM,
+  isPlainSpaceKey,
   normalizeMacTerminalInput,
   shouldIgnoreMacPrintableTerminalData,
   shouldUseMacTextInputPath,
@@ -194,6 +195,23 @@ function createSlot(): Slot {
     // let xterm's internal textarea handle it without custom key intercepts.
     if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
       return true;
+    }
+
+    // A plain space on macOS: preventDefault so neither the browser textarea
+    // insertion nor the follow-up keypress fires, then write the space exactly
+    // once. Without this, xterm maps space to no key (no preventDefault at
+    // keydown) and both the bridge input handler and the keypress onData fire,
+    // duplicating the space. This supersedes the #121 "route space through
+    // xterm's keydown path" approach, which double-wrote it.
+    if (isPlainSpaceKey(event)) {
+      event.preventDefault();
+      if (event.type === "keydown") {
+        const leafId = slot.currentLeafId;
+        if (leafId !== null) {
+          adapter?.resolveLeaf(leafId)?.writeToPty(" ");
+        }
+      }
+      return false;
     }
 
     // macOS Vietnamese Telex often starts as normal printable key events
