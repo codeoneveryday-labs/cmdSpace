@@ -2083,14 +2083,25 @@ export function ArchitectureCanvas({
   ): typeof view {
     const width = canvasSize.width / current.scale;
     const height = canvasSize.height / current.scale;
-    return clampView(
-      {
-        ...current,
-        x: placement.x + placement.width / 2 - width / 2,
-        y: placement.y + placement.height / 2 - height / 2,
-      },
-      current.scale,
-    );
+    const centerX = placement.x + placement.width / 2;
+    const centerY = placement.y + placement.height / 2;
+    const next = {
+      ...current,
+      x: centerX - width / 2,
+      y: centerY - height / 2,
+    };
+    // A placement larger than the viewport can't be fully contained; clamping
+    // would prevent reaching its center. Clamp each axis independently, and
+    // skip the clamp on axes where the placement exceeds the viewport.
+    const clampedX =
+      placement.width >= width
+        ? next.x
+        : clampViewCoord(next.x, width, VIEWBOX_WIDTH, canvasSize.width);
+    const clampedY =
+      placement.height >= height
+        ? next.y
+        : clampViewCoord(next.y, height, VIEWBOX_HEIGHT, canvasSize.height);
+    return { ...next, x: clampedX, y: clampedY };
   }
 
   function clampView(current: typeof view, scale: number): typeof view {
