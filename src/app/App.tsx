@@ -2787,7 +2787,7 @@ export default function App() {
             onCreated={(path) => openFileTab(path)}
           />
 
-          <UpdaterDialog />
+          <UpdaterDialog autoCheck={false} />
 
           <AlertDialog
             open={pendingCloseTab !== null}
