@@ -37,8 +37,8 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function UpdaterDialog() {
-  const { status, install, dismiss } = useUpdater();
+export function UpdaterDialog({ autoCheck = false }: { autoCheck?: boolean }) {
+  const { status, install, dismiss } = useUpdater({ autoCheck });
   const [copied, setCopied] = useState(false);
   const [distro, setDistro] = useState<DistroKey>("arch");
   const manualVersion =
