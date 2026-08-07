@@ -4388,6 +4388,8 @@ function isEditableShortcutTarget(target: EventTarget | null): boolean {
  *  Cmd+M work while a canvas terminal node has focus. */
 function isCanvasNavBlockedTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
+  // xterm's hidden textarea is the terminal input surface — never block.
+  if (target.closest(".xterm")) return false;
   const tag = target.tagName.toLowerCase();
   return (
     target.isContentEditable ||
