@@ -40,4 +40,20 @@ describe("normalizeMacTerminalInput", () => {
     expect(from).toBe("mcli ");
     expect(to).toBe(from);
   });
+
+  it("keeps a plain space out of the macOS IME text-input path", () => {
+    const event = { type: "keydown", key: " " } as KeyboardEvent;
+    expect(macImeBridge.shouldUseMacTextInputPath?.(event)).toBe(false);
+    expect(macImeBridge.shouldIgnoreMacPrintableTerminalData?.(" ")).toBe(
+      false,
+    );
+  });
+
+  it("normalizes space lookalikes but not a plain space", () => {
+    const normalize = (macImeBridge as MacImeBridgeModule)
+      .normalizeMacTerminalInput;
+    expect(normalize?.("\u0083")).toBe(" ");
+    expect(normalize?.("\u00a0")).toBe(" ");
+    expect(normalize?.(" ")).toBe(" ");
+  });
 });

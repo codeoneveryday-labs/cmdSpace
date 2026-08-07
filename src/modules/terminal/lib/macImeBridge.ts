@@ -8,6 +8,7 @@ export function shouldUseMacTextInputPath(event: KeyboardEvent): boolean {
   if (!IS_MAC_TEXT_INPUT_PLATFORM) return false;
   if (event.type !== "keydown" && event.type !== "keypress") return false;
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  if (event.key === " ") return false;
   return event.key.length === 1 && !isControlKey(event.key);
 }
 
@@ -16,6 +17,7 @@ export function shouldIgnoreMacPrintableTerminalData(data: string): boolean {
     IS_MAC_TEXT_INPUT_PLATFORM &&
     data.length === 1 &&
     data.charCodeAt(0) >= 0x20 &&
+    data.charCodeAt(0) !== 0x20 &&
     data.charCodeAt(0) !== 0x7f
   );
 }
