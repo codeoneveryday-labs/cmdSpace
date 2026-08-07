@@ -401,6 +401,17 @@ html[data-chrome="borderless"] #settings-root {
   top: 50px;
 }
 
+/* Canvas background video is decorative and autoplays muted; hide WebKit's
+ * native media controls/overlay so no play button flashes during open. */
+video.cmdspace-canvas-background-video::-webkit-media-controls,
+video.cmdspace-canvas-background-video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+video.cmdspace-canvas-background-video::-webkit-media-controls-enclosure {
+  display: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cmdspace-terminal-copy-badge {
     transform: none;

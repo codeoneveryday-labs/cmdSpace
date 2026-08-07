@@ -2985,8 +2985,10 @@ function CanvasBackgroundMedia({ imageId }: { imageId: string | null }) {
         loop
         muted
         playsInline
+        controls={false}
+        disablePictureInPicture
         preload="auto"
-        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        className="cmdspace-canvas-background-video pointer-events-none absolute inset-0 h-full w-full object-cover"
       />
     );
   }
