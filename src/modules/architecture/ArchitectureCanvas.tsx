@@ -654,6 +654,9 @@ export function ArchitectureCanvas({
   const [isFreeTerminalPlacement, setIsFreeTerminalPlacement] = useState(false);
   const [activeTerminalId, setActiveTerminalId] = useState("");
   const [maximizedTerminalId, setMaximizedTerminalId] = useState("");
+  // terminalId -> handle, populated via onTerminalHandleChange so Cmd+Arrow
+  // can move real input focus to the newly active terminal node.
+  const terminalHandleRef = useRef(new Map<string, CanvasTerminalHandle>());
 
   const markerId = `architecture-arrow-${tabId}`;
   const frameDotsId = `architecture-frame-dots-${tabId}`;
@@ -983,6 +986,9 @@ export function ArchitectureCanvas({
         if (best) {
           setActiveTerminalId(best.id);
           selectSingleNode(best.id);
+          // Move real input focus to the newly active terminal so keystrokes
+          // go to it, not the previously focused terminal node.
+          terminalHandleRef.current.get(best.id)?.focus();
         }
         return;
       }
@@ -2605,9 +2611,11 @@ export function ArchitectureCanvas({
                   <CanvasTerminalNode
                     initialCwd={node.cwd}
                     initialCommand={node.initialCommand}
-                    onHandleChange={(handle) =>
-                      onTerminalHandleChange?.(tabId, node.id, handle)
-                    }
+                    onHandleChange={(handle) => {
+                      if (handle) terminalHandleRef.current.set(node.id, handle);
+                      else terminalHandleRef.current.delete(node.id);
+                      onTerminalHandleChange?.(tabId, node.id, handle);
+                    }}
                     stackTabs={stackTabs}
                     activeTabId={layout?.activeTerminalId ?? node.id}
                     singleTerminalGroup={!usesSharedHeader}
