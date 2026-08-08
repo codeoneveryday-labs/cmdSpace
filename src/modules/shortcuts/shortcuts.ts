@@ -19,6 +19,7 @@ export type ShortcutId =
   | "pane.splitDown"
   | "pane.focusNext"
   | "pane.focusPrev"
+  | "pane.maximize"
   | "pane.source"
   | "search.focus"
   | "explorer.search"
@@ -151,6 +152,12 @@ export const SHORTCUTS: Shortcut[] = [
     group: "Panes",
     defaultBindings: [{ [MOD_PROP]: true, key: "[" }],
   },  
+  {
+    id: "pane.maximize",
+    label: "Maximize active pane",
+    group: "Panes",
+    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: ">" }],
+  },
   {
     id: "pane.source",
     label: "Toggle source panel",
@@ -318,20 +325,27 @@ export function matchBinding(
 ): boolean {
   const eventKey = e.key.toLowerCase();
   const bindingKey = binding.key.toLowerCase();
+  const physicalKeyMatches =
+    binding.key === ">" && e.code === "Period";
+  const physicalShiftMatches = binding.key === ">" && physicalKeyMatches;
 
   // Special case for Jump to Tab 1-9
   if (id === "tab.selectByIndex") {
     if (!/^[1-9]$/.test(e.key)) return false;
-  } else if (eventKey !== bindingKey) {
+  } else if (eventKey !== bindingKey && !physicalKeyMatches) {
     return false;
   }
 
   return (
     !!e.ctrlKey === !!binding.ctrl &&
-    !!e.shiftKey === !!binding.shift &&
+    (!!e.shiftKey === !!binding.shift || physicalShiftMatches) &&
     !!e.altKey === !!binding.alt &&
     !!e.metaKey === !!binding.meta
   );
+}
+
+export function isPaneMaximizeKeyboardEvent(e: KeyboardEvent): boolean {
+  return e.code === "Period" && (e.metaKey || e.ctrlKey) && !e.altKey;
 }
 
 /**

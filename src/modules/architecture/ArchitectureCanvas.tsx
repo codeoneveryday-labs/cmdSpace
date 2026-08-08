@@ -946,23 +946,30 @@ export function ArchitectureCanvas({
     );
   };
 
-  // Cmd+Arrow switches the active terminal node in that direction; Cmd+M
-  // toggles the maximized terminal node (zoom without the mouse). Cmd+M is
-  // deliberately not Cmd+G (bound to Git Graph / Source panel) or Cmd+Enter
-  // (its key-repeat toggles trigger a fit + PTY resize storm per repeat).
+  // Cmd+Arrow switches the active terminal node in that direction; Cmd+>
+  // toggles the maximized terminal node (zoom without the mouse).
   useEffect(() => {
     if (!active) return;
     const handleCanvasTerminalNav = (event: KeyboardEvent) => {
       if (
         event.defaultPrevented ||
         !(event.metaKey || event.ctrlKey) ||
-        event.shiftKey ||
         // Ignore text inputs, but NOT the xterm surface — the whole point is
         // navigating terminal nodes with Cmd+Arrow while one is focused.
         isCanvasNavBlockedTarget(event.target)
       ) {
         return;
       }
+      if (event.code === "Period") {
+        event.preventDefault();
+        const current = terminalNodes.find(
+          (node) => node.id === activeTerminalId,
+        );
+        if (!current) return;
+        setMaximizedTerminalId((prev) => (prev === current.id ? "" : current.id));
+        return;
+      }
+      if (event.altKey || event.shiftKey) return;
       const direction: "left" | "right" | "up" | "down" | null =
         event.key === "ArrowLeft"
           ? "left"
@@ -994,15 +1001,6 @@ export function ArchitectureCanvas({
           // Center the view on the newly active terminal, like creating one.
           setView((current) => centerViewOnPlacement(current, best));
         }
-        return;
-      }
-      if (event.key.toLowerCase() === "m") {
-        event.preventDefault();
-        const current = terminalNodes.find(
-          (node) => node.id === activeTerminalId,
-        );
-        if (!current) return;
-        setMaximizedTerminalId((prev) => (prev === current.id ? "" : current.id));
         return;
       }
     };

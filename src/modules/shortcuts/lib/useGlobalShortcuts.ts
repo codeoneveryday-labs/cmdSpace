@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   SHORTCUTS,
+  isPaneMaximizeKeyboardEvent,
   matchBinding,
   type ShortcutId,
 } from "../shortcuts";
@@ -25,7 +26,10 @@ export function useGlobalShortcuts(
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.isComposing || e.keyCode === 229 || e.key === "Process") {
+      if (
+        (e.isComposing || e.keyCode === 229 || e.key === "Process") &&
+        !isPaneMaximizeKeyboardEvent(e)
+      ) {
         return;
       }
       const { handlers, options } = latest.current;

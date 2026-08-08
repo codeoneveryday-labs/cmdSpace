@@ -1984,6 +1984,11 @@ export default function App() {
       "pane.splitDown": () => splitActivePaneInActiveTab("col"),
       "pane.focusNext": () => focusNextPaneInTab(activeId, 1),
       "pane.focusPrev": () => focusNextPaneInTab(activeId, -1),
+      "pane.maximize": () => {
+        if (activeTerminalTab) {
+          toggleMaximizePane(activeTerminalTab.activeLeafId);
+        }
+      },
       "pane.source": toggleSourceControl,
       "search.focus": () => searchInlineRef.current?.focus(),
       "terminal.bottom": toggleBottomTerminal,
@@ -2018,6 +2023,8 @@ export default function App() {
       sourceControl.hasRepo,
       splitActivePaneInActiveTab,
       focusNextPaneInTab,
+      activeTerminalTab,
+      toggleMaximizePane,
       toggleSourceControl,
       toggleBottomTerminal,
       openTopMusicTab,
@@ -2041,14 +2048,15 @@ export default function App() {
       if (id === "tab.newGitGraph") {
         return !sourceControl.hasRepo;
       }
-      // Canvas owns Cmd+Arrow / Cmd+M for terminal-node navigation; let the
-      // canvas keydown handler consume them instead of the pane shortcuts.
+      // Canvas owns Cmd+Arrow / Cmd+> for terminal-node navigation;
+      // let the canvas keydown handler consume them instead of pane shortcuts.
       if (
         activeTab?.kind === "architecture" &&
         (id === "pane.focusLeft" ||
           id === "pane.focusRight" ||
           id === "pane.focusUp" ||
-          id === "pane.focusDown")
+          id === "pane.focusDown" ||
+          id === "pane.maximize")
       ) {
         return true;
       }
