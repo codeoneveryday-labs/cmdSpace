@@ -283,7 +283,7 @@ html[data-chrome="borderless"] #settings-root {
   background: var(--terminal-background);
 }
 
-.xterm .composition-view {
+.cmdspace-terminal-viewport .xterm .composition-view {
   background: transparent;
   color: var(--terminal-foreground);
   text-decoration: underline;
