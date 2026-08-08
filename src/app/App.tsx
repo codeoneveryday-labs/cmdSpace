@@ -2048,7 +2048,7 @@ export default function App() {
       if (id === "tab.newGitGraph") {
         return !sourceControl.hasRepo;
       }
-      // Canvas owns Cmd+Arrow / Cmd+Shift+Enter for terminal-node navigation;
+      // Canvas owns Cmd+Arrow / Cmd+> for terminal-node navigation;
       // let the canvas keydown handler consume them instead of pane shortcuts.
       if (
         activeTab?.kind === "architecture" &&

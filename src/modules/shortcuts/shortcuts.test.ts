@@ -39,4 +39,25 @@ describe("shortcut matching", () => {
       ),
     ).toBe(true);
   });
+
+  it("matches Cmd+> when Telex reports the physical key as Process", () => {
+    const event = {
+      key: "Process",
+      code: "Period",
+      keyCode: 229,
+      isComposing: true,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      metaKey: true,
+    } as KeyboardEvent;
+
+    expect(
+      matchBinding(
+        event,
+        { key: ">", meta: true, shift: true },
+        "pane.maximize",
+      ),
+    ).toBe(true);
+  });
 });

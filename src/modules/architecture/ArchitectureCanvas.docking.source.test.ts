@@ -24,8 +24,7 @@ describe("ArchitectureCanvas terminal docking integration", () => {
   it("uses the shared Cmd/Ctrl+> maximize shortcut for canvas terminals", () => {
     const canvasSource = readFileSync(canvasPath, "utf8");
 
-    expect(canvasSource).toContain('event.key === ">"');
-    expect(canvasSource).toContain("event.shiftKey");
+    expect(canvasSource).toContain('event.code === "Period"');
     expect(canvasSource).not.toContain('event.key.toLowerCase() === "m"');
   });
 
