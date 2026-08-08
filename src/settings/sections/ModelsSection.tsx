@@ -354,7 +354,7 @@ function ProviderMenuItem({
       onSelect={() => onAdd(provider.id)}
       className="flex items-center gap-2 text-[12px]"
     >
-      <ProviderIcon provider={provider.id} size={13} />
+      <ProviderIcon provider={provider.id} size={12} />
       <span>{provider.label}</span>
     </DropdownMenuItem>
   );
@@ -405,7 +405,7 @@ function DefaultModelPicker({
           className="h-8 flex-1 justify-between gap-2 px-2.5 text-[11.5px]"
         >
           <span className="flex items-center gap-2 truncate">
-            <ProviderIcon provider={m.provider} size={13} />
+            <ProviderIcon provider={m.provider} size={12} />
             <span className="truncate">{m.label}</span>
             <span className="text-muted-foreground">· {m.hint}</span>
           </span>
@@ -431,7 +431,7 @@ function DefaultModelPicker({
             return (
               <div key={p.id} className="px-1 pt-1.5 first:pt-1">
                 <div className="mb-0.5 flex items-center gap-1.5 px-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-                  <ProviderIcon provider={p.id} size={11} />
+                  <ProviderIcon provider={p.id} size={10} />
                   <span>{p.label}</span>
                 </div>
                 {models.map((mod) => (
@@ -479,7 +479,7 @@ function SpeechToTextRow({ keys }: { keys: KeysMap }) {
               className="h-8 flex-1 justify-between gap-2 px-2.5 text-[11.5px]"
             >
               <span className="flex items-center gap-2 truncate">
-                <ProviderIcon provider={currentModel.provider} size={12} />
+                <ProviderIcon provider={currentModel.provider} size={11} />
                 <span className="truncate">{currentModel.label}</span>
                 {currentModel.developmentOnly ? (
                   <span className="text-muted-foreground">· dev</span>
@@ -507,7 +507,7 @@ function SpeechToTextRow({ keys }: { keys: KeysMap }) {
               return (
                 <div key={provider.id} className="px-1 pt-1.5 first:pt-1">
                   <div className="mb-0.5 flex items-center gap-1.5 px-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-                    <ProviderIcon provider={provider.id} size={11} />
+                    <ProviderIcon provider={provider.id} size={10} />
                     <span>{provider.label}</span>
                     {!providerConnected ? (
                       <span className="ml-auto text-[9.5px] normal-case tracking-normal text-muted-foreground/70">
@@ -618,7 +618,7 @@ function AutocompleteRow({
                 className="h-8 flex-1 justify-between gap-2 px-2.5 text-[11.5px]"
               >
                 <span className="flex items-center gap-2 truncate">
-                  <ProviderIcon provider={currentModel.provider} size={12} />
+                  <ProviderIcon provider={currentModel.provider} size={11} />
                   <span className="truncate">{currentModel.label}</span>
                   <span className="text-muted-foreground">
                     · {currentModel.hint}
@@ -644,7 +644,7 @@ function AutocompleteRow({
                 return (
                   <div key={p.id} className="px-1 pt-1.5 first:pt-1">
                     <div className="mb-0.5 flex items-center gap-1.5 px-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-                      <ProviderIcon provider={p.id} size={11} />
+                      <ProviderIcon provider={p.id} size={10} />
                       <span>{p.label}</span>
                       {!pConfigured ? (
                         <span className="ml-auto text-[9.5px] normal-case tracking-normal text-muted-foreground/70">
@@ -734,7 +734,7 @@ function LocalProviderCard({
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2.5">
       <div className="flex items-center gap-2">
-        <ProviderIcon provider={provider.id} size={15} />
+        <ProviderIcon provider={provider.id} size={13} />
         <span className="text-[12.5px] font-medium">{provider.label}</span>
         {configured ? (
           <Badge

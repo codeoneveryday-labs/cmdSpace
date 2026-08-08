@@ -6,33 +6,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
+import { ProviderIcon } from "@/settings/components/ProviderIcon";
 import { fmtShortcut, MOD_KEY } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
 import {
   Add01Icon,
   AiBookIcon,
-  AppleIcon,
   ArrowDown01Icon,
   ArrowUpIcon,
   BrainIcon,
-  ChatGptIcon,
-  ClaudeIcon,
   Clock01Icon,
   CoinsDollarIcon,
-  ComputerIcon,
-  CpuIcon,
-  DeepseekIcon,
   FavouriteIcon,
   FlashIcon,
-  GlobeIcon,
-  GoogleGeminiIcon,
-  Grok02Icon,
-  MistralIcon,
   Message01Icon,
   Mic01Icon,
-  PlugIcon,
-  ServerStack01Icon,
   Search01Icon,
   Settings01Icon,
   StarIcon,
@@ -55,24 +44,6 @@ import { ACCEPTED_FILES, useComposer } from "../lib/composer";
 import { toggleFavoriteModel } from "../lib/modelPrefs";
 import { useChatStore } from "../store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-
-const PROVIDER_ICON = {
-  openai: ChatGptIcon,
-  anthropic: ClaudeIcon,
-  google: GoogleGeminiIcon,
-  xai: Grok02Icon,
-  cerebras: CpuIcon,
-  groq: FlashIcon,
-  deepseek: DeepseekIcon,
-  mistral: MistralIcon,
-  nvidia: CpuIcon,
-  openrouter: GlobeIcon,
-  zenmux: GlobeIcon,
-  "openai-compatible": PlugIcon,
-  lmstudio: ComputerIcon,
-  mlx: AppleIcon,
-  ollama: ServerStack01Icon,
-} as const satisfies Record<ProviderId, typeof ChatGptIcon>;
 
 export function AiStatusBarControls() {
   const c = useComposer();
@@ -330,7 +301,7 @@ function ModelDropdown() {
               (p) => (
                 <ProviderPill
                   key={p.id}
-                  icon={PROVIDER_ICON[p.id]}
+                  provider={p.id}
                   title={
                     hasKeyFor(p.id)
                       ? p.label
@@ -424,12 +395,14 @@ function TabButton({
 
 function ProviderPill({
   icon,
+  provider,
   title,
   active,
   muted,
   onClick,
 }: {
-  icon: typeof AiBookIcon;
+  icon?: typeof AiBookIcon;
+  provider?: ProviderId;
   title: string;
   active: boolean;
   muted?: boolean;
@@ -439,6 +412,7 @@ function ProviderPill({
     <button
       type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
       className={cn(
         "relative mx-auto flex size-8 items-center justify-center rounded-md transition-colors",
@@ -449,7 +423,11 @@ function ProviderPill({
             : "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
       )}
     >
-      <HugeiconsIcon icon={icon} size={16} strokeWidth={1.5} />
+      {provider ? (
+        <ProviderIcon provider={provider} size={13} />
+      ) : (
+        <HugeiconsIcon icon={icon ?? AiBookIcon} size={13} strokeWidth={1.5} />
+      )}
     </button>
   );
 }
@@ -459,11 +437,7 @@ function ProviderHeader({ providerId }: { providerId: ProviderId }) {
   if (!p) return null;
   return (
     <div className="flex items-center gap-1.5 px-3 pt-1 pb-1.5 text-[11px] font-medium tracking-tight text-muted-foreground/90">
-      <HugeiconsIcon
-        icon={PROVIDER_ICON[p.id]}
-        size={13}
-        strokeWidth={1.75}
-      />
+      <ProviderIcon provider={p.id} size={12} />
       <span>{p.label}</span>
     </div>
   );
@@ -542,10 +516,9 @@ function ModelRow({
       </button>
 
       {showProviderIcon ? (
-        <HugeiconsIcon
-          icon={PROVIDER_ICON[model.provider]}
-          size={13}
-          strokeWidth={1.5}
+        <ProviderIcon
+          provider={model.provider}
+          size={12}
           className="shrink-0 text-muted-foreground/70"
         />
       ) : null}
