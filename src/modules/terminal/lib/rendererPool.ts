@@ -11,12 +11,8 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { terminalWordNavigationSequence } from "./keymap";
 import {
-  attachMacImeBridge,
-  createMacTextInputDeduplicator,
   IS_MAC_TEXT_INPUT_PLATFORM,
   normalizeMacTerminalInput,
-  shouldIgnoreMacPrintableTerminalData,
-  shouldUseMacTextInputPath,
 } from "./macImeBridge";
 import {
   currentTerminalZoomLevel,
@@ -186,28 +182,12 @@ function createSlot(): Slot {
   );
 
   attachWebgl(slot);
-  const macTextInput = createMacTextInputDeduplicator((data) => {
-    const leafId = slot.currentLeafId;
-    if (leafId !== null) adapter?.resolveLeaf(leafId)?.writeToPty(data);
-  });
-  attachMacImeBridge(slot.term, (data) => {
-    void invoke("pty_trace_input", { source: "ime-bridge", data });
-    macTextInput.writeBridgeData(data);
-  });
   attachCopyOnSelection(slot);
   term.attachCustomKeyEventHandler((event) => {
     // If the user is currently composing an IME character (e.g. Vietnamese Telex),
     // let xterm's internal textarea handle it without custom key intercepts.
     if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
       return true;
-    }
-
-    // macOS Vietnamese Telex often starts as normal printable key events
-    // before composition is visible to xterm. Prevent xterm from sending the
-    // base character early; the mac IME bridge forwards committed textarea
-    // input once.
-    if (shouldUseMacTextInputPath(event)) {
-      return false;
     }
 
     // Let Command + Arrows and Option + Command + Arrows bubble up to the global shortcut listener
@@ -259,7 +239,6 @@ function createSlot(): Slot {
     // terminal metadata, not user input; forwarding them can corrupt zsh's
     // history recall when a report arrives alongside an arrow key sequence.
     if (OSC_COLOR_REPORT.test(data)) return;
-    if (shouldIgnoreMacPrintableTerminalData(data)) return;
 
     const bridge = adapter?.resolveLeaf(leafId);
     if (!bridge) return;
@@ -274,7 +253,7 @@ function createSlot(): Slot {
     if (normalized.includes("\r") || normalized.includes("\n")) {
       bridge.observeInputLine?.(currentInputLine(slot.term));
     }
-    macTextInput.writeXtermData(normalized);
+    bridge.writeToPty(normalized);
   });
 
   slots.push(slot);

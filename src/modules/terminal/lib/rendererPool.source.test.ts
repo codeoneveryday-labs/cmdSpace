@@ -79,36 +79,24 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain("box-shadow: none !important;");
   });
 
-  it("handles macOS native IME composition events through prefix-and-backspace matching", () => {
+  it("leaves macOS IME composition to xterm's native input path", () => {
     const source = readFileSync(rendererPoolPath, "utf8");
     const imeSource = readFileSync(macImeBridgePath, "utf8");
 
-    expect(source).toContain("attachMacImeBridge");
-    expect(source).toContain("shouldUseMacTextInputPath");
-    expect(imeSource).toContain("compositionstart");
-    expect(imeSource).toContain("compositionend");
-    expect(imeSource).toContain("commonPrefixLen");
-    expect(imeSource).toContain("backspaces");
-    expect(imeSource).toContain("writeDiff");
+    expect(source).not.toContain("attachMacImeBridge");
+    expect(source).not.toContain("createMacTextInputDeduplicator");
+    expect(source).not.toContain("shouldUseMacTextInputPath");
+    expect(source).not.toContain("shouldIgnoreMacPrintableTerminalData");
+    expect(imeSource).not.toContain("stopImmediatePropagation");
     expect(imeSource).toContain("IS_MAC_TEXT_INPUT_PLATFORM");
+    expect(source).toContain("bridge.writeToPty(normalized);");
   });
 
-  it("blocks both macOS printable keydown and keypress while the IME bridge owns text input", () => {
-    const source = readFileSync(macImeBridgePath, "utf8");
-
-    expect(source).toContain(
-      'event.type !== "keydown" && event.type !== "keypress"',
-    );
-  });
-
-  it("lets xterm own native paste while the IME bridge ignores its duplicate input event", () => {
+  it("lets xterm own native paste and text input", () => {
     const source = readFileSync(rendererPoolPath, "utf8");
-    const imeSource = readFileSync(macImeBridgePath, "utf8");
 
     expect(source).not.toContain("function isTerminalPaste");
     expect(source).not.toContain("navigator.clipboard\n          .readText()");
-    expect(imeSource).toContain('input.inputType === "insertFromPaste"');
-    expect(imeSource).toContain("lastValue = textarea.value;");
   });
 
   it("does not forward OSC 10/11 color reports as shell input", () => {
@@ -176,34 +164,13 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain("slot.term.clearSelection()");
   });
 
-  it("routes a plain space through the shared macOS input deduplicator", () => {
+  it("routes a plain space once through xterm's native onData callback", () => {
     const rendererSource = readFileSync(rendererPoolPath, "utf8");
     const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");
 
-    // Space must not bypass the bridge/xterm coordinator. WebKit can commit
-    // the pending Telex batch before its follow-up xterm space event; the
-    // deduplicator keeps that ordering while dropping only the duplicate.
     expect(rendererSource).not.toContain("isPlainSpaceKey(event)");
-    expect(rendererSource).not.toContain(
-      'adapter?.resolveLeaf(leafId)?.writeToPty(" ")',
-    );
     expect(canvasSource).not.toContain("isPlainSpaceKey(event)");
-    expect(canvasSource).not.toContain(
-      'sessionRef.current?.write(" ")',
-    );
-    expect(rendererSource).toContain("macTextInput.writeXtermData(normalized)");
-    expect(canvasSource).toContain("macTextInput.writeXtermData(data)");
-  });
-
-  it("force-clears a stuck IME composition so typing is not swallowed (#126)", () => {
-    const source = readFileSync(macImeBridgePath, "utf8");
-
-    // A compositionend that is never delivered must not leave `composing`
-    // stuck, otherwise every following printable input is swallowed until the
-    // next space/arrow key.
-    expect(source).toContain("compositionStartTime");
-    expect(source).toContain("COMPOSITION_WATCHDOG_MS");
-    expect(source).toContain("staleComposition");
-    expect(source).toContain('input.inputType !== "insertCompositionText"');
+    expect(rendererSource).toContain("bridge.writeToPty(normalized);");
+    expect(canvasSource).toContain("sessionRef.current?.write(normalized)");
   });
 });
