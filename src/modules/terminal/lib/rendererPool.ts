@@ -11,6 +11,7 @@ import { Terminal } from "@xterm/xterm";
 import { terminalWordNavigationSequence } from "./keymap";
 import {
   attachMacImeBridge,
+  createMacTextInputDeduplicator,
   IS_MAC_TEXT_INPUT_PLATFORM,
   isPlainSpaceKey,
   normalizeMacTerminalInput,
@@ -185,9 +186,12 @@ function createSlot(): Slot {
   );
 
   attachWebgl(slot);
-  attachMacImeBridge(slot.term, (data) => {
+  const macTextInput = createMacTextInputDeduplicator((data) => {
     const leafId = slot.currentLeafId;
     if (leafId !== null) adapter?.resolveLeaf(leafId)?.writeToPty(data);
+  });
+  attachMacImeBridge(slot.term, (data) => {
+    macTextInput.writeBridgeData(data);
   });
   attachCopyOnSelection(slot);
   term.attachCustomKeyEventHandler((event) => {
@@ -285,7 +289,7 @@ function createSlot(): Slot {
     if (normalized.includes("\r") || normalized.includes("\n")) {
       bridge.observeInputLine?.(currentInputLine(slot.term));
     }
-    bridge.writeToPty(normalized);
+    macTextInput.writeXtermData(normalized);
   });
 
   slots.push(slot);

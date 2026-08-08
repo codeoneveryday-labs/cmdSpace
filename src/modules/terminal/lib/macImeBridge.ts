@@ -49,6 +49,54 @@ export function normalizeMacTerminalInput(value: string): string {
   );
 }
 
+/**
+ * WebKit can make one committed IME value visible to both xterm's `onData`
+ * callback and our textarea bridge. Keep xterm's payload (which also covers
+ * native paste), and discard the bridge duplicate when it arrives in the same
+ * event turn.
+ */
+export function createMacTextInputDeduplicator(
+  writeToPty: (data: string) => void,
+): {
+  writeXtermData: (data: string) => void;
+  writeBridgeData: (data: string) => void;
+} {
+  let pendingXtermData: string | null = null;
+
+  return {
+    writeXtermData(data) {
+      if (!isPrintableTerminalData(data)) {
+        writeToPty(data);
+        return;
+      }
+      pendingXtermData = data;
+      queueMicrotask(() => {
+        if (pendingXtermData !== data) return;
+        pendingXtermData = null;
+        writeToPty(data);
+      });
+    },
+    writeBridgeData(data) {
+      if (pendingXtermData === data) {
+        pendingXtermData = null;
+        writeToPty(data);
+        return;
+      }
+      writeToPty(data);
+    },
+  };
+}
+
+function isPrintableTerminalData(data: string): boolean {
+  return (
+    data.length > 0 &&
+    Array.from(data).every(
+      (character) =>
+        character.charCodeAt(0) >= 0x20 && character.charCodeAt(0) !== 0x7f,
+    )
+  );
+}
+
 export function attachMacImeBridge(
   terminal: Terminal,
   writeToPty: (data: string) => void,

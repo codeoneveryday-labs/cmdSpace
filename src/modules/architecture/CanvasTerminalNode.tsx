@@ -23,6 +23,7 @@ import {
 } from "@/modules/terminal/lib/pty-bridge";
 import {
   attachMacImeBridge,
+  createMacTextInputDeduplicator,
   IS_MAC_TEXT_INPUT_PLATFORM,
   isPlainSpaceKey,
   normalizeMacTerminalInput,
@@ -311,9 +312,12 @@ export function CanvasTerminalNode({
         },
         shellState,
       );
-      attachMacImeBridge(terminal, (data) => {
+      const macTextInput = createMacTextInputDeduplicator((data) => {
         trackPromptInput(data);
         void sessionRef.current?.write(data);
+      });
+      attachMacImeBridge(terminal, (data) => {
+        macTextInput.writeBridgeData(data);
       });
       const fit = () => {
         try {
@@ -425,7 +429,7 @@ export function CanvasTerminalNode({
       terminal.onData((data) => {
         if (shouldIgnoreMacPrintableTerminalData(data)) return;
         trackPromptInput(data);
-        void sessionRef.current?.write(data);
+        macTextInput.writeXtermData(data);
       });
       terminal.onResize(({ cols, rows }) =>
         void sessionRef.current?.resize(cols, rows),
