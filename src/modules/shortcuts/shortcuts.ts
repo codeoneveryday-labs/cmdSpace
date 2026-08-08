@@ -326,7 +326,8 @@ export function matchBinding(
   const eventKey = e.key.toLowerCase();
   const bindingKey = binding.key.toLowerCase();
   const physicalKeyMatches =
-    binding.key === ">" && e.code === "Period" && e.shiftKey;
+    binding.key === ">" && e.code === "Period" && (e.shiftKey || e.key === ".");
+  const physicalShiftMatches = binding.key === ">" && physicalKeyMatches;
 
   // Special case for Jump to Tab 1-9
   if (id === "tab.selectByIndex") {
@@ -337,7 +338,7 @@ export function matchBinding(
 
   return (
     !!e.ctrlKey === !!binding.ctrl &&
-    !!e.shiftKey === !!binding.shift &&
+    (!!e.shiftKey === !!binding.shift || physicalShiftMatches) &&
     !!e.altKey === !!binding.alt &&
     !!e.metaKey === !!binding.meta
   );

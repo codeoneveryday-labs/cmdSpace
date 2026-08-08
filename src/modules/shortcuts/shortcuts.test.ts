@@ -20,4 +20,23 @@ describe("shortcut matching", () => {
       ),
     ).toBe(true);
   });
+
+  it("matches Cmd+> when the dev webview omits shiftKey for Period", () => {
+    const event = {
+      key: ".",
+      code: "Period",
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      metaKey: true,
+    } as KeyboardEvent;
+
+    expect(
+      matchBinding(
+        event,
+        { key: ">", meta: true, shift: true },
+        "pane.maximize",
+      ),
+    ).toBe(true);
+  });
 });

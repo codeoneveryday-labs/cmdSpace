@@ -961,8 +961,8 @@ export function ArchitectureCanvas({
         return;
       }
       if (
-        event.shiftKey &&
-        (event.key === ">" || event.code === "Period")
+        (event.key === ">" ||
+          (event.code === "Period" && event.key === "."))
       ) {
         event.preventDefault();
         const current = terminalNodes.find(
