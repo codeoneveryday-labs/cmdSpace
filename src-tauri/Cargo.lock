@@ -677,7 +677,7 @@ dependencies = [
 
 [[package]]
 name = "cmdspace"
-version = "0.7.62"
+version = "0.7.63"
 dependencies = [
  "base64 0.22.1",
  "block2",
