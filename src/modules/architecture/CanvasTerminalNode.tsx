@@ -23,12 +23,8 @@ import {
   type PtySession,
 } from "@/modules/terminal/lib/pty-bridge";
 import {
-  attachMacImeBridge,
-  createMacTextInputDeduplicator,
   IS_MAC_TEXT_INPUT_PLATFORM,
   normalizeMacTerminalInput,
-  shouldIgnoreMacPrintableTerminalData,
-  shouldUseMacTextInputPath,
 } from "@/modules/terminal/lib/macImeBridge";
 import {
   createShellIntegrationState,
@@ -312,14 +308,6 @@ export function CanvasTerminalNode({
         },
         shellState,
       );
-      const macTextInput = createMacTextInputDeduplicator((data) => {
-        trackPromptInput(data);
-        void sessionRef.current?.write(data);
-      });
-      attachMacImeBridge(terminal, (data) => {
-        void invoke("pty_trace_input", { source: "canvas-ime-bridge", data });
-        macTextInput.writeBridgeData(data);
-      });
       const fit = () => {
         try {
           fitAddon.fit();
@@ -386,7 +374,7 @@ export function CanvasTerminalNode({
         if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
           return true;
         }
-        return !shouldUseMacTextInputPath(event);
+        return true;
       });
 		terminal.onSelectionChange(() => {
 			if (copyOnSelectionTimer) clearTimeout(copyOnSelectionTimer);
@@ -415,12 +403,17 @@ export function CanvasTerminalNode({
 						lastAutoCopiedSelection = "";
 					});
 			}, 120);
-		});
+      });
       terminal.onData((data) => {
-        if (shouldIgnoreMacPrintableTerminalData(data)) return;
-        trackPromptInput(data);
-        void invoke("pty_trace_input", { source: "canvas-xterm-ondata", data });
-        macTextInput.writeXtermData(data);
+        const normalized = IS_MAC_TEXT_INPUT_PLATFORM
+          ? normalizeMacTerminalInput(data)
+          : data;
+        trackPromptInput(normalized);
+        void invoke("pty_trace_input", {
+          source: "canvas-xterm-ondata",
+          data: normalized,
+        });
+        void sessionRef.current?.write(normalized);
       });
       terminal.onResize(({ cols, rows }) =>
         void sessionRef.current?.resize(cols, rows),

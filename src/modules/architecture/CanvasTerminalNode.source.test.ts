@@ -51,9 +51,10 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("ensureMonoFontsLoaded");
     expect(source).toContain("sharedTerminalOptions");
     expect(source).toContain("terminalRef.current?.focus()");
-    expect(source).toContain("attachMacImeBridge");
-    expect(source).toContain("shouldUseMacTextInputPath");
-    expect(source).toContain("shouldIgnoreMacPrintableTerminalData");
+    expect(source).not.toContain("attachMacImeBridge");
+    expect(source).not.toContain("createMacTextInputDeduplicator");
+    expect(source).not.toContain("shouldUseMacTextInputPath");
+    expect(source).not.toContain("shouldIgnoreMacPrintableTerminalData");
     expect(source).not.toContain("onWriteParsed");
     expect(source).not.toContain("terminal?.refresh(");
     expect(source).toContain("const scheduleFit = () =>");
@@ -138,7 +139,7 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("isInteractiveCodingAgentCommand,");
     expect(source).toContain("shellStateRef.current.inCommand &&");
     expect(source).toContain("interactiveCodingAgentRef.current");
-    expect(source).toContain("trackPromptInput(data)");
+    expect(source).toContain("trackPromptInput(normalized)");
   });
 
   it("shows Canvas-only agent response and completion borders", () => {
