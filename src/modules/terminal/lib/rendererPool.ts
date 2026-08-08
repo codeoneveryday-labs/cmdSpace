@@ -11,6 +11,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { terminalWordNavigationSequence } from "./keymap";
 import {
+  createMacCompositionCommitFilter,
   IS_MAC_TEXT_INPUT_PLATFORM,
   normalizeMacTerminalInput,
 } from "./macImeBridge";
@@ -182,11 +183,21 @@ function createSlot(): Slot {
   );
 
   attachWebgl(slot);
+  const compositionCommitFilter = createMacCompositionCommitFilter();
+  if (IS_MAC_TEXT_INPUT_PLATFORM) {
+    slot.term.textarea?.addEventListener(
+      "compositionend",
+      compositionCommitFilter.beginCompositionFinalization,
+    );
+  }
   attachCopyOnSelection(slot);
   term.attachCustomKeyEventHandler((event) => {
     // If the user is currently composing an IME character (e.g. Vietnamese Telex),
     // let xterm's internal textarea handle it without custom key intercepts.
     if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
+      if (event.type === "keydown" && event.metaKey) {
+        compositionCommitFilter.beginKeydownFinalization();
+      }
       return true;
     }
 
@@ -249,6 +260,7 @@ function createSlot(): Slot {
     const normalized = IS_MAC_TEXT_INPUT_PLATFORM
       ? normalizeMacTerminalInput(data)
       : data;
+    if (!compositionCommitFilter.shouldForward(normalized)) return;
     void invoke("pty_trace_input", { source: "xterm-ondata", data: normalized });
     if (normalized.includes("\r") || normalized.includes("\n")) {
       bridge.observeInputLine?.(currentInputLine(slot.term));
