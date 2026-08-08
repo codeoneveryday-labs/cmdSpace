@@ -295,6 +295,17 @@ html[data-chrome="borderless"] #settings-root {
   text-underline-offset: 2px;
 }
 
+/* xterm keeps its buffer cursor at the composition origin until the IME
+ * commits. Hide that stale block and draw a temporary caret after the overlay
+ * so marked text reads like ordinary input instead of a selected first cell. */
+.cmdspace-terminal-viewport .xterm:has(.composition-view.active) .xterm-cursor {
+  visibility: hidden;
+}
+
+.cmdspace-terminal-viewport .xterm .composition-view.active {
+  box-shadow: 1px 0 0 var(--terminal-cursor);
+}
+
 .xterm .scrollbar,
 .xterm .scrollbar.vertical,
 .xterm .scrollbar.horizontal {

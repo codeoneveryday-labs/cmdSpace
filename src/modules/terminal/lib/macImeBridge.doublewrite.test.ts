@@ -32,6 +32,21 @@ describe("macOS IME single-input path", () => {
     );
   });
 
+  it("shows the visible caret at the end of active composition text", () => {
+    const here = path.dirname(new URL(import.meta.url).pathname);
+    const globalStyles = readFileSync(
+      path.join(here, "../../../styles/globals.css"),
+      "utf8",
+    );
+
+    expect(globalStyles).toMatch(
+      /\.cmdspace-terminal-viewport \.xterm:has\(\.composition-view\.active\) \.xterm-cursor\s*\{[^}]*visibility:\s*hidden;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.cmdspace-terminal-viewport \.xterm \.composition-view\.active\s*\{[^}]*box-shadow:\s*1px 0 0 var\(--terminal-cursor\);/s,
+    );
+  });
+
   it("forwards one immediate commit and drops xterm's deferred duplicate", () => {
     const scheduledClears: Array<{ callback: () => void; delayMs: number }> = [];
     const filter = createMacCompositionCommitFilter((callback, delayMs) => {
