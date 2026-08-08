@@ -325,11 +325,13 @@ export function matchBinding(
 ): boolean {
   const eventKey = e.key.toLowerCase();
   const bindingKey = binding.key.toLowerCase();
+  const physicalKeyMatches =
+    binding.key === ">" && e.code === "Period" && e.shiftKey;
 
   // Special case for Jump to Tab 1-9
   if (id === "tab.selectByIndex") {
     if (!/^[1-9]$/.test(e.key)) return false;
-  } else if (eventKey !== bindingKey) {
+  } else if (eventKey !== bindingKey && !physicalKeyMatches) {
     return false;
   }
 
