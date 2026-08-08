@@ -173,4 +173,25 @@ describe("rendererPool WebGL stability", () => {
     expect(rendererSource).toContain("bridge.writeToPty(normalized);");
     expect(canvasSource).toContain("sessionRef.current?.write(normalized)");
   });
+
+  it("filters a duplicate xterm commit only during composition finalization", () => {
+    const rendererSource = readFileSync(rendererPoolPath, "utf8");
+    const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");
+
+    expect(rendererSource).toContain("createMacCompositionCommitFilter");
+    expect(rendererSource).toContain("addEventListener(");
+    expect(rendererSource).toContain('"compositionend"');
+    expect(rendererSource).toContain("event.metaKey");
+    expect(rendererSource).toContain(
+      "compositionCommitFilter.beginKeydownFinalization();",
+    );
+    expect(rendererSource).toContain("compositionCommitFilter.shouldForward(normalized)");
+    expect(canvasSource).toContain("createMacCompositionCommitFilter");
+    expect(canvasSource).toContain("addEventListener(");
+    expect(canvasSource).toContain('"compositionend"');
+    expect(canvasSource).toContain(
+      "compositionCommitFilter.beginKeydownFinalization();",
+    );
+    expect(canvasSource).toContain("compositionCommitFilter.shouldForward(normalized)");
+  });
 });
