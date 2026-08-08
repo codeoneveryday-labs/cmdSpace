@@ -26,7 +26,6 @@ import {
   attachMacImeBridge,
   createMacTextInputDeduplicator,
   IS_MAC_TEXT_INPUT_PLATFORM,
-  isPlainSpaceKey,
   normalizeMacTerminalInput,
   shouldIgnoreMacPrintableTerminalData,
   shouldUseMacTextInputPath,
@@ -386,17 +385,6 @@ export function CanvasTerminalNode({
         }
         if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
           return true;
-        }
-        // Plain space on macOS: preventDefault and write once. Without this,
-        // xterm maps space to no key and both the bridge input handler and the
-        // keypress onData fire, duplicating the space.
-        if (isPlainSpaceKey(event)) {
-          event.preventDefault();
-          if (event.type === "keydown") {
-            trackPromptInput(" ");
-            void sessionRef.current?.write(" ");
-          }
-          return false;
         }
         return !shouldUseMacTextInputPath(event);
       });

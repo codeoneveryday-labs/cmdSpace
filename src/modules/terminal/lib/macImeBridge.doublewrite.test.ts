@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createMacTextInputDeduplicator } from "./macImeBridge";
 
 /**
@@ -32,6 +32,56 @@ describe("macOS IME double-input prevention", () => {
     input.writeBridgeData("lslslsls");
 
     expect(writes).toEqual(["lslslsls"]);
+  });
+
+  it("drops a repeated batched bridge commit delivered in a later microtask", async () => {
+    const writes: string[] = [];
+    const input = createMacTextInputDeduplicator((data) => writes.push(data));
+
+    input.writeBridgeData("lslslsls");
+    await Promise.resolve();
+    input.writeBridgeData("lslslsls");
+
+    expect(writes).toEqual(["lslslsls"]);
+  });
+
+  it("preserves repeated single-character bridge input", async () => {
+    const writes: string[] = [];
+    const input = createMacTextInputDeduplicator((data) => writes.push(data));
+
+    input.writeBridgeData("a");
+    await Promise.resolve();
+    input.writeBridgeData("a");
+
+    expect(writes).toEqual(["a", "a"]);
+  });
+
+  it("allows the same batched bridge input after the duplicate window", () => {
+    vi.useFakeTimers();
+    try {
+      const writes: string[] = [];
+      const input = createMacTextInputDeduplicator((data) => writes.push(data));
+
+      vi.setSystemTime(1_000);
+      input.writeBridgeData("lslslsls");
+      vi.setSystemTime(1_251);
+      input.writeBridgeData("lslslsls");
+
+      expect(writes).toEqual(["lslslsls", "lslslsls"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a trailing space inside the bridge batch when xterm reports it afterward", async () => {
+    const writes: string[] = [];
+    const input = createMacTextInputDeduplicator((data) => writes.push(data));
+
+    input.writeBridgeData("lslslsls ");
+    input.writeXtermData(" ");
+    await Promise.resolve();
+
+    expect(writes).toEqual(["lslslsls "]);
   });
 
   it("keeps a plain-text paste when the IME bridge has no matching event", async () => {
