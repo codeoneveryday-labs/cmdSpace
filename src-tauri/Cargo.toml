@@ -1,6 +1,6 @@
 [package]
 name = "cmdspace"
-version = "0.7.63"
+version = "0.7.64"
 description = "cmdSpace — the premium AI-agentic terminal workspace"
 authors = ["tranhoangpich"]
 license = "Apache-2.0"
