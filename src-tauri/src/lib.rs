@@ -606,6 +606,7 @@ pub fn run() {
             agent_usage::agent_usage_statuses,
             pty::pty_open,
             pty::pty_write,
+            pty::pty_trace_input,
             pty::pty_resize,
             pty::pty_close,
             pty::pty_register_metadata,
