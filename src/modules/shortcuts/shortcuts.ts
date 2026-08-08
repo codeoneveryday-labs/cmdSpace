@@ -326,7 +326,7 @@ export function matchBinding(
   const eventKey = e.key.toLowerCase();
   const bindingKey = binding.key.toLowerCase();
   const physicalKeyMatches =
-    binding.key === ">" && e.code === "Period" && (e.shiftKey || e.key === ".");
+    binding.key === ">" && e.code === "Period";
   const physicalShiftMatches = binding.key === ">" && physicalKeyMatches;
 
   // Special case for Jump to Tab 1-9
@@ -342,6 +342,10 @@ export function matchBinding(
     !!e.altKey === !!binding.alt &&
     !!e.metaKey === !!binding.meta
   );
+}
+
+export function isPaneMaximizeKeyboardEvent(e: KeyboardEvent): boolean {
+  return e.code === "Period" && (e.metaKey || e.ctrlKey) && !e.altKey;
 }
 
 /**
