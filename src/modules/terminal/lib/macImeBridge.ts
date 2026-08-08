@@ -62,6 +62,7 @@ export function createMacTextInputDeduplicator(
   writeBridgeData: (data: string) => void;
 } {
   let pendingXtermData: string | null = null;
+  let pendingBridgeData: string | null = null;
 
   return {
     writeXtermData(data) {
@@ -77,6 +78,11 @@ export function createMacTextInputDeduplicator(
       });
     },
     writeBridgeData(data) {
+      if (pendingBridgeData === data) return;
+      pendingBridgeData = data;
+      queueMicrotask(() => {
+        if (pendingBridgeData === data) pendingBridgeData = null;
+      });
       if (pendingXtermData === data) {
         pendingXtermData = null;
         writeToPty(data);
@@ -155,14 +161,40 @@ export function attachMacImeBridge(
     const data = normalizeMacTerminalInput(
       "\x7f".repeat(backspaces) + appendText,
     );
-    if (data) writeToPty(data);
+    // [DEBUG-DUP] log every writeDiff emission to trace double-input.
+    if (data) {
+      console.log(
+        "[DEBUG-DUP] bridge writeDiff emits:",
+        JSON.stringify(data),
+        "| from:",
+        JSON.stringify(from),
+        "| to:",
+        JSON.stringify(to),
+      );
+      writeToPty(data);
+    }
     lastValue = value;
+  };
+
+  const debugLogEvent = (name: string, extra?: unknown) => {
+    console.log(
+      "[DEBUG-DUP]",
+      name,
+      "| composing:",
+      composing,
+      "| value:",
+      JSON.stringify(textarea.value),
+      "| lastValue:",
+      JSON.stringify(lastValue),
+      ...(extra !== undefined ? ["| extra:", JSON.stringify(extra)] : []),
+    );
   };
 
   textarea.addEventListener(
     "compositionstart",
     (event) => {
       event.stopImmediatePropagation();
+      debugLogEvent("compositionstart");
       composing = true;
       compositionStartValue = textarea.value;
       compositionStartTime = Date.now();
@@ -171,13 +203,17 @@ export function attachMacImeBridge(
   );
   textarea.addEventListener(
     "compositionupdate",
-    (event) => event.stopImmediatePropagation(),
+    (event) => {
+      debugLogEvent("compositionupdate");
+      event.stopImmediatePropagation();
+    },
     true,
   );
   textarea.addEventListener(
     "compositionend",
     (event) => {
       event.stopImmediatePropagation();
+      debugLogEvent("compositionend");
       composing = false;
       compositionStartTime = 0;
       writeDiff(compositionStartValue);
@@ -196,6 +232,11 @@ export function attachMacImeBridge(
     (event) => {
       event.stopImmediatePropagation();
       const input = event as InputEvent;
+      debugLogEvent("input", {
+        inputType: input.inputType,
+        data: input.data,
+        isComposing: input.isComposing,
+      });
       // A real, active composition produces insertCompositionText inputs with
       // isComposing true. If we're flagged composing but the textarea receives
       // non-composition text instead — the browser says composition is over, or
