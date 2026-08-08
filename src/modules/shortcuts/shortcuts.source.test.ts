@@ -49,7 +49,7 @@ describe("voice agent shortcut", () => {
     expect(shortcutsSource).toContain('id: "voice.toggle"');
     expect(shortcutsSource).toContain('label: "Toggle Space"');
     expect(shortcutsSource).toContain(
-      'id: "voice.toggle",\n    label: "Toggle Space",\n    group: "AI",\n    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }]',
+      'id: "voice.toggle",\n    label: "Toggle Space",\n    group: "AI",\n    defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "v" }]',
     );
     expect(appSource).toContain('"voice.toggle": toggleVoiceAgent');
   });
@@ -70,7 +70,7 @@ describe("bottom terminal shortcut", () => {
 });
 
 describe("pane maximize shortcut", () => {
-  it("registers Cmd/Ctrl+Alt+P for shared pane maximize", () => {
+  it("registers Cmd/Ctrl+Shift+V for shared pane maximize", () => {
     const shortcutsSource = readFileSync(shortcutsPath, "utf8");
     const appSource = readFileSync(appPath, "utf8");
 
@@ -78,7 +78,7 @@ describe("pane maximize shortcut", () => {
     expect(shortcutsSource).toContain('id: "pane.maximize"');
     expect(shortcutsSource).toContain('label: "Maximize active pane"');
     expect(shortcutsSource).toContain(
-      'defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "p" }]',
+      'defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }]',
     );
     expect(appSource).toContain('"pane.maximize": () => {');
     expect(appSource).toContain("toggleMaximizePane(activeTerminalTab.activeLeafId)");

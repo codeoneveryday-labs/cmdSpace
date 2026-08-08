@@ -946,7 +946,7 @@ export function ArchitectureCanvas({
     );
   };
 
-  // Cmd+Arrow switches the active terminal node in that direction; Cmd+Alt+P
+  // Cmd+Arrow switches the active terminal node in that direction; Cmd+Shift+V
   // toggles the maximized terminal node (zoom without the mouse).
   useEffect(() => {
     if (!active) return;
@@ -960,7 +960,7 @@ export function ArchitectureCanvas({
       ) {
         return;
       }
-      if (event.altKey && event.key.toLowerCase() === "p") {
+      if (event.shiftKey && event.key.toLowerCase() === "v") {
         event.preventDefault();
         const current = terminalNodes.find(
           (node) => node.id === activeTerminalId,
