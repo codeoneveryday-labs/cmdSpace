@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const shortcutsPath = path.join(here, "shortcuts.ts");
+const globalShortcutsPath = path.join(here, "lib/useGlobalShortcuts.ts");
 const tabBarPath = path.join(here, "../tabs/TabBar.tsx");
 const appPath = path.join(here, "../../app/App.tsx");
 const shortcutsSectionPath = path.join(
@@ -72,6 +73,7 @@ describe("bottom terminal shortcut", () => {
 describe("pane maximize shortcut", () => {
   it("registers Cmd/Ctrl+> for shared pane maximize", () => {
     const shortcutsSource = readFileSync(shortcutsPath, "utf8");
+    const globalShortcutsSource = readFileSync(globalShortcutsPath, "utf8");
     const appSource = readFileSync(appPath, "utf8");
 
     expect(shortcutsSource).toContain('| "pane.maximize"');
@@ -81,6 +83,9 @@ describe("pane maximize shortcut", () => {
       'defaultBindings: [{ [MOD_PROP]: true, shift: true, key: ">" }]',
     );
     expect(appSource).toContain('"pane.maximize": () => {');
+    expect(globalShortcutsSource).toContain(
+      "!isPaneMaximizeKeyboardEvent(e)",
+    );
     expect(appSource).toContain("toggleMaximizePane(activeTerminalTab.activeLeafId)");
   });
 });

@@ -960,10 +960,7 @@ export function ArchitectureCanvas({
       ) {
         return;
       }
-      if (
-        (event.key === ">" ||
-          (event.code === "Period" && event.key === "."))
-      ) {
+      if (event.code === "Period") {
         event.preventDefault();
         const current = terminalNodes.find(
           (node) => node.id === activeTerminalId,
