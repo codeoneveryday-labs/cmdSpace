@@ -28,7 +28,7 @@ describe("macOS IME single-input path", () => {
     );
 
     expect(globalStyles).toMatch(
-      /\.xterm \.composition-view\s*\{[^}]*background:\s*transparent;[^}]*color:\s*var\(--terminal-foreground\);/s,
+      /\.cmdspace-terminal-viewport \.xterm \.composition-view\s*\{[^}]*background:\s*transparent;[^}]*color:\s*var\(--terminal-foreground\);/s,
     );
   });
 
