@@ -23,6 +23,7 @@ import {
   type PtySession,
 } from "@/modules/terminal/lib/pty-bridge";
 import {
+  createMacCompositionCommitFilter,
   IS_MAC_TEXT_INPUT_PLATFORM,
   normalizeMacTerminalInput,
 } from "@/modules/terminal/lib/macImeBridge";
@@ -295,6 +296,13 @@ export function CanvasTerminalNode({
       const fitAddon = new FitAddon();
       terminal.loadAddon(fitAddon);
       terminal.open(viewport);
+      const compositionCommitFilter = createMacCompositionCommitFilter();
+      if (IS_MAC_TEXT_INPUT_PLATFORM) {
+        terminal.textarea?.addEventListener(
+          "compositionend",
+          compositionCommitFilter.beginCompositionFinalization,
+        );
+      }
       const shellState = createShellIntegrationState();
       shellStateRef.current = shellState;
       const promptTracker = registerPromptTracker(terminal, shellState);
@@ -372,6 +380,9 @@ export function CanvasTerminalNode({
           return false;
         }
         if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
+          if (event.type === "keydown" && event.metaKey) {
+            compositionCommitFilter.beginKeydownFinalization();
+          }
           return true;
         }
         return true;
@@ -408,6 +419,7 @@ export function CanvasTerminalNode({
         const normalized = IS_MAC_TEXT_INPUT_PLATFORM
           ? normalizeMacTerminalInput(data)
           : data;
+        if (!compositionCommitFilter.shouldForward(normalized)) return;
         trackPromptInput(normalized);
         void invoke("pty_trace_input", {
           source: "canvas-xterm-ondata",
