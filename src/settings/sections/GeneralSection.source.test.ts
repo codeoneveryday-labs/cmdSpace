@@ -5,8 +5,26 @@ import { describe, expect, it } from "vitest";
 const here = path.dirname(new URL(import.meta.url).pathname);
 const generalSectionPath = path.join(here, "GeneralSection.tsx");
 const remoteAccessPath = path.join(here, "../../modules/settings/remoteAccess.ts");
+const settingsStorePath = path.join(here, "../../modules/settings/store.ts");
 
 describe("GeneralSection terminal settings", () => {
+  it("lets users persist exact folder names excluded from Explorer", () => {
+    const source = readFileSync(generalSectionPath, "utf8");
+    const store = readFileSync(settingsStorePath, "utf8");
+
+    expect(source).toContain("explorerExcludedFolderNames");
+    expect(source).toContain("setExplorerExcludedFolderNames");
+    expect(source).toContain('title="Hidden folders"');
+    expect(source).toContain('aria-label="Hidden folders"');
+    expect(source).toContain('placeholder=".git, node_modules, dist, target"');
+    expect(source).toContain("onBlur={saveExcludedFolderNames}");
+    expect(source).toContain('event.key === "Enter"');
+    expect(store).toContain(
+      'const KEY_EXPLORER_EXCLUDED_FOLDER_NAMES = "explorerExcludedFolderNames"',
+    );
+    expect(store).toContain("DEFAULT_EXCLUDED_FOLDER_NAMES");
+  });
+
   it("exposes copy-on-select as an explicit terminal preference", () => {
     const source = readFileSync(generalSectionPath, "utf8");
 

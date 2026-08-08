@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { filterExcludedFolders } from "./excludedFolders";
 import { canMovePathsTo, removeDescendants } from "./selection";
 
 export type DirEntry = {
@@ -48,7 +49,11 @@ type Options = {
 
 export function useFileTree(rootPath: string | null, options?: Options) {
   const showHidden = usePreferencesStore((s) => s.showHidden);
+  const explorerExcludedFolderNames = usePreferencesStore(
+    (s) => s.explorerExcludedFolderNames,
+  );
   const showHiddenRef = useRef(showHidden);
+  const excludedFolderNamesRef = useRef(explorerExcludedFolderNames);
   const [nodes, setNodes] = useState<TreeState>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(
@@ -58,7 +63,8 @@ export function useFileTree(rootPath: string | null, options?: Options) {
 
   useEffect(() => {
     showHiddenRef.current = showHidden;
-  }, [showHidden]);
+    excludedFolderNamesRef.current = explorerExcludedFolderNames;
+  }, [showHidden, explorerExcludedFolderNames]);
 
   const fetchChildren = useCallback(async (path: string) => {
     setNodes((s) => ({ ...s, [path]: { status: "loading" } }));
@@ -68,7 +74,14 @@ export function useFileTree(rootPath: string | null, options?: Options) {
         showHidden: showHiddenRef.current,
         workspace: currentWorkspaceEnv(),
       });
-      setNodes((s) => ({ ...s, [path]: { status: "loaded", entries } }));
+      const visibleEntries = filterExcludedFolders(
+        entries,
+        excludedFolderNamesRef.current,
+      );
+      setNodes((s) => ({
+        ...s,
+        [path]: { status: "loaded", entries: visibleEntries },
+      }));
     } catch (e) {
       setNodes((s) => ({
         ...s,
@@ -99,11 +112,11 @@ export function useFileTree(rootPath: string | null, options?: Options) {
       .filter(([, state]) => state.status === "loaded")
       .map(([path]) => path);
     for (const path of loadedPaths) void fetchChildren(path);
-    // Re-list loaded directories when the visibility preference changes.
+    // Re-list loaded directories when visibility preferences change.
     // `nodes` is intentionally omitted so ordinary tree edits don't refetch
     // every expanded directory.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHidden, rootPath, fetchChildren]);
+  }, [showHidden, explorerExcludedFolderNames, rootPath, fetchChildren]);
 
   const toggle = useCallback(
     (path: string) => {

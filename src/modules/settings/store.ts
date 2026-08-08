@@ -9,6 +9,15 @@ import {
   type ModelId,
 } from "@/modules/ai/config";
 import { DEFAULT_SPEECH_TO_TEXT_MODEL_ID } from "@/modules/ai/lib/speechToText";
+import {
+  DEFAULT_EXCLUDED_FOLDER_NAMES,
+  normalizeExcludedFolderNames,
+} from "@/modules/explorer/lib/excludedFolders";
+import {
+  DEFAULT_CONFIGURED_CLI_AGENT_IDS,
+  normalizeCliAgentIds,
+  type CliAgent,
+} from "@/modules/terminal/lib/cliAgents";
 import type { KeyBinding, ShortcutId } from "@/modules/shortcuts/shortcuts";
 import { DEFAULT_THEME_ID } from "@/modules/theme/constants";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -77,6 +86,7 @@ export type Preferences = {
   recentModelIds: string[];
   vimMode: boolean;
   showHidden: boolean;
+  explorerExcludedFolderNames: string[];
   terminalWebglEnabled: boolean;
   terminalCopyOnSelection: boolean;
   floatingVoiceAgentEnabled: boolean;
@@ -88,6 +98,8 @@ export type Preferences = {
   zoomLevel: number;
   shortcuts: Record<ShortcutId, KeyBinding[]>;
   agentLaunchCommands: Record<string, string>;
+  cliAgentIds: CliAgent[];
+  disabledCliAgentIds: CliAgent[];
 };
 
 const STORE_PATH = "cmdspace-settings.json";
@@ -122,6 +134,7 @@ const KEY_RECENT_MODELS = "recentModelIds";
 const KEY_VIM_MODE = "vimMode";
 const KEY_SHOW_HIDDEN = "showHidden";
 const LEGACY_KEY_SHOW_HIDDEN_DIRS = "showHiddenDirectories";
+const KEY_EXPLORER_EXCLUDED_FOLDER_NAMES = "explorerExcludedFolderNames";
 const KEY_TERMINAL_WEBGL_ENABLED = "terminalWebglEnabled";
 const KEY_TERMINAL_COPY_ON_SELECTION = "terminalCopyOnSelection";
 const KEY_FLOATING_VOICE_AGENT_ENABLED = "floatingVoiceAgentEnabled";
@@ -133,6 +146,8 @@ const KEY_LAST_WSL_DISTRO = "lastWslDistro";
 const KEY_ZOOM_LEVEL = "zoomLevel";
 const KEY_SHORTCUTS = "shortcuts";
 const KEY_AGENT_LAUNCH_COMMANDS = "agentLaunchCommands";
+const KEY_CLI_AGENT_IDS = "cliAgentIds";
+const KEY_DISABLED_CLI_AGENT_IDS = "disabledCliAgentIds";
 
 export const TERMINAL_FONT_SIZE_DEFAULT = 14;
 export const TERMINAL_FONT_SIZE_MIN = 8;
@@ -180,6 +195,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   recentModelIds: [],
   vimMode: false,
   showHidden: false,
+  explorerExcludedFolderNames: [...DEFAULT_EXCLUDED_FOLDER_NAMES],
   terminalWebglEnabled: false,
   terminalCopyOnSelection: false,
   floatingVoiceAgentEnabled: false,
@@ -191,6 +207,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   zoomLevel: 1.0,
   shortcuts: {} as Record<ShortcutId, KeyBinding[]>,
   agentLaunchCommands: {},
+  cliAgentIds: [...DEFAULT_CONFIGURED_CLI_AGENT_IDS],
+  disabledCliAgentIds: [],
 };
 
 const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
@@ -287,6 +305,10 @@ export async function loadPreferences(): Promise<Preferences> {
       get<boolean>(KEY_SHOW_HIDDEN) ??
       get<boolean>(LEGACY_KEY_SHOW_HIDDEN_DIRS) ??
       DEFAULT_PREFERENCES.showHidden,
+    explorerExcludedFolderNames: normalizeExcludedFolderNames(
+      get<string[]>(KEY_EXPLORER_EXCLUDED_FOLDER_NAMES) ??
+        DEFAULT_PREFERENCES.explorerExcludedFolderNames,
+    ),
     terminalWebglEnabled:
       get<boolean>(KEY_TERMINAL_WEBGL_ENABLED) ??
       DEFAULT_PREFERENCES.terminalWebglEnabled,
@@ -319,6 +341,13 @@ export async function loadPreferences(): Promise<Preferences> {
     agentLaunchCommands:
       get<Record<string, string>>(KEY_AGENT_LAUNCH_COMMANDS) ??
       DEFAULT_PREFERENCES.agentLaunchCommands,
+    cliAgentIds: normalizeCliAgentIds(
+      get<string[]>(KEY_CLI_AGENT_IDS) ?? DEFAULT_PREFERENCES.cliAgentIds,
+    ),
+    disabledCliAgentIds: normalizeCliAgentIds(
+      get<string[]>(KEY_DISABLED_CLI_AGENT_IDS) ??
+        DEFAULT_PREFERENCES.disabledCliAgentIds,
+    ),
   };
 }
 
@@ -466,6 +495,15 @@ export async function setShowHidden(value: boolean): Promise<void> {
   await writePref(KEY_SHOW_HIDDEN, value);
 }
 
+export async function setExplorerExcludedFolderNames(
+  value: readonly string[],
+): Promise<void> {
+  await writePref(
+    KEY_EXPLORER_EXCLUDED_FOLDER_NAMES,
+    normalizeExcludedFolderNames(value),
+  );
+}
+
 export async function setTerminalWebglEnabled(value: boolean): Promise<void> {
   await writePref(KEY_TERMINAL_WEBGL_ENABLED, value);
 }
@@ -537,6 +575,16 @@ export async function setAgentLaunchCommands(
   await writePref(KEY_AGENT_LAUNCH_COMMANDS, value);
 }
 
+export async function setCliAgentIds(value: readonly string[]): Promise<void> {
+  await writePref(KEY_CLI_AGENT_IDS, normalizeCliAgentIds(value));
+}
+
+export async function setDisabledCliAgentIds(
+  value: readonly string[],
+): Promise<void> {
+  await writePref(KEY_DISABLED_CLI_AGENT_IDS, normalizeCliAgentIds(value));
+}
+
 export type PrefKey = keyof Preferences;
 
 /** Subscribe to changes from any window (settings → main). */
@@ -574,6 +622,7 @@ export async function onPreferencesChange(
     [KEY_RECENT_MODELS]: "recentModelIds",
     [KEY_VIM_MODE]: "vimMode",
     [KEY_SHOW_HIDDEN]: "showHidden",
+    [KEY_EXPLORER_EXCLUDED_FOLDER_NAMES]: "explorerExcludedFolderNames",
     [KEY_TERMINAL_WEBGL_ENABLED]: "terminalWebglEnabled",
     [KEY_TERMINAL_COPY_ON_SELECTION]: "terminalCopyOnSelection",
     [KEY_FLOATING_VOICE_AGENT_ENABLED]: "floatingVoiceAgentEnabled",
@@ -585,6 +634,8 @@ export async function onPreferencesChange(
     [KEY_ZOOM_LEVEL]: "zoomLevel",
     [KEY_SHORTCUTS]: "shortcuts",
     [KEY_AGENT_LAUNCH_COMMANDS]: "agentLaunchCommands",
+    [KEY_CLI_AGENT_IDS]: "cliAgentIds",
+    [KEY_DISABLED_CLI_AGENT_IDS]: "disabledCliAgentIds",
   };
   // Same-process writes still fire onChange immediately; cross-window writes
   // arrive via the Tauri event emitted by writePref().

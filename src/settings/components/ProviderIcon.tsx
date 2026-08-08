@@ -1,4 +1,6 @@
 import type { ProviderId } from "@/modules/ai/config";
+import { BrandIcon } from "@/components/BrandIcon";
+import { getProviderBrandIcon } from "@/components/brandIcons";
 import {
   AppleIcon,
   ChatGptIcon,
@@ -40,7 +42,12 @@ type Props = {
   className?: string;
 };
 
-export function ProviderIcon({ provider, size = 14, className }: Props) {
+export function ProviderIcon({ provider, size = 12, className }: Props) {
+  const brandIcon = getProviderBrandIcon(provider);
+  if (brandIcon) {
+    return <BrandIcon name={brandIcon} size={size} className={className} />;
+  }
+
   return (
     <HugeiconsIcon
       icon={ICON_BY_PROVIDER[provider]}

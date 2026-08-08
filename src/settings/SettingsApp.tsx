@@ -8,14 +8,14 @@ import {
   InformationCircleIcon,
   PaintBoardIcon,
   Settings01Icon,
-  UserMultiple02Icon,
+  CommandLineIcon,
   KeyboardIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { JSX, useEffect, useState } from "react";
 import { AboutSection } from "./sections/AboutSection";
-import { AgentsSection } from "./sections/AgentsSection";
+import { CliAgentsSection } from "./sections/CliAgentsSection";
 import { GeneralSection } from "./sections/GeneralSection";
 import { ModelsSection } from "./sections/ModelsSection";
 import { ShortcutsSection } from "./sections/ShortcutsSection";
@@ -27,7 +27,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings01Icon, compo
     { id: "themes", label: "Themes", icon: PaintBoardIcon, component: ThemesSection },
     { id: "shortcuts", label: "Shortcuts", icon: KeyboardIcon, component: ShortcutsSection },
     { id: "models", label: "Models", icon: AiScanIcon, component: ModelsSection },
-    { id: "agents", label: "Agents", icon: UserMultiple02Icon, component: AgentsSection },
+    { id: "agents", label: "CLI Agents", icon: CommandLineIcon, component: CliAgentsSection },
     { id: "about", label: "About", icon: InformationCircleIcon, component: AboutSection },
   ];
 

@@ -22,8 +22,23 @@ const internalDragSource = readFileSync(
   resolve(process.cwd(), "src/modules/explorer/lib/internalDrag.ts"),
   "utf8",
 );
+const useFileTreeSource = readFileSync(
+  resolve(process.cwd(), "src/modules/explorer/lib/useFileTree.ts"),
+  "utf8",
+);
 
 describe("Explorer file transfer integration", () => {
+  it("filters configured folder names and refreshes loaded directories", () => {
+    expect(useFileTreeSource).toContain("explorerExcludedFolderNames");
+    expect(useFileTreeSource).toContain("filterExcludedFolders");
+    expect(useFileTreeSource).toContain(
+      "filterExcludedFolders(\n        entries,\n        excludedFolderNamesRef.current,",
+    );
+    expect(useFileTreeSource).toContain(
+      "[showHidden, explorerExcludedFolderNames, rootPath, fetchChildren]",
+    );
+  });
+
   it("imports native dropped paths and browser clipboard files", () => {
     expect(explorerSource).toContain("onDragDropEvent");
     expect(explorerSource).toContain("acceptExternalDrops");
