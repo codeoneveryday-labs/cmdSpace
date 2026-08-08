@@ -176,20 +176,23 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain("slot.term.clearSelection()");
   });
 
-  it("intercepts a plain space once so it is not double-written on macOS (#125)", () => {
+  it("routes a plain space through the shared macOS input deduplicator", () => {
     const rendererSource = readFileSync(rendererPoolPath, "utf8");
-    const imeSource = readFileSync(macImeBridgePath, "utf8");
     const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");
 
-    // The bridge exposes a plain-space predicate, and both terminal surfaces
-    // (renderer pool + canvas node) must preventDefault and write it exactly
-    // once instead of letting both the bridge input diff and xterm keypress
-    // onData fire.
-    expect(imeSource).toContain("export function isPlainSpaceKey");
-    expect(rendererSource).toContain("isPlainSpaceKey(event)");
-    expect(rendererSource).toContain('adapter?.resolveLeaf(leafId)?.writeToPty(" ")');
-    expect(canvasSource).toContain("isPlainSpaceKey(event)");
-    expect(canvasSource).toContain('sessionRef.current?.write(" ")');
+    // Space must not bypass the bridge/xterm coordinator. WebKit can commit
+    // the pending Telex batch before its follow-up xterm space event; the
+    // deduplicator keeps that ordering while dropping only the duplicate.
+    expect(rendererSource).not.toContain("isPlainSpaceKey(event)");
+    expect(rendererSource).not.toContain(
+      'adapter?.resolveLeaf(leafId)?.writeToPty(" ")',
+    );
+    expect(canvasSource).not.toContain("isPlainSpaceKey(event)");
+    expect(canvasSource).not.toContain(
+      'sessionRef.current?.write(" ")',
+    );
+    expect(rendererSource).toContain("macTextInput.writeXtermData(normalized)");
+    expect(canvasSource).toContain("macTextInput.writeXtermData(data)");
   });
 
   it("force-clears a stuck IME composition so typing is not swallowed (#126)", () => {
