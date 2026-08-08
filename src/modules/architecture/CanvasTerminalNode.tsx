@@ -262,6 +262,7 @@ export function CanvasTerminalNode({
 		let lastAutoCopiedSelection = "";
     let disposeCwdHandler: (() => void) | null = null;
     let disposePromptTracker: (() => void) | null = null;
+    let disposeCompositionFocusListeners: (() => void) | null = null;
     const outputDecoder = new TextDecoder();
 
     const trackAgentResponse = (bytes: Uint8Array) => {
@@ -302,6 +303,25 @@ export function CanvasTerminalNode({
           "compositionend",
           compositionCommitFilter.beginCompositionFinalization,
         );
+        const ownerWindow = viewport.ownerDocument.defaultView;
+        ownerWindow?.addEventListener(
+          "blur",
+          compositionCommitFilter.handleWindowBlur,
+        );
+        ownerWindow?.addEventListener(
+          "focus",
+          compositionCommitFilter.handleWindowFocus,
+        );
+        disposeCompositionFocusListeners = () => {
+          ownerWindow?.removeEventListener(
+            "blur",
+            compositionCommitFilter.handleWindowBlur,
+          );
+          ownerWindow?.removeEventListener(
+            "focus",
+            compositionCommitFilter.handleWindowFocus,
+          );
+        };
       }
       const shellState = createShellIntegrationState();
       shellStateRef.current = shellState;
@@ -483,6 +503,7 @@ export function CanvasTerminalNode({
       resizeObserver?.disconnect();
       disposeCwdHandler?.();
       disposePromptTracker?.();
+      disposeCompositionFocusListeners?.();
       if (fitFrame !== null) cancelAnimationFrame(fitFrame);
       if (copyOnSelectionTimer) clearTimeout(copyOnSelectionTimer);
 			if (copyBadgeTimer) clearTimeout(copyBadgeTimer);

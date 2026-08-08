@@ -20,6 +20,18 @@ describe("macOS IME single-input path", () => {
     expect(imeSource).not.toContain("stopImmediatePropagation");
   });
 
+  it("renders active composition as terminal input instead of a selection block", () => {
+    const here = path.dirname(new URL(import.meta.url).pathname);
+    const globalStyles = readFileSync(
+      path.join(here, "../../../styles/globals.css"),
+      "utf8",
+    );
+
+    expect(globalStyles).toMatch(
+      /\.xterm \.composition-view\s*\{[^}]*background:\s*transparent;[^}]*color:\s*var\(--terminal-foreground\);/s,
+    );
+  });
+
   it("forwards one immediate commit and drops xterm's deferred duplicate", () => {
     const scheduledClears: Array<{ callback: () => void; delayMs: number }> = [];
     const filter = createMacCompositionCommitFilter((callback, delayMs) => {
@@ -44,6 +56,28 @@ describe("macOS IME single-input path", () => {
     const filter = createMacCompositionCommitFilter(() => {});
 
     expect(filter.shouldForward("lslsls")).toBe(true);
+    expect(filter.shouldForward("lslsls")).toBe(true);
+  });
+
+  it("keeps the commit guard alive while a system shortcut takes focus", () => {
+    const scheduledClears: Array<{ callback: () => void; delayMs: number }> = [];
+    const filter = createMacCompositionCommitFilter((callback, delayMs) => {
+      scheduledClears.push({ callback, delayMs });
+    });
+
+    filter.beginKeydownFinalization();
+    expect(filter.shouldForward("lslsls")).toBe(true);
+
+    filter.handleWindowBlur();
+    // Command+3 can keep the screenshot UI focused longer than the original
+    // one-second fallback. That stale timer must not reopen the input path.
+    scheduledClears[0]?.callback();
+    filter.handleWindowFocus();
+
+    expect(filter.shouldForward("lslsls")).toBe(false);
+    expect(filter.shouldForward(" ")).toBe(true);
+
+    scheduledClears[scheduledClears.length - 1]?.callback();
     expect(filter.shouldForward("lslsls")).toBe(true);
   });
 });
