@@ -22,20 +22,6 @@ export function shouldIgnoreMacPrintableTerminalData(data: string): boolean {
   );
 }
 
-/** True for an unmodified space keypress on macOS. A plain space is never IME
- *  composition: xterm's `evaluateKeyboardEvent` maps it to no key and does not
- *  preventDefault, so both the browser textarea insertion (→ bridge `input`)
- *  and the follow-up `keypress` (→ xterm `onData`) would fire. Callers should
- *  `preventDefault()` and write the space exactly once instead. */
-export function isPlainSpaceKey(event: KeyboardEvent): boolean {
-  if (event.type !== "keydown" && event.type !== "keypress") return false;
-  if (event.ctrlKey || event.metaKey || event.altKey) return false;
-  if (event.isComposing || event.keyCode === 229 || event.key === "Process") {
-    return false;
-  }
-  return event.key === " ";
-}
-
 export function normalizeMacTerminalInput(value: string): string {
   // WebKit's macOS text bridge can occasionally surface an intended space as
   // invisible C1 controls (U+0080–U+009F) or as Unicode space lookalikes
@@ -52,8 +38,9 @@ export function normalizeMacTerminalInput(value: string): string {
 /**
  * WebKit can make one committed IME value visible to both xterm's `onData`
  * callback and our textarea bridge. Keep xterm's payload (which also covers
- * native paste), and discard the bridge duplicate when it arrives in the same
- * event turn.
+ * native paste), and discard repeated bridge batches emitted by adjacent
+ * WebKit callbacks. The short window applies only to multi-character bridge
+ * batches so intentionally repeated single-character input is preserved.
  */
 export function createMacTextInputDeduplicator(
   writeToPty: (data: string) => void,
@@ -62,12 +49,22 @@ export function createMacTextInputDeduplicator(
   writeBridgeData: (data: string) => void;
 } {
   let pendingXtermData: string | null = null;
-  let pendingBridgeData: string | null = null;
+  let recentBridgeData: { data: string; writtenAt: number } | null = null;
+  const BRIDGE_DUPLICATE_WINDOW_MS = 250;
 
   return {
     writeXtermData(data) {
       if (!isPrintableTerminalData(data)) {
         writeToPty(data);
+        return;
+      }
+      const now = Date.now();
+      if (
+        recentBridgeData &&
+        now - recentBridgeData.writtenAt <= BRIDGE_DUPLICATE_WINDOW_MS &&
+        (recentBridgeData.data === data ||
+          (data === " " && recentBridgeData.data.endsWith(data)))
+      ) {
         return;
       }
       pendingXtermData = data;
@@ -78,12 +75,19 @@ export function createMacTextInputDeduplicator(
       });
     },
     writeBridgeData(data) {
-      if (pendingBridgeData === data) return;
-      pendingBridgeData = data;
-      queueMicrotask(() => {
-        if (pendingBridgeData === data) pendingBridgeData = null;
-      });
-      if (pendingXtermData === data) {
+      const now = Date.now();
+      if (
+        Array.from(data).length > 1 &&
+        recentBridgeData?.data === data &&
+        now - recentBridgeData.writtenAt <= BRIDGE_DUPLICATE_WINDOW_MS
+      ) {
+        return;
+      }
+      recentBridgeData = { data, writtenAt: now };
+      if (
+        pendingXtermData === data ||
+        (pendingXtermData === " " && data.endsWith(pendingXtermData))
+      ) {
         pendingXtermData = null;
         writeToPty(data);
         return;
