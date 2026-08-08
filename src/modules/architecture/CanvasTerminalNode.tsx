@@ -1,5 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
+import { invoke } from "@tauri-apps/api/core";
 import {
   Add01Icon,
   Cancel01Icon,
@@ -317,6 +318,7 @@ export function CanvasTerminalNode({
         void sessionRef.current?.write(data);
       });
       attachMacImeBridge(terminal, (data) => {
+        void invoke("pty_trace_input", { source: "canvas-ime-bridge", data });
         macTextInput.writeBridgeData(data);
       });
       const fit = () => {
@@ -429,6 +431,7 @@ export function CanvasTerminalNode({
       terminal.onData((data) => {
         if (shouldIgnoreMacPrintableTerminalData(data)) return;
         trackPromptInput(data);
+        void invoke("pty_trace_input", { source: "canvas-xterm-ondata", data });
         macTextInput.writeXtermData(data);
       });
       terminal.onResize(({ cols, rows }) =>

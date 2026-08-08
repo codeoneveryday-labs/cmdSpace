@@ -5,7 +5,8 @@ mod job;
 mod session;
 pub(crate) mod shell_init;
 
-use std::collections::HashMap;
+use std::collections::{hash_map::DefaultHasher, HashMap};
+use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
@@ -146,6 +147,16 @@ pub fn pty_write(state: tauri::State<PtyState>, id: u32, data: String) -> Result
     result
 }
 
+#[tauri::command]
+pub fn pty_trace_input(source: String, data: String) {
+    let mut hasher = DefaultHasher::new();
+    data.hash(&mut hasher);
+    log::info!(
+        "[IME-TRACE] source={source} bytes={} fingerprint={:016x}",
+        data.len(),
+        hasher.finish()
+    );
+}
 #[tauri::command]
 pub fn pty_resize(
     state: tauri::State<PtyState>,
@@ -556,4 +567,3 @@ mod cli_probe_tests {
         assert!(resolvable_in_dirs("cmd", &dirs, &exts));
     }
 }
-

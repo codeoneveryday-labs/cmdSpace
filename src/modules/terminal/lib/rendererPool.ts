@@ -2,6 +2,7 @@ import { detectMonoFontFamily } from "@/lib/fonts";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { buildTerminalTheme } from "@/styles/terminalTheme";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
@@ -191,6 +192,7 @@ function createSlot(): Slot {
     if (leafId !== null) adapter?.resolveLeaf(leafId)?.writeToPty(data);
   });
   attachMacImeBridge(slot.term, (data) => {
+    void invoke("pty_trace_input", { source: "ime-bridge", data });
     macTextInput.writeBridgeData(data);
   });
   attachCopyOnSelection(slot);
@@ -286,6 +288,7 @@ function createSlot(): Slot {
     const normalized = IS_MAC_TEXT_INPUT_PLATFORM
       ? normalizeMacTerminalInput(data)
       : data;
+    void invoke("pty_trace_input", { source: "xterm-ondata", data: normalized });
     if (normalized.includes("\r") || normalized.includes("\n")) {
       bridge.observeInputLine?.(currentInputLine(slot.term));
     }
