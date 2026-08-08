@@ -185,12 +185,24 @@ describe("rendererPool WebGL stability", () => {
     expect(rendererSource).toContain(
       "compositionCommitFilter.beginKeydownFinalization();",
     );
+    expect(rendererSource).toContain(
+      "compositionCommitFilter.handleWindowBlur",
+    );
+    expect(rendererSource).toContain(
+      "compositionCommitFilter.handleWindowFocus",
+    );
     expect(rendererSource).toContain("compositionCommitFilter.shouldForward(normalized)");
     expect(canvasSource).toContain("createMacCompositionCommitFilter");
     expect(canvasSource).toContain("addEventListener(");
     expect(canvasSource).toContain('"compositionend"');
     expect(canvasSource).toContain(
       "compositionCommitFilter.beginKeydownFinalization();",
+    );
+    expect(canvasSource).toContain(
+      "compositionCommitFilter.handleWindowBlur",
+    );
+    expect(canvasSource).toContain(
+      "compositionCommitFilter.handleWindowFocus",
     );
     expect(canvasSource).toContain("compositionCommitFilter.shouldForward(normalized)");
   });
