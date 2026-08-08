@@ -19,6 +19,7 @@ export type ShortcutId =
   | "pane.splitDown"
   | "pane.focusNext"
   | "pane.focusPrev"
+  | "pane.maximize"
   | "pane.source"
   | "search.focus"
   | "explorer.search"
@@ -151,6 +152,12 @@ export const SHORTCUTS: Shortcut[] = [
     group: "Panes",
     defaultBindings: [{ [MOD_PROP]: true, key: "[" }],
   },  
+  {
+    id: "pane.maximize",
+    label: "Maximize active pane",
+    group: "Panes",
+    defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "p" }],
+  },
   {
     id: "pane.source",
     label: "Toggle source panel",

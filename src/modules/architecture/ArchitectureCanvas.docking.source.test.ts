@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
+const canvasPath = path.join(here, "ArchitectureCanvas.tsx");
 const source = readFileSync(
   path.join(here, "ArchitectureCanvas.tsx"),
   "utf8",
@@ -18,6 +19,14 @@ describe("ArchitectureCanvas terminal docking integration", () => {
   it("maximizes a terminal as transient view state without rewriting saved bounds", () => {
     expect(source).toContain("maximizedTerminalId");
     expect(source).not.toContain("terminalRestoreBoundsRef");
+  });
+
+  it("uses the shared Cmd/Ctrl+Alt+P maximize shortcut for canvas terminals", () => {
+    const canvasSource = readFileSync(canvasPath, "utf8");
+
+    expect(canvasSource).toContain('event.key.toLowerCase() === "p"');
+    expect(canvasSource).toContain("event.altKey");
+    expect(canvasSource).not.toContain('event.key.toLowerCase() === "m"');
   });
 
   it("continues node and edge IDs after restoring a saved canvas", () => {

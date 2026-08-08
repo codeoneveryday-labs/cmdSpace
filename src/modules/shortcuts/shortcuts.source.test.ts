@@ -69,6 +69,22 @@ describe("bottom terminal shortcut", () => {
   });
 });
 
+describe("pane maximize shortcut", () => {
+  it("registers Cmd/Ctrl+Alt+P for shared pane maximize", () => {
+    const shortcutsSource = readFileSync(shortcutsPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+
+    expect(shortcutsSource).toContain('| "pane.maximize"');
+    expect(shortcutsSource).toContain('id: "pane.maximize"');
+    expect(shortcutsSource).toContain('label: "Maximize active pane"');
+    expect(shortcutsSource).toContain(
+      'defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "p" }]',
+    );
+    expect(appSource).toContain('"pane.maximize": () => {');
+    expect(appSource).toContain("toggleMaximizePane(activeTerminalTab.activeLeafId)");
+  });
+});
+
 describe("music shortcut", () => {
   it("opens Music CLI with Cmd/Ctrl+J without adding another terminal shortcut", () => {
     const shortcutsSource = readFileSync(shortcutsPath, "utf8");
