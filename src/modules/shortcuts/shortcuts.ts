@@ -156,7 +156,7 @@ export const SHORTCUTS: Shortcut[] = [
     id: "pane.maximize",
     label: "Maximize active pane",
     group: "Panes",
-    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }],
+    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: ">" }],
   },
   {
     id: "pane.source",
@@ -210,7 +210,7 @@ export const SHORTCUTS: Shortcut[] = [
     id: "voice.toggle",
     label: "Toggle Space",
     group: "AI",
-    defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "v" }],
+    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }],
   },
   {
     id: "sidebar.toggle",

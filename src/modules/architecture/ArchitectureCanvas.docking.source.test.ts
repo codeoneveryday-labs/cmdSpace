@@ -21,10 +21,10 @@ describe("ArchitectureCanvas terminal docking integration", () => {
     expect(source).not.toContain("terminalRestoreBoundsRef");
   });
 
-  it("uses the shared Cmd/Ctrl+Shift+V maximize shortcut for canvas terminals", () => {
+  it("uses the shared Cmd/Ctrl+> maximize shortcut for canvas terminals", () => {
     const canvasSource = readFileSync(canvasPath, "utf8");
 
-    expect(canvasSource).toContain('event.key.toLowerCase() === "v"');
+    expect(canvasSource).toContain('event.key === ">"');
     expect(canvasSource).toContain("event.shiftKey");
     expect(canvasSource).not.toContain('event.key.toLowerCase() === "m"');
   });
