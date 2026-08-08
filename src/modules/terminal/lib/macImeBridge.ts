@@ -23,11 +23,14 @@ export function createMacCompositionCommitFilter(
 ): {
   beginKeydownFinalization: () => void;
   beginCompositionFinalization: () => void;
+  handleWindowBlur: () => void;
+  handleWindowFocus: () => void;
   shouldForward: (data: string) => boolean;
 } {
   let finalizing = false;
   let firstCommit: string | null = null;
   let generation = 0;
+  let windowBlurred = false;
 
   const beginFinalization = (clearAfterMs: number) => {
     if (!finalizing) firstCommit = null;
@@ -35,6 +38,7 @@ export function createMacCompositionCommitFilter(
     const currentGeneration = ++generation;
     scheduleClear(() => {
       if (generation !== currentGeneration) return;
+      if (windowBlurred) return;
       finalizing = false;
       firstCommit = null;
     }, clearAfterMs);
@@ -51,6 +55,20 @@ export function createMacCompositionCommitFilter(
       // xterm registered its compositionend listener first and schedules its
       // deferred send before this listener schedules the clear.
       beginFinalization(0);
+    },
+    handleWindowBlur() {
+      if (!finalizing) return;
+      windowBlurred = true;
+      // Invalidate the keydown fallback. System UI such as the macOS
+      // screenshot overlay can own focus longer than that timeout.
+      generation += 1;
+    },
+    handleWindowFocus() {
+      if (!finalizing || !windowBlurred) return;
+      windowBlurred = false;
+      // Keep filtering across WebKit's refocus event chain. A native
+      // compositionend will replace this with the normal zero-delay clear.
+      beginFinalization(LOST_COMPOSITION_END_FALLBACK_MS);
     },
     shouldForward(data) {
       if (!finalizing || !isPrintableTerminalData(data)) return true;
