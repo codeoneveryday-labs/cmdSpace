@@ -47,6 +47,7 @@ scripts/bin/harness.exe
 .harness-core/
 .omx/
 .superpowers/
+.cate/
 
 # Local architecture-study report generated during onboarding
 /docs/reports/codebase-study-2026-08-01.md

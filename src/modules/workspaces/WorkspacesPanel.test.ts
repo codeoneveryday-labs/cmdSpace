@@ -11,6 +11,7 @@ const useTabsPath = path.join(here, "../tabs/lib/useTabs.ts");
 const rendererPoolPath = path.join(here, "../terminal/lib/rendererPool.ts");
 const dbPath = path.join(here, "../../../src-tauri/src/modules/db.rs");
 const cliAgentsPath = path.join(here, "../terminal/lib/cliAgents.ts");
+const agentCliIconPath = path.join(here, "../terminal/AgentCliIcon.tsx");
 
 describe("WorkspacesPanel", () => {
   it("provides the left workspaces surface shown in the app shell", () => {
@@ -23,6 +24,7 @@ describe("WorkspacesPanel", () => {
     const useTabsSource = readFileSync(useTabsPath, "utf8");
     const rendererPoolSource = readFileSync(rendererPoolPath, "utf8");
     const cliAgentsSource = readFileSync(cliAgentsPath, "utf8");
+    const agentCliIconSource = readFileSync(agentCliIconPath, "utf8");
 
     expect(panelSource).toContain("WORKSPACES");
     expect(panelSource).toContain("Set up your workspace");
@@ -63,15 +65,21 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain('name: "Focus"');
     expect(panelSource).toContain('name: "Lab"');
     expect(panelSource).toContain("AGENT_CLI_OPTIONS");
+    expect(panelSource).toContain("getEnabledCliAgentDefinitions");
+    expect(panelSource).toContain("configuredAgentCliOptions");
     expect(panelSource).toContain("AgentCliIcon");
     expect(panelSource).toContain('<AgentCliIcon agent={agent.id} size="md" />');
+    expect(agentCliIconSource).toContain("getAgentBrandIcon");
+    expect(agentCliIconSource).toContain("<BrandIcon");
     expect(panelSource).toContain("Add AI coding agents");
     expect(panelSource).toContain("check_agent_clis");
     expect(panelSource).toContain("currentWorkspaceEnv()");
     expect(panelSource).toContain("availableAgents");
     expect(panelSource).toContain("installedAgents");
     expect(panelSource).toContain("Scanning installed agents");
-    expect(panelSource).toContain("AGENT_CLI_OPTIONS.map((agent) => agent.executable)");
+    expect(panelSource).toContain(
+      "configuredAgentCliOptions.map((agent) => agent.executable)",
+    );
     expect(panelSource).toContain("agentLaunchCommands");
     expect(panelSource).toContain("effectiveAgentCommands");
     expect(panelSource).toContain("persistAgentCommand");

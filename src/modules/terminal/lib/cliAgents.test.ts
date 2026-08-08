@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  CLI_AGENT_CATALOG,
   CLI_AGENT_DEFINITIONS,
+  DEFAULT_CONFIGURED_CLI_AGENT_IDS,
   detectCliAgent,
+  filterCliAgentCatalog,
+  getEnabledCliAgentDefinitions,
   isInteractiveCodingAgentCommand,
+  normalizeCliAgentIds,
 } from "./cliAgents";
 
 describe("CLI agent registry", () => {
@@ -50,6 +55,45 @@ describe("CLI agent registry", () => {
     expect(detectCliAgent("cmd --dangerously-skip-permissions")).toBe("cmd");
     expect(detectCliAgent("cd ~; cmd --dangerously-skip-permissions")).toBe(
       "cmd",
+    );
+  });
+
+  it("normalizes persisted agent ids without unknowns or duplicates", () => {
+    expect(normalizeCliAgentIds(["codex", "unknown", "codex", "claude"])).toEqual([
+      "codex",
+      "claude",
+    ]);
+  });
+
+  it("ships a useful default configured set", () => {
+    expect(DEFAULT_CONFIGURED_CLI_AGENT_IDS).toEqual([
+      "claude",
+      "codex",
+      "gemini",
+      "copilot",
+      "opencode",
+      "pi",
+    ]);
+  });
+
+  it("filters enabled workspace agents from configured preferences", () => {
+    expect(
+      getEnabledCliAgentDefinitions(["claude", "codex", "cursor"], ["codex"]).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["claude", "cursor"]);
+  });
+
+  it("searches only agents that have not been configured", () => {
+    expect(filterCliAgentCatalog(["claude", "codex"], "cursor").map(({ id }) => id)).toEqual([
+      "cursor",
+    ]);
+    expect(filterCliAgentCatalog(["claude"], "coding assistant").length).toBeGreaterThan(0);
+  });
+
+  it("links Command Code to its official repository", () => {
+    expect(CLI_AGENT_CATALOG.find(({ id }) => id === "cmd")?.installUrl).toBe(
+      "https://github.com/CommandCodeAI/command-code",
     );
   });
 });

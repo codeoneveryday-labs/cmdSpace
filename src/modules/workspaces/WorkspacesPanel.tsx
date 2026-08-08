@@ -19,7 +19,10 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CLI_AGENT_DEFINITIONS } from "@/modules/terminal/lib/cliAgents";
+import {
+  CLI_AGENT_DEFINITIONS,
+  getEnabledCliAgentDefinitions,
+} from "@/modules/terminal/lib/cliAgents";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAgentLaunchCommands } from "@/modules/settings/store";
@@ -892,6 +895,14 @@ export function WorkspaceSetupView({
   const storedAgentCommands = usePreferencesStore(
     (s) => s.agentLaunchCommands,
   );
+  const configuredCliAgentIds = usePreferencesStore((s) => s.cliAgentIds);
+  const disabledCliAgentIds = usePreferencesStore(
+    (s) => s.disabledCliAgentIds,
+  );
+  const configuredAgentCliOptions = getEnabledCliAgentDefinitions(
+    configuredCliAgentIds,
+    disabledCliAgentIds,
+  );
   const [agentCommandDrafts, setAgentCommandDrafts] = useState<
     Record<string, string>
   >(() => ({}));
@@ -910,7 +921,7 @@ export function WorkspaceSetupView({
   // Effective launch command per agent: user override wins, else launch,
   // else the bare command.
   const effectiveAgentCommands = Object.fromEntries(
-    AGENT_CLI_OPTIONS.map((agent) => [
+    configuredAgentCliOptions.map((agent) => [
       agent.id,
       agentCommandDrafts[agent.id]?.trim() ||
         storedAgentCommands[agent.id]?.trim() ||
@@ -923,7 +934,7 @@ export function WorkspaceSetupView({
     customCommand,
     effectiveAgentCommands,
   ).slice(0, terminalCount);
-  const availableAgents = AGENT_CLI_OPTIONS.filter(
+  const availableAgents = configuredAgentCliOptions.filter(
     (agent) => installedAgents?.has(agent.id) ?? true,
   );
 
@@ -942,13 +953,13 @@ export function WorkspaceSetupView({
   useEffect(() => {
     let cancelled = false;
     const env = currentWorkspaceEnv();
-    const names = AGENT_CLI_OPTIONS.map((agent) => agent.executable);
+    const names = configuredAgentCliOptions.map((agent) => agent.executable);
     invoke<boolean[]>("check_agent_clis", { names, workspace: env })
       .then((present) => {
         if (cancelled) return;
         setInstalledAgents(
           new Set(
-            AGENT_CLI_OPTIONS.filter((_, index) => present[index]).map(
+            configuredAgentCliOptions.filter((_, index) => present[index]).map(
               (agent) => agent.id,
             ),
           ),
@@ -958,14 +969,14 @@ export function WorkspaceSetupView({
         console.error("Failed to check installed agent CLIs:", error);
         if (!cancelled) {
           setInstalledAgents(
-            new Set(AGENT_CLI_OPTIONS.map((agent) => agent.id)),
+            new Set(configuredAgentCliOptions.map((agent) => agent.id)),
           );
         }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [configuredCliAgentIds, disabledCliAgentIds]);
 
   useEffect(() => {
     setSelectedFolder(workingFolder ?? "");
@@ -1085,7 +1096,7 @@ export function WorkspaceSetupView({
       let remaining = terminalCount;
       const next: Record<string, number> = {};
       const ids = [
-        ...AGENT_CLI_OPTIONS.filter(
+        ...configuredAgentCliOptions.filter(
           (agent) => installedAgents?.has(agent.id) ?? true,
         ).map((agent) => agent.id),
         "custom",
@@ -1097,7 +1108,12 @@ export function WorkspaceSetupView({
       }
       return next;
     });
-  }, [terminalCount, installedAgents]);
+  }, [
+    terminalCount,
+    installedAgents,
+    configuredCliAgentIds,
+    disabledCliAgentIds,
+  ]);
 
   useEffect(() => {
     if (customCommand.trim()) return;

@@ -34,10 +34,11 @@ describe("FloatingTerminalOverlay", () => {
     expect(source).toContain(
       "agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}",
     );
-    expect(iconSource).toContain("ClaudeIcon");
-    expect(iconSource).toContain("ChatGptIcon");
-    expect(iconSource).toContain("GoogleGeminiIcon");
-    expect(iconSource).toContain("Grok02Icon");
+    expect(iconSource).toContain("getAgentBrandIcon");
+    expect(iconSource).toContain("<BrandIcon");
+    expect(iconSource).toContain('size === "md" ? 14 : 12');
+    expect(iconSource).toContain("text-foreground");
+    expect(iconSource).not.toContain("AGENT_CLI_ICON_META");
   });
 
   it("shows local coding-agent context and account-limit details without exposing credentials", () => {
