@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { ZOOM_MAX, ZOOM_MIN, ZOOM_SLIDER_STEP } from "@/lib/zoomConstants";
+import { parseExcludedFolderNames } from "@/modules/explorer/lib/excludedFolders";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   remoteAccessResetPassword,
@@ -38,6 +39,7 @@ import {
   TERMINAL_FONT_SIZES,
   TERMINAL_SCROLLBACK_PRESETS,
   setAutostart,
+  setExplorerExcludedFolderNames,
   setFloatingVoiceAgentEnabled,
   setRemoteAccessEnabled,
   setRestoreWindowState,
@@ -111,6 +113,9 @@ export function GeneralSection() {
   const restoreWindowState = usePreferencesStore((s) => s.restoreWindowState);
   const vimMode = usePreferencesStore((s) => s.vimMode);
   const showHidden = usePreferencesStore((s) => s.showHidden);
+  const explorerExcludedFolderNames = usePreferencesStore(
+    (s) => s.explorerExcludedFolderNames,
+  );
   const terminalWebglEnabled = usePreferencesStore(
     (s) => s.terminalWebglEnabled,
   );
@@ -127,6 +132,9 @@ export function GeneralSection() {
   const terminalFontSize = usePreferencesStore((s) => s.terminalFontSize);
   const terminalScrollback = usePreferencesStore((s) => s.terminalScrollback);
   const zoomLevel = usePreferencesStore((s) => s.zoomLevel);
+  const [excludedFolderNamesDraft, setExcludedFolderNamesDraft] = useState(
+    explorerExcludedFolderNames.join(", "),
+  );
   const [remoteEnabledDraft, setRemoteEnabledDraft] =
     useState(remoteAccessEnabled);
   const [remoteLanUrl, setRemoteLanUrl] = useState("");
@@ -148,6 +156,10 @@ export function GeneralSection() {
     () => () => window.clearTimeout(remoteCopyTimeoutRef.current),
     [],
   );
+
+  useEffect(() => {
+    setExcludedFolderNamesDraft(explorerExcludedFolderNames.join(", "));
+  }, [explorerExcludedFolderNames]);
 
   useEffect(() => {
     let alive = true;
@@ -326,6 +338,12 @@ export function GeneralSection() {
     }
   };
 
+  const saveExcludedFolderNames = () => {
+    const normalized = parseExcludedFolderNames(excludedFolderNamesDraft);
+    setExcludedFolderNamesDraft(normalized.join(", "));
+    void setExplorerExcludedFolderNames(normalized);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <SectionHeader
@@ -402,6 +420,28 @@ export function GeneralSection() {
           <Switch
             checked={showHidden}
             onCheckedChange={(v) => void setShowHidden(v)}
+          />
+        </SettingRow>
+        <SettingRow
+          title="Hidden folders"
+          description="Hide exact folder names from the Editor sidebar. Separate names with commas or Shift+Enter."
+        >
+          <textarea
+            rows={2}
+            value={excludedFolderNamesDraft}
+            placeholder=".git, node_modules, dist, target"
+            aria-label="Hidden folders"
+            onChange={(event) =>
+              setExcludedFolderNamesDraft(event.target.value)
+            }
+            onBlur={saveExcludedFolderNames}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+            }}
+            className="min-h-12 w-64 resize-y rounded-md border border-border bg-background px-2.5 py-2 font-mono text-[11px] outline-none focus:border-foreground/40"
           />
         </SettingRow>
       </div>

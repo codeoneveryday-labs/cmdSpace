@@ -47,7 +47,8 @@ describe("AI provider catalog", () => {
     expect(agent).toContain("createAnthropic");
 
     expect(settingsIcon).toContain("zenmux: GlobeIcon");
-    expect(statusControls).toContain("zenmux: GlobeIcon");
+    expect(statusControls).toContain("ProviderIcon");
+    expect(statusControls).toContain("provider={p.id}");
     expect(secrets).toContain("cache: Mutex<Option<HashMap<String, String>>>");
     expect(secrets).toContain(".get_or_insert_with(HashMap::new)");
     expect(secrets).toContain("cache.get(&cache_key).cloned()");
@@ -83,6 +84,6 @@ describe("AI provider catalog", () => {
     expect(agent).toContain("createOpenAICompatible");
     expect(agent).toContain('fetch: localProxyFetch');
     expect(settingsIcon).toContain("nvidia: CpuIcon");
-    expect(statusControls).toContain("nvidia: CpuIcon");
+    expect(statusControls).toContain("ProviderIcon");
   });
 });

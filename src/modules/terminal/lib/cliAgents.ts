@@ -29,6 +29,94 @@ export type CliAgentDefinition = {
   bannerPatterns: RegExp[];
 };
 
+export type CliAgentCatalogEntry = CliAgentDefinition & {
+  description: string;
+  installUrl?: string;
+};
+
+export const DEFAULT_CONFIGURED_CLI_AGENT_IDS: CliAgent[] = [
+  "claude",
+  "codex",
+  "gemini",
+  "copilot",
+  "opencode",
+  "pi",
+];
+
+const CLI_AGENT_CATALOG_META: Record<
+  CliAgent,
+  { description: string; installUrl?: string }
+> = {
+  claude: {
+    description: "Anthropic's agentic coding CLI for terminal workflows.",
+    installUrl: "https://docs.anthropic.com/en/docs/claude-code/setup",
+  },
+  codex: {
+    description: "OpenAI's coding agent for local terminal development.",
+    installUrl: "https://developers.openai.com/codex/cli",
+  },
+  gemini: {
+    description: "Google's official open-source Gemini coding CLI.",
+    installUrl: "https://geminicli.com",
+  },
+  opencode: {
+    description: "Open-source coding agent built for the terminal.",
+    installUrl: "https://opencode.ai/docs",
+  },
+  copilot: {
+    description: "GitHub Copilot's agentic command-line interface.",
+    installUrl: "https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli",
+  },
+  cursor: {
+    description: "Cursor's coding agent for terminal and automation workflows.",
+    installUrl: "https://docs.cursor.com/en/cli/overview",
+  },
+  aider: {
+    description: "AI pair programming in your terminal with repository context.",
+    installUrl: "https://aider.chat/docs/install.html",
+  },
+  pi: {
+    description: "Minimal, extensible terminal coding agent from the Pi project.",
+    installUrl: "https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent",
+  },
+  amp: {
+    description: "Sourcegraph's frontier coding agent for terminal development.",
+    installUrl: "https://ampcode.com/manual",
+  },
+  cline: {
+    description: "Autonomous coding agent CLI with file, shell, and browser tools.",
+    installUrl: "https://cline.bot/cli",
+  },
+  goose: {
+    description: "Local, extensible open-source agent for engineering tasks.",
+    installUrl: "https://block.github.io/goose/docs/getting-started/installation/",
+  },
+  qwen: {
+    description: "Alibaba's open-source Qwen coding assistant.",
+    installUrl: "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
+  },
+  kimi: {
+    description: "Moonshot AI's open-source terminal coding agent.",
+    installUrl: "https://github.com/MoonshotAI/kimi-code",
+  },
+  openhands: {
+    description: "Open-source software development agent for local workflows.",
+    installUrl: "https://docs.openhands.dev/openhands/usage/run-openhands/local-setup",
+  },
+  kiro: {
+    description: "Kiro's terminal coding agent with spec-driven workflows.",
+    installUrl: "https://kiro.dev/cli/",
+  },
+  grok: {
+    description: "xAI's Grok coding agent for terminal development.",
+    installUrl: "https://grok.com",
+  },
+  cmd: {
+    description: "Command Code agent running directly in the terminal.",
+    installUrl: "https://github.com/CommandCodeAI/command-code",
+  },
+};
+
 const kimiLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.kimi-code/bin:$HOME/.local/bin:$PATH"; kimi';
 const grokLaunch =
@@ -57,6 +145,55 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
 export const CLI_AGENT_BY_ID = Object.fromEntries(
   CLI_AGENT_DEFINITIONS.map((definition) => [definition.id, definition]),
 ) as Record<CliAgent, CliAgentDefinition>;
+
+export const CLI_AGENT_CATALOG: readonly CliAgentCatalogEntry[] =
+  CLI_AGENT_DEFINITIONS.map((definition) => ({
+    ...definition,
+    ...CLI_AGENT_CATALOG_META[definition.id],
+  }));
+
+const CLI_AGENT_ID_SET = new Set<string>(CLI_AGENT_IDS);
+
+export function normalizeCliAgentIds(
+  values: readonly string[] | null | undefined,
+): CliAgent[] {
+  const seen = new Set<CliAgent>();
+  const normalized: CliAgent[] = [];
+  for (const value of values ?? []) {
+    if (!CLI_AGENT_ID_SET.has(value)) continue;
+    const id = value as CliAgent;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+  return normalized;
+}
+
+export function getEnabledCliAgentDefinitions(
+  configuredIds: readonly string[],
+  disabledIds: readonly string[],
+): CliAgentDefinition[] {
+  const configured = new Set(normalizeCliAgentIds(configuredIds));
+  const disabled = new Set(normalizeCliAgentIds(disabledIds));
+  return CLI_AGENT_DEFINITIONS.filter(
+    ({ id }) => configured.has(id) && !disabled.has(id),
+  );
+}
+
+export function filterCliAgentCatalog(
+  configuredIds: readonly string[],
+  query: string,
+): CliAgentCatalogEntry[] {
+  const configured = new Set(normalizeCliAgentIds(configuredIds));
+  const normalizedQuery = query.trim().toLowerCase();
+  return CLI_AGENT_CATALOG.filter((entry) => !configured.has(entry.id)).filter(
+    (entry) =>
+      !normalizedQuery ||
+      [entry.name, entry.id, entry.executable, entry.description].some((value) =>
+        value.toLowerCase().includes(normalizedQuery),
+      ),
+  );
+}
 
 function segmentExecutable(segment: string): string | null {
   const words = segment.trim().split(/\s+/);
