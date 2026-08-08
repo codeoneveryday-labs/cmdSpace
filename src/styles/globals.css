@@ -283,6 +283,18 @@ html[data-chrome="borderless"] #settings-root {
   background: var(--terminal-background);
 }
 
+.xterm .composition-view {
+  background: transparent;
+  color: var(--terminal-foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklch,
+    var(--terminal-foreground) 55%,
+    transparent
+  );
+  text-underline-offset: 2px;
+}
+
 .xterm .scrollbar,
 .xterm .scrollbar.vertical,
 .xterm .scrollbar.horizontal {

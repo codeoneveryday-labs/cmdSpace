@@ -189,6 +189,14 @@ function createSlot(): Slot {
       "compositionend",
       compositionCommitFilter.beginCompositionFinalization,
     );
+    host.ownerDocument.defaultView?.addEventListener(
+      "blur",
+      compositionCommitFilter.handleWindowBlur,
+    );
+    host.ownerDocument.defaultView?.addEventListener(
+      "focus",
+      compositionCommitFilter.handleWindowFocus,
+    );
   }
   attachCopyOnSelection(slot);
   term.attachCustomKeyEventHandler((event) => {
