@@ -45,6 +45,9 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("onSplitRight: () => void");
     expect(source).toContain('aria-label="Add terminal tab"');
     expect(source).toContain('aria-label="Split terminal right"');
+    expect(source).toContain("data-canvas-surface-tab-kind={tab.kind}");
+    expect(source).toContain("tab.kind === \"browser\"");
+    expect(source).not.toContain("tab.kind === \"editor\"");
     expect(source).not.toContain("FloatingTerminalOverlay");
     expect(source).toContain("onCwdChange");
     expect(source).toContain("onRequestClose");
@@ -161,12 +164,14 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("stackTabs:");
     expect(source).toContain("visible:");
     expect(source).toContain("onActivateTab:");
+    expect(source).toContain("onTabPointerDown:");
     expect(source).toContain("onAddTab");
     expect(source).toContain("onSplitRight");
     expect(source).toContain('role="tablist"');
     expect(source).toContain('role="tab"');
     expect(source).toContain("aria-selected={tab.id === activeTabId}");
     expect(source).toContain("onActivateTab(tab.id)");
+    expect(source).toContain("onTabPointerDown(tab.id, event)");
     expect(source).toContain("if (visible && !resizePausedRef.current) fitRef.current?.()");
     expect(source).toContain("useEffect(() => {");
     expect(source).toContain("}, []);");

@@ -365,12 +365,7 @@ function terminalGroupContentRect(
 export function terminalDockGroupUsesSharedHeader(
   group: ArchitectureTerminalDockGroup,
 ): boolean {
-  return terminalCount(group.root) > 1;
-}
-
-function terminalCount(node: ArchitectureTerminalDockNode): number {
-  if (node.kind === "tabs") return node.terminalIds.length;
-  return terminalCount(node.first) + terminalCount(node.second);
+  return group.root.kind === "split";
 }
 
 export function layoutTerminalDockGroups(

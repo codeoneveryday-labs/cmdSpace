@@ -36,12 +36,6 @@ vi.mock("./CanvasBrowserNode", () => ({
   ),
 }));
 
-vi.mock("./CanvasEditorNode", () => ({
-  CanvasEditorNode: ({ path }: { path?: string }) => (
-    <div data-canvas-editor-path={path} />
-  ),
-}));
-
 describe("ArchitectureCanvas", () => {
   it("renders a canvas-only workspace with a floating bottom dock", () => {
     const markup = renderToStaticMarkup(
@@ -88,17 +82,17 @@ describe("ArchitectureCanvas", () => {
     expect(markup).not.toContain('aria-label="Eraser (E)"');
   });
 
-  it("offers Browser and Editor beside Terminal in the canvas toolbar", () => {
+  it("offers Browser beside Terminal without the removed Canvas Editor", () => {
     const markup = renderToStaticMarkup(
       <ArchitectureCanvas active tabId={1} title="Architecture" />,
     );
 
     expect(markup).toContain('aria-label="Add terminal (I)"');
     expect(markup).toContain('aria-label="Add browser"');
-    expect(markup).toContain('aria-label="Add editor"');
+    expect(markup).not.toContain('aria-label="Add editor"');
   });
 
-  it("restores browser URLs and editor paths as live canvas surfaces", () => {
+  it("restores browser URLs and drops legacy Canvas Editor nodes", () => {
     const seed: ArchitectureDiagram = {
       nodes: [
         {
@@ -134,7 +128,7 @@ describe("ArchitectureCanvas", () => {
     );
 
     expect(markup).toContain('data-canvas-browser-url="https://example.com"');
-    expect(markup).toContain('data-canvas-editor-path="/tmp/example.ts"');
+    expect(markup).not.toContain("example.ts");
   });
 
   it("ignores stale node kinds from a saved diagram", () => {
@@ -313,6 +307,7 @@ describe("ArchitectureCanvas", () => {
     );
 
     expect(markup).toContain('data-canvas-terminal-world="true"');
+    expect(markup).toContain('data-canvas-surface-viewport="true"');
     expect(markup).toContain(
       "transform:translate3d(0px, 0px, 0) scale(1)",
     );
