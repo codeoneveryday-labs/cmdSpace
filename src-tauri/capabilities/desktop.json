@@ -7,7 +7,8 @@
   ],
   "windows": [
     "main",
-    "settings"
+    "settings",
+    "tray"
   ],
   "permissions": [
     "autostart:default",

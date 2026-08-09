@@ -1,4 +1,6 @@
-export type AgentSessionProvider = "claude" | "codex" | "opencode" | "pi";
+import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
+
+export type AgentSessionProvider = CliAgent;
 
 export type ImportableAgentSession = {
   provider: AgentSessionProvider;
@@ -24,10 +26,36 @@ export function buildSessionResumeCommand(
       return `claude --resume ${id}`;
     case "codex":
       return `codex resume ${id}`;
+    case "gemini":
+      return `gemini --resume ${id}`;
     case "opencode":
       return `opencode --session ${id}`;
+    case "copilot":
+      return `copilot --resume=${id}`;
+    case "cursor":
+      return `cursor-agent --resume ${id}`;
+    case "aider":
+      return `aider --restore-chat-history --chat-history-file ${id}`;
     case "pi":
       return `pi --session ${id}`;
+    case "amp":
+      return `amp threads continue ${id}`;
+    case "cline":
+      return `cline --taskId ${id}`;
+    case "goose":
+      return `goose session --resume --session-id ${id}`;
+    case "qwen":
+      return `qwen --resume ${id}`;
+    case "kimi":
+      return `kimi --session ${id}`;
+    case "openhands":
+      return `openhands --resume ${id}`;
+    case "kiro":
+      return `kiro-cli chat --resume-id ${id}`;
+    case "grok":
+      return `grok --resume ${id}`;
+    case "cmd":
+      return `cmd --session ${id}`;
   }
 }
 
@@ -78,5 +106,50 @@ export function sessionsForWorkspace(
     const rightMatches = cwd !== null && normalizedPath(right.cwd) === cwd;
     if (leftMatches !== rightMatches) return leftMatches ? -1 : 1;
     return right.lastActivityAt - left.lastActivityAt;
+  });
+}
+
+export function sessionProviderCounts(
+  sessions: readonly ImportableAgentSession[],
+  providers: readonly AgentSessionProvider[],
+): Array<{ provider: AgentSessionProvider; count: number }> {
+  const counts = new Map<AgentSessionProvider, number>();
+  for (const session of sessions) {
+    counts.set(session.provider, (counts.get(session.provider) ?? 0) + 1);
+  }
+  return providers.map((provider) => ({
+    provider,
+    count: counts.get(provider) ?? 0,
+  }));
+}
+
+export function sessionsForEnabledProviders(
+  sessions: readonly ImportableAgentSession[],
+  providers: readonly AgentSessionProvider[],
+): ImportableAgentSession[] {
+  const enabled = new Set(providers);
+  return sessions.filter((session) => enabled.has(session.provider));
+}
+
+export function filterImportableSessions(
+  sessions: readonly ImportableAgentSession[],
+  workspaceCwd: string | null,
+  scope: "workspace" | "all",
+  provider: AgentSessionProvider | "all",
+  query: string,
+): ImportableAgentSession[] {
+  const needle = query.trim().toLocaleLowerCase();
+  return sessions.filter((session) => {
+    if (
+      scope === "workspace" &&
+      !isSessionInWorkspace(session, workspaceCwd)
+    ) {
+      return false;
+    }
+    if (provider !== "all" && session.provider !== provider) return false;
+    if (!needle) return true;
+    return [session.provider, session.title, session.preview, session.cwd]
+      .filter(Boolean)
+      .some((value) => value!.toLocaleLowerCase().includes(needle));
   });
 }

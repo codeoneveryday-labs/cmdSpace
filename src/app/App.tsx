@@ -129,6 +129,7 @@ import {
   type ImportableAgentSession,
 } from "@/modules/workspaces";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SearchAddon } from "@xterm/addon-search";
@@ -1400,6 +1401,16 @@ export default function App() {
       workspaces,
     ],
   );
+
+  useEffect(() => {
+    const unlisten = listen<string>("cmdspace:open-workspace", (event) => {
+      handleSelectWorkspace(event.payload);
+    });
+
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, [handleSelectWorkspace]);
 
   const deleteWorkspace = useCallback(
     (workspaceId: string) => {

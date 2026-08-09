@@ -7,7 +7,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
+import {
+  CLI_AGENT_BY_ID,
+  getEnabledCliAgentDefinitions,
+} from "@/modules/terminal/lib/cliAgents";
+import { usePreferencesStore } from "@/modules/settings/preferences";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Refresh01Icon,
@@ -17,9 +29,12 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  filterImportableSessions,
   formatRelativeActivity,
-  isSessionInWorkspace,
+  sessionProviderCounts,
+  sessionsForEnabledProviders,
   sessionsForWorkspace,
+  type AgentSessionProvider,
   type ImportableAgentSession,
 } from "./lib/importSessions";
 
@@ -45,7 +60,14 @@ export function ImportSessionDialog({
   onImportMany,
 }: Props) {
   const [sessions, setSessions] = useState<ImportableAgentSession[]>([]);
+  const configuredCliAgentIds = usePreferencesStore((state) => state.cliAgentIds);
+  const disabledCliAgentIds = usePreferencesStore(
+    (state) => state.disabledCliAgentIds,
+  );
   const [scope, setScope] = useState<"workspace" | "all">("workspace");
+  const [provider, setProvider] = useState<AgentSessionProvider | "all">(
+    "all",
+  );
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +82,7 @@ export function ImportSessionDialog({
     try {
       const found = await invoke<ImportableAgentSession[]>(
         "list_agent_sessions",
-        { limit: 200 },
+        { limit: 200, workspaceCwd },
       );
       setSessions(sessionsForWorkspace(found, workspaceCwd));
     } catch (reason) {
@@ -73,34 +95,65 @@ export function ImportSessionDialog({
   useEffect(() => {
     if (!open) return;
     setScope("workspace");
+    setProvider("all");
     setQuery("");
     setImporting(null);
     setSelectedSessionKeys(new Set());
     void load();
   }, [load, open]);
 
-  const visibleSessions = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    return sessions.filter((session) => {
-      if (
-        scope === "workspace" &&
-        !isSessionInWorkspace(session, workspaceCwd)
-      ) {
-        return false;
-      }
-      if (!needle) return true;
-      return [session.provider, session.title, session.preview, session.cwd]
-        .filter(Boolean)
-        .some((value) => value!.toLocaleLowerCase().includes(needle));
-    });
-  }, [query, scope, sessions, workspaceCwd]);
+  const enabledProviders = useMemo(
+    () =>
+      getEnabledCliAgentDefinitions(
+        configuredCliAgentIds,
+        disabledCliAgentIds,
+      ).map((agent) => agent.id),
+    [configuredCliAgentIds, disabledCliAgentIds],
+  );
+  const enabledSessions = useMemo(
+    () => sessionsForEnabledProviders(sessions, enabledProviders),
+    [enabledProviders, sessions],
+  );
+
+  useEffect(() => {
+    if (provider !== "all" && !enabledProviders.includes(provider)) {
+      setProvider("all");
+    }
+  }, [enabledProviders, provider]);
+
+  const scopedSessions = useMemo(
+    () =>
+      filterImportableSessions(
+        enabledSessions,
+        workspaceCwd,
+        scope,
+        "all",
+        "",
+      ),
+    [enabledSessions, scope, workspaceCwd],
+  );
+  const providerOptions = useMemo(
+    () => sessionProviderCounts(scopedSessions, enabledProviders),
+    [enabledProviders, scopedSessions],
+  );
+  const visibleSessions = useMemo(
+    () =>
+      filterImportableSessions(
+        enabledSessions,
+        workspaceCwd,
+        scope,
+        provider,
+        query,
+      ),
+    [enabledSessions, provider, query, scope, workspaceCwd],
+  );
 
   const selectedSessions = useMemo(
     () =>
-      sessions.filter((session) =>
+      enabledSessions.filter((session) =>
         selectedSessionKeys.has(`${session.provider}:${session.sessionId}`),
       ),
-    [selectedSessionKeys, sessions],
+    [enabledSessions, selectedSessionKeys],
   );
   const selectedSessionLabel =
     selectedSessions.length === 1 ? "session" : "sessions";
@@ -157,14 +210,20 @@ export function ImportSessionDialog({
           <Button
             size="sm"
             variant={scope === "workspace" ? "default" : "outline"}
-            onClick={() => setScope("workspace")}
+            onClick={() => {
+              setScope("workspace");
+              setProvider("all");
+            }}
           >
             Current workspace
           </Button>
           <Button
             size="sm"
             variant={scope === "all" ? "default" : "outline"}
-            onClick={() => setScope("all")}
+            onClick={() => {
+              setScope("all");
+              setProvider("all");
+            }}
           >
             All sessions
           </Button>
@@ -180,20 +239,54 @@ export function ImportSessionDialog({
           </Button>
         </div>
 
-        <div className="relative">
-          <HugeiconsIcon
-            icon={Search01Icon}
-            size={15}
-            strokeWidth={2}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search sessions"
-            className="pl-9"
-            autoFocus
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <HugeiconsIcon
+              icon={Search01Icon}
+              size={15}
+              strokeWidth={2}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search sessions"
+              className="pl-9"
+              autoFocus
+            />
+          </div>
+          <Select
+            value={provider}
+            onValueChange={(value) =>
+              setProvider(value as AgentSessionProvider | "all")
+            }
+          >
+            <SelectTrigger
+              size="sm"
+              className="h-9 max-w-48 shrink-0 rounded-lg border-border/70 bg-background"
+              aria-label="Filter sessions by agent"
+            >
+              <SelectValue>
+                <span className="truncate">
+                  {provider === "all"
+                    ? "All agents"
+                    : CLI_AGENT_BY_ID[provider].name}
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent position="popper" align="end">
+              <SelectItem value="all">All agents</SelectItem>
+              {providerOptions.map(({ provider: option, count }) => (
+                <SelectItem key={option} value={option}>
+                  <AgentCliIcon agent={option} />
+                  <span>{CLI_AGENT_BY_ID[option].name}</span>
+                  <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                    {count}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {error ? (
@@ -210,12 +303,21 @@ export function ImportSessionDialog({
           ) : visibleSessions.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
               <span>
-                {scope === "workspace"
-                  ? "No sessions found for this workspace."
-                  : "No native CLI sessions found."}
+                {provider !== "all"
+                  ? `No ${CLI_AGENT_BY_ID[provider].name} sessions found${scope === "workspace" ? " for this workspace" : ""}.`
+                  : scope === "workspace"
+                    ? "No sessions found for this workspace."
+                    : "No native CLI sessions found."}
               </span>
               {scope === "workspace" ? (
-                <Button size="sm" variant="outline" onClick={() => setScope("all")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setScope("all");
+                    setProvider("all");
+                  }}
+                >
                   Show all sessions
                 </Button>
               ) : null}
