@@ -34,7 +34,6 @@ import {
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAgentLaunchCommands } from "@/modules/settings/store";
-import { currentWorkspaceEnv } from "@/modules/workspace";
 import { ImportSessionDialog } from "./ImportSessionDialog";
 import {
   buildSessionResumeCommand,
@@ -924,9 +923,8 @@ export function WorkspaceSetupView({
   >([]);
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>({});
   const [customCommand, setCustomCommand] = useState("");
-  const [installedAgents, setInstalledAgents] = useState<Set<string> | null>(
-    null,
-  );
+  const [customCommandLoaded, setCustomCommandLoaded] = useState(false);
+  const customCommandEditedRef = useRef(false);
   const storedAgentCommands = usePreferencesStore(
     (s) => s.agentLaunchCommands,
   );
@@ -982,9 +980,15 @@ export function WorkspaceSetupView({
       effectiveAgentCommands,
     ).slice(0, cliTerminalCapacity),
   ];
-  const availableAgents = configuredAgentCliOptions.filter(
-    (agent) => installedAgents?.has(agent.id) ?? true,
-  );
+  const availableAgents = configuredAgentCliOptions;
+
+  const persistCustomCommand = useCallback((command: string) => {
+    void invoke("db_save_workspace_setup_custom_command", { command }).catch(
+      (error) => {
+        console.error("Failed to save custom agent CLI command:", error);
+      },
+    );
+  }, []);
 
   const persistAgentCommand = (id: string, value: string) => {
     const trimmed = value.trim();
@@ -1031,31 +1035,31 @@ export function WorkspaceSetupView({
 
   useEffect(() => {
     let cancelled = false;
-    const env = currentWorkspaceEnv();
-    const names = configuredAgentCliOptions.map((agent) => agent.executable);
-    invoke<boolean[]>("check_agent_clis", { names, workspace: env })
-      .then((present) => {
+    invoke<string>("db_load_workspace_setup_custom_command")
+      .then((command) => {
         if (cancelled) return;
-        setInstalledAgents(
-          new Set(
-            configuredAgentCliOptions.filter((_, index) => present[index]).map(
-              (agent) => agent.id,
-            ),
-          ),
-        );
+        if (!customCommandEditedRef.current) {
+          setCustomCommand(command);
+        }
+        setCustomCommandLoaded(true);
       })
       .catch((error) => {
-        console.error("Failed to check installed agent CLIs:", error);
-        if (!cancelled) {
-          setInstalledAgents(
-            new Set(configuredAgentCliOptions.map((agent) => agent.id)),
-          );
-        }
+        console.error("Failed to load custom agent CLI command:", error);
+        if (!cancelled) setCustomCommandLoaded(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [configuredCliAgentIds, disabledCliAgentIds]);
+  }, []);
+
+  useEffect(() => {
+    if (!customCommandLoaded || !customCommandEditedRef.current) return;
+    const timeout = window.setTimeout(
+      () => persistCustomCommand(customCommand),
+      250,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [customCommand, customCommandLoaded, persistCustomCommand]);
 
   useEffect(() => {
     setSelectedFolder(workingFolder ?? "");
@@ -1182,9 +1186,7 @@ export function WorkspaceSetupView({
       let remaining = cliTerminalCapacity;
       const next: Record<string, number> = {};
       const ids = [
-        ...configuredAgentCliOptions.filter(
-          (agent) => installedAgents?.has(agent.id) ?? true,
-        ).map((agent) => agent.id),
+        ...configuredAgentCliOptions.map((agent) => agent.id),
         "custom",
       ];
       for (const id of ids) {
@@ -1198,7 +1200,6 @@ export function WorkspaceSetupView({
     terminalCount,
     cliTerminalCapacity,
     selectedImportSessions.length,
-    installedAgents,
     configuredCliAgentIds,
     disabledCliAgentIds,
   ]);
@@ -1729,104 +1730,98 @@ export function WorkspaceSetupView({
                 </Button>
               </div>
 
-              {installedAgents === null ? (
-                <div className="rounded-lg border border-border/50 bg-card/35 px-4 py-3 text-sm text-muted-foreground">
-                  Scanning installed agents…
-                </div>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {availableAgents.map((agent) => {
-                    const count = agentCounts[agent.id] ?? 0;
-                    const selected = count > 0;
-                    return (
-                      <div
-                        key={agent.id}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {availableAgents.map((agent) => {
+                  const count = agentCounts[agent.id] ?? 0;
+                  const selected = count > 0;
+                  return (
+                    <div
+                      key={agent.id}
+                      className={cn(
+                        "flex min-w-0 items-center gap-3 rounded-lg border px-3 py-2 transition-colors",
+                        selected
+                          ? "border-primary/65 bg-primary/10"
+                          : "border-border/50 bg-card/35",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAgentCount(agent.id, selected ? 0 : 1)
+                        }
                         className={cn(
-                          "flex min-w-0 items-center gap-3 rounded-lg border px-3 py-2 transition-colors",
+                          "flex size-5 shrink-0 items-center justify-center rounded border transition-colors",
                           selected
-                            ? "border-primary/65 bg-primary/10"
-                            : "border-border/50 bg-card/35",
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-transparent",
                         )}
+                        aria-label={`Toggle ${agent.name}`}
+                        aria-pressed={selected}
                       >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setAgentCount(agent.id, selected ? 0 : 1)
+                        <HugeiconsIcon
+                          icon={Tick02Icon}
+                          size={13}
+                          strokeWidth={2.4}
+                        />
+                      </button>
+                      <AgentCliIcon agent={agent.id} size="md" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                          {agent.name}
+                        </div>
+                        <Input
+                          value={effectiveAgentCommands[agent.id] ?? ""}
+                          onChange={(event) =>
+                            setAgentCommandDrafts((current) => ({
+                              ...current,
+                              [agent.id]: event.target.value,
+                            }))
                           }
-                          className={cn(
-                            "flex size-5 shrink-0 items-center justify-center rounded border transition-colors",
-                            selected
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border text-transparent",
-                          )}
-                          aria-label={`Toggle ${agent.name}`}
-                          aria-pressed={selected}
-                        >
-                          <HugeiconsIcon
-                            icon={Tick02Icon}
-                            size={13}
-                            strokeWidth={2.4}
-                          />
-                        </button>
-                        <AgentCliIcon agent={agent.id} size="md" />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-foreground">
-                            {agent.name}
-                          </div>
-                          <Input
-                            value={effectiveAgentCommands[agent.id] ?? ""}
-                            onChange={(event) =>
-                              setAgentCommandDrafts((current) => ({
-                                ...current,
-                                [agent.id]: event.target.value,
-                              }))
-                            }
-                            onBlur={() =>
+                          onBlur={() =>
+                            persistAgentCommand(
+                              agent.id,
+                              effectiveAgentCommands[agent.id] ?? "",
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
                               persistAgentCommand(
                                 agent.id,
                                 effectiveAgentCommands[agent.id] ?? "",
-                              )
+                              );
                             }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                persistAgentCommand(
-                                  agent.id,
-                                  effectiveAgentCommands[agent.id] ?? "",
-                                );
-                              }
-                            }}
-                            aria-label={`${agent.name} start command`}
-                            spellCheck={false}
-                            className="h-6 rounded-md border-border/60 bg-background/40 px-1.5 font-mono text-[11px] text-foreground shadow-none focus-visible:ring-1 focus-visible:ring-primary/40"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setAgentCount(agent.id, count - 1)}
-                          disabled={count === 0}
-                          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
-                          aria-label={`Remove ${agent.name} terminal`}
-                        >
-                          -
-                        </button>
-                        <span className="w-5 text-center text-sm font-semibold tabular-nums">
-                          {count}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setAgentCount(agent.id, count + 1)}
-                          disabled={remainingAgentSlots === 0}
-                          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
-                          aria-label={`Add ${agent.name} terminal`}
-                        >
-                          +
-                        </button>
+                          }}
+                          aria-label={`${agent.name} start command`}
+                          spellCheck={false}
+                          className="h-6 rounded-md border-border/60 bg-background/40 px-1.5 font-mono text-[11px] text-foreground shadow-none focus-visible:ring-1 focus-visible:ring-primary/40"
+                        />
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      <button
+                        type="button"
+                        onClick={() => setAgentCount(agent.id, count - 1)}
+                        disabled={count === 0}
+                        className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                        aria-label={`Remove ${agent.name} terminal`}
+                      >
+                        -
+                      </button>
+                      <span className="w-5 text-center text-sm font-semibold tabular-nums">
+                        {count}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAgentCount(agent.id, count + 1)}
+                        disabled={remainingAgentSlots === 0}
+                        className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                        aria-label={`Add ${agent.name} terminal`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
 
               <div className="space-y-2 rounded-lg border border-dashed border-border/70 bg-card/25 p-3">
                 <div className="flex items-center gap-3">
@@ -1889,7 +1884,20 @@ export function WorkspaceSetupView({
                 </div>
                 <Input
                   value={customCommand}
-                  onChange={(event) => setCustomCommand(event.target.value)}
+                  onChange={(event) => {
+                    customCommandEditedRef.current = true;
+                    setCustomCommand(event.target.value);
+                  }}
+                  onBlur={() => {
+                    if (customCommandLoaded) {
+                      persistCustomCommand(customCommand);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && customCommandLoaded) {
+                      persistCustomCommand(customCommand);
+                    }
+                  }}
                   placeholder="e.g. aider --yes-always"
                   className="h-9 font-mono text-sm"
                   aria-label="Custom agent CLI command"
