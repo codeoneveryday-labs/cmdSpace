@@ -23,6 +23,42 @@ use tauri::{LogicalPosition, LogicalSize};
 use tauri_plugin_window_state::StateFlags;
 
 #[cfg(target_os = "macos")]
+#[tauri::command]
+fn set_webview_corner_radius(
+    app: tauri::AppHandle,
+    label: String,
+    radius: f64,
+) -> Result<(), String> {
+    use objc2::{msg_send, runtime::AnyObject};
+
+    let webview = app
+        .get_webview(&label)
+        .ok_or_else(|| format!("webview '{label}' was not found"))?;
+
+    webview
+        .with_webview(move |platform_webview| unsafe {
+            let view = &*(platform_webview.inner() as *const AnyObject);
+            let _: () = msg_send![view, setWantsLayer: true];
+            let layer: *mut AnyObject = msg_send![view, layer];
+            if let Some(layer) = layer.as_ref() {
+                let _: () = msg_send![layer, setCornerRadius: radius];
+                let _: () = msg_send![layer, setMasksToBounds: true];
+            }
+        })
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn set_webview_corner_radius(
+    _app: tauri::AppHandle,
+    _label: String,
+    _radius: f64,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
 const WORKSPACE_TRAY_ID: &str = "cmdspace-workspaces";
 const WORKSPACE_SWITCHER_LABEL: &str = "tray";
 #[cfg(target_os = "macos")]
@@ -907,6 +943,7 @@ pub fn run() {
             hide_workspace_switcher,
             open_workspace_from_tray,
             set_desktop_blur,
+            set_webview_corner_radius,
             secrets::secrets_get,
             secrets::secrets_set,
             secrets::secrets_delete,

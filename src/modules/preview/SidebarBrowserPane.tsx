@@ -6,6 +6,7 @@ import {
   LinkSquare02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { invoke } from "@tauri-apps/api/core";
 import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { Webview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -15,6 +16,7 @@ import {
   PreviewAddressBar,
   type PreviewAddressBarHandle,
 } from "./PreviewAddressBar";
+import { intersectBrowserBounds } from "./browserBounds";
 
 type Props = {
   url: string;
@@ -115,22 +117,39 @@ export function SidebarBrowserPane({
     setError(null);
   }, [normalizedUrl, reloadNonce]);
 
-  const syncNativeBounds = useCallback(async () => {
+  const getVisibleNativeBounds = useCallback(() => {
     const host = hostRef.current;
-    const webview = webviewRef.current;
-    if (!host || !webview) return;
+    if (!host) return null;
 
     const rect = host.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
+    const viewport = host.closest<HTMLElement>(
+      '[data-canvas-surface-viewport="true"]',
+    );
+    if (!viewport) return rect;
+
+    return intersectBrowserBounds(rect, viewport.getBoundingClientRect());
+  }, []);
+
+  const syncNativeBounds = useCallback(async (): Promise<boolean> => {
+    const webview = webviewRef.current;
+    if (!webview) return false;
+
+    const visibleBounds = getVisibleNativeBounds();
+    if (!visibleBounds) {
       await webview.hide().catch(() => {});
-      return;
+      return false;
     }
 
     await Promise.all([
-      webview.setPosition(new LogicalPosition(rect.left, rect.top)),
-      webview.setSize(new LogicalSize(rect.width, rect.height)),
+      webview.setPosition(
+        new LogicalPosition(visibleBounds.left, visibleBounds.top),
+      ),
+      webview.setSize(
+        new LogicalSize(visibleBounds.width, visibleBounds.height),
+      ),
     ]);
-  }, []);
+    return true;
+  }, [getVisibleNativeBounds]);
 
   const closeNativeWebview = useCallback(async () => {
     const webview = webviewRef.current;
@@ -155,16 +174,17 @@ export function SidebarBrowserPane({
         }
 
         if (!webviewRef.current) {
-          const rect = hostRef.current?.getBoundingClientRect();
+          const visibleBounds = getVisibleNativeBounds();
+          if (!visibleBounds) return;
           const webview = new Webview(
             getCurrentWindow(),
             webviewLabelRef.current,
             {
               url: normalizedUrl,
-              x: rect?.left ?? 0,
-              y: rect?.top ?? 0,
-              width: Math.max(rect?.width ?? 1, 1),
-              height: Math.max(rect?.height ?? 1, 1),
+              x: visibleBounds.left,
+              y: visibleBounds.top,
+              width: visibleBounds.width,
+              height: visibleBounds.height,
               focus: false,
               dragDropEnabled: false,
             },
@@ -179,15 +199,21 @@ export function SidebarBrowserPane({
               void webview.hide().catch(() => {});
               return;
             }
-            void syncNativeBounds()
-              .then(() => webview.show())
+            void invoke("set_webview_corner_radius", {
+              label: webviewLabelRef.current,
+              radius: 12,
+            })
+              .then(syncNativeBounds)
+              .then((inViewport) =>
+                inViewport ? webview.show() : undefined,
+              )
               .catch((reason) => setError(String(reason)));
           });
           return;
         }
 
-        await syncNativeBounds();
-        if (!cancelled) await webviewRef.current.show();
+        const inViewport = await syncNativeBounds();
+        if (!cancelled && inViewport) await webviewRef.current.show();
       } catch (reason) {
         setError(String(reason));
       }
@@ -199,6 +225,8 @@ export function SidebarBrowserPane({
     };
   }, [
     closeNativeWebview,
+    boundsRevision,
+    getVisibleNativeBounds,
     normalizedUrl,
     reloadNonce,
     nativeInteractionBlocked,
@@ -216,6 +244,10 @@ export function SidebarBrowserPane({
       void syncNativeBounds().catch(() => {});
     });
     resizeObserver.observe(host);
+    const viewport = host.closest<HTMLElement>(
+      '[data-canvas-surface-viewport="true"]',
+    );
+    if (viewport) resizeObserver.observe(viewport);
 
     const onWindowChange = () => {
       void syncNativeBounds().catch(() => {});

@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   Add01Icon,
   Cancel01Icon,
+  Globe02Icon,
   LockIcon,
   SquareUnlock01Icon,
   TerminalIcon,
@@ -47,11 +48,19 @@ const LOCAL_INPUT_ECHO_GRACE_MS = 180;
 type Props = {
   initialCwd?: string;
   initialCommand?: string;
-  stackTabs: Array<{ id: string; label: string }>;
+  stackTabs: Array<{
+    id: string;
+    label: string;
+    kind?: "terminal" | "browser";
+  }>;
   activeTabId: string;
   visible: boolean;
   onActivate: () => void;
   onActivateTab: (terminalId: string) => void;
+  onTabPointerDown: (
+    terminalId: string,
+    event: ReactPointerEvent<HTMLElement>,
+  ) => void;
   onRequestCloseTab: (terminalId: string) => void;
   onAddTab: () => void;
   onSplitRight: () => void;
@@ -131,6 +140,7 @@ export function CanvasTerminalNode({
   visible,
   onActivate,
   onActivateTab,
+  onTabPointerDown,
   onRequestCloseTab,
   onAddTab,
   onSplitRight,
@@ -621,6 +631,7 @@ export function CanvasTerminalNode({
           {stackTabs.map((tab) => (
             <div
               key={tab.id}
+              data-canvas-surface-tab-kind={tab.kind}
               className={cn(
                 "flex max-w-52 shrink-0 items-center rounded-full py-0.5 pr-1 text-[11px] font-normal transition-colors",
                 tab.id === activeTabId
@@ -634,14 +645,10 @@ export function CanvasTerminalNode({
                 aria-selected={tab.id === activeTabId}
                 className="flex min-w-0 items-center gap-1 px-2"
               onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onActivateTab(tab.id);
-                if (tab.id === activeTabId) {
-                  onHeaderPointerDown(
-                    event as unknown as ReactPointerEvent<HTMLDivElement>,
-                  );
-                }
+                 event.preventDefault();
+                 event.stopPropagation();
+                 onActivateTab(tab.id);
+                 onTabPointerDown(tab.id, event);
               }}
               onClick={(event) => {
                 event.stopPropagation();
@@ -649,7 +656,11 @@ export function CanvasTerminalNode({
               }}
               >
                 <HugeiconsIcon
-                  icon={TerminalIcon}
+                  icon={
+                    tab.kind === "browser"
+                      ? Globe02Icon
+                      : TerminalIcon
+                  }
                   size={12}
                   strokeWidth={1.8}
                   className={cn(

@@ -75,6 +75,13 @@ describe("ArchitectureCanvas terminal docking integration", () => {
     );
   });
 
+  it("detaches a dragged tab without moving its entire dock group", () => {
+    expect(source).toContain("onTabPointerDown={(surfaceId, event) =>");
+    expect(source).toContain("const surfaceNode = nodeById.get(surfaceId)");
+    expect(source).toContain("handleNodePointerDown(");
+    expect(source).toContain("surfaceNode,");
+  });
+
   it("uses rendered dock-group bounds as terminal placement obstacles", () => {
     expect(source).toContain("const terminalPlacementObstacles = useMemo(() =>");
     expect(source).toContain("const dockedTerminalIds = new Set(");
@@ -91,12 +98,37 @@ describe("ArchitectureCanvas terminal docking integration", () => {
   });
 
   it("creates header tabs and right splits through the persisted dock model", () => {
-    expect(source).toContain("function createDockedTerminal(");
+    expect(source).toContain("function createDockedSurface(");
     expect(source).toContain('kind: "tab" | "split"');
     expect(source).toContain("onAddTab={() =>");
     expect(source).toContain("onSplitRight={() =>");
     expect(source).toContain('edge: "right"');
     expect(source).toContain("dockTerminal(");
+  });
+
+  it("keeps the newly created tab visible when adding inside a maximized group", () => {
+    expect(source).toContain("maximizedTerminalId === source.id");
+    expect(source).toContain("setMaximizedTerminalId(created.id)");
+  });
+
+  it("arms Browser placement instead of centering it immediately", () => {
+    expect(source).toContain('beginSurfacePlacement("browser")');
+    expect(source).not.toContain('beginSurfacePlacement("editor")');
+    expect(source).toContain("function commitSurfacePlacement(");
+    expect(source).toContain("pendingSurfaceKind");
+    expect(source).not.toContain("function createInteractiveSurface(");
+  });
+
+  it("uses the persisted dock model for every live canvas surface", () => {
+    expect(source).toContain("const liveSurfaceNodes = nodes.filter(isLiveSurfaceNode)");
+    expect(source).toContain("function createDockedSurface(");
+    expect(source).toContain("isLiveSurfaceKind(dragged.kind)");
+    expect(source).toMatch(/normalizeTerminalDockGroups\(\s*liveSurfaceNodes/);
+  });
+
+  it("allows terminal and browser surfaces to share dock targets", () => {
+    expect(source).toMatch(/projectTerminalDockLayouts\(\s*terminalLayouts/);
+    expect(source).not.toContain("compatibleDockLayouts(");
   });
 
   it("closes a tab independently while a single terminal can close its group", () => {

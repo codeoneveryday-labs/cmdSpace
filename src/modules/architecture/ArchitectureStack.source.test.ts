@@ -104,9 +104,7 @@ describe("Architecture workspace page", () => {
     expect(canvasSource).toContain("isFrameAttachableKind(dragged.kind)");
     expect(canvasSource).toContain("frameId: nextFrameId");
     expect(canvasSource).toContain("isFrameAttachableKind(item.kind)");
-    expect(canvasSource).toContain(
-      'kind === "terminal" || kind === "browser" || kind === "editor"',
-    );
+    expect(canvasSource).toContain('kind === "terminal" || kind === "browser"');
     expect(canvasSource).toContain("groupIds.has(item.frameId)");
     expect(canvasSource).toContain("moveTerminalDockGroups");
     expect(canvasSource).toContain("attachedTerminalGroupIds");

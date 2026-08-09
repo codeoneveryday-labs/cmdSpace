@@ -45,6 +45,20 @@ describe("recommendTerminalPlacements", () => {
     expect(placements.some((placement) => placement.y < anchor.y)).toBe(true);
     expect(placements.some((placement) => placement.y > anchor.y)).toBe(true);
   });
+
+  it("uses the requested surface size for browser and editor placement", () => {
+    const placements = recommendTerminalPlacements(
+      { x: 0, y: 0, width: 1400, height: 900 },
+      [],
+      undefined,
+      { width: 720, height: 480 },
+    );
+
+    expect(placements).toHaveLength(6);
+    expect(
+      placements.every(({ width, height }) => width === 720 && height === 480),
+    ).toBe(true);
+  });
 });
 
 function overlaps(

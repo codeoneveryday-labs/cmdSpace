@@ -227,7 +227,7 @@ describe("layoutTerminalDockGroups", () => {
     });
   });
 
-  it("reserves shared chrome only when a group contains multiple terminals", () => {
+  it("lets a tab-only group use its surface title bar without a duplicate header", () => {
     const group: ArchitectureTerminalDockGroup = {
       id: "group-1",
       x: 100,
@@ -242,12 +242,12 @@ describe("layoutTerminalDockGroups", () => {
       },
     };
 
-    expect(terminalDockGroupUsesSharedHeader(group)).toBe(true);
+    expect(terminalDockGroupUsesSharedHeader(group)).toBe(false);
     expect(layoutTerminalDockGroups([group])[0].rect).toEqual({
       x: 100,
-      y: 228,
+      y: 200,
       width: 1000,
-      height: 572,
+      height: 600,
     });
   });
 
@@ -290,6 +290,7 @@ describe("layoutTerminalDockGroups", () => {
       },
     };
 
+    expect(terminalDockGroupUsesSharedHeader(group)).toBe(true);
     expect(layoutTerminalDockGroups([group])).toEqual([
       {
         groupId: "group-1",
@@ -500,7 +501,6 @@ describe("terminal dock mutations", () => {
     expect(layoutTerminalDockGroups(next)).toEqual([
       {
         ...target,
-        rect: { x: target.rect.x, y: target.rect.y + 28, width: target.rect.width, height: target.rect.height - 28 },
         terminalIds: ["target", "source"],
         activeTerminalId: "source",
       },
