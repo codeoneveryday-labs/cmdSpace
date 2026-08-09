@@ -30,9 +30,26 @@ pub struct AgentRateLimit {
     pub resets_at: Option<u64>,
 }
 
+/// A provider-wide quota snapshot. It intentionally excludes the per-session
+/// context counters shown in terminal chrome.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderLimitStatus {
+    pub provider: String,
+    pub rate_limits: Vec<AgentRateLimit>,
+    pub observed_at: u64,
+}
+
 #[tauri::command]
 pub async fn agent_usage_statuses(cwd: String) -> Result<Vec<AgentUsageStatus>, String> {
     tauri::async_runtime::spawn_blocking(move || scan_agent_usage(&cwd))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub async fn provider_limit_statuses() -> Result<Vec<ProviderLimitStatus>, String> {
+    tauri::async_runtime::spawn_blocking(scan_provider_limit_statuses)
         .await
         .map_err(|error| error.to_string())?
 }
@@ -50,6 +67,38 @@ fn scan_agent_usage(cwd: &str) -> Result<Vec<AgentUsageStatus>, String> {
         statuses.push(status);
     }
     Ok(statuses)
+}
+
+fn scan_provider_limit_statuses() -> Result<Vec<ProviderLimitStatus>, String> {
+    let Some(home) = dirs::home_dir() else {
+        return Ok(Vec::new());
+    };
+
+    let sessions_root = home.join(".codex").join("sessions");
+    for file in newest_jsonl_files(&sessions_root, 4) {
+        let observed_at = modified_at(&file);
+        if let Some(snapshot) = tail_lines(&file)
+            .into_iter()
+            .rev()
+            .find_map(|line| parse_codex_status(&line))
+            .and_then(|status| provider_limit_snapshot(status, observed_at))
+        {
+            return Ok(vec![snapshot]);
+        }
+    }
+
+    Ok(Vec::new())
+}
+
+pub fn provider_limit_snapshot(
+    status: AgentUsageStatus,
+    observed_at: u64,
+) -> Option<ProviderLimitStatus> {
+    (!status.rate_limits.is_empty()).then_some(ProviderLimitStatus {
+        provider: status.provider,
+        rate_limits: status.rate_limits,
+        observed_at,
+    })
 }
 
 fn scan_codex(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {

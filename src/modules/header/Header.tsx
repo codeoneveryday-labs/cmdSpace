@@ -8,6 +8,7 @@ import {
 import { WindowControls } from "@/components/WindowControls";
 import { IS_MAC, KEY_SEP, USE_CUSTOM_WINDOW_CONTROLS } from "@/lib/platform";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { ProviderUsagePopover } from "@/modules/usage";
 import { invoke } from "@tauri-apps/api/core";
 import {
   getBindingTokens,
@@ -25,6 +26,7 @@ import {
   SidebarLeftIcon,
   SidebarRightIcon,
   FocusPointIcon,
+  ChartLineData01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -148,6 +150,18 @@ export function Header({
     </Button>
   );
 
+  const usageButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+      title="Provider limits"
+      aria-label="Provider limits"
+    >
+      <HugeiconsIcon icon={ChartLineData01Icon} size={16} strokeWidth={1.75} />
+    </Button>
+  );
+
   const toggleBackgroundBlur = () => {
     const enabled = !desktopBlurEnabled;
     setDesktopBlurEnabled(enabled);
@@ -247,7 +261,12 @@ export function Header({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {!IS_MAC && shortcutsButton}
+        {!IS_MAC && (
+          <>
+            {shortcutsButton}
+            <ProviderUsagePopover trigger={usageButton} />
+          </>
+        )}
       </div>
 
       {!IS_MAC && <span className="mx-1 h-5 w-px shrink-0 bg-border" />}
@@ -280,6 +299,7 @@ export function Header({
       {IS_MAC && (
         <>
           {shortcutsButton}
+          <ProviderUsagePopover trigger={usageButton} />
           {backgroundBlurButton}
           {settingsButton}
           {sidebarButton}

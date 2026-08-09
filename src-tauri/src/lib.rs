@@ -877,6 +877,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             agent_usage::agent_usage_statuses,
+            agent_usage::provider_limit_statuses,
             pty::pty_open,
             pty::pty_write,
             pty::pty_trace_input,
