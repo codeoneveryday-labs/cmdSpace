@@ -128,6 +128,7 @@ import {
   type WorkspaceMode,
   type ImportableAgentSession,
 } from "@/modules/workspaces";
+import { createWorkspaceOpenGate } from "./workspaceOpenGate";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { homeDir } from "@tauri-apps/api/path";
@@ -648,6 +649,7 @@ export default function App() {
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
+  const workspaceOpenGateRef = useRef(createWorkspaceOpenGate());
   useEffect(() => {
     workspacesRef.current = workspaces;
   }, [workspaces]);
@@ -1269,6 +1271,7 @@ export default function App() {
 
   const handleSelectWorkspace = useCallback(
     (workspaceId: string) => {
+      void workspaceOpenGateRef.current.open(workspaceId, () => {
       const workspace = workspaces.find((item) => item.id === workspaceId);
       if (!workspace) return;
       setWorkspaceSetupOpen(false);
@@ -1307,7 +1310,7 @@ export default function App() {
           );
           return;
         }
-        invoke<any[]>("db_list_panes", { workspaceId })
+        return invoke<any[]>("db_list_panes", { workspaceId })
           .then((panes) => {
             const diagram = canvasWorkspaceDiagram(
               workspace.count,
@@ -1365,7 +1368,7 @@ export default function App() {
       if (workspace.tabId !== null) {
         setActiveId(workspace.tabId);
       } else {
-        invoke<any[]>("db_list_panes", { workspaceId })
+        return invoke<any[]>("db_list_panes", { workspaceId })
           .then((panes) => {
             const tabId = newWorkspaceTab(
               workspace.workingFolder ?? undefined,
@@ -1390,6 +1393,7 @@ export default function App() {
             );
           });
       }
+      });
     },
     [
       newArchitectureTab,
@@ -1402,15 +1406,18 @@ export default function App() {
     ],
   );
 
+  const handleSelectWorkspaceRef = useRef(handleSelectWorkspace);
+  handleSelectWorkspaceRef.current = handleSelectWorkspace;
+
   useEffect(() => {
     const unlisten = listen<string>("cmdspace:open-workspace", (event) => {
-      handleSelectWorkspace(event.payload);
+      handleSelectWorkspaceRef.current(event.payload);
     });
 
     return () => {
       void unlisten.then((dispose) => dispose());
     };
-  }, [handleSelectWorkspace]);
+  }, []);
 
   const deleteWorkspace = useCallback(
     (workspaceId: string) => {
