@@ -20,12 +20,12 @@ import {
 } from "@/modules/shortcuts/shortcuts";
 import {
   Cancel01Icon,
+  CanvasIcon,
   Clock01Icon,
   ComputerTerminal02Icon,
   GitBranchIcon,
   GitCompareIcon,
   Globe02Icon,
-  AiNetworkIcon,
   IncognitoIcon,
   MusicNote01Icon,
   PencilEdit02Icon,
@@ -391,7 +391,7 @@ export function TabBar({
               onSelect={onNewMusic}
             />
             <NewTabMenuItem
-              icon={AiNetworkIcon}
+              icon={CanvasIcon}
               label="Architecture"
               shortcut={shortcutFor("tab.newArchitecture")}
               onSelect={onNewArchitecture}
@@ -549,7 +549,7 @@ function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
   if (tab.kind === "architecture") {
     return (
       <HugeiconsIcon
-        icon={AiNetworkIcon}
+        icon={CanvasIcon}
         size={14}
         strokeWidth={2}
         className="shrink-0"

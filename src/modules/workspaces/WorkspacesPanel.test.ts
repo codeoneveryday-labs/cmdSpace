@@ -31,6 +31,12 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("Workspace mode");
     expect(panelSource).toContain("Standard workspace");
     expect(panelSource).toContain("Canvas workspace");
+    expect(panelSource).toContain("WorkspaceModeIcon");
+    expect(panelSource).toContain('workspace.workspaceMode === "canvas"');
+    expect(panelSource).toContain("CanvasIcon");
+    expect(panelSource).toContain("ComputerTerminal02Icon");
+    expect(panelSource).toContain("Canvas workspace");
+    expect(panelSource).toContain("Standard terminal workspace");
     expect(panelSource).toContain(
       'useState<WorkspaceMode>("standard")',
     );
@@ -72,6 +78,11 @@ describe("WorkspacesPanel", () => {
     expect(agentCliIconSource).toContain("getAgentBrandIcon");
     expect(agentCliIconSource).toContain("<BrandIcon");
     expect(panelSource).toContain("Add AI coding agents");
+    expect(panelSource).not.toContain("Quick fill:");
+    expect(panelSource).not.toContain("One of each");
+    expect(panelSource).not.toContain("Split evenly");
+    expect(panelSource).not.toContain("fillOneOfEachAgent");
+    expect(panelSource).not.toContain("splitAgentsEvenly");
     expect(panelSource).toContain("availableAgents");
     expect(panelSource).toContain(
       "const availableAgents = configuredAgentCliOptions",
