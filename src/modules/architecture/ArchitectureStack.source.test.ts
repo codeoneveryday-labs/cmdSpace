@@ -85,6 +85,8 @@ describe("Architecture workspace page", () => {
     expect(tabsSource).toContain("newArchitectureTab");
     expect(tabBarSource).toContain("onNewArchitecture");
     expect(tabBarSource).toContain('label="Architecture"');
+    expect(tabBarSource).toContain("CanvasIcon");
+    expect(tabBarSource).not.toContain("AiNetworkIcon");
     expect(appSource).toContain("<ArchitectureStack");
     expect(appSource).toContain("canvasFocused={canvasFocused}");
     expect(appSource).toContain("onToggleCanvasFocus={toggleCanvasFocus}");
