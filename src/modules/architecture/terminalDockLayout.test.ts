@@ -12,6 +12,7 @@ import {
   layoutTerminalDockDividers,
   layoutTerminalDockGroups,
   normalizeTerminalDockGroups,
+  projectMaximizedTerminalDockGroups,
   projectTerminalDockLayouts,
   removeTerminalFromDock,
   resolveTerminalDockDrop,
@@ -314,6 +315,84 @@ describe("layoutTerminalDockGroups", () => {
         activeTerminalId: "terminal-3",
       },
     ]);
+  });
+});
+
+describe("projectMaximizedTerminalDockGroups", () => {
+  it("keeps every split pane and divider inside the maximized group", () => {
+    const group: ArchitectureTerminalDockGroup = {
+      id: "group-1",
+      x: 100,
+      y: 200,
+      width: 1000,
+      height: 600,
+      root: {
+        id: "split-horizontal",
+        kind: "split",
+        direction: "horizontal",
+        ratio: 0.4,
+        first: {
+          id: "stack-left",
+          kind: "tabs",
+          terminalIds: ["terminal-1"],
+          activeTerminalId: "terminal-1",
+        },
+        second: {
+          id: "stack-right",
+          kind: "tabs",
+          terminalIds: ["terminal-2"],
+          activeTerminalId: "terminal-2",
+        },
+      },
+    };
+    const otherGroup: ArchitectureTerminalDockGroup = {
+      id: "group-2",
+      x: 1200,
+      y: 200,
+      width: 500,
+      height: 400,
+      root: {
+        id: "stack-other",
+        kind: "tabs",
+        terminalIds: ["terminal-3"],
+        activeTerminalId: "terminal-3",
+      },
+    };
+
+    const projected = projectMaximizedTerminalDockGroups(
+      [group, otherGroup],
+      "terminal-2",
+      { x: 32, y: 32, width: 1536, height: 836 },
+    );
+
+    expect(projected).toHaveLength(1);
+    expect(projected[0]).toMatchObject({
+      id: "group-1",
+      x: 32,
+      y: 32,
+      width: 1536,
+      height: 836,
+    });
+    const layouts = layoutTerminalDockGroups(projected);
+    expect(layouts).toMatchObject([
+      { terminalIds: ["terminal-1"] },
+      { terminalIds: ["terminal-2"] },
+    ]);
+    expect(layouts[0].rect).toMatchObject({ x: 32, y: 60, height: 808 });
+    expect(layouts[0].rect.width).toBeCloseTo(614.4);
+    expect(layouts[1].rect.x).toBeCloseTo(646.4);
+    expect(layouts[1].rect.width).toBeCloseTo(921.6);
+    expect(layouts[1].rect).toMatchObject({ y: 60, height: 808 });
+    expect(layoutTerminalDockDividers(projected)).toEqual([
+      {
+        groupId: "group-1",
+        splitId: "split-horizontal",
+        direction: "horizontal",
+        rect: { x: 32, y: 60, width: 1536, height: 808 },
+        ratio: 0.4,
+      },
+    ]);
+    expect(group).toMatchObject({ x: 100, y: 200, width: 1000, height: 600 });
   });
 });
 

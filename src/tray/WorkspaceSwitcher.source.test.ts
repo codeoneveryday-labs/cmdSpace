@@ -42,12 +42,27 @@ describe("menu bar workspace switcher wiring", () => {
     expect(source).toContain('aria-label="Workspace results"');
   });
 
+  it("keeps the rounded popup shadow inside the transparent tray window", () => {
+    const source = readFileSync(
+      path.join(root, "src/tray/WorkspaceSwitcher.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain("p-3 pt-4");
+    expect(source).toContain("rounded-[18px]");
+    expect(source).toContain(
+      "shadow-[0_6px_16px_-8px_rgba(15,23,42,0.38)]",
+    );
+    expect(source).not.toContain("shadow-2xl shadow-black/25");
+  });
+
   it("hands selection to the existing main-window workspace callback", () => {
     const app = readFileSync(path.join(root, "src/app/App.tsx"), "utf8");
     const tauri = readFileSync(path.join(root, "src-tauri/src/lib.rs"), "utf8");
 
     expect(app).toContain('listen<string>("cmdspace:open-workspace"');
-    expect(app).toContain("handleSelectWorkspace(event.payload)");
+    expect(app).toContain("handleSelectWorkspaceRef.current(event.payload)");
+    expect(app).toContain("workspaceOpenGateRef.current.open(workspaceId");
     expect(tauri).toContain("TrayIconBuilder::with_id(WORKSPACE_TRAY_ID)");
     expect(tauri).toContain('WebviewUrl::App("tray.html".into())');
     expect(tauri).toContain('"cmdspace:tray-opened"');
