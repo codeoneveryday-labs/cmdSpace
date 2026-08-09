@@ -48,7 +48,7 @@ fn list_agent_sessions_in(home: &Path, limit: usize) -> Vec<ImportableAgentSessi
     sessions.extend(list_opencode_sessions(
         &home.join(".local/share/opencode/opencode.db"),
     ));
-    sessions.sort_by(|left, right| right.last_activity_at.cmp(&left.last_activity_at));
+    sessions.sort_by_key(|session| std::cmp::Reverse(session.last_activity_at));
     sessions.truncate(limit);
     sessions
 }
