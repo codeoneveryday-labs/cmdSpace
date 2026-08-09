@@ -557,10 +557,11 @@ fn setup_workspace_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::
     .shadow(false)
     .build()?;
 
-    let mut tray = TrayIconBuilder::with_id(WORKSPACE_TRAY_ID)
+    let tray = TrayIconBuilder::with_id(WORKSPACE_TRAY_ID)
         .tooltip("cmdSpace Workspaces")
         .show_menu_on_left_click(false)
         .icon_as_template(true)
+        .icon(tauri::include_image!("icons/trayTemplate.png"))
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
                 rect,
@@ -575,9 +576,6 @@ fn setup_workspace_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::
                 }
             }
         });
-    if let Some(icon) = app.default_window_icon().cloned() {
-        tray = tray.icon(icon);
-    }
     tray.build(app)?;
     Ok(())
 }
