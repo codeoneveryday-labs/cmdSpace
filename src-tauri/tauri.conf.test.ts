@@ -41,6 +41,11 @@ describe("updater release configuration", () => {
     expect(releaseWorkflow).toContain(
       "TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
     );
+    expect(releaseWorkflow).toContain("libayatana-appindicator3-dev");
+    expect(releaseWorkflow).toContain("release_tag:");
+    expect(releaseWorkflow).toContain(
+      "tagName: ${{ inputs.release_tag || github.ref_name }}",
+    );
   });
 });
 
