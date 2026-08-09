@@ -77,12 +77,7 @@ fn scan_provider_limit_statuses() -> Result<Vec<ProviderLimitStatus>, String> {
     let sessions_root = home.join(".codex").join("sessions");
     for file in newest_jsonl_files(&sessions_root, 4) {
         let observed_at = modified_at(&file);
-        if let Some(snapshot) = tail_lines(&file)
-            .into_iter()
-            .rev()
-            .find_map(|line| parse_codex_status(&line))
-            .and_then(|status| provider_limit_snapshot(status, observed_at))
-        {
+        if let Some(snapshot) = latest_provider_limit_snapshot(&tail_lines(&file), observed_at) {
             return Ok(vec![snapshot]);
         }
     }
@@ -98,6 +93,15 @@ pub fn provider_limit_snapshot(
         provider: status.provider,
         rate_limits: status.rate_limits,
         observed_at,
+    })
+}
+
+pub fn latest_provider_limit_snapshot(
+    lines: &[String],
+    observed_at: u64,
+) -> Option<ProviderLimitStatus> {
+    lines.iter().rev().find_map(|line| {
+        parse_codex_status(line).and_then(|status| provider_limit_snapshot(status, observed_at))
     })
 }
 
