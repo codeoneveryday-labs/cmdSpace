@@ -25,11 +25,15 @@ export function recommendTerminalPlacements(
   viewport: Viewport,
   occupied: TerminalPlacement[],
   anchor?: TerminalPlacement,
+  size: Pick<TerminalPlacement, "width" | "height"> = {
+    width: TERMINAL_WIDTH,
+    height: TERMINAL_HEIGHT,
+  },
 ): TerminalPlacement[] {
   const origin = anchor
     ? {
-        x: anchor.x - TERMINAL_WIDTH - GAP,
-        y: anchor.y - TERMINAL_HEIGHT - GAP,
+        x: anchor.x - size.width - GAP,
+        y: anchor.y - size.height - GAP,
       }
     : { x: viewport.x + GAP, y: viewport.y + GAP };
   const slots = anchor
@@ -46,10 +50,10 @@ export function recommendTerminalPlacements(
 
   for (const [column, row] of slots) {
     const candidate = {
-      x: origin.x + column * (TERMINAL_WIDTH + GAP),
-      y: origin.y + row * (TERMINAL_HEIGHT + GAP),
-      width: TERMINAL_WIDTH,
-      height: TERMINAL_HEIGHT,
+      x: origin.x + column * (size.width + GAP),
+      y: origin.y + row * (size.height + GAP),
+      width: size.width,
+      height: size.height,
     };
     placed.push(nudgeBelowObstacles(candidate, [...occupied, ...placed]));
   }

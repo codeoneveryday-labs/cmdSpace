@@ -37,6 +37,14 @@ describe("Sidebar browser toolbar", () => {
     expect(source).toContain("webviewRef");
   });
 
+  it("rounds the native child webview instead of relying on DOM clipping", () => {
+    const source = readFileSync(sidebarBrowserPath, "utf8");
+
+    expect(source).toContain('@tauri-apps/api/core');
+    expect(source).toContain('invoke("set_webview_corner_radius"');
+    expect(source).toContain("radius: 12");
+  });
+
   it("enables the native webview runtime instead of forcing the iframe fallback", () => {
     const source = readFileSync(sidebarBrowserPath, "utf8");
     expect(source).toMatch(
@@ -97,5 +105,13 @@ describe("Sidebar browser toolbar", () => {
     expect(source).toContain("boundsRevision?: string | number;");
     expect(source).toContain("boundsRevision,");
     expect(source).toContain("[boundsRevision, syncNativeBounds, useNativeWebview]");
+  });
+
+  it("clips the native browser to the canvas viewport", () => {
+    const source = readFileSync(sidebarBrowserPath, "utf8");
+
+    expect(source).toContain('[data-canvas-surface-viewport="true"]');
+    expect(source).toContain("intersectBrowserBounds");
+    expect(source).toContain("if (!visibleBounds)");
   });
 });

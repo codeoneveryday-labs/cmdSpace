@@ -22,7 +22,6 @@ import {
   DatabaseIcon,
   DatabaseSyncIcon,
   DeliveryBox01Icon,
-  FileEditIcon,
   Globe02Icon,
   HashtagIcon,
   ImageAdd01Icon,
@@ -49,7 +48,6 @@ import {
   type CanvasTerminalHandle,
 } from "./CanvasTerminalNode";
 import { CanvasBrowserNode } from "./CanvasBrowserNode";
-import { CanvasEditorNode, canvasEditorTitle } from "./CanvasEditorNode";
 import { panViewFromPointer } from "./canvasPan";
 import { terminalWorldTransform } from "./canvasCoordinates";
 import { nextDiagramIdSequence } from "./diagramIds";
@@ -89,6 +87,7 @@ import type {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type ShapeKind = ArchitectureShapeKind;
+type LiveSurfaceKind = "terminal" | "browser";
 type CanvasMode = "select" | "pan" | "connect" | "rectangle" | "circle" | "line" | "arrow" | "pen" | "text" | "image" | "terminal" | "frame" | "eraser";
 type ShapeDrawingMode =
   | "rectangle"
@@ -106,8 +105,7 @@ type ResizableShapeKind =
   | "text"
   | "image"
   | "terminal"
-  | "browser"
-  | "editor";
+  | "browser";
 type ShapeCategory = "Drawing" | "C4" | "Application" | "Data" | "Platform";
 type Point = { x: number; y: number };
 type ResizeHandle = "nw" | "ne" | "se" | "sw";
@@ -272,14 +270,6 @@ export const ARCHITECTURE_SHAPES: ShapeConfig[] = [
     description: "Live web browser on the canvas",
     icon: Globe02Icon,
     tone: "border-sky-400/35 bg-sky-500/[0.08] text-sky-700 dark:text-sky-200",
-  },
-  {
-    kind: "editor",
-    label: "Editor",
-    category: "Platform",
-    description: "Live code editor on the canvas",
-    icon: FileEditIcon,
-    tone: "border-violet-400/35 bg-violet-500/[0.08] text-violet-700 dark:text-violet-200",
   },
   {
     kind: "line",
@@ -599,7 +589,7 @@ function normalizeDiagramSeed(seed?: ArchitectureDiagram): {
     nodes,
     edges,
     terminalDockGroups: normalizeTerminalDockGroups(
-      nodes.filter((item) => item.kind === "terminal"),
+      nodes.filter(isLiveSurfaceNode),
       seed?.terminalDockGroups,
     ),
   };
@@ -678,6 +668,8 @@ export function ArchitectureCanvas({
   });
   const [terminalPlacements, setTerminalPlacements] = useState<TerminalPlacement[]>([]);
   const [isFreeTerminalPlacement, setIsFreeTerminalPlacement] = useState(false);
+  const [pendingSurfaceKind, setPendingSurfaceKind] =
+    useState<LiveSurfaceKind | null>(null);
   const [activeTerminalId, setActiveTerminalId] = useState("");
   const [maximizedTerminalId, setMaximizedTerminalId] = useState("");
   // terminalId -> handle, populated via onTerminalHandleChange so Cmd+Arrow
@@ -696,9 +688,12 @@ export function ArchitectureCanvas({
   const viewWidth = canvasSize.width / view.scale;
   const viewHeight = canvasSize.height / view.scale;
   const terminalTransform = terminalWorldTransform(view, appZoom);
-  const terminalNodes = nodes.filter((node) => node.kind === "terminal");
-  const interactiveSurfaceNodes = nodes.filter(
-    (node) => node.kind === "browser" || node.kind === "editor",
+  const liveSurfaceNodes = nodes.filter(isLiveSurfaceNode);
+  const terminalNodes = liveSurfaceNodes.filter(
+    (node) => node.kind === "terminal",
+  );
+  const interactiveSurfaceNodes = liveSurfaceNodes.filter(
+    (node) => node.kind !== "terminal",
   );
   const terminalLayouts = useMemo(
     () => layoutTerminalDockGroups(terminalDockGroups),
@@ -723,7 +718,7 @@ export function ArchitectureCanvas({
     );
     return [
       ...nodes
-        .filter((node) => node.kind !== "terminal")
+        .filter((node) => !isLiveSurfaceKind(node.kind))
         .map(({ x, y, width, height }) => ({ x, y, width, height })),
       ...terminalDockGroups.map(({ x, y, width, height }) => ({
         x,
@@ -731,11 +726,11 @@ export function ArchitectureCanvas({
         width,
         height,
       })),
-      ...terminalNodes
+      ...liveSurfaceNodes
         .filter((node) => !dockedTerminalIds.has(node.id))
         .map(({ x, y, width, height }) => ({ x, y, width, height })),
     ];
-  }, [nodes, terminalDockGroups, terminalLayouts, terminalNodes]);
+  }, [nodes, terminalDockGroups, terminalLayouts, liveSurfaceNodes]);
   const terminalDockIndicator = terminalDockDropTarget
     ? terminalDockIndicatorRect(terminalDockDropTarget, terminalLayouts)
     : null;
@@ -868,6 +863,7 @@ export function ArchitectureCanvas({
         if (terminalPlacements.length > 0) {
           setTerminalPlacements([]);
           setIsFreeTerminalPlacement(false);
+          setPendingSurfaceKind(null);
           return;
         }
         setMode("select");
@@ -878,7 +874,9 @@ export function ArchitectureCanvas({
       if (terminalPlacements.length > 0) {
         if (event.key === "Enter") {
           event.preventDefault();
-          commitTerminalPlacement(terminalPlacements[0]);
+          if (pendingSurfaceKind) {
+            commitSurfacePlacement(pendingSurfaceKind, terminalPlacements[0]);
+          }
           return;
         }
         if (event.key.toLowerCase() === "f") {
@@ -889,7 +887,9 @@ export function ArchitectureCanvas({
         const index = Number(event.key) - 1;
         if (Number.isInteger(index) && index >= 0 && index < terminalPlacements.length) {
           event.preventDefault();
-          commitTerminalPlacement(terminalPlacements[index]);
+          if (pendingSurfaceKind) {
+            commitSurfacePlacement(pendingSurfaceKind, terminalPlacements[index]);
+          }
         }
         return;
       }
@@ -902,7 +902,7 @@ export function ArchitectureCanvas({
 
       event.preventDefault();
       if (nextMode === "terminal") {
-        beginTerminalPlacement();
+        beginSurfacePlacement("terminal");
         return;
       }
       setMode(nextMode);
@@ -912,7 +912,7 @@ export function ArchitectureCanvas({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [active, selectedNodeId, terminalPlacements]);
+  }, [active, pendingSurfaceKind, selectedNodeId, terminalPlacements]);
 
   const pushHistory = () => {
     const snapshot: HistorySnapshot = {
@@ -976,7 +976,7 @@ export function ArchitectureCanvas({
   };
 
   // Cmd+Arrow switches the active terminal node in that direction; Cmd+>
-  // toggles the maximized terminal node (zoom without the mouse).
+  // toggles the selected live surface (terminal, browser, or editor).
   useEffect(() => {
     if (!active) return;
     const handleCanvasTerminalNav = (event: KeyboardEvent) => {
@@ -991,9 +991,9 @@ export function ArchitectureCanvas({
       }
       if (event.code === "Period") {
         event.preventDefault();
-        const current = terminalNodes.find(
-          (node) => node.id === activeTerminalId,
-        );
+        const current =
+          liveSurfaceNodes.find((node) => node.id === selectedNodeId) ??
+          terminalNodes.find((node) => node.id === activeTerminalId);
         if (!current) return;
         setMaximizedTerminalId((prev) => (prev === current.id ? "" : current.id));
         return;
@@ -1036,7 +1036,14 @@ export function ArchitectureCanvas({
 
     window.addEventListener("keydown", handleCanvasTerminalNav);
     return () => window.removeEventListener("keydown", handleCanvasTerminalNav);
-  }, [active, activeTerminalId, maximizedTerminalId, terminalNodes]);
+  }, [
+    active,
+    activeTerminalId,
+    liveSurfaceNodes,
+    maximizedTerminalId,
+    selectedNodeId,
+    terminalNodes,
+  ]);
 
   const removeSelectedNode = () => {
     const targets = selectedNodeIds.length
@@ -1229,10 +1236,9 @@ export function ArchitectureCanvas({
     pushHistory();
     setTerminalDropPreview(null);
     updateTerminalDockDropTarget(null);
-    const sourceBounds =
-      item.kind === "terminal"
-        ? terminalLayoutById.get(item.id)?.rect
-        : undefined;
+    const sourceBounds = isLiveSurfaceKind(item.kind)
+      ? terminalLayoutById.get(item.id)?.rect
+      : undefined;
     setDrag({
       id: item.id,
       dx: point.x - (sourceBounds?.x ?? item.x),
@@ -1291,8 +1297,9 @@ export function ArchitectureCanvas({
     setDrawing(null);
     setRotate(null);
     setConnectorHandle(null);
-    const terminalLayout =
-      item.kind === "terminal" ? terminalLayoutById.get(item.id) : undefined;
+    const terminalLayout = isLiveSurfaceKind(item.kind)
+      ? terminalLayoutById.get(item.id)
+      : undefined;
     const terminalGroup = terminalLayout
       ? terminalDockGroups.find(
           (group) => group.id === terminalLayout.groupId,
@@ -1534,15 +1541,18 @@ export function ArchitectureCanvas({
     const point = svgPoint(event);
     if (terminalPlacements.length > 0) {
       if (isFreeTerminalPlacement) {
-        commitFreeTerminalPlacement(point);
+        if (pendingSurfaceKind) {
+          commitFreeSurfacePlacement(pendingSurfaceKind, point);
+        }
       } else {
         setTerminalPlacements([]);
+        setPendingSurfaceKind(null);
       }
       setIsFreeTerminalPlacement(false);
       return;
     }
     if (mode === "terminal") {
-      beginTerminalPlacement();
+      beginSurfacePlacement("terminal");
       return;
     }
     if (isShapeDrawingMode(mode)) {
@@ -1659,6 +1669,7 @@ export function ArchitectureCanvas({
     if (!dragged) return;
     const terminalGroupId = drag.terminalGroupId;
     if (terminalGroupId) {
+      if (!isLiveSurfaceKind(dragged.kind)) return;
       const nextBounds = draggedNodeAtPoint(dragged, drag, point, bounds);
       setTerminalDockGroups((current) =>
         updateTerminalGroupBounds(current, terminalGroupId, nextBounds),
@@ -1694,7 +1705,7 @@ export function ArchitectureCanvas({
       }
       return;
     }
-    if (dragged?.kind === "terminal") {
+    if (isLiveSurfaceKind(dragged.kind)) {
       const nextBounds = draggedNodeAtPoint(dragged, drag, point, bounds);
       const svgRect = svgRef.current?.getBoundingClientRect();
       setTerminalDropPreview({
@@ -1732,7 +1743,8 @@ export function ArchitectureCanvas({
           layout.terminalIds.some((terminalId) => {
             const terminal = nodes.find((item) => item.id === terminalId);
             return (
-              terminal?.kind === "terminal" &&
+              terminal !== undefined &&
+              isLiveSurfaceKind(terminal.kind) &&
               terminal.frameId !== undefined &&
               movedIds.has(terminal.frameId) &&
               !movedIds.has(terminal.id)
@@ -1763,7 +1775,7 @@ export function ArchitectureCanvas({
     if (drag && terminalDropPreview?.id === drag.id) {
       const dragged = nodes.find((item) => item.id === drag.id);
       const dockTarget = terminalDockDropTargetRef.current;
-      if (dragged?.kind === "terminal" && dockTarget) {
+      if (dragged && isLiveSurfaceKind(dragged.kind) && dockTarget) {
         const targetStack = terminalLayouts.find(
           (layout) =>
             layout.groupId === dockTarget.groupId &&
@@ -1774,7 +1786,7 @@ export function ArchitectureCanvas({
           : null;
         setTerminalDockGroups((current) =>
           normalizeTerminalDockGroups(
-            nodes.filter((item) => item.kind === "terminal"),
+            liveSurfaceNodes,
             dockTerminal(current, dragged.id, dockTarget),
           ),
         );
@@ -1801,7 +1813,7 @@ export function ArchitectureCanvas({
             selectedNodeIds,
           ),
         );
-        if (dragged?.kind === "terminal") {
+        if (dragged && isLiveSurfaceKind(dragged.kind)) {
           setTerminalDockGroups((current) =>
             detachTerminal(current, dragged.id, terminalDropPreview),
           );
@@ -1943,9 +1955,12 @@ export function ArchitectureCanvas({
     );
   }
 
-  function beginTerminalPlacement() {
-    const activeTerminal = terminalNodes.find((node) => node.id === activeTerminalId);
-    const nearestTerminal = terminalNodes.reduce<ArchitectureNode | null>((nearest, node) => {
+  function beginSurfacePlacement(kind: LiveSurfaceKind) {
+    const sameKindNodes = liveSurfaceNodes.filter((node) => node.kind === kind);
+    const activeSurface = sameKindNodes.find(
+      (node) => node.id === activeTerminalId || node.id === selectedNodeId,
+    );
+    const nearestSurface = sameKindNodes.reduce<ArchitectureNode | null>((nearest, node) => {
       const viewportCenter = { x: view.x + viewWidth / 2, y: view.y + viewHeight / 2 };
       if (!nearest) return node;
       return distance(nodeCenter(node), viewportCenter) < distance(nodeCenter(nearest), viewportCenter)
@@ -1953,9 +1968,9 @@ export function ArchitectureCanvas({
         : nearest;
     }, null);
     const focusNode =
-      activeTerminal ??
-      (selectedNode?.kind === "terminal" ? selectedNode : null) ??
-      nearestTerminal;
+      activeSurface ??
+      (selectedNode?.kind === kind ? selectedNode : null) ??
+      nearestSurface;
     const anchor = focusNode
       ? {
           x: focusNode.x,
@@ -1964,54 +1979,19 @@ export function ArchitectureCanvas({
           height: focusNode.height,
         }
       : undefined;
-    if (anchor) setView((current) => centerViewOnPlacement(current, anchor));
     clearSelection();
     setConnectSourceId(null);
     setMode("select");
     setIsFreeTerminalPlacement(false);
+    setPendingSurfaceKind(kind);
     setTerminalPlacements(
       recommendTerminalPlacements(
         { x: view.x, y: view.y, width: viewWidth, height: viewHeight },
         terminalPlacementObstacles,
         anchor,
+        defaultSize(kind),
       ),
     );
-  }
-
-  function createInteractiveSurface(kind: "browser" | "editor") {
-    pushHistory();
-    const id = `n${nextNodeRef.current++}`;
-    const sameKindCount = nodes.filter((item) => item.kind === kind).length;
-    const cascade = (sameKindCount % 5) * 28;
-    const size = defaultSize(kind);
-    const bounds = drawableBounds();
-    const x = clamp(
-      view.x + Math.max(24, (viewWidth - size.width) / 2) + cascade,
-      bounds.x,
-      Math.max(bounds.x, bounds.x + bounds.width - size.width),
-    );
-    const y = clamp(
-      view.y + Math.max(24, (viewHeight - size.height) / 2) + cascade,
-      bounds.y,
-      Math.max(bounds.y, bounds.y + bounds.height - size.height),
-    );
-    const created = node(
-      id,
-      kind,
-      shapeFor(kind).label,
-      defaultTechnology(kind),
-      x,
-      y,
-      size.width,
-      size.height,
-      kind === "browser" ? { url: "" } : {},
-    );
-    setNodes((current) => [...current, created]);
-    setMode("select");
-    setConnectSourceId(null);
-    setTerminalPlacements([]);
-    setIsFreeTerminalPlacement(false);
-    selectSingleNode(id);
   }
 
   function inheritedTerminalCwd(): string | undefined {
@@ -2022,24 +2002,26 @@ export function ArchitectureCanvas({
     );
   }
 
-  function createDockedTerminal(
+  function createDockedSurface(
     target: Pick<TerminalDockStackLayout, "groupId" | "stackId" | "rect">,
     kind: "tab" | "split",
     source: ArchitectureNode,
   ) {
     pushHistory();
+    const surfaceKind = isLiveSurfaceKind(source.kind) ? source.kind : "terminal";
     const created = node(
       `n${nextNodeRef.current++}`,
-      "terminal",
-      shapeFor("terminal").label,
-      defaultTechnology("terminal"),
+      surfaceKind,
+      shapeFor(surfaceKind).label,
+      defaultTechnology(surfaceKind),
       target.rect.x,
       target.rect.y,
       target.rect.width,
       target.rect.height,
       {
-        terminalChromeVersion: 2,
-        ...(source.cwd ? { cwd: source.cwd } : {}),
+        ...(surfaceKind === "terminal" ? { terminalChromeVersion: 2 as const } : {}),
+        ...(surfaceKind === "terminal" && source.cwd ? { cwd: source.cwd } : {}),
+        ...(surfaceKind === "browser" ? { url: "" } : {}),
         ...(source.frameId ? { frameId: source.frameId } : {}),
       },
     );
@@ -2063,26 +2045,33 @@ export function ArchitectureCanvas({
             },
       ),
     );
-    setActiveTerminalId(created.id);
+    if (maximizedTerminalId === source.id) {
+      setMaximizedTerminalId(created.id);
+    }
+    if (surfaceKind === "terminal") setActiveTerminalId(created.id);
     selectSingleNode(created.id);
   }
 
-  function commitTerminalPlacement(placement: TerminalPlacement) {
+  function commitSurfacePlacement(
+    kind: LiveSurfaceKind,
+    placement: TerminalPlacement,
+  ) {
     pushHistory();
     const created = node(
       `n${nextNodeRef.current++}`,
-      "terminal",
-      shapeFor("terminal").label,
-      defaultTechnology("terminal"),
+      kind,
+      shapeFor(kind).label,
+      defaultTechnology(kind),
       placement.x,
       placement.y,
       placement.width,
       placement.height,
       {
-        terminalChromeVersion: 2,
-        ...(inheritedTerminalCwd()
+        ...(kind === "terminal" ? { terminalChromeVersion: 2 as const } : {}),
+        ...(kind === "terminal" && inheritedTerminalCwd()
           ? { cwd: inheritedTerminalCwd() }
           : {}),
+        ...(kind === "browser" ? { url: "" } : {}),
       },
     );
     setNodes((current) => [...current, created]);
@@ -2091,19 +2080,20 @@ export function ArchitectureCanvas({
       ...normalizeTerminalDockGroups([created], undefined),
     ]);
     selectSingleNode(created.id);
-    setActiveTerminalId(created.id);
-    setView((current) => centerViewOnPlacement(current, created));
+    if (kind === "terminal") setActiveTerminalId(created.id);
     setTerminalPlacements([]);
     setIsFreeTerminalPlacement(false);
+    setPendingSurfaceKind(null);
   }
 
-  function commitFreeTerminalPlacement(point: Point) {
+  function commitFreeSurfacePlacement(kind: LiveSurfaceKind, point: Point) {
     pushHistory();
     const created = {
-      ...createNode("terminal", point),
-      ...(inheritedTerminalCwd()
+      ...createNode(kind, point),
+      ...(kind === "terminal" && inheritedTerminalCwd()
         ? { cwd: inheritedTerminalCwd() }
         : {}),
+      ...(kind === "browser" ? { url: "" } : {}),
     };
     setNodes((current) => [...current, created]);
     setTerminalDockGroups((current) => [
@@ -2111,9 +2101,9 @@ export function ArchitectureCanvas({
       ...normalizeTerminalDockGroups([created], undefined),
     ]);
     selectSingleNode(created.id);
-    setActiveTerminalId(created.id);
-    setView((current) => centerViewOnPlacement(current, created));
+    if (kind === "terminal") setActiveTerminalId(created.id);
     setTerminalPlacements([]);
+    setPendingSurfaceKind(null);
   }
 
   function svgPoint(event: ReactPointerEvent): Point {
@@ -2252,23 +2242,17 @@ export function ArchitectureCanvas({
             onClick={() => setMode("text")}
           />
           <ToolButton
-            active={terminalPlacements.length > 0}
+            active={pendingSurfaceKind === "terminal"}
             icon={TerminalIcon}
             label="Add terminal"
             shortcut={ARCHITECTURE_TOOL_SHORTCUT_LABELS.image}
-            onClick={beginTerminalPlacement}
+            onClick={() => beginSurfacePlacement("terminal")}
           />
           <ToolButton
-            active={false}
+            active={pendingSurfaceKind === "browser"}
             icon={Globe02Icon}
             label="Add browser"
-            onClick={() => createInteractiveSurface("browser")}
-          />
-          <ToolButton
-            active={false}
-            icon={FileEditIcon}
-            label="Add editor"
-            onClick={() => createInteractiveSurface("editor")}
+            onClick={() => beginSurfacePlacement("browser")}
           />
           <ToolButton
             active={mode === "frame"}
@@ -2322,7 +2306,10 @@ export function ArchitectureCanvas({
       </div>
 
       <div className="min-h-0 flex-1">
-      <main className="relative h-full min-h-0 overflow-hidden bg-[#fbfdfc] dark:bg-zinc-950">
+      <main
+        data-canvas-surface-viewport="true"
+        className="relative h-full min-h-0 overflow-hidden bg-[#fbfdfc] dark:bg-zinc-950"
+      >
           <CanvasBackgroundMedia imageId={canvasBackgroundImageId} />
           <svg
             ref={svgRef}
@@ -2670,6 +2657,7 @@ export function ArchitectureCanvas({
                   const cwd = terminalNode.cwd?.replace(/\/$/, "");
                   return {
                     id: terminalId,
+                    kind: terminalNode.kind as LiveSurfaceKind,
                     label:
                       cwd?.split("/").pop() ||
                       terminalNode.label ||
@@ -2677,7 +2665,11 @@ export function ArchitectureCanvas({
                   };
                 })
                 .filter(
-                  (tab): tab is { id: string; label: string } => tab !== null,
+                  (tab): tab is {
+                    id: string;
+                    label: string;
+                    kind: LiveSurfaceKind;
+                  } => tab !== null,
                 );
               return (
                 <div
@@ -2776,6 +2768,14 @@ export function ArchitectureCanvas({
                         );
                       }
                     }}
+                    onTabPointerDown={(surfaceId, event) => {
+                      const surfaceNode = nodeById.get(surfaceId);
+                      if (!surfaceNode) return;
+                      handleNodePointerDown(
+                        event as unknown as ReactPointerEvent<SVGGElement>,
+                        surfaceNode,
+                      );
+                    }}
                     onRequestCloseTab={(terminalId) => {
                       const nextActiveTerminalId = layout?.terminalIds.find(
                         (id) => id !== terminalId,
@@ -2790,11 +2790,11 @@ export function ArchitectureCanvas({
                     }}
                     onAddTab={() => {
                       if (!layout) return;
-                      createDockedTerminal(layout, "tab", node);
+                      createDockedSurface(layout, "tab", node);
                     }}
                     onSplitRight={() => {
                       if (!layout) return;
-                      createDockedTerminal(layout, "split", node);
+                      createDockedSurface(layout, "split", node);
                     }}
                     onHeaderPointerDown={(event) => {
                       if (maximized) {
@@ -2876,6 +2876,51 @@ export function ArchitectureCanvas({
               );
               })}
               {interactiveSurfaceNodes.map((node) => {
+                const layout = terminalLayoutById.get(node.id);
+                const surfaceGroup = layout
+                  ? terminalDockGroups.find(
+                      (group) => group.id === layout.groupId,
+                    )
+                  : undefined;
+                const maximized = maximizedTerminalId === node.id;
+                const usesSharedHeader = surfaceGroup
+                  ? terminalDockGroupUsesSharedHeader(surfaceGroup)
+                  : false;
+                const surfaceGroupIds = surfaceGroup
+                  ? terminalLayouts
+                      .filter(
+                        (candidate) => candidate.groupId === surfaceGroup.id,
+                      )
+                      .flatMap((candidate) => candidate.terminalIds)
+                  : [node.id];
+                const surfaceGroupLocked = surfaceGroupIds.every((id) =>
+                  Boolean(nodeById.get(id)?.locked),
+                );
+                const dockBounds = layout?.rect ?? node;
+                const bounds = maximized
+                  ? {
+                      x: view.x + 32,
+                      y:
+                        view.y +
+                        32 +
+                        (usesSharedHeader
+                          ? TERMINAL_DOCK_GROUP_HEADER_HEIGHT
+                          : 0),
+                      width: Math.max(400, viewWidth - 64),
+                      height: Math.max(
+                        300,
+                        viewHeight -
+                          64 -
+                          (usesSharedHeader
+                            ? TERMINAL_DOCK_GROUP_HEADER_HEIGHT
+                            : 0),
+                      ),
+                    }
+                  : dockBounds;
+                const visible =
+                  active &&
+                  (!layout || layout.activeTerminalId === node.id) &&
+                  (!maximizedTerminalId || maximized);
                 const selected = selectedNodeIds.includes(node.id);
                 const interactionBlocked = Boolean(
                   mode === "pan" || pan || drag || resize || dockDividerResize,
@@ -2884,23 +2929,64 @@ export function ArchitectureCanvas({
                   view.x,
                   view.y,
                   view.scale,
-                  node.x,
-                  node.y,
-                  node.width,
-                  node.height,
+                  bounds.x,
+                  bounds.y,
+                  bounds.width,
+                  bounds.height,
                   appZoom,
                   interactionBlocked ? 1 : 0,
                 ].join(":");
-                const activate = () => selectSingleNode(node.id);
-                const toggleLock = () => {
+                const activate = () => {
+                  selectSingleNode(node.id);
+                  if (node.kind === "terminal") setActiveTerminalId(node.id);
+                };
+                const toggleGroupLock = () => {
                   pushHistory();
                   setNodes((current) =>
                     current.map((item) =>
-                      item.id === node.id
-                        ? { ...item, locked: !item.locked }
+                      surfaceGroupIds.includes(item.id)
+                        ? { ...item, locked: !surfaceGroupLocked }
                         : item,
                     ),
                   );
+                };
+                const stackTabs = (layout?.terminalIds ?? [node.id])
+                  .map((id) => {
+                    const tabNode = nodeById.get(id);
+                    return tabNode
+                      ? {
+                          id,
+                          label: tabNode.label || shapeFor(tabNode.kind).label,
+                          kind: tabNode.kind as LiveSurfaceKind,
+                        }
+                      : null;
+                  })
+                  .filter(
+                    (tab): tab is {
+                      id: string;
+                      label: string;
+                      kind: LiveSurfaceKind;
+                    } => tab !== null,
+                  );
+                const activateTab = (id: string) => {
+                  selectSingleNode(id);
+                  const tabNode = nodeById.get(id);
+                  if (tabNode?.kind === "terminal") setActiveTerminalId(id);
+                  if (maximized) setMaximizedTerminalId(id);
+                  if (layout) {
+                    setTerminalDockGroups((current) =>
+                      activateTerminalTab(current, layout.stackId, id),
+                    );
+                  }
+                };
+                const closeTab = (id: string) => {
+                  const nextActiveId = layout?.terminalIds.find(
+                    (candidate) => candidate !== id,
+                  );
+                  if (maximizedTerminalId === id) {
+                    setMaximizedTerminalId(nextActiveId ?? "");
+                  }
+                  eraseNode(id);
                 };
                 return (
                   <div
@@ -2908,22 +2994,27 @@ export function ArchitectureCanvas({
                     className={cn(
                       "pointer-events-auto absolute",
                       selected && "z-20",
-                      active ? "visible" : "invisible",
+                      visible
+                        ? "visible"
+                        : "pointer-events-none invisible",
                     )}
                     style={{
-                      left: `${node.x}px`,
-                      top: `${node.y}px`,
-                      width: `${node.width}px`,
-                      height: `${node.height}px`,
+                      left: `${bounds.x}px`,
+                      top: `${bounds.y}px`,
+                      width: `${bounds.width}px`,
+                      height: `${bounds.height}px`,
                     }}
                   >
-                    {node.kind === "browser" ? (
-                      <CanvasBrowserNode
+                    <CanvasBrowserNode
                         url={node.url ?? ""}
-                        active={active}
-                        locked={Boolean(node.locked)}
+                        active={visible}
                         interactionBlocked={interactionBlocked}
                         boundsRevision={boundsRevision}
+                        stackTabs={stackTabs}
+                        activeTabId={layout?.activeTerminalId ?? node.id}
+                        singleSurfaceGroup={!usesSharedHeader}
+                        surfaceGroupLocked={surfaceGroupLocked}
+                        maximized={maximized}
                         onUrlChange={(url) => {
                           pushHistory();
                           let label = "Browser";
@@ -2941,46 +3032,49 @@ export function ArchitectureCanvas({
                           );
                         }}
                         onActivate={activate}
-                        onHeaderPointerDown={(event) =>
+                        onActivateTab={activateTab}
+                        onTabPointerDown={(surfaceId, event) => {
+                          const surfaceNode = nodeById.get(surfaceId);
+                          if (!surfaceNode) return;
                           handleNodePointerDown(
                             event as unknown as ReactPointerEvent<SVGGElement>,
-                            node,
-                          )
-                        }
-                        onToggleLock={toggleLock}
-                        onRequestClose={() => eraseNode(node.id)}
-                      />
-                    ) : (
-                      <CanvasEditorNode
-                        path={node.path}
-                        active={active}
-                        locked={Boolean(node.locked)}
-                        interactionBlocked={interactionBlocked}
-                        onPathChange={(path) => {
-                          pushHistory();
-                          setNodes((current) =>
-                            current.map((item) =>
-                              item.id === node.id
-                                ? {
-                                    ...item,
-                                    path,
-                                    label: canvasEditorTitle(path),
-                                  }
-                                : item,
-                            ),
+                            surfaceNode,
                           );
                         }}
-                        onActivate={activate}
+                        onRequestCloseTab={closeTab}
+                        onAddTab={() => {
+                          if (layout) createDockedSurface(layout, "tab", node);
+                        }}
+                        onSplitRight={() => {
+                          if (layout) createDockedSurface(layout, "split", node);
+                        }}
                         onHeaderPointerDown={(event) =>
-                          handleNodePointerDown(
-                            event as unknown as ReactPointerEvent<SVGGElement>,
-                            node,
+                          maximized
+                            ? setMaximizedTerminalId("")
+                            : surfaceGroup && !usesSharedHeader
+                              ? handleTerminalGroupHeaderPointerDown(
+                                  event,
+                                  surfaceGroup,
+                                  node,
+                                  surfaceGroupLocked,
+                                )
+                              : handleNodePointerDown(
+                                  event as unknown as ReactPointerEvent<SVGGElement>,
+                                  node,
+                                )
+                        }
+                        onToggleSurfaceGroupLock={toggleGroupLock}
+                        onToggleSurfaceGroupMaximize={() =>
+                          setMaximizedTerminalId((current) =>
+                            current === node.id ? "" : node.id,
                           )
                         }
-                        onToggleLock={toggleLock}
-                        onRequestClose={() => eraseNode(node.id)}
-                      />
-                    )}
+                        onRequestCloseSurfaceGroup={() =>
+                          surfaceGroup
+                            ? closeTerminalGroup(surfaceGroup)
+                            : eraseNode(node.id)
+                        }
+                    />
                     {selected && !node.locked ? (
                       <div className="pointer-events-none absolute inset-0 rounded-[12px] border-2 border-blue-500 shadow-[0_0_0_1px_rgba(59,130,246,0.16),0_8px_24px_rgba(59,130,246,0.20)]">
                         {[
@@ -3107,7 +3201,12 @@ export function ArchitectureCanvas({
                   onPointerDown={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    commitFreeTerminalPlacement(svgPointFromClient(event));
+                    if (pendingSurfaceKind) {
+                      commitFreeSurfacePlacement(
+                        pendingSurfaceKind,
+                        svgPointFromClient(event),
+                      );
+                    }
                   }}
                 />
               ) : null}
@@ -3115,7 +3214,7 @@ export function ArchitectureCanvas({
                 <button
                   key={`${placement.x}-${placement.y}`}
                   type="button"
-                  aria-label={`Place terminal in spot ${index + 1}`}
+                  aria-label={`Place ${pendingSurfaceKind ?? "surface"} in spot ${index + 1}`}
                   className="pointer-events-auto absolute flex items-center justify-center rounded-lg border border-blue-400/70 bg-blue-500/[0.10] transition hover:border-blue-500 hover:bg-blue-500/[0.18] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                   style={{
                     left: `${((placement.x - view.x) / viewWidth) * 100}%`,
@@ -3125,7 +3224,9 @@ export function ArchitectureCanvas({
                   }}
                   onClick={(event) => {
                     event.stopPropagation();
-                    commitTerminalPlacement(placement);
+                    if (pendingSurfaceKind) {
+                      commitSurfacePlacement(pendingSurfaceKind, placement);
+                    }
                   }}
                 >
                   <span className="flex flex-col items-center gap-1.5">
@@ -3690,8 +3791,7 @@ function DiagramNode({
 
   if (
     node.kind === "terminal" ||
-    node.kind === "browser" ||
-    node.kind === "editor"
+    node.kind === "browser"
   ) {
     return null;
   }
@@ -4656,12 +4756,19 @@ function isResizableShapeKind(kind: ShapeKind): kind is ResizableShapeKind {
     "image",
     "terminal",
     "browser",
-    "editor",
   ].includes(kind);
 }
 
 function isFrameAttachableKind(kind: ShapeKind): boolean {
-  return kind === "terminal" || kind === "browser" || kind === "editor";
+  return kind === "terminal" || kind === "browser";
+}
+
+function isLiveSurfaceKind(kind: ShapeKind): kind is LiveSurfaceKind {
+  return kind === "terminal" || kind === "browser";
+}
+
+function isLiveSurfaceNode(node: ArchitectureNode): boolean {
+  return isLiveSurfaceKind(node.kind);
 }
 
 function isFreehandKind(kind: ShapeKind): boolean {
