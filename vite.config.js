@@ -64,6 +64,7 @@ export default defineConfig(function (_a) { return __awaiter(void 0, [_a], void 
                             main: path.resolve(__dirname, "index.html"),
                             settings: path.resolve(__dirname, "settings.html"),
                             remote: path.resolve(__dirname, "remote.html"),
+                            tray: path.resolve(__dirname, "tray.html"),
                         },
                         output: {
                             manualChunks: function (id) {
