@@ -1,7 +1,7 @@
 {
   "name": "cmdspace",
   "private": true,
-  "version": "0.7.81",
+  "version": "0.7.82",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
