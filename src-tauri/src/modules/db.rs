@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
@@ -139,6 +139,18 @@ fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+fn migrate_workspace_setup_preferences(conn: &Connection) -> Result<(), String> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS workspace_setup_preferences (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            custom_cli_command TEXT NOT NULL DEFAULT ''
+        );",
+        [],
+    )
+    .map_err(|e| format!("Failed to create workspace_setup_preferences table: {e}"))?;
+    Ok(())
+}
+
 pub fn init_db() -> Result<Connection, String> {
     let db_path = get_db_path();
     let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open DB: {e}"))?;
@@ -198,6 +210,7 @@ pub fn init_db() -> Result<Connection, String> {
     }
 
     migrate_workspace_panes(&conn)?;
+    migrate_workspace_setup_preferences(&conn)?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS recent_workspaces (
@@ -388,6 +401,31 @@ pub fn save_recent_workspace_inner(
     Ok(())
 }
 
+pub fn load_workspace_setup_custom_command_inner(conn: &Connection) -> Result<String, String> {
+    conn.query_row(
+        "SELECT custom_cli_command FROM workspace_setup_preferences WHERE id = 1",
+        [],
+        |row| row.get(0),
+    )
+    .optional()
+    .map(Option::unwrap_or_default)
+    .map_err(|e| format!("Failed to load workspace setup custom command: {e}"))
+}
+
+pub fn save_workspace_setup_custom_command_inner(
+    conn: &Connection,
+    command: &str,
+) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO workspace_setup_preferences (id, custom_cli_command)
+         VALUES (1, ?1)
+         ON CONFLICT(id) DO UPDATE SET custom_cli_command = excluded.custom_cli_command",
+        params![command],
+    )
+    .map_err(|e| format!("Failed to save workspace setup custom command: {e}"))?;
+    Ok(())
+}
+
 // Tauri Command wrappers
 #[tauri::command]
 pub fn db_list_workspaces(state: tauri::State<'_, DbState>) -> Result<Vec<WorkspaceRow>, String> {
@@ -452,6 +490,23 @@ pub fn db_save_recent_workspace(
 ) -> Result<(), String> {
     let conn = state.0.lock().map_err(|_| "DB mutex poisoned")?;
     save_recent_workspace_inner(&conn, &workspace)
+}
+
+#[tauri::command]
+pub fn db_load_workspace_setup_custom_command(
+    state: tauri::State<'_, DbState>,
+) -> Result<String, String> {
+    let conn = state.0.lock().map_err(|_| "DB mutex poisoned")?;
+    load_workspace_setup_custom_command_inner(&conn)
+}
+
+#[tauri::command]
+pub fn db_save_workspace_setup_custom_command(
+    state: tauri::State<'_, DbState>,
+    command: String,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|_| "DB mutex poisoned")?;
+    save_workspace_setup_custom_command_inner(&conn, &command)
 }
 
 #[cfg(test)]
@@ -581,5 +636,18 @@ mod tests {
         assert_eq!(recent[5].id, "ws-2");
 
         let _ = std::fs::remove_file(&test_path);
+    }
+
+    #[test]
+    fn workspace_setup_custom_command_should_survive_sqlite_round_trip() {
+        let conn = Connection::open_in_memory().expect("open in-memory database");
+        migrate_workspace_setup_preferences(&conn).expect("migrate workspace setup preferences");
+
+        save_workspace_setup_custom_command_inner(&conn, "aider --yes-always")
+            .expect("save custom command");
+
+        let command =
+            load_workspace_setup_custom_command_inner(&conn).expect("load custom command");
+        assert_eq!(command, "aider --yes-always");
     }
 }

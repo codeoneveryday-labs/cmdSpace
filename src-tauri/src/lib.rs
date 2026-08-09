@@ -692,6 +692,8 @@ pub fn run() {
             db::db_save_pane,
             db::db_list_recent_workspaces,
             db::db_save_recent_workspace,
+            db::db_load_workspace_setup_custom_command,
+            db::db_save_workspace_setup_custom_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
