@@ -18,6 +18,7 @@ import {
   ArrowLeft02Icon,
   ArrowRight01Icon,
   Cancel01Icon,
+  CanvasIcon,
   ComputerTerminal02Icon,
   Folder01Icon,
   Download01Icon,
@@ -97,6 +98,26 @@ function WorkspaceResponseLoader() {
           style={{ animationDelay: `${index * 120}ms` }}
         />
       ))}
+    </span>
+  );
+}
+
+function WorkspaceModeIcon({ workspace }: { workspace: WorkspaceItem }) {
+  const canvas = workspace.workspaceMode === "canvas";
+  const label = canvas ? "Canvas workspace" : "Standard terminal workspace";
+
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="flex size-4 shrink-0 items-center justify-center text-muted-foreground/80"
+    >
+      <HugeiconsIcon
+        icon={canvas ? CanvasIcon : ComputerTerminal02Icon}
+        size={13}
+        strokeWidth={1.9}
+      />
     </span>
   );
 }
@@ -541,6 +562,7 @@ function WorkspaceRow({
         title={workspace.name}
       >
         {colorPicker}
+        <WorkspaceModeIcon workspace={workspace} />
         {workspace.responding ? <WorkspaceResponseLoader /> : null}
         <button
           type="button"
@@ -594,6 +616,7 @@ function WorkspaceRow({
       )}
     >
       {colorPicker}
+      <WorkspaceModeIcon workspace={workspace} />
       {workspace.responding ? <WorkspaceResponseLoader /> : null}
       {renaming ? (
         <Input
@@ -1214,36 +1237,6 @@ export function WorkspaceSetupView({
     });
   }, [customCommand]);
 
-  const fillOneOfEachAgent = () => {
-    const next: Record<string, number> = {};
-    const ids = [...availableAgents.map((agent) => agent.id), "custom"];
-    for (const id of ids.slice(0, cliTerminalCapacity)) {
-      if (id === "custom" && !customCommand.trim()) continue;
-      next[id] = 1;
-    }
-    setAgentCounts(next);
-  };
-
-  const splitAgentsEvenly = () => {
-    const ids = availableAgents.map((agent) => agent.id);
-    if (ids.length === 0 || cliTerminalCapacity === 0) {
-      setAgentCounts({});
-      return;
-    }
-    const next: Record<string, number> = {};
-    ids.forEach((id) => {
-      next[id] = Math.floor(cliTerminalCapacity / ids.length);
-    });
-    for (
-      let index = 0;
-      index < cliTerminalCapacity % ids.length;
-      index += 1
-    ) {
-      next[ids[index]] += 1;
-    }
-    setAgentCounts(next);
-  };
-
   return (
     <div className="flex h-full min-h-0 justify-center overflow-y-auto bg-background px-6 py-10 sm:px-10 lg:px-14">
       <div className="w-full max-w-[920px] self-start">
@@ -1697,37 +1690,6 @@ export function WorkspaceSetupView({
                     ))}
                   </div>
                 ) : null}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-xs text-muted-foreground">
-                  Quick fill:
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={fillOneOfEachAgent}
-                >
-                  One of each
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={splitAgentsEvenly}
-                >
-                  Split evenly
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setAgentCounts({});
-                    setSelectedImportSessions([]);
-                  }}
-                  className="text-destructive hover:text-destructive"
-                >
-                  Clear
-                </Button>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">

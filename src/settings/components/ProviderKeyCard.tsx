@@ -19,6 +19,7 @@ import { ProviderIcon } from "./ProviderIcon";
 
 type Props = {
   provider: ProviderInfo;
+  first: boolean;
   currentKey: string | null;
   onSave: (key: string) => Promise<void>;
   onClear: () => Promise<void>;
@@ -32,6 +33,7 @@ function maskKey(key: string): string {
 
 export function ProviderKeyCard({
   provider,
+  first,
   currentKey,
   onSave,
   onClear,
@@ -71,7 +73,12 @@ export function ProviderKeyCard({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2.5">
+    <div
+      className={cn(
+        "flex flex-col gap-2 px-3 py-2.5",
+        !first && "border-t border-border/55",
+      )}
+    >
       <div className="flex items-center gap-2">
         <ProviderIcon provider={provider.id} size={13} />
         <span className="text-[12.5px] font-medium">{provider.label}</span>
