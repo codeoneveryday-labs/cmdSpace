@@ -90,4 +90,12 @@ describe("Sidebar browser toolbar", () => {
     expect(source).toContain("{resizing ? (");
     expect(source).toContain("cursor-col-resize");
   });
+
+  it("resynchronizes native bounds when a canvas transform changes", () => {
+    const source = readFileSync(sidebarBrowserPath, "utf8");
+
+    expect(source).toContain("boundsRevision?: string | number;");
+    expect(source).toContain("boundsRevision,");
+    expect(source).toContain("[boundsRevision, syncNativeBounds, useNativeWebview]");
+  });
 });
