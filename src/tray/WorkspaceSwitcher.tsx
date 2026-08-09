@@ -110,14 +110,14 @@ export function WorkspaceSwitcher() {
 
   return (
     <main
-      className="relative h-screen w-screen overflow-hidden bg-transparent p-2 pt-3 text-foreground"
+      className="relative h-screen w-screen overflow-hidden bg-transparent p-3 pt-4 text-foreground"
       onKeyDown={handleKeyDown}
     >
       <div
         aria-hidden="true"
-        className="absolute left-1/2 top-1.5 size-4 -translate-x-1/2 rotate-45 border-l border-t border-border/80 bg-popover"
+        className="absolute left-1/2 top-2.5 size-4 -translate-x-1/2 rotate-45 border-l border-t border-border/80 bg-popover"
       />
-      <section className="relative flex h-full flex-col overflow-hidden rounded-[18px] border border-border/80 bg-popover/98 shadow-2xl shadow-black/25 supports-backdrop-filter:backdrop-blur-2xl">
+      <section className="relative flex h-full flex-col overflow-hidden rounded-[18px] border border-border/80 bg-popover/98 shadow-[0_6px_16px_-8px_rgba(15,23,42,0.38)] supports-backdrop-filter:backdrop-blur-2xl">
         <header className="border-b border-border/70 px-4 pb-3 pt-4">
           <h1 className="text-[15px] font-semibold tracking-tight">Workspaces</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
