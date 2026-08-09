@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing release tag to publish or repair"
+        required: false
+        type: string
 
 jobs:
   publish-tauri:
@@ -38,6 +43,7 @@ jobs:
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
             libgtk-3-dev \
+            libayatana-appindicator3-dev \
             librsvg2-dev \
             libssl-dev \
             patchelf
@@ -100,8 +106,8 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "cmdSpace ${{ github.ref_name }}"
+          tagName: ${{ inputs.release_tag || github.ref_name }}
+          releaseName: "cmdSpace ${{ inputs.release_tag || github.ref_name }}"
           releaseBody: "Installers for macOS, Windows, and Linux. macOS artifacts are signed with a Developer ID certificate and notarized by Apple."
           releaseDraft: false
           prerelease: false
