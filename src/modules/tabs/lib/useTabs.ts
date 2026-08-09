@@ -1034,6 +1034,47 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     [],
   );
 
+  const appendTerminalPane = useCallback(
+    (
+      tabId: number,
+      cwd: string | undefined,
+      initialCommand: string,
+    ): { leafId: number; paneTree: PaneNode } | null => {
+      const current = tabsRef.current;
+      const tab = current.find((item) => item.id === tabId);
+      if (!tab || tab.kind !== "terminal") return null;
+      if (leafIds(tab.paneTree).length >= MAX_PANES_PER_TAB) return null;
+
+      const splitId = nextIdRef.current++;
+      const leafId = nextIdRef.current++;
+      const paneTree = splitLeaf(
+        tab.paneTree,
+        tab.activeLeafId,
+        splitId,
+        leafId,
+        "row",
+        cwd,
+        initialCommand,
+      );
+      const nextTabs = current.map((item) =>
+        item.id === tabId
+          ? {
+              ...tab,
+              cwd,
+              paneTree,
+              activeLeafId: leafId,
+              maximizedLeafId: undefined,
+            }
+          : item,
+      );
+      tabsRef.current = nextTabs;
+      setTabs(nextTabs);
+      setActiveId(tabId);
+      return { leafId, paneTree };
+    },
+    [],
+  );
+
   const closePaneByLeaf = useCallback((leafId: number): void => {
     let didRemove = false;
     setTabs((curr) => {
@@ -1175,6 +1216,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     focusPane,
     focusNextPaneInTab,
     splitActivePane,
+    appendTerminalPane,
     closeActivePane,
     closePaneByLeaf,
     toggleMaximizePane,

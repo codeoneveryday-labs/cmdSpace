@@ -612,6 +612,7 @@ pub fn run() {
             pty::pty_register_metadata,
             pty::pty_list,
             pty::check_agent_clis,
+            pty::list_agent_sessions,
             fs::tree::list_subdirs,
             fs::tree::fs_read_dir,
             fs::file::fs_read_file,
