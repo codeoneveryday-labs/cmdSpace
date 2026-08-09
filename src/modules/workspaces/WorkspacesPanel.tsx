@@ -1,6 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -12,7 +18,9 @@ import {
   ArrowLeft02Icon,
   ArrowRight01Icon,
   Cancel01Icon,
+  ComputerTerminal02Icon,
   Folder01Icon,
+  Download01Icon,
   Search01Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
@@ -27,6 +35,12 @@ import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAgentLaunchCommands } from "@/modules/settings/store";
 import { currentWorkspaceEnv } from "@/modules/workspace";
+import { ImportSessionDialog } from "./ImportSessionDialog";
+import {
+  buildSessionResumeCommand,
+  regularTerminalCount,
+  type ImportableAgentSession,
+} from "./lib/importSessions";
 
 export type WorkspaceItem = {
   id: string;
@@ -108,6 +122,7 @@ type Props = {
   onRenameWorkspace: (workspaceId: string, name: string) => void;
   onChangeWorkspaceColor: (workspaceId: string, accentColor: string) => void;
   onStartWorkspaceSetup: () => void;
+  onImportSession: () => void;
   onReorderWorkspaces?: (
     draggedId: string,
     targetId: string,
@@ -124,6 +139,7 @@ export function WorkspacesPanel({
   onRenameWorkspace,
   onChangeWorkspaceColor,
   onStartWorkspaceSetup,
+  onImportSession,
   onReorderWorkspaces,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -295,16 +311,31 @@ export function WorkspacesPanel({
           >
             <HugeiconsIcon icon={Add01Icon} size={15} strokeWidth={2} />
           </button>
-          {!compact ? (
-            <button
-              type="button"
-              className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              aria-label="Workspace menu"
-              title="Workspace menu"
-            >
-              <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={2} />
-            </button>
-          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                aria-label="Workspace menu"
+                title="Workspace menu"
+              >
+                <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={2} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-52">
+              <DropdownMenuItem onSelect={onStartWorkspaceSetup}>
+                <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
+                New workspace
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={onImportSession}
+                disabled={activeWorkspaceId === null}
+              >
+                <HugeiconsIcon icon={Download01Icon} size={14} strokeWidth={2} />
+                Import agent session
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
 
         <nav
@@ -887,6 +918,10 @@ export function WorkspaceSetupView({
   const [workspaceMode, setWorkspaceMode] =
     useState<WorkspaceMode>("standard");
   const [setupStep, setSetupStep] = useState<"layout" | "agents">("layout");
+  const [importSessionPickerOpen, setImportSessionPickerOpen] = useState(false);
+  const [selectedImportSessions, setSelectedImportSessions] = useState<
+    ImportableAgentSession[]
+  >([]);
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>({});
   const [customCommand, setCustomCommand] = useState("");
   const [installedAgents, setInstalledAgents] = useState<Set<string> | null>(
@@ -910,13 +945,21 @@ export function WorkspaceSetupView({
     .filter((workspace) => Boolean(workspace.workingFolder))
     .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
     .slice(0, 6);
-  const assignedAgentTerminals = Object.values(agentCounts).reduce(
+  const assignedCliTerminals = Object.values(agentCounts).reduce(
     (sum, count) => sum + count,
     0,
   );
-  const remainingAgentSlots = Math.max(
+  const assignedAgentTerminals =
+    selectedImportSessions.length + assignedCliTerminals;
+  const regularTerminals = regularTerminalCount(
+    terminalCount,
+    selectedImportSessions.length,
+    assignedCliTerminals,
+  );
+  const remainingAgentSlots = regularTerminals;
+  const cliTerminalCapacity = Math.max(
     0,
-    terminalCount - assignedAgentTerminals,
+    terminalCount - selectedImportSessions.length,
   );
   // Effective launch command per agent: user override wins, else launch,
   // else the bare command.
@@ -929,11 +972,16 @@ export function WorkspaceSetupView({
         agent.command,
     ]),
   ) as Record<string, string>;
-  const plannedAgentCommands = agentCommandPlan(
-    agentCounts,
-    customCommand,
-    effectiveAgentCommands,
-  ).slice(0, terminalCount);
+  const plannedAgentCommands = [
+    ...selectedImportSessions.map((session) =>
+      buildSessionResumeCommand(session.provider, session.sessionId),
+    ),
+    ...agentCommandPlan(
+      agentCounts,
+      customCommand,
+      effectiveAgentCommands,
+    ).slice(0, cliTerminalCapacity),
+  ];
   const availableAgents = configuredAgentCliOptions.filter(
     (agent) => installedAgents?.has(agent.id) ?? true,
   );
@@ -948,6 +996,37 @@ export function WorkspaceSetupView({
     void setAgentLaunchCommands(next).catch((error) => {
       console.error("Failed to save agent launch command:", error);
     });
+  };
+
+  const selectImportSessions = async (
+    sessions: ImportableAgentSession[],
+  ): Promise<boolean> => {
+    if (sessions.length === 0 || sessions.some((session) => session.active)) {
+      return false;
+    }
+    if (sessions.length > remainingAgentSlots) {
+      window.alert(
+        `Only ${remainingAgentSlots} terminal slots are available for imported sessions.`,
+      );
+      return false;
+    }
+    const existingKeys = new Set(
+      selectedImportSessions.map(
+        (session) => `${session.provider}:${session.sessionId}`,
+      ),
+    );
+    const incomingKeys = sessions.map(
+      (session) => `${session.provider}:${session.sessionId}`,
+    );
+    if (
+      new Set(incomingKeys).size !== incomingKeys.length ||
+      incomingKeys.some((key) => existingKeys.has(key))
+    ) {
+      window.alert("One or more agent sessions are already selected.");
+      return false;
+    }
+    setSelectedImportSessions((current) => [...current, ...sessions]);
+    return true;
   };
 
   useEffect(() => {
@@ -1052,6 +1131,7 @@ export function WorkspaceSetupView({
 
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
+      if (importSessionPickerOpen) return;
       if (event.defaultPrevented || isEditableKeyboardTarget(event.target)) {
         return;
       }
@@ -1071,7 +1151,7 @@ export function WorkspaceSetupView({
     window.addEventListener("keydown", handleKeyboardShortcut);
     return () =>
       window.removeEventListener("keydown", handleKeyboardShortcut);
-  }, [handleBack, handlePrimaryAction]);
+  }, [handleBack, handlePrimaryAction, importSessionPickerOpen]);
 
   const setAgentCount = (id: string, nextCount: number) => {
     setAgentCounts((current) => {
@@ -1083,7 +1163,7 @@ export function WorkspaceSetupView({
       const otherCount = currentTotal - currentCount;
       const clamped = Math.min(
         Math.max(0, nextCount),
-        Math.max(0, terminalCount - otherCount),
+        Math.max(0, cliTerminalCapacity - otherCount),
       );
       const next = { ...current, [id]: clamped };
       if (clamped === 0) delete next[id];
@@ -1092,8 +1172,14 @@ export function WorkspaceSetupView({
   };
 
   useEffect(() => {
+    setSelectedImportSessions((current) =>
+      current.length > terminalCount ? current.slice(0, terminalCount) : current,
+    );
+  }, [terminalCount]);
+
+  useEffect(() => {
     setAgentCounts((current) => {
-      let remaining = terminalCount;
+      let remaining = cliTerminalCapacity;
       const next: Record<string, number> = {};
       const ids = [
         ...configuredAgentCliOptions.filter(
@@ -1110,6 +1196,8 @@ export function WorkspaceSetupView({
     });
   }, [
     terminalCount,
+    cliTerminalCapacity,
+    selectedImportSessions.length,
     installedAgents,
     configuredCliAgentIds,
     disabledCliAgentIds,
@@ -1128,7 +1216,7 @@ export function WorkspaceSetupView({
   const fillOneOfEachAgent = () => {
     const next: Record<string, number> = {};
     const ids = [...availableAgents.map((agent) => agent.id), "custom"];
-    for (const id of ids.slice(0, terminalCount)) {
+    for (const id of ids.slice(0, cliTerminalCapacity)) {
       if (id === "custom" && !customCommand.trim()) continue;
       next[id] = 1;
     }
@@ -1137,11 +1225,19 @@ export function WorkspaceSetupView({
 
   const splitAgentsEvenly = () => {
     const ids = availableAgents.map((agent) => agent.id);
+    if (ids.length === 0 || cliTerminalCapacity === 0) {
+      setAgentCounts({});
+      return;
+    }
     const next: Record<string, number> = {};
     ids.forEach((id) => {
-      next[id] = Math.floor(terminalCount / ids.length);
+      next[id] = Math.floor(cliTerminalCapacity / ids.length);
     });
-    for (let index = 0; index < terminalCount % ids.length; index += 1) {
+    for (
+      let index = 0;
+      index < cliTerminalCapacity % ids.length;
+      index += 1
+    ) {
       next[ids[index]] += 1;
     }
     setAgentCounts(next);
@@ -1507,6 +1603,101 @@ export function WorkspaceSetupView({
                 </div>
               </div>
 
+              <div
+                className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/35 px-3 py-2.5"
+                aria-label={`${regularTerminals} regular terminals`}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground/[0.06] text-muted-foreground">
+                  <HugeiconsIcon
+                    icon={ComputerTerminal02Icon}
+                    size={16}
+                    strokeWidth={2}
+                  />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-foreground">
+                    Regular terminals
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Unassigned slots open as normal shell terminals
+                  </div>
+                </div>
+                <span className="min-w-8 text-center text-sm font-semibold tabular-nums text-foreground">
+                  {regularTerminals}
+                </span>
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-dashed border-primary/35 bg-primary/[0.035] p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <HugeiconsIcon
+                      icon={Download01Icon}
+                      size={17}
+                      strokeWidth={2}
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-foreground">
+                      Import existing session
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Resume a native Claude, Codex, OpenCode, or Pi session in this workspace.
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setImportSessionPickerOpen(true)}
+                    disabled={remainingAgentSlots === 0}
+                    className="w-full sm:w-auto"
+                  >
+                    Import session
+                  </Button>
+                </div>
+
+                {selectedImportSessions.length > 0 ? (
+                  <div className="space-y-1.5 border-t border-border/40 pt-2">
+                    {selectedImportSessions.map((session) => (
+                      <div
+                        key={`${session.provider}:${session.sessionId}`}
+                        className="flex min-w-0 items-center gap-2 rounded-md bg-background/55 px-2.5 py-2"
+                      >
+                        <AgentCliIcon agent={session.provider} size="md" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-xs font-semibold text-foreground">
+                            {session.title}
+                          </div>
+                          <div className="truncate text-[10px] text-muted-foreground">
+                            {session.cwd}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedImportSessions((current) =>
+                              current.filter(
+                                (selected) =>
+                                  selected.provider !== session.provider ||
+                                  selected.sessionId !== session.sessionId,
+                              ),
+                            )
+                          }
+                          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                          aria-label={`Remove imported ${session.title}`}
+                          title="Remove imported session"
+                        >
+                          <HugeiconsIcon
+                            icon={Cancel01Icon}
+                            size={14}
+                            strokeWidth={2}
+                          />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-xs text-muted-foreground">
                   Quick fill:
@@ -1528,7 +1719,10 @@ export function WorkspaceSetupView({
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setAgentCounts({})}
+                  onClick={() => {
+                    setAgentCounts({});
+                    setSelectedImportSessions([]);
+                  }}
                   className="text-destructive hover:text-destructive"
                 >
                   Clear
@@ -1769,6 +1963,16 @@ export function WorkspaceSetupView({
           </div>
         </footer>
       </div>
+      <ImportSessionDialog
+        open={importSessionPickerOpen}
+        onOpenChange={setImportSessionPickerOpen}
+        workspaceName={workspaceName || suggestedWorkspaceName}
+        workspaceCwd={selectedFolder || null}
+        actionLabel="Add"
+        multiple
+        onImport={(session) => selectImportSessions([session])}
+        onImportMany={selectImportSessions}
+      />
     </div>
   );
 }

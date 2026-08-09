@@ -118,12 +118,15 @@ import {
 } from "@/modules/workspace";
 import {
   DEFAULT_WORKSPACE_ACCENT_COLOR,
+  buildSessionResumeCommand,
+  ImportSessionDialog,
   normalizeWorkspaceAccentColor,
   WORKSPACE_ACCENT_COLORS,
   WorkspacesPanel,
   WorkspaceSetupView,
   type WorkspaceItem,
   type WorkspaceMode,
+  type ImportableAgentSession,
 } from "@/modules/workspaces";
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "@tauri-apps/api/path";
@@ -331,6 +334,7 @@ export default function App() {
     focusPane,
     focusNextPaneInTab,
     splitActivePane,
+    appendTerminalPane,
     closeActivePane,
     closePaneByLeaf,
     toggleMaximizePane,
@@ -641,6 +645,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceItem[]>([]);
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
+  const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
   useEffect(() => {
     workspacesRef.current = workspaces;
@@ -2431,6 +2436,134 @@ export default function App() {
     [updateTab],
   );
 
+  const handleImportAgentSession = useCallback(
+    async (session: ImportableAgentSession): Promise<boolean> => {
+      if (session.active) return false;
+      const workspace = workspacesRef.current.find(
+        (item) => item.id === activeWorkspaceId,
+      );
+      if (!workspace) return false;
+
+      const initialCommand = buildSessionResumeCommand(
+        session.provider,
+        session.sessionId,
+      );
+
+      if (workspace.workspaceMode === "canvas") {
+        const tab = tabsRef.current.find(
+          (item) => item.id === workspace.canvasTabId,
+        );
+        if (!tab || tab.kind !== "architecture") return false;
+        const diagram = tab.diagram ?? { nodes: [], edges: [] };
+        if (
+          diagram.nodes.some(
+            (node) =>
+              node.kind === "terminal" &&
+              node.initialCommand === initialCommand,
+          )
+        ) {
+          window.alert("This agent session is already open in the workspace.");
+          return false;
+        }
+        const terminalIndex = diagram.nodes.filter(
+          (node) => node.kind === "terminal",
+        ).length;
+        if (terminalIndex >= MAX_PANES_PER_TAB) {
+          window.alert(`Workspace terminal limit reached (${MAX_PANES_PER_TAB}).`);
+          return false;
+        }
+        const terminalWidth = 620;
+        const terminalHeight = 400;
+        const gap = 48;
+        const nextDiagram: ArchitectureDiagram = {
+          ...diagram,
+          nodes: [
+            ...diagram.nodes,
+            {
+              id: `imported-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              kind: "terminal",
+              label: `${session.provider} session`,
+              technology: "",
+              x: 96 + (terminalIndex % 2) * (terminalWidth + gap),
+              y: 96 + Math.floor(terminalIndex / 2) * (terminalHeight + gap),
+              width: terminalWidth,
+              height: terminalHeight,
+              cwd: session.cwd,
+              initialCommand,
+              terminalChromeVersion: 2,
+            },
+          ],
+        };
+        handleArchitectureDiagramChange(tab.id, nextDiagram);
+        setActiveId(tab.id);
+        return true;
+      }
+
+      if (workspace.tabId === null) return false;
+      const workspaceTab = tabsRef.current.find(
+        (item) => item.id === workspace.tabId,
+      );
+      if (
+        workspaceTab?.kind === "terminal" &&
+        leafIds(workspaceTab.paneTree).some(
+          (leafId) =>
+            findLeafLastCommand(workspaceTab.paneTree, leafId) ===
+            initialCommand,
+        )
+      ) {
+        window.alert("This agent session is already open in the workspace.");
+        return false;
+      }
+      const appended = appendTerminalPane(
+        workspace.tabId,
+        session.cwd,
+        initialCommand,
+      );
+      if (!appended) {
+        window.alert(`Workspace terminal limit reached (${MAX_PANES_PER_TAB}).`);
+        return false;
+      }
+
+      const updated: WorkspaceRecord = {
+        ...workspace,
+        count: leafIds(appended.paneTree).length,
+        paneLayout: JSON.stringify(appended.paneTree),
+        updatedAt: Date.now(),
+      };
+      setWorkspaces((current) =>
+        current.map((item) => (item.id === workspace.id ? updated : item)),
+      );
+      saveRecentWorkspace(updated);
+
+      const leafOrder = leafIds(appended.paneTree);
+      void Promise.all([
+        invoke("db_save_workspace", { workspace: updated }),
+        ...leafOrder.map((leafId, paneIndex) =>
+          invoke("db_save_pane", {
+            pane: {
+              workspaceId: workspace.id,
+              paneIndex,
+              workingFolder:
+                findLeafCwd(appended.paneTree, leafId) ?? workspace.workingFolder,
+              lastCommand: findLeafLastCommand(appended.paneTree, leafId) ?? null,
+              autoLaunch: findLeafAutoLaunch(appended.paneTree, leafId),
+            },
+          }),
+        ),
+      ]).catch((error) => {
+        console.error("Failed to persist imported agent session pane:", error);
+      });
+      return true;
+    },
+    [
+      activeWorkspaceId,
+      appendTerminalPane,
+      handleArchitectureDiagramChange,
+      saveRecentWorkspace,
+      setActiveId,
+    ],
+  );
+
   const workspaceSurface = (
     <div className="relative h-full min-h-0">
       <div
@@ -2605,6 +2738,7 @@ export default function App() {
                     onRenameWorkspace={handleRenameWorkspace}
                     onChangeWorkspaceColor={handleChangeWorkspaceColor}
                     onStartWorkspaceSetup={() => setWorkspaceSetupOpen(true)}
+                    onImportSession={() => setImportSessionOpen(true)}
                     onReorderWorkspaces={handleReorderWorkspaces}
                   />
                 </div>
@@ -2751,6 +2885,13 @@ export default function App() {
               </div>
             </div>
           </main>
+          <ImportSessionDialog
+            open={importSessionOpen}
+            onOpenChange={setImportSessionOpen}
+            workspaceName={activeWorkspace?.name ?? null}
+            workspaceCwd={activeWorkspaceFolder}
+            onImport={handleImportAgentSession}
+          />
 
           <StatusBar
             cwd={activeCwd}
