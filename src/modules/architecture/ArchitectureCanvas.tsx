@@ -22,6 +22,8 @@ import {
   DatabaseIcon,
   DatabaseSyncIcon,
   DeliveryBox01Icon,
+  FileEditIcon,
+  Globe02Icon,
   HashtagIcon,
   ImageAdd01Icon,
   LineIcon,
@@ -46,6 +48,8 @@ import {
   CanvasTerminalNode,
   type CanvasTerminalHandle,
 } from "./CanvasTerminalNode";
+import { CanvasBrowserNode } from "./CanvasBrowserNode";
+import { CanvasEditorNode, canvasEditorTitle } from "./CanvasEditorNode";
 import { panViewFromPointer } from "./canvasPan";
 import { terminalWorldTransform } from "./canvasCoordinates";
 import { nextDiagramIdSequence } from "./diagramIds";
@@ -101,7 +105,9 @@ type ResizableShapeKind =
   | "frame"
   | "text"
   | "image"
-  | "terminal";
+  | "terminal"
+  | "browser"
+  | "editor";
 type ShapeCategory = "Drawing" | "C4" | "Application" | "Data" | "Platform";
 type Point = { x: number; y: number };
 type ResizeHandle = "nw" | "ne" | "se" | "sw";
@@ -260,6 +266,22 @@ export const ARCHITECTURE_SHAPES: ShapeConfig[] = [
     tone: "border-emerald-400/35 bg-emerald-500/[0.08] text-emerald-700 dark:text-emerald-200",
   },
   {
+    kind: "browser",
+    label: "Browser",
+    category: "Platform",
+    description: "Live web browser on the canvas",
+    icon: Globe02Icon,
+    tone: "border-sky-400/35 bg-sky-500/[0.08] text-sky-700 dark:text-sky-200",
+  },
+  {
+    kind: "editor",
+    label: "Editor",
+    category: "Platform",
+    description: "Live code editor on the canvas",
+    icon: FileEditIcon,
+    tone: "border-violet-400/35 bg-violet-500/[0.08] text-violet-700 dark:text-violet-200",
+  },
+  {
     kind: "line",
     label: "Line",
     category: "Drawing",
@@ -406,6 +428,8 @@ const NODE_HEIGHT = 82;
 // Keep a canvas terminal at Cate's native window size. At 55% zoom this still
 // leaves enough room for its title bar and real xterm viewport to be usable.
 const TERMINAL_DEFAULT_SIZE = { width: 640, height: 400 };
+const INTERACTIVE_SURFACE_DEFAULT_SIZE = { width: 720, height: 480 };
+const INTERACTIVE_SURFACE_MINIMUM_SIZE = { width: 400, height: 300 };
 const LEGACY_TERMINAL_SIZE = { width: 420, height: 280 };
 const MIN_ZOOM = 0.55;
 const MAX_ZOOM = 1.8;
@@ -522,6 +546,8 @@ function normalizeDiagramSeed(seed?: ArchitectureDiagram): {
       ...(typeof item.initialCommand === "string"
         ? { initialCommand: item.initialCommand }
         : {}),
+      ...(typeof item.url === "string" ? { url: item.url } : {}),
+      ...(typeof item.path === "string" ? { path: item.path } : {}),
       ...(item.kind === "terminal" ? { terminalChromeVersion: 2 as const } : {}),
       ...(typeof item.connectorStartId === "string"
         ? { connectorStartId: item.connectorStartId }
@@ -671,6 +697,9 @@ export function ArchitectureCanvas({
   const viewHeight = canvasSize.height / view.scale;
   const terminalTransform = terminalWorldTransform(view, appZoom);
   const terminalNodes = nodes.filter((node) => node.kind === "terminal");
+  const interactiveSurfaceNodes = nodes.filter(
+    (node) => node.kind === "browser" || node.kind === "editor",
+  );
   const terminalLayouts = useMemo(
     () => layoutTerminalDockGroups(terminalDockGroups),
     [terminalDockGroups],
@@ -1949,6 +1978,42 @@ export function ArchitectureCanvas({
     );
   }
 
+  function createInteractiveSurface(kind: "browser" | "editor") {
+    pushHistory();
+    const id = `n${nextNodeRef.current++}`;
+    const sameKindCount = nodes.filter((item) => item.kind === kind).length;
+    const cascade = (sameKindCount % 5) * 28;
+    const size = defaultSize(kind);
+    const bounds = drawableBounds();
+    const x = clamp(
+      view.x + Math.max(24, (viewWidth - size.width) / 2) + cascade,
+      bounds.x,
+      Math.max(bounds.x, bounds.x + bounds.width - size.width),
+    );
+    const y = clamp(
+      view.y + Math.max(24, (viewHeight - size.height) / 2) + cascade,
+      bounds.y,
+      Math.max(bounds.y, bounds.y + bounds.height - size.height),
+    );
+    const created = node(
+      id,
+      kind,
+      shapeFor(kind).label,
+      defaultTechnology(kind),
+      x,
+      y,
+      size.width,
+      size.height,
+      kind === "browser" ? { url: "" } : {},
+    );
+    setNodes((current) => [...current, created]);
+    setMode("select");
+    setConnectSourceId(null);
+    setTerminalPlacements([]);
+    setIsFreeTerminalPlacement(false);
+    selectSingleNode(id);
+  }
+
   function inheritedTerminalCwd(): string | undefined {
     return (
       terminalNodes.find((node) => node.id === activeTerminalId)?.cwd ??
@@ -2192,6 +2257,18 @@ export function ArchitectureCanvas({
             label="Add terminal"
             shortcut={ARCHITECTURE_TOOL_SHORTCUT_LABELS.image}
             onClick={beginTerminalPlacement}
+          />
+          <ToolButton
+            active={false}
+            icon={Globe02Icon}
+            label="Add browser"
+            onClick={() => createInteractiveSurface("browser")}
+          />
+          <ToolButton
+            active={false}
+            icon={FileEditIcon}
+            label="Add editor"
+            onClick={() => createInteractiveSurface("editor")}
           />
           <ToolButton
             active={mode === "frame"}
@@ -2797,6 +2874,142 @@ export function ArchitectureCanvas({
                   ) : null}
                 </div>
               );
+              })}
+              {interactiveSurfaceNodes.map((node) => {
+                const selected = selectedNodeIds.includes(node.id);
+                const interactionBlocked = Boolean(
+                  mode === "pan" || pan || drag || resize || dockDividerResize,
+                );
+                const boundsRevision = [
+                  view.x,
+                  view.y,
+                  view.scale,
+                  node.x,
+                  node.y,
+                  node.width,
+                  node.height,
+                  appZoom,
+                  interactionBlocked ? 1 : 0,
+                ].join(":");
+                const activate = () => selectSingleNode(node.id);
+                const toggleLock = () => {
+                  pushHistory();
+                  setNodes((current) =>
+                    current.map((item) =>
+                      item.id === node.id
+                        ? { ...item, locked: !item.locked }
+                        : item,
+                    ),
+                  );
+                };
+                return (
+                  <div
+                    key={node.id}
+                    className={cn(
+                      "pointer-events-auto absolute",
+                      selected && "z-20",
+                      active ? "visible" : "invisible",
+                    )}
+                    style={{
+                      left: `${node.x}px`,
+                      top: `${node.y}px`,
+                      width: `${node.width}px`,
+                      height: `${node.height}px`,
+                    }}
+                  >
+                    {node.kind === "browser" ? (
+                      <CanvasBrowserNode
+                        url={node.url ?? ""}
+                        active={active}
+                        locked={Boolean(node.locked)}
+                        interactionBlocked={interactionBlocked}
+                        boundsRevision={boundsRevision}
+                        onUrlChange={(url) => {
+                          pushHistory();
+                          let label = "Browser";
+                          try {
+                            label = new URL(url).host || label;
+                          } catch {
+                            label = url || label;
+                          }
+                          setNodes((current) =>
+                            current.map((item) =>
+                              item.id === node.id
+                                ? { ...item, url, label }
+                                : item,
+                            ),
+                          );
+                        }}
+                        onActivate={activate}
+                        onHeaderPointerDown={(event) =>
+                          handleNodePointerDown(
+                            event as unknown as ReactPointerEvent<SVGGElement>,
+                            node,
+                          )
+                        }
+                        onToggleLock={toggleLock}
+                        onRequestClose={() => eraseNode(node.id)}
+                      />
+                    ) : (
+                      <CanvasEditorNode
+                        path={node.path}
+                        active={active}
+                        locked={Boolean(node.locked)}
+                        interactionBlocked={interactionBlocked}
+                        onPathChange={(path) => {
+                          pushHistory();
+                          setNodes((current) =>
+                            current.map((item) =>
+                              item.id === node.id
+                                ? {
+                                    ...item,
+                                    path,
+                                    label: canvasEditorTitle(path),
+                                  }
+                                : item,
+                            ),
+                          );
+                        }}
+                        onActivate={activate}
+                        onHeaderPointerDown={(event) =>
+                          handleNodePointerDown(
+                            event as unknown as ReactPointerEvent<SVGGElement>,
+                            node,
+                          )
+                        }
+                        onToggleLock={toggleLock}
+                        onRequestClose={() => eraseNode(node.id)}
+                      />
+                    )}
+                    {selected && !node.locked ? (
+                      <div className="pointer-events-none absolute inset-0 rounded-[12px] border-2 border-blue-500 shadow-[0_0_0_1px_rgba(59,130,246,0.16),0_8px_24px_rgba(59,130,246,0.20)]">
+                        {[
+                          { handle: "nw" as const, className: "-left-2 -top-2 cursor-nw-resize" },
+                          { handle: "ne" as const, className: "-right-2 -top-2 cursor-ne-resize" },
+                          { handle: "se" as const, className: "-bottom-2 -right-2 cursor-se-resize" },
+                          { handle: "sw" as const, className: "-bottom-2 -left-2 cursor-sw-resize" },
+                        ].map((corner) => (
+                          <button
+                            key={corner.handle}
+                            type="button"
+                            aria-label={`Resize ${node.kind} from ${corner.handle} corner`}
+                            className={cn(
+                              "pointer-events-auto absolute size-5 border-0 bg-transparent p-0 outline-none",
+                              corner.className,
+                            )}
+                            onPointerDown={(event) =>
+                              handleResizePointerDown(
+                                event as unknown as ReactPointerEvent<SVGRectElement>,
+                                node,
+                                corner.handle,
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
               })}
               {terminalDockDividers.map((divider) => {
                 const vertical = divider.direction === "horizontal";
@@ -3475,7 +3688,11 @@ function DiagramNode({
     );
   }
 
-  if (node.kind === "terminal") {
+  if (
+    node.kind === "terminal" ||
+    node.kind === "browser" ||
+    node.kind === "editor"
+  ) {
     return null;
   }
 
@@ -3875,7 +4092,7 @@ function updateDraggedNodes(
       ? snapTextAttachment(movedDragged, nodes)?.nodeId
       : dragged.textAnchorId;
   const nextFrameId =
-    dragged.kind === "terminal"
+    isFrameAttachableKind(dragged.kind)
       ? snapTerminalFrame(movedDragged, nodes)?.nodeId
       : dragged.frameId;
 
@@ -3884,7 +4101,7 @@ function updateDraggedNodes(
       if (dragged.kind === "text") {
         return { ...movedDragged, textAnchorId: nextAnchor };
       }
-      if (dragged.kind === "terminal") {
+      if (isFrameAttachableKind(dragged.kind)) {
         return { ...movedDragged, frameId: nextFrameId };
       }
       return movedDragged;
@@ -3917,7 +4134,7 @@ function updateDraggedNodes(
       };
     }
     if (
-      item.kind === "terminal" &&
+      isFrameAttachableKind(item.kind) &&
       item.frameId &&
       groupIds.has(item.frameId) &&
       !groupIds.has(item.id)
@@ -4235,6 +4452,9 @@ function defaultSize(kind: ShapeKind): { width: number; height: number } {
       return { width: 240, height: 150 };
     case "terminal":
       return TERMINAL_DEFAULT_SIZE;
+    case "browser":
+    case "editor":
+      return INTERACTIVE_SURFACE_DEFAULT_SIZE;
     case "line":
     case "arrow":
     case "pen":
@@ -4260,6 +4480,9 @@ function minimumDrawingSize(kind: ShapeKind): { width: number; height: number } 
       return { width: 80, height: 56 };
     case "terminal":
       return { width: 320, height: 200 };
+    case "browser":
+    case "editor":
+      return INTERACTIVE_SURFACE_MINIMUM_SIZE;
     case "rectangle":
       return { width: 40, height: 32 };
     default:
@@ -4283,6 +4506,10 @@ function defaultTechnology(kind: ShapeKind): string {
       return "Serverless";
     case "ai":
       return "LLM / model";
+    case "browser":
+      return "Web";
+    case "editor":
+      return "CodeMirror";
     case "database":
       return "SQL / NoSQL";
     case "cache":
@@ -4421,7 +4648,20 @@ function isCanvasNavBlockedTarget(target: EventTarget | null): boolean {
 }
 
 function isResizableShapeKind(kind: ShapeKind): kind is ResizableShapeKind {
-    return ["rectangle", "circle", "frame", "text", "image", "terminal"].includes(kind);
+  return [
+    "rectangle",
+    "circle",
+    "frame",
+    "text",
+    "image",
+    "terminal",
+    "browser",
+    "editor",
+  ].includes(kind);
+}
+
+function isFrameAttachableKind(kind: ShapeKind): boolean {
+  return kind === "terminal" || kind === "browser" || kind === "editor";
 }
 
 function isFreehandKind(kind: ShapeKind): boolean {

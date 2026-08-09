@@ -33,6 +33,28 @@ const splitDiagram: ArchitectureDiagram = {
       cwd: "/tmp/project",
       initialCommand: "codex",
     },
+    {
+      id: "browser-1",
+      kind: "browser",
+      label: "Browser",
+      technology: "Web",
+      x: 80,
+      y: 720,
+      width: 720,
+      height: 480,
+      url: "https://example.com",
+    },
+    {
+      id: "editor-1",
+      kind: "editor",
+      label: "example.ts",
+      technology: "CodeMirror",
+      x: 840,
+      y: 720,
+      width: 720,
+      height: 480,
+      path: "/tmp/example.ts",
+    },
   ],
   edges: [],
   terminalDockGroups: [
@@ -69,6 +91,19 @@ describe("canvas workspace persistence", () => {
     const persisted = serializeCanvasWorkspaceDiagram(splitDiagram);
 
     expect(parseCanvasWorkspaceDiagram(persisted)).toEqual(splitDiagram);
+  });
+
+  it("round-trips browser URLs and editor file paths", () => {
+    const restored = parseCanvasWorkspaceDiagram(
+      serializeCanvasWorkspaceDiagram(splitDiagram),
+    );
+
+    expect(restored?.nodes.find((node) => node.kind === "browser")?.url).toBe(
+      "https://example.com",
+    );
+    expect(restored?.nodes.find((node) => node.kind === "editor")?.path).toBe(
+      "/tmp/example.ts",
+    );
   });
 
   it("does not mistake a standard terminal pane layout for a canvas diagram", () => {

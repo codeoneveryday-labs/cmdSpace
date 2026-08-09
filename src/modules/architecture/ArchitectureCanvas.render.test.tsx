@@ -30,6 +30,18 @@ vi.mock("./CanvasTerminalNode", () => ({
   ),
 }));
 
+vi.mock("./CanvasBrowserNode", () => ({
+  CanvasBrowserNode: ({ url }: { url: string }) => (
+    <div data-canvas-browser-url={url} />
+  ),
+}));
+
+vi.mock("./CanvasEditorNode", () => ({
+  CanvasEditorNode: ({ path }: { path?: string }) => (
+    <div data-canvas-editor-path={path} />
+  ),
+}));
+
 describe("ArchitectureCanvas", () => {
   it("renders a canvas-only workspace with a floating bottom dock", () => {
     const markup = renderToStaticMarkup(
@@ -74,6 +86,55 @@ describe("ArchitectureCanvas", () => {
     expect(markup).not.toContain('aria-label="Connect (C)"');
     expect(markup).not.toContain('aria-label="Arrow (A)"');
     expect(markup).not.toContain('aria-label="Eraser (E)"');
+  });
+
+  it("offers Browser and Editor beside Terminal in the canvas toolbar", () => {
+    const markup = renderToStaticMarkup(
+      <ArchitectureCanvas active tabId={1} title="Architecture" />,
+    );
+
+    expect(markup).toContain('aria-label="Add terminal (I)"');
+    expect(markup).toContain('aria-label="Add browser"');
+    expect(markup).toContain('aria-label="Add editor"');
+  });
+
+  it("restores browser URLs and editor paths as live canvas surfaces", () => {
+    const seed: ArchitectureDiagram = {
+      nodes: [
+        {
+          id: "browser-1",
+          kind: "browser",
+          label: "Browser",
+          technology: "Web",
+          url: "https://example.com",
+          x: 80,
+          y: 100,
+          width: 720,
+          height: 480,
+        },
+        {
+          id: "editor-1",
+          kind: "editor",
+          label: "example.ts",
+          technology: "CodeMirror",
+          path: "/tmp/example.ts",
+          x: 840,
+          y: 100,
+          width: 720,
+          height: 480,
+        },
+      ],
+      edges: [],
+    };
+
+    const markup = renderToStaticMarkup(
+      <ThemeProvider>
+        <ArchitectureCanvas active tabId={1} title="Architecture" seed={seed} />
+      </ThemeProvider>,
+    );
+
+    expect(markup).toContain('data-canvas-browser-url="https://example.com"');
+    expect(markup).toContain('data-canvas-editor-path="/tmp/example.ts"');
   });
 
   it("ignores stale node kinds from a saved diagram", () => {
