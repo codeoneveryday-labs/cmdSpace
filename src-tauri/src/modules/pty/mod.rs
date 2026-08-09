@@ -3,6 +3,7 @@ mod da_filter;
 #[cfg(windows)]
 mod job;
 mod session;
+mod session_import;
 pub(crate) mod shell_init;
 
 use std::collections::{hash_map::DefaultHasher, HashMap};
@@ -366,6 +367,15 @@ pub fn check_agent_clis(
         .iter()
         .map(|name| resolvable_in_dirs(name, &entries, &path_exts))
         .collect())
+}
+
+#[tauri::command]
+pub async fn list_agent_sessions(
+    limit: Option<usize>,
+) -> Result<Vec<session_import::ImportableAgentSession>, String> {
+    tauri::async_runtime::spawn_blocking(move || session_import::list_agent_sessions(limit))
+        .await
+        .map_err(|error| format!("session scan task failed: {error}"))?
 }
 
 #[cfg(windows)]

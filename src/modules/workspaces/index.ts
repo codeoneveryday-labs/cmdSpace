@@ -7,3 +7,9 @@ export {
   type WorkspaceItem,
   type WorkspaceMode,
 } from "./WorkspacesPanel";
+export { ImportSessionDialog } from "./ImportSessionDialog";
+export { buildSessionResumeCommand } from "./lib/importSessions";
+export type {
+  AgentSessionProvider,
+  ImportableAgentSession,
+} from "./lib/importSessions";
