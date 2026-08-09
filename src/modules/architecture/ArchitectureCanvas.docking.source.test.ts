@@ -58,7 +58,7 @@ describe("ArchitectureCanvas terminal docking integration", () => {
 
   it("renders shared group controls only for multi-terminal dock groups", () => {
     expect(source).toContain('data-canvas-terminal-group-header="true"');
-    expect(source).toContain("terminalDockGroups.map((group) => {");
+    expect(source).toContain("renderedTerminalDockGroups.map((group) => {");
     expect(source).toContain("terminalDockGroupUsesSharedHeader(group)");
     expect(source).toContain("onClick={() => closeTerminalGroup(group)}");
     expect(source).toContain("terminalIds.includes(item.id)");
@@ -109,6 +109,17 @@ describe("ArchitectureCanvas terminal docking integration", () => {
   it("keeps the newly created tab visible when adding inside a maximized group", () => {
     expect(source).toContain("maximizedTerminalId === source.id");
     expect(source).toContain("setMaximizedTerminalId(created.id)");
+  });
+
+  it("maximizes every pane and divider in the selected dock group", () => {
+    expect(source).toContain("projectMaximizedTerminalDockGroups(");
+    expect(source).toContain(
+      "const renderedLayout = renderedTerminalLayoutById.get(node.id)",
+    );
+    expect(source).toContain(
+      "{renderedTerminalDockDividers.map((divider) => {",
+    );
+    expect(source).not.toContain("(!maximizedTerminalId || maximized)");
   });
 
   it("arms Browser placement instead of centering it immediately", () => {

@@ -368,6 +368,24 @@ export function terminalDockGroupUsesSharedHeader(
   return group.root.kind === "split";
 }
 
+export function projectMaximizedTerminalDockGroups(
+  groups: readonly ArchitectureTerminalDockGroup[],
+  maximizedTerminalId: string,
+  bounds: TerminalDockRect,
+): ArchitectureTerminalDockGroup[] {
+  if (!maximizedTerminalId) return [...groups];
+
+  const maximizedGroupId = layoutTerminalDockGroups(groups).find((layout) =>
+    layout.terminalIds.includes(maximizedTerminalId),
+  )?.groupId;
+  const maximizedGroup = groups.find(
+    (group) => group.id === maximizedGroupId,
+  );
+  if (!maximizedGroup) return [];
+
+  return [{ ...maximizedGroup, ...bounds }];
+}
+
 export function layoutTerminalDockGroups(
   groups: readonly ArchitectureTerminalDockGroup[],
 ): TerminalDockStackLayout[] {

@@ -62,13 +62,13 @@ import {
   layoutTerminalDockDividers,
   layoutTerminalDockGroups,
   normalizeTerminalDockGroups,
+  projectMaximizedTerminalDockGroups,
   projectTerminalDockLayouts,
   removeTerminalFromDock,
   resolveTerminalDockDrop,
   terminalDockCornerClassName,
   terminalDockGroupUsesSharedHeader,
   terminalDockIndicatorRect,
-  TERMINAL_DOCK_GROUP_HEADER_HEIGHT,
   updateTerminalDockSplitRatio,
   updateTerminalGroupBounds,
   type TerminalDockDividerLayout,
@@ -699,10 +699,6 @@ export function ArchitectureCanvas({
     () => layoutTerminalDockGroups(terminalDockGroups),
     [terminalDockGroups],
   );
-  const terminalDockDividers = useMemo(
-    () => layoutTerminalDockDividers(terminalDockGroups),
-    [terminalDockGroups],
-  );
   const terminalLayoutById = useMemo(
     () =>
       new Map(
@@ -711,6 +707,47 @@ export function ArchitectureCanvas({
         ),
       ),
     [terminalLayouts],
+  );
+  const maximizedTerminalGroupId = maximizedTerminalId
+    ? terminalLayoutById.get(maximizedTerminalId)?.groupId ?? ""
+    : "";
+  const renderedTerminalDockGroups = useMemo(
+    () =>
+      projectMaximizedTerminalDockGroups(
+        terminalDockGroups,
+        maximizedTerminalId,
+        {
+          x: view.x + 32,
+          y: view.y + 32,
+          width: Math.max(320, viewWidth - 64),
+          height: Math.max(200, viewHeight - 64),
+        },
+      ),
+    [
+      maximizedTerminalId,
+      terminalDockGroups,
+      view.x,
+      view.y,
+      viewHeight,
+      viewWidth,
+    ],
+  );
+  const renderedTerminalLayouts = useMemo(
+    () => layoutTerminalDockGroups(renderedTerminalDockGroups),
+    [renderedTerminalDockGroups],
+  );
+  const renderedTerminalLayoutById = useMemo(
+    () =>
+      new Map(
+        renderedTerminalLayouts.flatMap((layout) =>
+          layout.terminalIds.map((terminalId) => [terminalId, layout] as const),
+        ),
+      ),
+    [renderedTerminalLayouts],
+  );
+  const renderedTerminalDockDividers = useMemo(
+    () => layoutTerminalDockDividers(renderedTerminalDockGroups),
+    [renderedTerminalDockGroups],
   );
   const terminalPlacementObstacles = useMemo(() => {
     const dockedTerminalIds = new Set(
@@ -995,7 +1032,13 @@ export function ArchitectureCanvas({
           liveSurfaceNodes.find((node) => node.id === selectedNodeId) ??
           terminalNodes.find((node) => node.id === activeTerminalId);
         if (!current) return;
-        setMaximizedTerminalId((prev) => (prev === current.id ? "" : current.id));
+        const currentGroupId = terminalLayoutById.get(current.id)?.groupId;
+        setMaximizedTerminalId(
+          maximizedTerminalGroupId &&
+            currentGroupId === maximizedTerminalGroupId
+            ? ""
+            : current.id,
+        );
         return;
       }
       if (event.altKey || event.shiftKey) return;
@@ -1040,8 +1083,10 @@ export function ArchitectureCanvas({
     active,
     activeTerminalId,
     liveSurfaceNodes,
+    maximizedTerminalGroupId,
     maximizedTerminalId,
     selectedNodeId,
+    terminalLayoutById,
     terminalNodes,
   ]);
 
@@ -2474,8 +2519,8 @@ export function ArchitectureCanvas({
                 willChange: "transform",
               }}
             >
-              {terminalDockGroups.map((group) => {
-                const groupLayouts = terminalLayouts.filter(
+              {renderedTerminalDockGroups.map((group) => {
+                const groupLayouts = renderedTerminalLayouts.filter(
                   (layout) => layout.groupId === group.id,
                 );
                 const terminalIds = groupLayouts.flatMap(
@@ -2502,14 +2547,7 @@ export function ArchitectureCanvas({
                 const locked = terminalIds.every(
                   (terminalId) => Boolean(nodeById.get(terminalId)?.locked),
                 );
-                const bounds = maximizedTerminal
-                  ? {
-                      x: view.x + 32,
-                      y: view.y + 32,
-                      width: Math.max(320, viewWidth - 64),
-                      height: Math.max(200, viewHeight - 64),
-                    }
-                  : group;
+                const bounds = group;
 
                 return (
                   <div
@@ -2572,8 +2610,8 @@ export function ArchitectureCanvas({
                         className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={() =>
-                          setMaximizedTerminalId((current) =>
-                            current === activeTerminal ? "" : activeTerminal,
+                          setMaximizedTerminalId(
+                            maximizedTerminal ? "" : activeTerminal,
                           )
                         }
                       >
@@ -2609,12 +2647,15 @@ export function ArchitectureCanvas({
               })}
               {terminalNodes.map((node) => {
               const layout = terminalLayoutById.get(node.id);
+              const renderedLayout = renderedTerminalLayoutById.get(node.id);
               const terminalGroup = layout
                 ? terminalDockGroups.find(
                     (group) => group.id === layout.groupId,
                   )
                 : undefined;
-              const maximized = maximizedTerminalId === node.id;
+              const maximized = Boolean(
+                maximizedTerminalGroupId && renderedLayout,
+              );
               const usesSharedHeader = terminalGroup
                 ? terminalDockGroupUsesSharedHeader(terminalGroup)
                 : false;
@@ -2626,30 +2667,17 @@ export function ArchitectureCanvas({
               const terminalGroupLocked = terminalGroupIds.every((terminalId) =>
                 Boolean(nodeById.get(terminalId)?.locked),
               );
-              const dockBounds = layout?.rect ?? node;
-              const bounds = maximized
-                ? {
-                    x: view.x + 32,
-                    y:
-                      view.y +
-                      32 +
-                      (usesSharedHeader ? TERMINAL_DOCK_GROUP_HEADER_HEIGHT : 0),
-                    width: Math.max(320, viewWidth - 64),
-                    height: Math.max(
-                      200,
-                      viewHeight -
-                        64 -
-                        (usesSharedHeader ? TERMINAL_DOCK_GROUP_HEADER_HEIGHT : 0),
-                    ),
-                  }
-                : dockBounds;
+              const bounds = renderedLayout?.rect ?? layout?.rect ?? node;
               const visible =
                 active &&
                 (!layout || layout.activeTerminalId === node.id) &&
-                (!maximizedTerminalId || maximized);
-              const selectionBounds = maximized
-                ? bounds
-                : terminalGroup ?? bounds;
+                (!maximizedTerminalId || Boolean(renderedLayout));
+              const renderedTerminalGroup = renderedLayout
+                ? renderedTerminalDockGroups.find(
+                    (group) => group.id === renderedLayout.groupId,
+                  )
+                : undefined;
+              const selectionBounds = renderedTerminalGroup ?? bounds;
               const stackTabs = (layout?.terminalIds ?? [node.id])
                 .map((terminalId) => {
                   const terminalNode = nodeById.get(terminalId);
@@ -2740,14 +2768,10 @@ export function ArchitectureCanvas({
                         event as unknown as ReactWheelEvent<SVGSVGElement>,
                       )
                     }
-                    cornerClassName={
-                      maximized
-                        ? "rounded-[12px]"
-                        : terminalDockCornerClassName(
-                            bounds,
-                            terminalGroup ?? bounds,
-                          )
-                    }
+                    cornerClassName={terminalDockCornerClassName(
+                      bounds,
+                      renderedTerminalGroup ?? terminalGroup ?? bounds,
+                    )}
                     onActivate={() => {
                       setActiveTerminalId(node.id);
                       selectSingleNode(node.id);
@@ -2877,12 +2901,15 @@ export function ArchitectureCanvas({
               })}
               {interactiveSurfaceNodes.map((node) => {
                 const layout = terminalLayoutById.get(node.id);
+                const renderedLayout = renderedTerminalLayoutById.get(node.id);
                 const surfaceGroup = layout
                   ? terminalDockGroups.find(
                       (group) => group.id === layout.groupId,
                     )
                   : undefined;
-                const maximized = maximizedTerminalId === node.id;
+                const maximized = Boolean(
+                  maximizedTerminalGroupId && renderedLayout,
+                );
                 const usesSharedHeader = surfaceGroup
                   ? terminalDockGroupUsesSharedHeader(surfaceGroup)
                   : false;
@@ -2896,31 +2923,11 @@ export function ArchitectureCanvas({
                 const surfaceGroupLocked = surfaceGroupIds.every((id) =>
                   Boolean(nodeById.get(id)?.locked),
                 );
-                const dockBounds = layout?.rect ?? node;
-                const bounds = maximized
-                  ? {
-                      x: view.x + 32,
-                      y:
-                        view.y +
-                        32 +
-                        (usesSharedHeader
-                          ? TERMINAL_DOCK_GROUP_HEADER_HEIGHT
-                          : 0),
-                      width: Math.max(400, viewWidth - 64),
-                      height: Math.max(
-                        300,
-                        viewHeight -
-                          64 -
-                          (usesSharedHeader
-                            ? TERMINAL_DOCK_GROUP_HEADER_HEIGHT
-                            : 0),
-                      ),
-                    }
-                  : dockBounds;
+                const bounds = renderedLayout?.rect ?? layout?.rect ?? node;
                 const visible =
                   active &&
                   (!layout || layout.activeTerminalId === node.id) &&
-                  (!maximizedTerminalId || maximized);
+                  (!maximizedTerminalId || Boolean(renderedLayout));
                 const selected = selectedNodeIds.includes(node.id);
                 const interactionBlocked = Boolean(
                   mode === "pan" || pan || drag || resize || dockDividerResize,
@@ -3105,7 +3112,7 @@ export function ArchitectureCanvas({
                   </div>
                 );
               })}
-              {terminalDockDividers.map((divider) => {
+              {renderedTerminalDockDividers.map((divider) => {
                 const vertical = divider.direction === "horizontal";
                 const position = vertical
                   ? {
