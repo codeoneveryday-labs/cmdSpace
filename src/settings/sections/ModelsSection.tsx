@@ -4,7 +4,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -45,11 +44,11 @@ import {
   setSpeechToTextModelId,
 } from "@/modules/settings/store";
 import {
-  Add01Icon,
   ArrowDown01Icon,
   ArrowUpRight01Icon,
   Cancel01Icon,
   CheckmarkCircle02Icon,
+  Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { invoke } from "@tauri-apps/api/core";
@@ -58,6 +57,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { ProviderKeyCard } from "../components/ProviderKeyCard";
 import { SectionHeader } from "../components/SectionHeader";
+import { filterProviderCatalog } from "./providerCatalog";
 
 type KeysMap = Record<ProviderId, string | null>;
 
@@ -106,9 +106,20 @@ const LOCAL_META: Partial<Record<ProviderId, LocalMeta>> = {
   },
 };
 
+function providerCatalogDescription(provider: ProviderInfo): string {
+  const modelCount = MODELS.filter(
+    (model) => model.provider === provider.id,
+  ).length;
+  return (
+    LOCAL_META[provider.id]?.description ??
+    `${modelCount} ${modelCount === 1 ? "model" : "models"} available.`
+  );
+}
+
 export function ModelsSection() {
   const [keys, setKeys] = useState<KeysMap | null>(null);
   const [adding, setAdding] = useState<Set<ProviderId>>(new Set());
+  const [query, setQuery] = useState("");
 
   const defaultModel = usePreferencesStore((s) => s.defaultModelId);
   const lmstudioBaseURL = usePreferencesStore((s) => s.lmstudioBaseURL);
@@ -196,6 +207,17 @@ export function ModelsSection() {
   for (const id of adding) visibleIds.add(id);
   const visibleProviders = PROVIDERS.filter((p) => visibleIds.has(p.id));
   const addableProviders = PROVIDERS.filter((p) => !visibleIds.has(p.id));
+  const filteredProviders = filterProviderCatalog(
+    addableProviders.map((provider) => ({
+      provider,
+      id: provider.id,
+      label: provider.label,
+      description: providerCatalogDescription(provider),
+      modelLabels: MODELS.filter((model) => model.provider === provider.id)
+        .flatMap((model) => [model.id, model.label, model.hint]),
+    })),
+    query,
+  ).map(({ provider }) => provider);
 
   const removeProvider = (id: ProviderId) => {
     if (isLocalProvider(id)) {
@@ -232,35 +254,37 @@ export function ModelsSection() {
         keys={keys}
       />
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <Label>Providers</Label>
-          <AddProviderMenu
-            providers={addableProviders}
-            onAdd={addProvider}
-          />
+      <section className="flex flex-col gap-2">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-[12.5px] font-medium">Configured providers</h2>
+            <p className="text-[10.5px] text-muted-foreground">
+              Added providers are available to chat, autocomplete, and speech.
+            </p>
+          </div>
+          <span className="text-[10.5px] text-muted-foreground">
+            {configuredIds.size} configured
+          </span>
         </div>
 
         {visibleProviders.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border/60 bg-card/40 px-4 py-8 text-center">
-            <p className="text-[12px] text-muted-foreground">
-              No providers connected yet.
-            </p>
-            <p className="mt-0.5 text-[10.5px] text-muted-foreground/70">
-              Click “Add provider” to connect a cloud or local model source.
-            </p>
+          <div className="rounded-lg border border-dashed border-border/60 bg-card/25 px-4 py-8 text-center text-[11px] text-muted-foreground">
+            No providers configured yet.
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            {visibleProviders.map((p) =>
+          <div className="overflow-hidden rounded-lg border border-border/60 bg-card/40">
+            {visibleProviders.map((p, index) =>
               isLocalProvider(p.id) ? (
                 <LocalProviderCard
                   key={p.id}
+                  first={index === 0}
                   provider={p}
                   configured={configuredIds.has(p.id)}
                   config={localConfig(p.id)!}
                   meta={LOCAL_META[p.id]!}
-                  compatKey={p.id === "openai-compatible" ? keys[p.id] : undefined}
+                  compatKey={
+                    p.id === "openai-compatible" ? keys[p.id] : undefined
+                  }
                   onSaveKey={(v) => onSaveKey(p.id, v)}
                   onClearKey={() => onClearKey(p.id)}
                   onRemove={() => removeProvider(p.id)}
@@ -268,6 +292,7 @@ export function ModelsSection() {
               ) : (
                 <ProviderKeyCard
                   key={p.id}
+                  first={index === 0}
                   provider={p}
                   currentKey={keys[p.id]}
                   onSave={(v) => onSaveKey(p.id, v)}
@@ -278,7 +303,51 @@ export function ModelsSection() {
             )}
           </div>
         )}
-      </div>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <div>
+          <h2 className="text-[12.5px] font-medium">Add provider</h2>
+          <p className="text-[10.5px] text-muted-foreground">
+            Search cloud, local, and OpenAI-compatible model providers.
+          </p>
+        </div>
+
+        <div className="relative">
+          <HugeiconsIcon
+            icon={Search01Icon}
+            size={14}
+            strokeWidth={1.75}
+            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search providers"
+            aria-label="Search providers"
+            className="h-9 pl-9 text-[12px]"
+          />
+        </div>
+
+        {filteredProviders.length > 0 ? (
+          <div className="overflow-hidden rounded-lg border border-border/60 bg-card/40">
+            {filteredProviders.map((provider, index) => (
+              <ProviderCatalogRow
+                key={provider.id}
+                provider={provider}
+                first={index === 0}
+                onAdd={() => addProvider(provider.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border/60 bg-card/25 px-4 py-8 text-center text-[11px] text-muted-foreground">
+            {query.trim()
+              ? "No providers match your search."
+              : "All supported providers have been added."}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -292,71 +361,43 @@ type LocalConfig = {
   setContextLimit?: (v: number) => Promise<void>;
 };
 
-function AddProviderMenu({
-  providers,
-  onAdd,
-}: {
-  providers: readonly ProviderInfo[];
-  onAdd: (id: ProviderId) => void;
-}) {
-  const cloud = providers.filter((p) => !isLocalProvider(p.id));
-  const local = providers.filter((p) => isLocalProvider(p.id));
-  const disabled = providers.length === 0;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={disabled}
-          className="h-7 gap-1.5 px-2.5 text-[11px]"
-        >
-          <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={2} />
-          Add provider
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-55 p-1">
-        {cloud.length > 0 ? (
-          <>
-            <DropdownMenuLabel className="px-2 text-[10px] tracking-wide text-muted-foreground uppercase">
-              Cloud
-            </DropdownMenuLabel>
-            {cloud.map((p) => (
-              <ProviderMenuItem key={p.id} provider={p} onAdd={onAdd} />
-            ))}
-          </>
-        ) : null}
-        {local.length > 0 ? (
-          <>
-            <DropdownMenuLabel className="px-2 text-[10px] tracking-wide text-muted-foreground uppercase">
-              Local & custom
-            </DropdownMenuLabel>
-            {local.map((p) => (
-              <ProviderMenuItem key={p.id} provider={p} onAdd={onAdd} />
-            ))}
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function ProviderMenuItem({
+function ProviderCatalogRow({
   provider,
+  first,
   onAdd,
 }: {
   provider: ProviderInfo;
-  onAdd: (id: ProviderId) => void;
+  first: boolean;
+  onAdd: () => void;
 }) {
+  const category = isLocalProvider(provider.id) ? "Local" : "Cloud";
+  const description = providerCatalogDescription(provider);
+
   return (
-    <DropdownMenuItem
-      onSelect={() => onAdd(provider.id)}
-      className="flex items-center gap-2 text-[12px]"
+    <div
+      className={cn(
+        "flex min-h-16 items-center gap-3 px-3 py-2.5",
+        !first && "border-t border-border/55",
+      )}
     >
-      <ProviderIcon provider={provider.id} size={12} />
-      <span>{provider.label}</span>
-    </DropdownMenuItem>
+      <ProviderIcon provider={provider.id} size={14} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="truncate text-[12.5px] font-medium">
+            {provider.label}
+          </span>
+          <span className="shrink-0 text-[9.5px] text-muted-foreground">
+            {category}
+          </span>
+        </div>
+        <p className="truncate text-[10.5px] text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      <Button size="sm" className="h-7 min-w-16 text-[11px]" onClick={onAdd}>
+        Add
+      </Button>
+    </div>
   );
 }
 
@@ -688,6 +729,7 @@ function AutocompleteRow({
 
 function LocalProviderCard({
   provider,
+  first,
   configured,
   config,
   meta,
@@ -697,6 +739,7 @@ function LocalProviderCard({
   onRemove,
 }: {
   provider: ProviderInfo;
+  first: boolean;
   configured: boolean;
   config: LocalConfig;
   meta: LocalMeta;
@@ -732,7 +775,12 @@ function LocalProviderCard({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2.5">
+    <div
+      className={cn(
+        "flex flex-col gap-2 px-3 py-2.5",
+        !first && "border-t border-border/55",
+      )}
+    >
       <div className="flex items-center gap-2">
         <ProviderIcon provider={provider.id} size={13} />
         <span className="text-[12.5px] font-medium">{provider.label}</span>
