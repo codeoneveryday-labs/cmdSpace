@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -52,5 +52,17 @@ describe("menu bar workspace switcher wiring", () => {
     expect(tauri).toContain('WebviewUrl::App("tray.html".into())');
     expect(tauri).toContain('"cmdspace:tray-opened"');
     expect(tauri).toContain('main.emit("cmdspace:open-workspace", workspace_id)');
+  });
+
+  it("uses the transparent monochrome menu bar asset instead of the app icon", () => {
+    const tauri = readFileSync(path.join(root, "src-tauri/src/lib.rs"), "utf8");
+
+    expect(existsSync(path.join(root, "src-tauri/icons/trayTemplate.png"))).toBe(
+      true,
+    );
+    expect(tauri).toContain(
+      'tauri::include_image!("icons/trayTemplate.png")',
+    );
+    expect(tauri).not.toContain("app.default_window_icon().cloned()");
   });
 });
