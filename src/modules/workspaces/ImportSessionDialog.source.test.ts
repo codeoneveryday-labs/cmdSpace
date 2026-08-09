@@ -10,8 +10,16 @@ describe("workspace session import wiring", () => {
     const panel = readFileSync(path.join(here, "WorkspacesPanel.tsx"), "utf8");
     const app = readFileSync(path.join(here, "../../app/App.tsx"), "utf8");
     const tauri = readFileSync(path.join(here, "../../../src-tauri/src/lib.rs"), "utf8");
+    const extendedDiscovery = readFileSync(
+      path.join(
+        here,
+        "../../../src-tauri/src/modules/pty/session_import/extended.rs",
+      ),
+      "utf8",
+    );
 
     expect(dialog).toContain('"list_agent_sessions"');
+    expect(dialog).toContain("{ limit: 200, workspaceCwd }");
     expect(dialog).toContain("Current workspace");
     expect(dialog).toContain("All sessions");
     expect(dialog).toContain("Active in another Codex window");
@@ -20,6 +28,13 @@ describe("workspace session import wiring", () => {
     expect(dialog).toContain("selectedSessionKeys");
     expect(dialog).toContain("aria-pressed={selected}");
     expect(dialog).toContain("selectedSessionLabel");
+    expect(dialog).toContain('aria-label="Filter sessions by agent"');
+    expect(dialog).toContain("sessionProviderCounts");
+    expect(dialog).toContain("filterImportableSessions");
+    expect(dialog).toContain("getEnabledCliAgentDefinitions");
+    expect(dialog).toContain("sessionsForEnabledProviders");
+    expect(dialog).toContain("disabledCliAgentIds");
+    expect(dialog).toContain("All agents");
     expect(dialog).toContain("Add ${selectedSessions.length} ${selectedSessionLabel}");
     expect(dialog).toContain("formatRelativeActivity(session.lastActivityAt)");
     expect(dialog).toContain("title={session.title}");
@@ -39,5 +54,8 @@ describe("workspace session import wiring", () => {
     expect(app).toContain("appendTerminalPane");
     expect(app).toContain("handleArchitectureDiagramChange(tab.id, nextDiagram)");
     expect(tauri).toContain("pty::list_agent_sessions");
+    expect(extendedDiscovery).not.toContain("amp threads list");
+    expect(extendedDiscovery).not.toContain("qwen sessions list");
+    expect(extendedDiscovery).not.toContain("Command::new");
   });
 });
