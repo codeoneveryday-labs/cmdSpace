@@ -836,9 +836,9 @@ pub fn run() {
         .manage(LaunchDir(Mutex::new(parse_launch_dir())))
         .manage(DesktopBlurState::default())
         .manage(db::DbState(std::sync::Mutex::new(db_conn)))
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(target_os = "macos")]
-            setup_workspace_tray(app)?;
+            setup_workspace_tray(_app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
