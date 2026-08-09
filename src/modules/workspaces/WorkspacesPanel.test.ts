@@ -72,13 +72,18 @@ describe("WorkspacesPanel", () => {
     expect(agentCliIconSource).toContain("getAgentBrandIcon");
     expect(agentCliIconSource).toContain("<BrandIcon");
     expect(panelSource).toContain("Add AI coding agents");
-    expect(panelSource).toContain("check_agent_clis");
-    expect(panelSource).toContain("currentWorkspaceEnv()");
     expect(panelSource).toContain("availableAgents");
-    expect(panelSource).toContain("installedAgents");
-    expect(panelSource).toContain("Scanning installed agents");
     expect(panelSource).toContain(
-      "configuredAgentCliOptions.map((agent) => agent.executable)",
+      "const availableAgents = configuredAgentCliOptions",
+    );
+    expect(panelSource).not.toContain("check_agent_clis");
+    expect(panelSource).not.toContain("installedAgents");
+    expect(panelSource).not.toContain("Scanning installed agents");
+    expect(panelSource).toContain(
+      'invoke<string>("db_load_workspace_setup_custom_command")',
+    );
+    expect(panelSource).toContain(
+      'invoke("db_save_workspace_setup_custom_command",',
     );
     expect(panelSource).toContain("agentLaunchCommands");
     expect(panelSource).toContain("effectiveAgentCommands");
