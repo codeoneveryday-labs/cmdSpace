@@ -6,6 +6,8 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+mod extended;
+
 const PROVIDER_LIMIT: usize = 50;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -20,15 +22,23 @@ pub struct ImportableAgentSession {
     active: bool,
 }
 
-pub fn list_agent_sessions(limit: Option<usize>) -> Result<Vec<ImportableAgentSession>, String> {
+pub fn list_agent_sessions(
+    limit: Option<usize>,
+    workspace_cwd: Option<String>,
+) -> Result<Vec<ImportableAgentSession>, String> {
     let home = dirs::home_dir().ok_or_else(|| "could not resolve home directory".to_string())?;
     Ok(list_agent_sessions_in(
         &home,
+        workspace_cwd.as_deref().map(Path::new),
         limit.unwrap_or(100).clamp(1, 500),
     ))
 }
 
-fn list_agent_sessions_in(home: &Path, limit: usize) -> Vec<ImportableAgentSession> {
+fn list_agent_sessions_in(
+    home: &Path,
+    workspace_cwd: Option<&Path>,
+    limit: usize,
+) -> Vec<ImportableAgentSession> {
     let mut sessions = Vec::new();
     sessions.extend(list_jsonl_sessions(
         "claude",
@@ -48,6 +58,7 @@ fn list_agent_sessions_in(home: &Path, limit: usize) -> Vec<ImportableAgentSessi
     sessions.extend(list_opencode_sessions(
         &home.join(".local/share/opencode/opencode.db"),
     ));
+    sessions.extend(extended::list_extended_sessions(home, workspace_cwd));
     sessions.sort_by_key(|session| std::cmp::Reverse(session.last_activity_at));
     sessions.truncate(limit);
     sessions
@@ -364,7 +375,7 @@ mod tests {
             .unwrap();
         drop(opencode_db);
 
-        let sessions = list_agent_sessions_in(home.path(), 20);
+        let sessions = list_agent_sessions_in(home.path(), None, 20);
         assert_eq!(sessions.len(), 4);
         assert!(sessions.iter().any(
             |session| session.session_id == "claude-id" && session.title == "Fix the terminal"
@@ -411,7 +422,7 @@ mod tests {
         let lock = File::create(lock_dir.join("codex-id.lock")).unwrap();
         lock.lock().unwrap();
 
-        let sessions = list_agent_sessions_in(home.path(), 20);
+        let sessions = list_agent_sessions_in(home.path(), None, 20);
 
         assert!(sessions[0].active);
     }
@@ -444,7 +455,7 @@ mod tests {
         )
         .unwrap();
 
-        let sessions = list_agent_sessions_in(home.path(), 20);
+        let sessions = list_agent_sessions_in(home.path(), None, 20);
 
         assert_eq!(sessions[0].title, "Fix terminal input duplication");
         assert_eq!(

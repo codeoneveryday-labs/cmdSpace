@@ -372,10 +372,13 @@ pub fn check_agent_clis(
 #[tauri::command]
 pub async fn list_agent_sessions(
     limit: Option<usize>,
+    workspace_cwd: Option<String>,
 ) -> Result<Vec<session_import::ImportableAgentSession>, String> {
-    tauri::async_runtime::spawn_blocking(move || session_import::list_agent_sessions(limit))
-        .await
-        .map_err(|error| format!("session scan task failed: {error}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        session_import::list_agent_sessions(limit, workspace_cwd)
+    })
+    .await
+    .map_err(|error| format!("session scan task failed: {error}"))?
 }
 
 #[cfg(windows)]
