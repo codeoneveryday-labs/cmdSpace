@@ -20,6 +20,7 @@ type Props = {
   url: string;
   visible: boolean;
   resizing?: boolean;
+  boundsRevision?: string | number;
   onUrlChange: (url: string) => void;
 };
 
@@ -27,6 +28,7 @@ export function SidebarBrowserPane({
   url,
   visible,
   resizing = false,
+  boundsRevision,
   onUrlChange,
 }: Props) {
   const addressRef = useRef<PreviewAddressBarHandle>(null);
@@ -226,6 +228,11 @@ export function SidebarBrowserPane({
       window.removeEventListener("scroll", onWindowChange, true);
     };
   }, [syncNativeBounds, useNativeWebview]);
+
+  useEffect(() => {
+    if (!useNativeWebview) return;
+    void syncNativeBounds().catch(() => {});
+  }, [boundsRevision, syncNativeBounds, useNativeWebview]);
 
   useEffect(() => {
     return () => {

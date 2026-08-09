@@ -101,7 +101,7 @@ export type ArchitectureShapeKind =
   | "actor" | "external" | "service" | "api" | "worker" | "function"
   | "ai" | "database" | "cache" | "queue" | "storage" | "gateway"
   | "security" | "boundary" | "rectangle" | "circle" | "frame" | "text"
-  | "image" | "terminal" | "line" | "arrow" | "pen";
+  | "image" | "terminal" | "browser" | "editor" | "line" | "arrow" | "pen";
 
 export type ArchitectureDiagramNode = {
   id: string;
@@ -117,6 +117,8 @@ export type ArchitectureDiagramNode = {
   imageUrl?: string;
   cwd?: string;
   initialCommand?: string;
+  url?: string;
+  path?: string;
   terminalChromeVersion?: 2;
   points?: Array<{ x: number; y: number }>;
   connectorStartId?: string;
