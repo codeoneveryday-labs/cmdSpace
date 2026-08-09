@@ -95,15 +95,18 @@ describe("Architecture workspace page", () => {
     expect(canvasSource).toContain('"Focus canvas"');
   });
 
-  it("attaches terminals to frames and keeps them with the frame when it moves", () => {
+  it("attaches live surfaces to frames and keeps them with the frame when it moves", () => {
     const tabsSource = readFileSync(tabsPath, "utf8");
     const canvasSource = readFileSync(canvasPath, "utf8");
 
     expect(tabsSource).toContain("frameId?: string;");
     expect(canvasSource).toContain("function snapTerminalFrame");
-    expect(canvasSource).toContain('dragged.kind === "terminal"');
+    expect(canvasSource).toContain("isFrameAttachableKind(dragged.kind)");
     expect(canvasSource).toContain("frameId: nextFrameId");
-    expect(canvasSource).toContain('item.kind === "terminal"');
+    expect(canvasSource).toContain("isFrameAttachableKind(item.kind)");
+    expect(canvasSource).toContain(
+      'kind === "terminal" || kind === "browser" || kind === "editor"',
+    );
     expect(canvasSource).toContain("groupIds.has(item.frameId)");
     expect(canvasSource).toContain("moveTerminalDockGroups");
     expect(canvasSource).toContain("attachedTerminalGroupIds");
