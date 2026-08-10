@@ -1,13 +1,17 @@
-use serde::Serialize;
+use rusqlite::{Connection, OpenFlags};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cmp::Reverse;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+const COMMAND_CODE_API_URL: &str = "https://api.commandcode.ai";
 
 const MAX_SESSION_FILES: usize = 384;
 const MAX_TAIL_BYTES: u64 = 512 * 1024;
+const MAX_PROVIDER_LIMIT_TAIL_BYTES: u64 = 8 * 1024 * 1024;
 const CLAUDE_CONTEXT_WINDOW_ESTIMATE: u64 = 200_000;
 
 #[derive(Clone, Debug, Serialize)]
@@ -37,7 +41,34 @@ pub struct AgentRateLimit {
 pub struct ProviderLimitStatus {
     pub provider: String,
     pub rate_limits: Vec<AgentRateLimit>,
+    pub session_usage: Option<AgentSessionUsage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_usage: Option<ProviderAccountUsage>,
     pub observed_at: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderAccountUsage {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub used_percent: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credits_remaining: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_count: Option<u64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSessionUsage {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_write_tokens: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
 }
 
 #[tauri::command]
@@ -49,9 +80,28 @@ pub async fn agent_usage_statuses(cwd: String) -> Result<Vec<AgentUsageStatus>, 
 
 #[tauri::command]
 pub async fn provider_limit_statuses() -> Result<Vec<ProviderLimitStatus>, String> {
-    tauri::async_runtime::spawn_blocking(scan_provider_limit_statuses)
+    let mut statuses = tauri::async_runtime::spawn_blocking(scan_provider_limit_statuses)
         .await
-        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())??;
+    if let Some(status) = fetch_command_code_usage().await {
+        statuses.push(status);
+    }
+    Ok(statuses)
+}
+
+#[tauri::command]
+pub async fn provider_limit_status(
+    provider: String,
+) -> Result<Option<ProviderLimitStatus>, String> {
+    if provider == "cmd" {
+        return Ok(fetch_command_code_usage().await);
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let home = dirs::home_dir()?;
+        scan_local_provider_limit_status(&home, &provider)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 fn scan_agent_usage(cwd: &str) -> Result<Vec<AgentUsageStatus>, String> {
@@ -74,15 +124,88 @@ fn scan_provider_limit_statuses() -> Result<Vec<ProviderLimitStatus>, String> {
         return Ok(Vec::new());
     };
 
+    let statuses = ["codex", "claude", "opencode"]
+        .into_iter()
+        .filter_map(|provider| scan_local_provider_limit_status(&home, provider))
+        .collect::<Vec<_>>();
+    Ok(statuses)
+}
+
+fn scan_local_provider_limit_status(home: &Path, provider: &str) -> Option<ProviderLimitStatus> {
+    match provider {
+        "codex" => scan_codex_provider_usage(home),
+        "claude" => scan_claude_provider_usage(home),
+        "opencode" => scan_opencode_usage(home),
+        _ => None,
+    }
+}
+
+fn scan_codex_provider_usage(home: &Path) -> Option<ProviderLimitStatus> {
     let sessions_root = home.join(".codex").join("sessions");
     for file in newest_jsonl_files(&sessions_root, 4) {
         let observed_at = modified_at(&file);
-        if let Some(snapshot) = latest_provider_limit_snapshot(&tail_lines(&file), observed_at) {
-            return Ok(vec![snapshot]);
+        if let Some(snapshot) = latest_provider_limit_snapshot(
+            &tail_lines_with_limit(&file, MAX_PROVIDER_LIMIT_TAIL_BYTES),
+            observed_at,
+        ) {
+            return Some(snapshot);
         }
     }
+    None
+}
 
-    Ok(Vec::new())
+fn scan_claude_provider_usage(home: &Path) -> Option<ProviderLimitStatus> {
+    claude_project_roots(home).into_iter().find_map(|root| {
+        newest_jsonl_files(&root, 2).into_iter().find_map(|file| {
+            let observed_at = modified_at(&file);
+            tail_lines_with_limit(&file, MAX_PROVIDER_LIMIT_TAIL_BYTES)
+                .iter()
+                .rev()
+                .find_map(|line| parse_claude_session_usage(line))
+                .map(|session_usage| ProviderLimitStatus {
+                    provider: "claude".to_string(),
+                    rate_limits: Vec::new(),
+                    session_usage: Some(session_usage),
+                    account_usage: None,
+                    observed_at,
+                })
+        })
+    })
+}
+
+pub(crate) fn claude_project_roots(home: &Path) -> [PathBuf; 2] {
+    [
+        home.join(".claude").join("projects"),
+        home.join(".config").join("claude").join("projects"),
+    ]
+}
+
+fn scan_opencode_usage(home: &Path) -> Option<ProviderLimitStatus> {
+    let path = home.join(".local/share/opencode/opencode.db");
+    let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+    let (input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd, updated_at):
+        (u64, u64, u64, u64, f64, u64) = connection
+        .query_row(
+            "SELECT tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, cost, time_updated
+             FROM session ORDER BY time_updated DESC LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+        )
+        .ok()?;
+    let session_usage = AgentSessionUsage {
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        cache_write_tokens,
+        cost_usd: (cost_usd > 0.0).then_some(cost_usd),
+    };
+    Some(ProviderLimitStatus {
+        provider: "opencode".to_string(),
+        rate_limits: Vec::new(),
+        session_usage: Some(session_usage),
+        account_usage: None,
+        observed_at: updated_at / 1000,
+    })
 }
 
 pub fn provider_limit_snapshot(
@@ -92,8 +215,210 @@ pub fn provider_limit_snapshot(
     (!status.rate_limits.is_empty()).then_some(ProviderLimitStatus {
         provider: status.provider,
         rate_limits: status.rate_limits,
+        session_usage: None,
+        account_usage: None,
         observed_at,
     })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CommandCodeAuth {
+    api_key: String,
+}
+
+async fn fetch_command_code_usage() -> Option<ProviderLimitStatus> {
+    let home = dirs::home_dir()?;
+    let auth: CommandCodeAuth = serde_json::from_str(
+        &fs::read_to_string(home.join(".commandcode").join("auth.json")).ok()?,
+    )
+    .ok()?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+        .ok()?;
+    let whoami = command_code_get(&client, &auth.api_key, "/alpha/whoami", &[]).await?;
+    let org_id = whoami.pointer("/org/id").and_then(Value::as_str);
+    let org_query = org_id.map(|id| vec![("orgId", id)]).unwrap_or_default();
+    let (credits, subscription) = futures_util::future::join(
+        command_code_get(&client, &auth.api_key, "/alpha/billing/credits", &org_query),
+        command_code_get(
+            &client,
+            &auth.api_key,
+            "/alpha/billing/subscriptions",
+            &org_query,
+        ),
+    )
+    .await;
+    let credits = credits?;
+    let subscription = subscription?;
+    let mut summary_query = org_query;
+    if let Some(since) = subscription
+        .pointer("/data/currentPeriodStart")
+        .and_then(Value::as_str)
+    {
+        summary_query.push(("since", since));
+    }
+    let summary = command_code_get(
+        &client,
+        &auth.api_key,
+        "/alpha/usage/summary",
+        &summary_query,
+    )
+    .await?;
+
+    command_code_usage_snapshot(&credits, &subscription, &summary, current_timestamp())
+}
+
+async fn command_code_get(
+    client: &reqwest::Client,
+    api_key: &str,
+    endpoint: &str,
+    query: &[(&str, &str)],
+) -> Option<Value> {
+    let bytes = client
+        .get(format!("{COMMAND_CODE_API_URL}{endpoint}"))
+        .bearer_auth(api_key)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .query(query)
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .bytes()
+        .await
+        .ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+pub fn command_code_usage_snapshot(
+    credits: &Value,
+    subscription: &Value,
+    summary: &Value,
+    observed_at: u64,
+) -> Option<ProviderLimitStatus> {
+    let rate_limits = credits
+        .get("windowLimits")
+        .filter(|limits| {
+            limits
+                .get("limited")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        })
+        .map(|limits| {
+            [("fiveHour", "5-hour", 300), ("weekly", "Weekly", 10_080)]
+                .into_iter()
+                .filter_map(|(key, label, window_minutes)| {
+                    command_code_rate_limit(limits.get(key)?, label, window_minutes)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let plan_id = subscription.pointer("/data/planId").and_then(Value::as_str);
+    let plan = plan_id.and_then(command_code_plan).map(str::to_string);
+    let monthly_remaining = credits
+        .pointer("/credits/monthlyCredits")
+        .and_then(Value::as_f64)
+        .unwrap_or_default()
+        .max(0.0);
+    let purchased_remaining = credits
+        .pointer("/credits/purchasedCredits")
+        .and_then(Value::as_f64)
+        .unwrap_or_default()
+        .max(0.0);
+    let free_remaining = credits
+        .pointer("/credits/freeCredits")
+        .and_then(Value::as_f64)
+        .unwrap_or_default()
+        .max(0.0);
+    let credits_remaining = monthly_remaining + purchased_remaining + free_remaining;
+    let total_spent = summary
+        .get("totalCost")
+        .and_then(Value::as_f64)
+        .unwrap_or_default()
+        .max(0.0);
+    let plan_total = plan_id.and_then(command_code_plan_credits);
+    let total_pool = plan_total
+        .map(|total| total.max(monthly_remaining) + purchased_remaining + free_remaining)
+        .unwrap_or(total_spent + credits_remaining);
+    let used_percent = (total_pool > 0.0).then(|| {
+        ((total_pool - credits_remaining) / total_pool * 100.0)
+            .clamp(0.0, 100.0)
+            .round() as u8
+    });
+    let account_usage = ProviderAccountUsage {
+        plan,
+        used_percent,
+        credits_remaining: (credits_remaining > 0.0 || total_spent > 0.0)
+            .then_some(credits_remaining),
+        request_count: summary.get("totalCount").and_then(Value::as_u64),
+    };
+
+    (!rate_limits.is_empty()
+        || account_usage.plan.is_some()
+        || account_usage.credits_remaining.is_some()
+        || account_usage.request_count.is_some())
+    .then_some(ProviderLimitStatus {
+        provider: "cmd".to_string(),
+        rate_limits,
+        session_usage: None,
+        account_usage: Some(account_usage),
+        observed_at,
+    })
+}
+
+fn command_code_rate_limit(
+    value: &Value,
+    label: &str,
+    window_minutes: u32,
+) -> Option<AgentRateLimit> {
+    let used = value.get("used")?.as_f64()?;
+    let cap = value.get("cap")?.as_f64()?;
+    if cap <= 0.0 {
+        return None;
+    }
+    let reset = value
+        .get("resetAt")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    Some(AgentRateLimit {
+        label: label.to_string(),
+        used_percent: (used / cap * 100.0).clamp(0.0, 100.0).round() as u8,
+        window_minutes: Some(window_minutes),
+        resets_at: (reset > 0).then_some(if reset > 100_000_000_000 {
+            reset / 1000
+        } else {
+            reset
+        }),
+    })
+}
+
+fn command_code_plan(plan_id: &str) -> Option<&'static str> {
+    match plan_id {
+        id if id.starts_with("individual-goat") => Some("GOAT"),
+        id if id.starts_with("individual-go") => Some("Go"),
+        id if id.starts_with("individual-pro") => Some("Pro"),
+        id if id.starts_with("individual-provider") => Some("Provider"),
+        id if id.starts_with("individual-max") => Some("Max"),
+        id if id.starts_with("individual-ultra") => Some("Ultra"),
+        id if id.starts_with("teams-pro") => Some("Teams Pro"),
+        _ => None,
+    }
+}
+
+fn command_code_plan_credits(plan_id: &str) -> Option<f64> {
+    match plan_id {
+        id if id.starts_with("individual-goat") => Some(70.0),
+        id if id.starts_with("individual-go") => Some(10.0),
+        id if id.starts_with("individual-pro-v1") => Some(80.0),
+        id if id.starts_with("individual-pro") => Some(30.0),
+        id if id.starts_with("individual-provider") => Some(15.0),
+        id if id.starts_with("individual-max") => Some(150.0),
+        id if id.starts_with("individual-ultra") => Some(300.0),
+        id if id.starts_with("teams-pro") => Some(40.0),
+        _ => None,
+    }
 }
 
 pub fn latest_provider_limit_snapshot(
@@ -126,13 +451,7 @@ fn scan_codex(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
 
 fn scan_claude(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
     let project_name = escaped_claude_cwd(cwd);
-    let roots = [
-        home.join(".claude").join("projects").join(&project_name),
-        home.join(".config")
-            .join("claude")
-            .join("projects")
-            .join(&project_name),
-    ];
+    let roots = claude_project_roots(home).map(|root| root.join(&project_name));
 
     for root in roots {
         for file in newest_jsonl_files(&root, 1) {
@@ -211,12 +530,30 @@ fn parse_claude_status(line: &str) -> Option<AgentUsageStatus> {
     })
 }
 
+fn parse_claude_session_usage(line: &str) -> Option<AgentSessionUsage> {
+    let value: Value = serde_json::from_str(line).ok()?;
+    let usage = value.pointer("/message/usage")?;
+    Some(AgentSessionUsage {
+        input_tokens: usage.get("input_tokens")?.as_u64()?,
+        output_tokens: usage.get("output_tokens")?.as_u64()?,
+        cache_read_tokens: usage
+            .get("cache_read_input_tokens")
+            .and_then(Value::as_u64)
+            .unwrap_or_default(),
+        cache_write_tokens: usage
+            .get("cache_creation_input_tokens")
+            .and_then(Value::as_u64)
+            .unwrap_or_default(),
+        cost_usd: None,
+    })
+}
+
 fn parse_rate_limits(value: &Value) -> Vec<AgentRateLimit> {
     ["primary", "secondary"]
         .into_iter()
         .filter_map(|key| {
             let limit = value.get(key)?;
-            let used_percent = limit.get("used_percent")?.as_u64()?.min(100) as u8;
+            let used_percent = limit.get("used_percent")?.as_f64()?.clamp(0.0, 100.0) as u8;
             Some(AgentRateLimit {
                 label: if key == "primary" {
                     "Primary".to_string()
@@ -322,14 +659,25 @@ fn modified_at(path: &Path) -> u64 {
         .as_secs()
 }
 
+fn current_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
 fn tail_lines(path: &Path) -> Vec<String> {
+    tail_lines_with_limit(path, MAX_TAIL_BYTES)
+}
+
+fn tail_lines_with_limit(path: &Path, max_tail_bytes: u64) -> Vec<String> {
     let Ok(mut file) = File::open(path) else {
         return Vec::new();
     };
     let Ok(length) = file.metadata().map(|metadata| metadata.len()) else {
         return Vec::new();
     };
-    let start = length.saturating_sub(MAX_TAIL_BYTES);
+    let start = length.saturating_sub(max_tail_bytes);
     if file.seek(SeekFrom::Start(start)).is_err() {
         return Vec::new();
     }
@@ -342,4 +690,14 @@ fn tail_lines(path: &Path) -> Vec<String> {
         lines.remove(0);
     }
     lines
+}
+
+#[cfg(test)]
+pub(crate) fn provider_limit_tail_bytes() -> u64 {
+    MAX_PROVIDER_LIMIT_TAIL_BYTES
+}
+
+#[cfg(test)]
+pub(crate) fn terminal_usage_tail_bytes() -> u64 {
+    MAX_TAIL_BYTES
 }
