@@ -8,7 +8,10 @@ import {
 import { WindowControls } from "@/components/WindowControls";
 import { IS_MAC, KEY_SEP, USE_CUSTOM_WINDOW_CONTROLS } from "@/lib/platform";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-import { ProviderUsagePopover } from "@/modules/usage";
+import {
+  ProviderUsageErrorBoundary,
+  ProviderUsagePopover,
+} from "@/modules/usage";
 import { invoke } from "@tauri-apps/api/core";
 import {
   getBindingTokens,
@@ -264,7 +267,9 @@ export function Header({
         {!IS_MAC && (
           <>
             {shortcutsButton}
-            <ProviderUsagePopover trigger={usageButton} />
+            <ProviderUsageErrorBoundary>
+              <ProviderUsagePopover trigger={usageButton} />
+            </ProviderUsageErrorBoundary>
           </>
         )}
       </div>
@@ -299,7 +304,9 @@ export function Header({
       {IS_MAC && (
         <>
           {shortcutsButton}
-          <ProviderUsagePopover trigger={usageButton} />
+          <ProviderUsageErrorBoundary>
+            <ProviderUsagePopover trigger={usageButton} />
+          </ProviderUsageErrorBoundary>
           {backgroundBlurButton}
           {settingsButton}
           {sidebarButton}

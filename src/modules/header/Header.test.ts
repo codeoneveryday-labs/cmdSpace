@@ -29,6 +29,8 @@ describe("Header sidebar toggles", () => {
     const source = readFileSync(headerPath, "utf8");
 
     expect(source).toContain("ProviderUsagePopover");
+    expect(source).toContain("ProviderUsageErrorBoundary");
+    expect(source.match(/<ProviderUsageErrorBoundary>/g)).toHaveLength(2);
     expect(source).toContain("Provider limits");
     expect(source).toContain("shortcutsButton");
   });

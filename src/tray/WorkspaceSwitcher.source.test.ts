@@ -42,17 +42,40 @@ describe("menu bar workspace switcher wiring", () => {
     expect(source).toContain('aria-label="Workspace results"');
   });
 
-  it("keeps the rounded popup shadow inside the transparent tray window", () => {
+  it("shows compact usage only for enabled providers that report data", () => {
     const source = readFileSync(
       path.join(root, "src/tray/WorkspaceSwitcher.tsx"),
       "utf8",
     );
 
-    expect(source).toContain("p-3 pt-4");
+    expect(source).toContain("getEnabledCliAgentDefinitions");
+    expect(source).toContain("loadPreferences");
+    expect(source).toContain(
+      'invoke<ProviderLimitStatus | null>(\n            "provider_limit_status"',
+    );
+    expect(source).toContain("pendingProviders.has(agent.id)");
+    expect(source).toContain("usageAgents.map((agent) => {");
+    expect(source).toContain("Provider usage");
+    expect(source).toContain("h-0.5 overflow-hidden rounded-full bg-border/60");
+    expect(source).toContain('role="progressbar"');
+    expect(source).not.toContain(
+      'invoke<ProviderLimitStatus[]>("provider_limit_statuses")',
+    );
+  });
+
+  it("renders a clean floating panel without a protruding tray arrow", () => {
+    const source = readFileSync(
+      path.join(root, "src/tray/WorkspaceSwitcher.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain("bg-transparent p-3 text-foreground");
     expect(source).toContain("rounded-[18px]");
     expect(source).toContain(
       "shadow-[0_6px_16px_-8px_rgba(15,23,42,0.38)]",
     );
+    expect(source).not.toContain("rotate-45");
+    expect(source).not.toContain("border-l border-t");
     expect(source).not.toContain("shadow-2xl shadow-black/25");
   });
 

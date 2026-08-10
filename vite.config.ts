@@ -1,16 +1,19 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import fs from "node:fs";
 import path from "path";
 import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
+const workspaceRoot = path.resolve(__dirname);
+const nodeModulesRoot = fs.realpathSync(path.join(workspaceRoot, "node_modules"));
 
 // https://vite.dev/config/
 export default defineConfig(async ({ mode }) => ({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(workspaceRoot, "./src"),
     },
   },
   esbuild: {
@@ -84,6 +87,9 @@ export default defineConfig(async ({ mode }) => ({
       : undefined,
     watch: {
       ignored: ["**/src-tauri/**"],
+    },
+    fs: {
+      allow: [workspaceRoot, nodeModulesRoot],
     },
   },
 }));
