@@ -13,7 +13,8 @@ describe("CLI Agents settings", () => {
     const settingsApp = readFileSync(settingsAppPath, "utf8");
     const store = readFileSync(storePath, "utf8");
 
-    expect(settingsApp).toContain('label: "CLI Agents"');
+    expect(settingsApp).toContain('label: "CLI"');
+    expect(settingsApp).not.toContain('label: "CLI Agents"');
     expect(settingsApp).toContain("CliAgentsSection");
     expect(settingsApp).not.toContain('from "./sections/AgentsSection"');
     expect(section).toContain('invoke<boolean[]>("check_agent_clis"');

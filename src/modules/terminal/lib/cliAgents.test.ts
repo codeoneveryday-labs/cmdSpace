@@ -29,6 +29,7 @@ describe("CLI agent registry", () => {
       openhands: "openhands",
       kiro: "kiro-cli",
       grok: "grok",
+      herdr: "herdr",
       cmd: "cmd --dangerously-skip-permissions",
     } as const;
 
@@ -95,5 +96,13 @@ describe("CLI agent registry", () => {
     expect(CLI_AGENT_CATALOG.find(({ id }) => id === "cmd")?.installUrl).toBe(
       "https://github.com/CommandCodeAI/command-code",
     );
+  });
+
+  it("registers Herdr with its official install guide", () => {
+    const herdr = CLI_AGENT_CATALOG.find(({ id }) => id === "herdr");
+
+    expect(herdr?.name).toBe("Herdr");
+    expect(herdr?.installUrl).toBe("https://herdr.dev/docs/install/");
+    expect(herdr?.launch).toBe("herdr");
   });
 });

@@ -15,6 +15,7 @@ export const CLI_AGENT_IDS = [
   "openhands",
   "kiro",
   "grok",
+  "herdr",
   "cmd",
 ] as const;
 
@@ -111,6 +112,10 @@ const CLI_AGENT_CATALOG_META: Record<
     description: "xAI's Grok coding agent for terminal development.",
     installUrl: "https://grok.com",
   },
+  herdr: {
+    description: "Persistent terminal workspace for running coding agents.",
+    installUrl: "https://herdr.dev/docs/install/",
+  },
   cmd: {
     description: "Command Code agent running directly in the terminal.",
     installUrl: "https://github.com/CommandCodeAI/command-code",
@@ -139,6 +144,7 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "openhands", name: "OpenHands CLI", executable: "openhands", command: "openhands", launch: "openhands", bannerPatterns: [/\bopenhands\b/i] },
   { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli", launch: "kiro-cli", bannerPatterns: [/\bkiro cli\b/i] },
   { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: grokLaunch, bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
+  { id: "herdr", name: "Herdr", executable: "herdr", command: "herdr", launch: "herdr", bannerPatterns: [/\bherdr\b/i] },
   { id: "cmd", name: "Command Code", executable: "cmd", command: "cmd --dangerously-skip-permissions", launch: "cmd --dangerously-skip-permissions", bannerPatterns: [/\bcommand code\b/i] },
 ];
 

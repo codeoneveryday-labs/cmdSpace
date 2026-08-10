@@ -33,6 +33,7 @@ describe("brand icon catalog", () => {
     expect(getAgentBrandIcon("qwen")).toBe("qwen");
     expect(getAgentBrandIcon("kimi")).toBe("kimi");
     expect(getAgentBrandIcon("grok")).toBe("grok");
+    expect(getAgentBrandIcon("herdr")).toBe("herdr");
     expect(getAgentBrandIcon("cmd")).toBe("cmd");
     expect(getAgentBrandIcon("aider")).toBeNull();
   });
@@ -62,6 +63,14 @@ describe("brand icon catalog", () => {
     expect(BRAND_ICON_ASSETS.cmd).toContain("<title>Command Code</title>");
     expect(BRAND_ICON_SOURCE_URLS.cmd).toBe(
       "https://raw.githubusercontent.com/CommandCodeAI/command-code/main/.github/commandcode/symbols/commandcode.svg",
+    );
+  });
+
+  it("uses Herdr's official upstream symbol", () => {
+    expect(BRAND_ICON_ASSETS.herdr).toContain("Herdr logo");
+    expect(BRAND_ICON_ASSETS.herdr).toContain('viewBox="0 0 512 512"');
+    expect(BRAND_ICON_SOURCE_URLS.herdr).toBe(
+      "https://raw.githubusercontent.com/ogulcancelik/herdr/master/website/assets/agent-icons/herdr-mask.svg",
     );
   });
 });
