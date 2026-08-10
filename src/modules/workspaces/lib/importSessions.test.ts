@@ -52,6 +52,7 @@ describe("workspace session imports", () => {
       "kiro-cli chat --resume-id 'session-123'",
     ],
     ["grok", "session-123", "grok --resume 'session-123'"],
+    ["herdr", "work", "herdr session attach 'work'"],
     [
       "cmd",
       "/repo/session.jsonl",

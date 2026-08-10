@@ -54,6 +54,8 @@ export function buildSessionResumeCommand(
       return `kiro-cli chat --resume-id ${id}`;
     case "grok":
       return `grok --resume ${id}`;
+    case "herdr":
+      return `herdr session attach ${id}`;
     case "cmd":
       return `cmd --session ${id}`;
   }
