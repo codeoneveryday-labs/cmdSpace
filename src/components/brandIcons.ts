@@ -11,6 +11,7 @@ import gooseIconSvg from "@/assets/provider-icons/goose.svg?raw";
 import qwenIconSvg from "@/assets/provider-icons/qwen.svg?raw";
 import kimiIconSvg from "@/assets/provider-icons/kimi.svg?raw";
 import grokIconSvg from "@/assets/provider-icons/grok.svg?raw";
+import herdrIconSvg from "@/assets/provider-icons/herdr.svg?raw";
 import mistralIconSvg from "@/assets/provider-icons/mistral.svg?raw";
 import commandCodeIconSvg from "@/assets/provider-icons/cmd.svg?raw";
 import type { ProviderId } from "@/modules/ai/config";
@@ -30,6 +31,7 @@ export const BRAND_ICON_ASSETS = {
   qwen: qwenIconSvg,
   kimi: kimiIconSvg,
   grok: grokIconSvg,
+  herdr: herdrIconSvg,
   mistral: mistralIconSvg,
   cmd: commandCodeIconSvg,
 } as const;
@@ -40,6 +42,8 @@ export const BRAND_ICON_SOURCE_URLS: Partial<
   Record<BrandIconName, string>
 > = {
   cmd: "https://raw.githubusercontent.com/CommandCodeAI/command-code/main/.github/commandcode/symbols/commandcode.svg",
+  herdr:
+    "https://raw.githubusercontent.com/ogulcancelik/herdr/master/website/assets/agent-icons/herdr-mask.svg",
 };
 
 const PROVIDER_BRAND_ICONS: Partial<Record<ProviderId, BrandIconName>> = {
@@ -64,6 +68,7 @@ const AGENT_BRAND_ICONS: Partial<Record<CliAgent, BrandIconName>> = {
   qwen: "qwen",
   kimi: "kimi",
   grok: "grok",
+  herdr: "herdr",
   cmd: "cmd",
 };
 
