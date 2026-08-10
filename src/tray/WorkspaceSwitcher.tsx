@@ -1,4 +1,11 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
+import {
+  getEnabledCliAgentDefinitions,
+  type CliAgentDefinition,
+} from "@/modules/terminal/lib/cliAgents";
+import { loadPreferences } from "@/modules/settings/store";
 import {
   CanvasIcon,
   ComputerTerminal02Icon,
@@ -15,6 +22,23 @@ import {
   type TrayWorkspace,
 } from "./workspaces";
 
+type ProviderLimitStatus = {
+  provider: string;
+  rateLimits: Array<{
+    label: string;
+    usedPercent: number;
+    windowMinutes?: number;
+  }>;
+  accountUsage?: {
+    plan?: string;
+    usedPercent?: number;
+  };
+  sessionUsage?: {
+    inputTokens: number;
+    outputTokens: number;
+  };
+};
+
 function workspaceSubtitle(workspace: TrayWorkspace): string {
   if (workspace.workingFolder) return workspace.workingFolder;
   return workspace.workspaceMode === "canvas"
@@ -28,7 +52,13 @@ export function WorkspaceSwitcher() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [usageAgents, setUsageAgents] = useState<CliAgentDefinition[]>([]);
+  const [statuses, setStatuses] = useState<ProviderLimitStatus[]>([]);
+  const [pendingProviders, setPendingProviders] = useState<Set<string>>(
+    () => new Set(),
+  );
   const searchRef = useRef<HTMLInputElement>(null);
+  const usageRequestId = useRef(0);
 
   const visibleWorkspaces = useMemo(
     () => filterTrayWorkspaces(workspaces, query),
@@ -49,6 +79,73 @@ export function WorkspaceSwitcher() {
     }
   }, []);
 
+  const refreshUsage = useCallback(async () => {
+    const requestId = ++usageRequestId.current;
+    let agents: CliAgentDefinition[];
+    try {
+      const preferences = await loadPreferences();
+      agents = getEnabledCliAgentDefinitions(
+        preferences.cliAgentIds,
+        preferences.disabledCliAgentIds,
+      );
+    } catch {
+      if (requestId === usageRequestId.current) {
+        setUsageAgents([]);
+        setPendingProviders(new Set());
+      }
+      return;
+    }
+    if (requestId !== usageRequestId.current) return;
+
+    const enabledIds = new Set<string>(agents.map((agent) => agent.id));
+    setUsageAgents(agents);
+    setStatuses((current) =>
+      current.filter((status) => enabledIds.has(status.provider)),
+    );
+    setPendingProviders(enabledIds);
+
+    await Promise.allSettled(
+      agents.map(async (agent) => {
+        try {
+          const status = await invoke<ProviderLimitStatus | null>(
+            "provider_limit_status",
+            { provider: agent.id },
+          );
+          if (requestId === usageRequestId.current) {
+            setStatuses((current) => {
+              const others = current.filter(
+                (item) => item.provider !== agent.id,
+              );
+              return status ? [...others, status] : others;
+            });
+          }
+        } finally {
+          if (requestId === usageRequestId.current) {
+            setPendingProviders((current) => {
+              const next = new Set(current);
+              next.delete(agent.id);
+              return next;
+            });
+          }
+        }
+      }),
+    );
+  }, []);
+
+  const visibleUsage = useMemo(
+    () =>
+      usageAgents.flatMap((agent) => {
+        const status = statuses.find((item) => item.provider === agent.id);
+        return status && hasUsageData(status) ? [{ agent, status }] : [];
+      }),
+    [statuses, usageAgents],
+  );
+  const hasPendingUsage = usageAgents.some(
+    (agent) =>
+      pendingProviders.has(agent.id) &&
+      !statuses.some((status) => status.provider === agent.id),
+  );
+
   const hide = useCallback(() => {
     void invoke("hide_workspace_switcher");
   }, []);
@@ -59,10 +156,12 @@ export function WorkspaceSwitcher() {
 
   useEffect(() => {
     void refresh();
+    void refreshUsage();
     const unlistenOpen = listen("cmdspace:tray-opened", () => {
       setQuery("");
       setSelectedIndex(0);
       void refresh();
+      void refreshUsage();
       window.setTimeout(() => searchRef.current?.focus(), 0);
     });
     const unlistenFocus = getCurrentWindow().onFocusChanged(
@@ -75,7 +174,7 @@ export function WorkspaceSwitcher() {
       void unlistenOpen.then((unlisten) => unlisten());
       void unlistenFocus.then((unlisten) => unlisten());
     };
-  }, [hide, refresh]);
+  }, [hide, refresh, refreshUsage]);
 
   useEffect(() => {
     setSelectedIndex((current) =>
@@ -110,13 +209,9 @@ export function WorkspaceSwitcher() {
 
   return (
     <main
-      className="relative h-screen w-screen overflow-hidden bg-transparent p-3 pt-4 text-foreground"
+      className="relative h-screen w-screen overflow-hidden bg-transparent p-3 text-foreground"
       onKeyDown={handleKeyDown}
     >
-      <div
-        aria-hidden="true"
-        className="absolute left-1/2 top-2.5 size-4 -translate-x-1/2 rotate-45 border-l border-t border-border/80 bg-popover"
-      />
       <section className="relative flex h-full flex-col overflow-hidden rounded-[18px] border border-border/80 bg-popover/98 shadow-[0_6px_16px_-8px_rgba(15,23,42,0.38)] supports-backdrop-filter:backdrop-blur-2xl">
         <header className="border-b border-border/70 px-4 pb-3 pt-4">
           <h1 className="text-[15px] font-semibold tracking-tight">Workspaces</h1>
@@ -138,6 +233,45 @@ export function WorkspaceSwitcher() {
               }}
             />
           </label>
+          {visibleUsage.length > 0 || hasPendingUsage ? (
+            <section
+              aria-label="Provider usage"
+              className="mt-3 rounded-xl border border-border/60 bg-muted/35 px-3 py-2.5"
+            >
+              <h2 className="text-xs font-medium text-muted-foreground">
+                Provider usage
+              </h2>
+              <div className="mt-2 max-h-24 space-y-2.5 overflow-y-auto">
+                {usageAgents.map((agent) => {
+                  const status = statuses.find(
+                    (item) => item.provider === agent.id,
+                  );
+                  if (pendingProviders.has(agent.id) && !status) {
+                    return (
+                      <div
+                        aria-label={`Loading ${agent.name} usage`}
+                        className="space-y-1.5"
+                        key={agent.id}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <Skeleton className="h-3 w-24 rounded-md" />
+                          <Skeleton className="h-3 w-16 rounded-md" />
+                        </div>
+                        <Skeleton className="h-1 w-full rounded-full" />
+                      </div>
+                    );
+                  }
+                  return status && hasUsageData(status) ? (
+                    <ProviderUsageRow
+                      agent={agent}
+                      key={agent.id}
+                      status={status}
+                    />
+                  ) : null;
+                })}
+              </div>
+            </section>
+          ) : null}
         </header>
 
         <div
@@ -222,4 +356,95 @@ export function WorkspaceSwitcher() {
       </section>
     </main>
   );
+}
+
+function ProviderUsageRow({
+  agent,
+  status,
+}: {
+  agent: CliAgentDefinition;
+  status: ProviderLimitStatus;
+}) {
+  const summary = summarizeUsage(status);
+  if (!summary) return null;
+  const usedPercent =
+    summary.usedPercent === undefined
+      ? undefined
+      : Math.min(100, Math.max(0, summary.usedPercent));
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex min-w-0 items-center gap-2 text-xs">
+        <AgentCliIcon agent={agent.id} size="sm" />
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+          {agent.name}
+        </span>
+        <span className="shrink-0 font-mono text-muted-foreground">
+          {summary.value}
+        </span>
+      </div>
+      {usedPercent !== undefined ? (
+        <div
+          aria-label={`${agent.name} ${usedPercent}% used`}
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={usedPercent}
+          className="h-0.5 overflow-hidden rounded-full bg-border/60"
+          role="progressbar"
+        >
+          <div
+            className="h-full rounded-full bg-foreground/70"
+            style={{ width: `${usedPercent}%` }}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function hasUsageData(status: ProviderLimitStatus): boolean {
+  return Boolean(
+    status.accountUsage || status.rateLimits.length > 0 || status.sessionUsage,
+  );
+}
+
+function summarizeUsage(
+  status: ProviderLimitStatus,
+): { value: string; usedPercent?: number } | null {
+  const accountPercent = status.accountUsage?.usedPercent;
+  if (accountPercent !== undefined) {
+    return { value: `${accountPercent}% used`, usedPercent: accountPercent };
+  }
+
+  const limit = status.rateLimits[0];
+  if (limit) {
+    const window = limit.windowMinutes
+      ? ` / ${formatUsageWindow(limit.windowMinutes)}`
+      : "";
+    return {
+      value: `${limit.usedPercent}%${window}`,
+      usedPercent: limit.usedPercent,
+    };
+  }
+
+  if (status.sessionUsage) {
+    return {
+      value: formatTokens(
+        status.sessionUsage.inputTokens + status.sessionUsage.outputTokens,
+      ),
+    };
+  }
+  return null;
+}
+
+function formatUsageWindow(minutes: number): string {
+  if (minutes % (60 * 24) === 0) return `${minutes / (60 * 24)}d`;
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
+}
+
+function formatTokens(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M tokens`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K tokens`;
+  return `${tokens} tokens`;
 }

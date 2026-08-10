@@ -24,4 +24,14 @@ describe("Header sidebar toggles", () => {
     expect(source).toContain("set_desktop_blur");
     expect(source).toContain("setDesktopBlurEnabled(enabled)");
   });
+
+  it("places a provider limits usage control beside keyboard shortcuts", () => {
+    const source = readFileSync(headerPath, "utf8");
+
+    expect(source).toContain("ProviderUsagePopover");
+    expect(source).toContain("ProviderUsageErrorBoundary");
+    expect(source.match(/<ProviderUsageErrorBoundary>/g)).toHaveLength(2);
+    expect(source).toContain("Provider limits");
+    expect(source).toContain("shortcutsButton");
+  });
 });
