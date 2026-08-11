@@ -76,6 +76,17 @@ type Props = {
   isLeafHydrated: (leafId: number) => boolean;
   onHydrateLeaf: (leafId: number) => void;
   onPaneTreeChange: (node: PaneNode) => void;
+  dragContext?: PaneDragContext;
+};
+
+export type PaneDragContext = {
+  draggingId: number | null;
+  targetId: number | null;
+  targetOffset: { x: number; y: number } | null;
+  onDragStart: (
+    leafId: number,
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => void;
 };
 
 export function PaneTreeView({
@@ -93,6 +104,7 @@ export function PaneTreeView({
   isLeafHydrated,
   onHydrateLeaf,
   onPaneTreeChange,
+  dragContext,
 }: Props) {
   const groupRef = useRef<GroupImperativeHandle | null>(null);
   const paneResizeResumeTimerRef = useRef<number | null>(null);
@@ -131,6 +143,14 @@ export function PaneTreeView({
     const focused = node.id === activeLeafId;
     const hydrated = isLeafHydrated(node.id);
     const b = getBundle(node.id);
+    const isDragging = dragContext?.draggingId === node.id;
+    const isDropTarget = dragContext?.targetId === node.id;
+    const targetStyle =
+      isDropTarget && dragContext?.targetOffset
+        ? {
+            transform: `translate(${dragContext.targetOffset.x}px, ${dragContext.targetOffset.y}px) scale(0.985)`,
+          }
+        : undefined;
     const focusAndHydrate = () => {
       onHydrateLeaf(node.id);
       if (!focused) onFocusLeaf(node.id);
@@ -146,8 +166,23 @@ export function PaneTreeView({
           focusAndHydrate();
         }}
         data-pane-leaf={node.id}
-        className="relative h-full w-full group overflow-hidden @container"
+        style={targetStyle}
+        className={`relative h-full w-full group overflow-hidden @container transition-[transform,opacity,box-shadow] duration-150 ease-out motion-reduce:transition-none ${
+          isDropTarget
+            ? "z-10 opacity-90 shadow-xl shadow-primary/20"
+            : ""
+        } ${
+          isDropTarget
+            ? "bg-primary/[0.04] ring-2 ring-inset ring-primary/80"
+            : ""
+        }`}
       >
+        {isDragging ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-40 border-2 border-dashed border-primary/80"
+          />
+        ) : null}
         {hydrated ? (
           <TerminalPane
             leafId={node.id}
@@ -198,6 +233,8 @@ export function PaneTreeView({
           agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}
           agentResponding={agentResponding}
           hydrated={hydrated}
+          onDragStart={(event) => dragContext?.onDragStart(node.id, event)}
+          isDragging={isDragging}
         />
       </div>
     );
@@ -427,6 +464,7 @@ export function PaneTreeView({
                   ),
                 })
               }
+              dragContext={dragContext}
             />
           </ResizablePanel>
         </Fragment>
@@ -468,6 +506,8 @@ type FloatingTerminalOverlayProps = {
   onCloseLeaf: (leafId: number) => void;
   onCd: (path: string) => void;
   hydrated: boolean;
+  onDragStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  isDragging: boolean;
 };
 
 function shellQuote(value: string): string {
@@ -582,6 +622,8 @@ export function FloatingTerminalOverlay({
   onCloseLeaf,
   onCd,
   hydrated,
+  onDragStart,
+  isDragging,
 }: FloatingTerminalOverlayProps) {
   const [additions, setAdditions] = useState<number>(0);
   const [deletions, setDeletions] = useState<number>(0);
@@ -716,7 +758,12 @@ export function FloatingTerminalOverlay({
 
   return (
     <div
+      data-pane-drag-handle
+      draggable={false}
+      onPointerDown={onDragStart}
       className={`absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-3 rounded-none border bg-card/95 px-0 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 ${
+        isDragging ? "cursor-grabbing opacity-60" : "cursor-grab"
+      } ${
         focused
           ? "border-border dark:border-zinc-600/90"
           : "border-border/70 dark:border-zinc-800/80"
