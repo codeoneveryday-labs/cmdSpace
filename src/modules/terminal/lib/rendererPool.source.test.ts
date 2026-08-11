@@ -85,6 +85,8 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain('registerOscHandler(10');
     expect(source).toContain('registerOscHandler(11');
     expect(source).toContain("data !== \"?\"");
+    expect(source).toContain("onWriteParsed");
+    expect(source).toContain("term.options.theme = buildTerminalTheme()");
   });
 
   it("leaves macOS IME composition to xterm's native input path", () => {
