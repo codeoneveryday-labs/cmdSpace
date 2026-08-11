@@ -8,31 +8,29 @@ import {
 } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
-  useVoicePromptAgent,
-  type VoiceAgentStatus,
-  type VoiceDraftTarget,
+  useSpeechToTextInput,
+  type SpeechInputStatus,
+  type SpeechInputTarget,
 } from "../hooks/useVoicePromptAgent";
 import type { ProviderKeys } from "../lib/keyring";
-import type { SpaceCommand } from "../lib/spaceCommand";
 
-export type { VoiceDraftTarget } from "../hooks/useVoicePromptAgent";
+export type { SpeechInputTarget } from "../hooks/useVoicePromptAgent";
 
 export type FloatingVoiceAgentHandle = { toggle: () => void };
 
 type Props = {
   apiKeys: ProviderKeys;
-  captureTarget: () => VoiceDraftTarget | null;
-  insertTranscript: (target: VoiceDraftTarget, transcript: string) => boolean;
-  executeSpaceCommand: (command: SpaceCommand) => Promise<void>;
+  captureTarget: () => SpeechInputTarget | null;
+  insertTranscript: (target: SpeechInputTarget, transcript: string) => boolean;
 };
 
-const LABELS: Record<VoiceAgentStatus, string> = {
-  idle: "Space",
+const LABELS: Record<SpeechInputStatus, string> = {
+  idle: "Voice input",
   listening: "Listening",
   transcribing: "Transcribing",
-  refining: "Refining",
-  ready: "Space ready",
-  error: "Space unavailable",
+  inserting: "Inserting transcript",
+  ready: "Transcript inserted",
+  error: "Voice input unavailable",
 };
 
 const WAVEFORM_WEIGHTS = [0.55, 0.8, 1, 0.8, 0.55];
@@ -41,20 +39,19 @@ const VOICE_SCREEN_EDGE_PX = 12;
 
 export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
   function FloatingVoiceAgent(
-    { apiKeys, captureTarget, insertTranscript, executeSpaceCommand },
+    { apiKeys, captureTarget, insertTranscript },
     ref,
   ) {
     const enabled = usePreferencesStore((state) => state.floatingVoiceAgentEnabled);
-    const { status, message, toggle, audioLevel } = useVoicePromptAgent({
+    const { status, message, toggle, audioLevel } = useSpeechToTextInput({
       apiKeys,
       captureTarget,
       insertTranscript,
-      executeSpaceCommand,
     });
     const label = status === "error" ? message ?? LABELS[status] : LABELS[status];
     const visibleLabel = status === "error" ? "…" : LABELS[status];
     const isListening = status === "listening";
-    const spaceEmberGlow = isListening
+    const voiceInputGlow = isListening
       ? `0 0 ${10 + audioLevel * 26}px rgb(251 146 60 / ${0.2 + audioLevel * 0.48}), 0 -${2 + audioLevel * 8}px ${8 + audioLevel * 20}px rgb(239 68 68 / ${0.12 + audioLevel * 0.3})`
       : undefined;
     const dragRef = useRef<{
@@ -133,7 +130,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     return (
       <button
         type="button"
-        aria-label="Toggle Space"
+        aria-label="Toggle voice input"
         aria-pressed={status === "listening"}
         title={label}
         onPointerDown={startDrag}
@@ -156,7 +153,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
         )}
         style={{
           ...(position ? { ...position, right: "auto", bottom: "auto" } : {}),
-          boxShadow: spaceEmberGlow,
+          boxShadow: voiceInputGlow,
         }}
       >
         <span className="size-5 shrink-0 overflow-hidden rounded-full" aria-hidden="true">

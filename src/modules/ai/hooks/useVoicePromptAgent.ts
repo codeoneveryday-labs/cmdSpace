@@ -1,38 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-import { parseSpaceCommand, type SpaceCommand } from "../lib/spaceCommand";
 import type { ProviderKeys } from "../lib/keyring";
 import { useWhisperRecording } from "./useWhisperRecording";
 
-export type VoiceDraftTarget =
+export type SpeechInputTarget =
   | {
       kind: "terminal-pane";
       tabId: number;
       terminalId: number;
-      cwd: string | null;
-      terminalContext: string | null;
     }
   | {
       kind: "canvas-terminal";
       tabId: number;
       terminalId: string;
-      cwd: string | null;
-      terminalContext: string | null;
     };
 
-export type VoiceAgentStatus =
+export type SpeechInputStatus =
   | "idle"
   | "listening"
   | "transcribing"
-  | "refining"
+  | "inserting"
   | "ready"
   | "error";
 
 type Options = {
   apiKeys: ProviderKeys;
-  captureTarget: () => VoiceDraftTarget | null;
-  insertTranscript: (target: VoiceDraftTarget, transcript: string) => boolean;
-  executeSpaceCommand: (command: SpaceCommand) => Promise<void>;
+  captureTarget: () => SpeechInputTarget | null;
+  insertTranscript: (target: SpeechInputTarget, transcript: string) => boolean;
 };
 
 const READY_DURATION_MS = 2_800;
@@ -43,22 +37,21 @@ function messageFor(error: unknown): string {
     : "Voice transcript insertion failed. Try again.";
 }
 
-export function useVoicePromptAgent({
+export function useSpeechToTextInput({
   apiKeys,
   captureTarget,
   insertTranscript,
-  executeSpaceCommand,
 }: Options) {
   const speechToTextModelId = usePreferencesStore(
     (state) => state.speechToTextModelId,
   );
   const [phase, setPhase] = useState<
-    "idle" | "refining" | "ready" | "error"
+    "idle" | "inserting" | "ready" | "error"
   >(
     "idle",
   );
   const [message, setMessage] = useState<string | null>(null);
-  const targetRef = useRef<VoiceDraftTarget | null>(null);
+  const targetRef = useRef<SpeechInputTarget | null>(null);
   const clearTimerRef = useRef<number | null>(null);
 
   const clearLater = useCallback(() => {
@@ -77,28 +70,13 @@ export function useVoicePromptAgent({
 
   const handleTranscript = useCallback(
     async (transcript: string) => {
-      const spaceCommand = parseSpaceCommand(transcript);
-      if (spaceCommand) {
-        setPhase("refining");
-        setMessage("Space is starting music…");
-        try {
-          await executeSpaceCommand(spaceCommand);
-          setPhase("ready");
-          setMessage("Music is playing.");
-          clearLater();
-        } catch (error) {
-          setError(messageFor(error));
-        }
-        return;
-      }
-
       const target = targetRef.current;
       if (!target) {
         setError("The target terminal is no longer available.");
         return;
       }
 
-      setPhase("refining");
+      setPhase("inserting");
       setMessage("Inserting transcript…");
       try {
         if (!insertTranscript(target, transcript)) {
@@ -113,7 +91,7 @@ export function useVoicePromptAgent({
         setError(messageFor(error));
       }
     },
-    [clearLater, executeSpaceCommand, insertTranscript, setError],
+    [clearLater, insertTranscript, setError],
   );
 
   const recorder = useWhisperRecording({
@@ -128,7 +106,7 @@ export function useVoicePromptAgent({
       recorder.stop();
       return;
     }
-    if (recorder.transcribing || phase === "refining") return;
+    if (recorder.transcribing || phase === "inserting") return;
     if (!recorder.supported) {
       setError("Voice recording is not supported in this window.");
       return;
@@ -146,7 +124,7 @@ export function useVoicePromptAgent({
     };
   }, []);
 
-  const status: VoiceAgentStatus = recorder.recording
+  const status: SpeechInputStatus = recorder.recording
     ? "listening"
     : recorder.transcribing
       ? "transcribing"
