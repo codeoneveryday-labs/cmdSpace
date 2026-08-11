@@ -163,6 +163,7 @@ macro_rules! cmdspace_commands {
             hide_workspace_switcher,
             open_workspace_from_tray,
             set_desktop_blur,
+            set_webview_corner_radius,
             // Secrets
             secrets::secrets_get,
             secrets::secrets_set,
@@ -326,6 +327,16 @@ mod native_command_registration_tests {
                 && prelude.contains("// Speech")
                 && prelude.contains("// Database / persistence"),
             "cmdspace_commands! should group registrations into domain sections"
+        );
+    }
+
+    #[test]
+    fn grouped_native_command_macro_keeps_preview_corner_radius_command() {
+        let source = include_str!("lib.rs");
+
+        assert!(
+            source.contains("set_desktop_blur,\n            set_webview_corner_radius,"),
+            "the preview corner-radius command must remain registered with window surface commands"
         );
     }
 }
