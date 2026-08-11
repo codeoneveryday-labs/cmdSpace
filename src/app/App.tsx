@@ -17,16 +17,14 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   FloatingVoiceAgent,
   type FloatingVoiceAgentHandle,
-  type VoiceDraftTarget,
+  type SpeechInputTarget,
 } from "@/modules/ai/components/FloatingVoiceAgent";
 import {
   EMPTY_PROVIDER_KEYS,
   getAllKeys,
   type ProviderKeys,
 } from "@/modules/ai/lib/keyring";
-import { redactSensitive } from "@/modules/ai/lib/redact";
 import { native } from "@/modules/ai/lib/native";
-import type { SpaceCommand } from "@/modules/ai/lib/spaceCommand";
 import {
   ArchitectureStack,
   serializeCanvasWorkspaceDiagram,
@@ -299,10 +297,6 @@ function readSidebarBrowserUrl(): string {
   } catch {
     return "";
   }
-}
-
-function quoteShellArgument(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
 export default function App() {
@@ -1061,6 +1055,24 @@ export default function App() {
     newTab(inheritedCwdForNewTab());
   }, [newTab, inheritedCwdForNewTab]);
 
+  useEffect(() => {
+    const unlisten = listen("cmdspace:new-tab", openNewTab);
+
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, [openNewTab]);
+
+  useEffect(() => {
+    const unlisten = listen("cmdspace:open-shortcuts", () => {
+      setShortcutsOpen(true);
+    });
+
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, []);
+
   const openTopMusicTab = useCallback(async () => {
     try {
       await invoke("install_music_cli_script");
@@ -1069,23 +1081,6 @@ export default function App() {
     }
     newTab(inheritedCwdForNewTab(), 'source "$HOME/.cmdspace/music-cli.zsh"', "Music CLI");
   }, [newTab, inheritedCwdForNewTab]);
-
-  const executeSpaceCommand = useCallback(
-    async (command: SpaceCommand) => {
-      if (command.kind !== "play-music") return;
-      try {
-        await invoke("install_music_cli_script");
-      } catch (error) {
-        console.error("Failed to install Music CLI script:", error);
-      }
-      newTab(
-        inheritedCwdForNewTab(),
-        `source "$HOME/.cmdspace/music-cli.zsh"; mcli --play-first ${quoteShellArgument(command.query)}`,
-        "Music CLI",
-      );
-    },
-    [newTab, inheritedCwdForNewTab],
-  );
 
   const openNewPrivateTab = useCallback(() => {
     newPrivateTab(inheritedCwdForNewTab());
@@ -1420,27 +1415,21 @@ export default function App() {
 
   const cycleWorkspace = useCallback(
     (delta: 1 | -1) => {
-      const activeWorkspaces = workspaces.filter(
-        (w) => w.tabId !== null,
-      ) as (WorkspaceRecord & { tabId: number })[];
-      if (activeWorkspaces.length < 2) return;
-      const currentIdx = activeWorkspaces.findIndex(
-        (w) => w.tabId === activeId,
-      );
+      if (workspaces.length < 2) return;
+      const currentIdx = workspaces.findIndex((w) => w.id === activeWorkspaceId);
       if (currentIdx === -1) {
         if (delta === 1) {
-          setActiveId(activeWorkspaces[0].tabId);
+          handleSelectWorkspace(workspaces[0].id);
         } else {
-          setActiveId(activeWorkspaces[activeWorkspaces.length - 1].tabId);
+          handleSelectWorkspace(workspaces[workspaces.length - 1].id);
         }
         return;
       }
       const nextIdx =
-        (currentIdx + delta + activeWorkspaces.length) %
-        activeWorkspaces.length;
-      setActiveId(activeWorkspaces[nextIdx].tabId);
+        (currentIdx + delta + workspaces.length) % workspaces.length;
+      handleSelectWorkspace(workspaces[nextIdx].id);
     },
-    [workspaces, activeId, setActiveId],
+    [workspaces, activeWorkspaceId, handleSelectWorkspace],
   );
 
   const focusDirectionalPane = useCallback(
@@ -1742,7 +1731,7 @@ export default function App() {
     [],
   );
 
-  const captureVoiceTarget = useCallback((): VoiceDraftTarget | null => {
+  const captureVoiceTarget = useCallback((): SpeechInputTarget | null => {
     const tab = tabsRef.current.find((item) => item.id === activeId);
     if (!tab) return null;
     if (tab.kind === "architecture") {
@@ -1759,9 +1748,6 @@ export default function App() {
         kind: "canvas-terminal",
         tabId: tab.id,
         terminalId,
-        cwd: node.cwd ?? null,
-        terminalContext:
-          redactSensitive(terminal.getBuffer(300) ?? "") || null,
       };
     }
     if (tab.kind !== "terminal" || tab.private) return null;
@@ -1771,13 +1757,11 @@ export default function App() {
       kind: "terminal-pane",
       tabId: tab.id,
       terminalId: tab.activeLeafId,
-      cwd: findLeafCwd(tab.paneTree, tab.activeLeafId) ?? tab.cwd ?? null,
-      terminalContext: redactSensitive(terminal.getBuffer(300) ?? "") || null,
     };
   }, [activeId]);
 
   const insertVoiceDraft = useCallback(
-    (target: VoiceDraftTarget, draft: string): boolean => {
+    (target: SpeechInputTarget, draft: string): boolean => {
       const tab = tabsRef.current.find((item) => item.id === target.tabId);
       const nextDraft = draft.replace(/[\r\n]+$/, "");
       if (!nextDraft) return false;
@@ -1821,6 +1805,20 @@ export default function App() {
     voiceAgentRef.current?.toggle();
   }, []);
 
+  const maximizeActivePane = useCallback(() => {
+    if (activeTerminalTab) {
+      toggleMaximizePane(activeTerminalTab.activeLeafId);
+    }
+  }, [activeTerminalTab, toggleMaximizePane]);
+
+  useEffect(() => {
+    const unlisten = listen("cmdspace:maximize-pane", maximizeActivePane);
+
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, [maximizeActivePane]);
+
   const shortcutHandlers = useMemo<ShortcutHandlers>(
     () => ({
       "tab.new": openNewTab,
@@ -1839,11 +1837,7 @@ export default function App() {
       "pane.splitDown": () => splitActivePaneInActiveTab("col"),
       "pane.focusNext": () => focusNextPaneInTab(activeId, 1),
       "pane.focusPrev": () => focusNextPaneInTab(activeId, -1),
-      "pane.maximize": () => {
-        if (activeTerminalTab) {
-          toggleMaximizePane(activeTerminalTab.activeLeafId);
-        }
-      },
+      "pane.maximize": maximizeActivePane,
       "pane.source": toggleSourceControl,
       "search.focus": () => searchInlineRef.current?.focus(),
       "terminal.bottom": toggleBottomTerminal,
@@ -1878,7 +1872,7 @@ export default function App() {
       sourceControl.hasRepo,
       splitActivePaneInActiveTab,
       focusNextPaneInTab,
-      activeTerminalTab,
+      maximizeActivePane,
       toggleMaximizePane,
       toggleSourceControl,
       toggleBottomTerminal,
@@ -2559,7 +2553,6 @@ export default function App() {
             captureTarget={captureVoiceTarget}
             apiKeys={apiKeys}
             insertTranscript={insertVoiceDraft}
-            executeSpaceCommand={executeSpaceCommand}
           />
 
           <ShortcutsDialog

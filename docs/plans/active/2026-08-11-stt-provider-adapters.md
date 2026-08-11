@@ -91,6 +91,8 @@ Out of scope:
   fallback only.
 - 2026-08-11: Do not label providers requiring gRPC or unimplemented account
   credential flows as WebSocket-realtime supported.
+- 2026-08-11: Voice input is STT-only. It inserts a literal final transcript
+  into the active terminal input and must not infer intent or control a task.
 
 ## Validation
 

@@ -14,6 +14,7 @@ use std::{
 };
 #[cfg(target_os = "macos")]
 use tauri::{
+    menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     PhysicalPosition,
 };
@@ -338,6 +339,37 @@ mod native_command_registration_tests {
             source.contains("set_desktop_blur,\n            set_webview_corner_radius,"),
             "the preview corner-radius command must remain registered with window surface commands"
         );
+    }
+
+    #[test]
+    fn macos_new_tab_menu_routes_to_the_react_tab_event() {
+        let source = include_str!("lib.rs");
+
+        assert!(source.contains("MenuItem::with_id("));
+        assert!(source.contains("\"cmdspace.new-tab\""));
+        assert!(source.contains("\"New Tab\""));
+        assert!(source.contains("Some(\"CmdOrCtrl+T\")"));
+        assert!(source.contains("app.emit(\"cmdspace:new-tab\", ())"));
+    }
+
+    #[test]
+    fn macos_maximize_pane_menu_routes_to_the_react_pane_event() {
+        let source = include_str!("lib.rs");
+
+        assert!(source.contains("\"cmdspace.maximize-pane\""));
+        assert!(source.contains("\"Maximize Pane\""));
+        assert!(source.contains("Some(\"CmdOrCtrl+Shift+Period\")"));
+        assert!(source.contains("app.emit(\"cmdspace:maximize-pane\", ())"));
+    }
+
+    #[test]
+    fn macos_shortcuts_menu_routes_to_the_react_dialog_event() {
+        let source = include_str!("lib.rs");
+
+        assert!(source.contains("\"cmdspace.open-shortcuts\""));
+        assert!(source.contains("\"Keyboard Shortcuts\""));
+        assert!(source.contains("Some(\"CmdOrCtrl+K\")"));
+        assert!(source.contains("app.emit(\"cmdspace:open-shortcuts\", ())"));
     }
 }
 
@@ -1011,7 +1043,59 @@ pub fn run() {
     workspace::init_launch_cwd();
     let db_conn = db::init_db().expect("Failed to initialize SQLite database");
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // Register Cmd+T with the native menu so macOS does not let WebKit handle
+    // it as a browser-style new window before the React shortcut listener runs.
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .menu(|app| {
+            let menu = Menu::default(app)?;
+            let new_tab = MenuItem::with_id(
+                app,
+                "cmdspace.new-tab",
+                "New Tab",
+                true,
+                Some("CmdOrCtrl+T"),
+            )?;
+            let maximize_pane = MenuItem::with_id(
+                app,
+                "cmdspace.maximize-pane",
+                "Maximize Pane",
+                true,
+                Some("CmdOrCtrl+Shift+Period"),
+            )?;
+            let open_shortcuts = MenuItem::with_id(
+                app,
+                "cmdspace.open-shortcuts",
+                "Keyboard Shortcuts",
+                true,
+                Some("CmdOrCtrl+K"),
+            )?;
+
+            if let Some(file_menu) = menu.get("File").and_then(|item| item.as_submenu().cloned()) {
+                file_menu.prepend(&new_tab)?;
+            }
+            if let Some(view_menu) = menu.get("View").and_then(|item| item.as_submenu().cloned()) {
+                view_menu.prepend(&maximize_pane)?;
+                view_menu.prepend(&open_shortcuts)?;
+            }
+
+            Ok(menu)
+        })
+        .on_menu_event(|app, event| {
+            if event.id() == "cmdspace.new-tab" {
+                let _ = app.emit("cmdspace:new-tab", ());
+            }
+            if event.id() == "cmdspace.maximize-pane" {
+                let _ = app.emit("cmdspace:maximize-pane", ());
+            }
+            if event.id() == "cmdspace.open-shortcuts" {
+                let _ = app.emit("cmdspace:open-shortcuts", ());
+            }
+        });
+
+    builder
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         // Skip restoring VISIBLE — frontend calls window.show() after first
