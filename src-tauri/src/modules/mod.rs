@@ -8,13 +8,6 @@ pub mod proc;
 pub mod pty;
 pub mod remote;
 pub mod remote_auth;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "The wire contract is introduced in phase 1 and consumed by the WebSocket gateway in phase 2"
-    )
-)]
 pub mod remote_protocol;
 pub mod remote_tunnel;
 pub mod secrets;
