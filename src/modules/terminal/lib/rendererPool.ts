@@ -126,6 +126,12 @@ export function applyBackgroundActive(active: boolean): void {
 
 function createSlot(): Slot {
   const term = new Terminal(sharedTerminalOptions());
+  // Coding CLIs may emit OSC 10/11 to force their own terminal palette. That
+  // is useful in a standalone terminal, but it can make app-managed light
+  // mode render black text on a black surface. Keep queries available while
+  // ignoring palette writes so the app theme remains authoritative.
+  term.parser.registerOscHandler(10, (data) => data !== "?");
+  term.parser.registerOscHandler(11, (data) => data !== "?");
   const fitAddon = new FitAddon();
   const searchAddon = new SearchAddon();
   const serializeAddon = new SerializeAddon();

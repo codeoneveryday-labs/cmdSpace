@@ -63,20 +63,28 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain("position: fixed !important;");
   });
 
-  it("removes xterm viewport and scrollable-element edge decorations", () => {
+  it("keeps normal terminal scrollback reachable with a subtle scrollbar", () => {
     const source = readFileSync(globalsCssPath, "utf8");
 
     expect(source).toContain("overflow: hidden !important;");
     expect(source).toContain(".xterm .xterm-scrollable-element");
     expect(source).toContain(".xterm .xterm-scrollable-element > .shadow");
-    expect(source).toContain("overflow-y: hidden !important;");
+    expect(source).toContain("overflow-y: scroll !important;");
     expect(source).toContain("scrollbar-gutter: auto !important;");
     expect(source).toContain(".cmdspace-terminal-viewport .xterm .xterm-viewport");
     expect(source).toContain(".cmdspace-terminal-viewport {");
     expect(source).toContain("background: var(--terminal-background);");
-    expect(source).toContain("opacity: 0 !important;");
-    expect(source).toContain("display: none !important;");
+    expect(source).toContain("opacity: 1 !important;");
+    expect(source).toContain("width: 8px !important;");
     expect(source).toContain("box-shadow: none !important;");
+  });
+
+  it("prevents CLI OSC color updates from overriding the app terminal palette", () => {
+    const source = readFileSync(rendererPoolPath, "utf8");
+
+    expect(source).toContain('registerOscHandler(10');
+    expect(source).toContain('registerOscHandler(11');
+    expect(source).toContain("data !== \"?\"");
   });
 
   it("leaves macOS IME composition to xterm's native input path", () => {

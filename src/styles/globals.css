@@ -277,7 +277,7 @@ html[data-chrome="borderless"] #settings-root {
  *
  * Newer xterm renders scrollbars as real <div class="scrollbar vertical|horizontal">
  * children rather than relying on native overflow scrollbars. Both code paths exist
- * across versions, so we hide both.
+ * across versions; normal panes opt into a subtle vertical scroll affordance below.
  */
 .cmdspace-terminal-viewport {
   background: var(--terminal-background);
@@ -354,8 +354,23 @@ html[data-chrome="borderless"] #settings-root {
   overflow: hidden !important;
 }
 .cmdspace-terminal-viewport .xterm .xterm-viewport {
-  right: -8px !important;
-  opacity: 0 !important;
+  right: 0 !important;
+  opacity: 1 !important;
+  overflow-y: scroll !important;
+  scrollbar-width: thin !important;
+  -ms-overflow-style: auto !important;
+}
+.cmdspace-terminal-viewport .xterm .xterm-viewport::-webkit-scrollbar {
+  display: block !important;
+  width: 8px !important;
+}
+.cmdspace-terminal-viewport .xterm .scrollbar.vertical,
+.cmdspace-terminal-viewport .xterm .xterm-scrollable-element > .scrollbar.vertical {
+  display: block !important;
+  visibility: visible !important;
+  width: 8px !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
 }
 .cmdspace-canvas-terminal-viewport,
 .cmdspace-canvas-terminal-viewport .xterm,
