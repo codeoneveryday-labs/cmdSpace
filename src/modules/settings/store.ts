@@ -1,14 +1,9 @@
-import {
-  DEFAULT_AUTOCOMPLETE_MODEL,
-  DEFAULT_MODEL_ID,
-  LMSTUDIO_DEFAULT_BASE_URL,
-  MLX_DEFAULT_BASE_URL,
-  OLLAMA_DEFAULT_BASE_URL,
-  OPENAI_COMPATIBLE_DEFAULT_BASE_URL,
-  type AutocompleteProviderId,
-  type ModelId,
-} from "@/modules/ai/config";
 import { DEFAULT_SPEECH_TO_TEXT_MODEL_ID } from "@/modules/ai/lib/speechToText";
+import {
+  DEFAULT_CONFIGURED_SPEECH_TO_TEXT_PROVIDER_IDS,
+  normalizeSpeechToTextProviderIds,
+  type ProviderId,
+} from "@/modules/ai/config";
 import {
   DEFAULT_EXCLUDED_FOLDER_NAMES,
   normalizeExcludedFolderNames,
@@ -63,27 +58,13 @@ export type Preferences = {
   backgroundOpacity: number;
   backgroundBlur: number;
   canvasBackgroundImageId: string | null;
-  defaultModelId: ModelId;
   editorTheme: EditorThemeId;
-  customInstructions: string;
   remoteAccessEnabled: boolean;
   autostart: boolean;
   restoreWindowState: boolean;
-  autocompleteEnabled: boolean;
-  autocompleteProvider: AutocompleteProviderId;
-  autocompleteModelId: string;
   speechToTextModelId: string;
-  lmstudioBaseURL: string;
-  lmstudioModelId: string;
-  mlxBaseURL: string;
-  mlxModelId: string;
-  ollamaBaseURL: string;
-  ollamaModelId: string;
-  openaiCompatibleBaseURL: string;
-  openaiCompatibleModelId: string;
-  openaiCompatibleContextLimit: number;
-  favoriteModelIds: string[];
-  recentModelIds: string[];
+  speechToTextProviderIds: ProviderId[];
+  disabledSpeechToTextProviderIds: ProviderId[];
   vimMode: boolean;
   showHidden: boolean;
   explorerExcludedFolderNames: string[];
@@ -110,27 +91,14 @@ const KEY_BG_IMAGE_ID = "backgroundImageId";
 const KEY_BG_OPACITY = "backgroundOpacity";
 const KEY_BG_BLUR = "backgroundBlur";
 const KEY_CANVAS_BG_IMAGE_ID = "canvasBackgroundImageId";
-const KEY_DEFAULT_MODEL = "defaultModelId";
 const KEY_EDITOR_THEME = "editorTheme";
-const KEY_CUSTOM_INSTRUCTIONS = "customInstructions";
 const KEY_REMOTE_ACCESS_ENABLED = "remoteAccessEnabled";
 const KEY_AUTOSTART = "autostart";
 const KEY_RESTORE_WINDOW = "restoreWindowState";
-const KEY_AUTOCOMPLETE_ENABLED = "autocompleteEnabled";
-const KEY_AUTOCOMPLETE_PROVIDER = "autocompleteProvider";
-const KEY_AUTOCOMPLETE_MODEL = "autocompleteModelId";
 const KEY_SPEECH_TO_TEXT_MODEL = "speechToTextModelId";
-const KEY_LMSTUDIO_BASE_URL = "lmstudioBaseURL";
-const KEY_LMSTUDIO_MODEL_ID = "lmstudioModelId";
-const KEY_MLX_BASE_URL = "mlxBaseURL";
-const KEY_MLX_MODEL_ID = "mlxModelId";
-const KEY_OLLAMA_BASE_URL = "ollamaBaseURL";
-const KEY_OLLAMA_MODEL_ID = "ollamaModelId";
-const KEY_OPENAI_COMPAT_BASE_URL = "openaiCompatibleBaseURL";
-const KEY_OPENAI_COMPAT_MODEL_ID = "openaiCompatibleModelId";
-const KEY_OPENAI_COMPAT_CONTEXT_LIMIT = "openaiCompatibleContextLimit";
-const KEY_FAVORITE_MODELS = "favoriteModelIds";
-const KEY_RECENT_MODELS = "recentModelIds";
+const KEY_SPEECH_TO_TEXT_PROVIDERS = "speechToTextProviderIds";
+const KEY_DISABLED_SPEECH_TO_TEXT_PROVIDERS =
+  "disabledSpeechToTextProviderIds";
 const KEY_VIM_MODE = "vimMode";
 const KEY_SHOW_HIDDEN = "showHidden";
 const LEGACY_KEY_SHOW_HIDDEN_DIRS = "showHiddenDirectories";
@@ -172,27 +140,13 @@ export const DEFAULT_PREFERENCES: Preferences = {
   backgroundOpacity: 0.5,
   backgroundBlur: 0,
   canvasBackgroundImageId: null,
-  defaultModelId: DEFAULT_MODEL_ID,
   editorTheme: "atomone",
-  customInstructions: "",
   remoteAccessEnabled: false,
   autostart: false,
   restoreWindowState: true,
-  autocompleteEnabled: false,
-  autocompleteProvider: "cerebras",
-  autocompleteModelId: DEFAULT_AUTOCOMPLETE_MODEL.cerebras ?? "",
   speechToTextModelId: DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
-  lmstudioBaseURL: LMSTUDIO_DEFAULT_BASE_URL,
-  lmstudioModelId: "",
-  mlxBaseURL: MLX_DEFAULT_BASE_URL,
-  mlxModelId: "",
-  ollamaBaseURL: OLLAMA_DEFAULT_BASE_URL,
-  ollamaModelId: "",
-  openaiCompatibleBaseURL: OPENAI_COMPATIBLE_DEFAULT_BASE_URL,
-  openaiCompatibleModelId: "",
-  openaiCompatibleContextLimit: 128_000,
-  favoriteModelIds: [],
-  recentModelIds: [],
+  speechToTextProviderIds: [...DEFAULT_CONFIGURED_SPEECH_TO_TEXT_PROVIDER_IDS],
+  disabledSpeechToTextProviderIds: [],
   vimMode: false,
   showHidden: false,
   explorerExcludedFolderNames: [...DEFAULT_EXCLUDED_FOLDER_NAMES],
@@ -248,13 +202,8 @@ export async function loadPreferences(): Promise<Preferences> {
     canvasBackgroundImageId:
       get<string | null>(KEY_CANVAS_BG_IMAGE_ID) ??
       DEFAULT_PREFERENCES.canvasBackgroundImageId,
-    defaultModelId:
-      get<ModelId>(KEY_DEFAULT_MODEL) ?? DEFAULT_PREFERENCES.defaultModelId,
     editorTheme:
       get<EditorThemeId>(KEY_EDITOR_THEME) ?? DEFAULT_PREFERENCES.editorTheme,
-    customInstructions:
-      get<string>(KEY_CUSTOM_INSTRUCTIONS) ??
-      DEFAULT_PREFERENCES.customInstructions,
     remoteAccessEnabled:
       get<boolean>(KEY_REMOTE_ACCESS_ENABLED) ??
       DEFAULT_PREFERENCES.remoteAccessEnabled,
@@ -262,44 +211,17 @@ export async function loadPreferences(): Promise<Preferences> {
     restoreWindowState:
       get<boolean>(KEY_RESTORE_WINDOW) ??
       DEFAULT_PREFERENCES.restoreWindowState,
-    autocompleteEnabled:
-      get<boolean>(KEY_AUTOCOMPLETE_ENABLED) ??
-      DEFAULT_PREFERENCES.autocompleteEnabled,
-    autocompleteProvider:
-      get<AutocompleteProviderId>(KEY_AUTOCOMPLETE_PROVIDER) ??
-      DEFAULT_PREFERENCES.autocompleteProvider,
-    autocompleteModelId:
-      get<string>(KEY_AUTOCOMPLETE_MODEL) ??
-      DEFAULT_PREFERENCES.autocompleteModelId,
     speechToTextModelId:
       get<string>(KEY_SPEECH_TO_TEXT_MODEL) ??
       DEFAULT_PREFERENCES.speechToTextModelId,
-    lmstudioBaseURL:
-      get<string>(KEY_LMSTUDIO_BASE_URL) ?? DEFAULT_PREFERENCES.lmstudioBaseURL,
-    lmstudioModelId:
-      get<string>(KEY_LMSTUDIO_MODEL_ID) ?? DEFAULT_PREFERENCES.lmstudioModelId,
-    mlxBaseURL:
-      get<string>(KEY_MLX_BASE_URL) ?? DEFAULT_PREFERENCES.mlxBaseURL,
-    mlxModelId:
-      get<string>(KEY_MLX_MODEL_ID) ?? DEFAULT_PREFERENCES.mlxModelId,
-    ollamaBaseURL:
-      get<string>(KEY_OLLAMA_BASE_URL) ?? DEFAULT_PREFERENCES.ollamaBaseURL,
-    ollamaModelId:
-      get<string>(KEY_OLLAMA_MODEL_ID) ?? DEFAULT_PREFERENCES.ollamaModelId,
-    openaiCompatibleBaseURL:
-      get<string>(KEY_OPENAI_COMPAT_BASE_URL) ??
-      DEFAULT_PREFERENCES.openaiCompatibleBaseURL,
-    openaiCompatibleModelId:
-      get<string>(KEY_OPENAI_COMPAT_MODEL_ID) ??
-      DEFAULT_PREFERENCES.openaiCompatibleModelId,
-    openaiCompatibleContextLimit:
-      get<number>(KEY_OPENAI_COMPAT_CONTEXT_LIMIT) ??
-      DEFAULT_PREFERENCES.openaiCompatibleContextLimit,
-    favoriteModelIds:
-      get<string[]>(KEY_FAVORITE_MODELS) ??
-      DEFAULT_PREFERENCES.favoriteModelIds,
-    recentModelIds:
-      get<string[]>(KEY_RECENT_MODELS) ?? DEFAULT_PREFERENCES.recentModelIds,
+    speechToTextProviderIds: normalizeSpeechToTextProviderIds(
+      get<string[]>(KEY_SPEECH_TO_TEXT_PROVIDERS) ??
+        DEFAULT_PREFERENCES.speechToTextProviderIds,
+    ),
+    disabledSpeechToTextProviderIds: normalizeSpeechToTextProviderIds(
+      get<string[]>(KEY_DISABLED_SPEECH_TO_TEXT_PROVIDERS) ??
+        DEFAULT_PREFERENCES.disabledSpeechToTextProviderIds,
+    ),
     vimMode: get<boolean>(KEY_VIM_MODE) ?? DEFAULT_PREFERENCES.vimMode,
     showHidden:
       get<boolean>(KEY_SHOW_HIDDEN) ??
@@ -395,17 +317,8 @@ export async function setCanvasBackgroundImageId(
   await writePref(KEY_CANVAS_BG_IMAGE_ID, value);
 }
 
-
-export async function setDefaultModel(value: ModelId): Promise<void> {
-  await writePref(KEY_DEFAULT_MODEL, value);
-}
-
 export async function setEditorTheme(value: EditorThemeId): Promise<void> {
   await writePref(KEY_EDITOR_THEME, value);
-}
-
-export async function setCustomInstructions(value: string): Promise<void> {
-  await writePref(KEY_CUSTOM_INSTRUCTIONS, value);
 }
 
 export async function setRemoteAccessEnabled(value: boolean): Promise<void> {
@@ -420,71 +333,26 @@ export async function setRestoreWindowState(value: boolean): Promise<void> {
   await writePref(KEY_RESTORE_WINDOW, value);
 }
 
-export async function setAutocompleteEnabled(value: boolean): Promise<void> {
-  await writePref(KEY_AUTOCOMPLETE_ENABLED, value);
-}
-
-export async function setAutocompleteProvider(
-  value: AutocompleteProviderId,
-): Promise<void> {
-  await writePref(KEY_AUTOCOMPLETE_PROVIDER, value);
-}
-
-export async function setAutocompleteModelId(value: string): Promise<void> {
-  await writePref(KEY_AUTOCOMPLETE_MODEL, value);
-}
-
 export async function setSpeechToTextModelId(value: string): Promise<void> {
   await writePref(KEY_SPEECH_TO_TEXT_MODEL, value);
 }
 
-export async function setLmstudioBaseURL(value: string): Promise<void> {
-  await writePref(KEY_LMSTUDIO_BASE_URL, value);
-}
-
-export async function setLmstudioModelId(value: string): Promise<void> {
-  await writePref(KEY_LMSTUDIO_MODEL_ID, value);
-}
-
-export async function setMlxBaseURL(value: string): Promise<void> {
-  await writePref(KEY_MLX_BASE_URL, value);
-}
-
-export async function setMlxModelId(value: string): Promise<void> {
-  await writePref(KEY_MLX_MODEL_ID, value);
-}
-
-export async function setOllamaBaseURL(value: string): Promise<void> {
-  await writePref(KEY_OLLAMA_BASE_URL, value);
-}
-
-export async function setOllamaModelId(value: string): Promise<void> {
-  await writePref(KEY_OLLAMA_MODEL_ID, value);
-}
-
-export async function setOpenaiCompatibleBaseURL(value: string): Promise<void> {
-  await writePref(KEY_OPENAI_COMPAT_BASE_URL, value);
-}
-
-export async function setOpenaiCompatibleModelId(value: string): Promise<void> {
-  await writePref(KEY_OPENAI_COMPAT_MODEL_ID, value);
-}
-
-export async function setOpenaiCompatibleContextLimit(
-  value: number,
+export async function setSpeechToTextProviderIds(
+  value: readonly string[],
 ): Promise<void> {
-  const clamped = Number.isFinite(value)
-    ? Math.max(1_000, Math.round(value))
-    : DEFAULT_PREFERENCES.openaiCompatibleContextLimit;
-  await writePref(KEY_OPENAI_COMPAT_CONTEXT_LIMIT, clamped);
+  await writePref(
+    KEY_SPEECH_TO_TEXT_PROVIDERS,
+    normalizeSpeechToTextProviderIds(value),
+  );
 }
 
-export async function setFavoriteModelIds(value: string[]): Promise<void> {
-  await writePref(KEY_FAVORITE_MODELS, value);
-}
-
-export async function setRecentModelIds(value: string[]): Promise<void> {
-  await writePref(KEY_RECENT_MODELS, value);
+export async function setDisabledSpeechToTextProviderIds(
+  value: readonly string[],
+): Promise<void> {
+  await writePref(
+    KEY_DISABLED_SPEECH_TO_TEXT_PROVIDERS,
+    normalizeSpeechToTextProviderIds(value),
+  );
 }
 
 export async function setVimMode(value: boolean): Promise<void> {
@@ -599,27 +467,14 @@ export async function onPreferencesChange(
     [KEY_BG_OPACITY]: "backgroundOpacity",
     [KEY_BG_BLUR]: "backgroundBlur",
     [KEY_CANVAS_BG_IMAGE_ID]: "canvasBackgroundImageId",
-    [KEY_DEFAULT_MODEL]: "defaultModelId",
     [KEY_EDITOR_THEME]: "editorTheme",
-    [KEY_CUSTOM_INSTRUCTIONS]: "customInstructions",
     [KEY_REMOTE_ACCESS_ENABLED]: "remoteAccessEnabled",
     [KEY_AUTOSTART]: "autostart",
     [KEY_RESTORE_WINDOW]: "restoreWindowState",
-    [KEY_AUTOCOMPLETE_ENABLED]: "autocompleteEnabled",
-    [KEY_AUTOCOMPLETE_PROVIDER]: "autocompleteProvider",
-    [KEY_AUTOCOMPLETE_MODEL]: "autocompleteModelId",
     [KEY_SPEECH_TO_TEXT_MODEL]: "speechToTextModelId",
-    [KEY_LMSTUDIO_BASE_URL]: "lmstudioBaseURL",
-    [KEY_LMSTUDIO_MODEL_ID]: "lmstudioModelId",
-    [KEY_MLX_BASE_URL]: "mlxBaseURL",
-    [KEY_MLX_MODEL_ID]: "mlxModelId",
-    [KEY_OLLAMA_BASE_URL]: "ollamaBaseURL",
-    [KEY_OLLAMA_MODEL_ID]: "ollamaModelId",
-    [KEY_OPENAI_COMPAT_BASE_URL]: "openaiCompatibleBaseURL",
-    [KEY_OPENAI_COMPAT_MODEL_ID]: "openaiCompatibleModelId",
-    [KEY_OPENAI_COMPAT_CONTEXT_LIMIT]: "openaiCompatibleContextLimit",
-    [KEY_FAVORITE_MODELS]: "favoriteModelIds",
-    [KEY_RECENT_MODELS]: "recentModelIds",
+    [KEY_SPEECH_TO_TEXT_PROVIDERS]: "speechToTextProviderIds",
+    [KEY_DISABLED_SPEECH_TO_TEXT_PROVIDERS]:
+      "disabledSpeechToTextProviderIds",
     [KEY_VIM_MODE]: "vimMode",
     [KEY_SHOW_HIDDEN]: "showHidden",
     [KEY_EXPLORER_EXCLUDED_FOLDER_NAMES]: "explorerExcludedFolderNames",

@@ -27,6 +27,13 @@ Before any GitHub-backed delivery work, read and follow
 mandatory for creating issues, branches, commits, pushes, and pull requests.
 For releasing, follow [`docs/RELEASE_RUNBOOK.md`](docs/RELEASE_RUNBOOK.md).
 
+## Release changelog
+
+For every public release, update the root [`CHANGELOG.md`](CHANGELOG.md) with
+the release version, date, user-visible changes, and known limitations before
+creating the release PR. Keep entries factual and do not describe staged or
+fallback-only integrations as fully supported.
+
 ## Orientation
 
 - [`COMPREHENSIVE_PLAN.md`](COMPREHENSIVE_PLAN.md) — the map: what the product

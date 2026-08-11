@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-import { generateVoicePrompt } from "../lib/voicePrompt";
 import { parseSpaceCommand, type SpaceCommand } from "../lib/spaceCommand";
-import {
-  loadVoicePromptHistory,
-  saveVoicePromptHistory,
-} from "../lib/voicePromptHistory";
-import { useChatStore } from "../store/chatStore";
+import type { ProviderKeys } from "../lib/keyring";
 import { useWhisperRecording } from "./useWhisperRecording";
 
 export type VoiceDraftTarget =
@@ -34,8 +29,9 @@ export type VoiceAgentStatus =
   | "error";
 
 type Options = {
+  apiKeys: ProviderKeys;
   captureTarget: () => VoiceDraftTarget | null;
-  insertDraft: (target: VoiceDraftTarget, draft: string) => boolean;
+  insertTranscript: (target: VoiceDraftTarget, transcript: string) => boolean;
   executeSpaceCommand: (command: SpaceCommand) => Promise<void>;
 };
 
@@ -44,16 +40,15 @@ const READY_DURATION_MS = 2_800;
 function messageFor(error: unknown): string {
   return error instanceof Error && error.message
     ? error.message
-    : "Voice prompt generation failed. Try again.";
+    : "Voice transcript insertion failed. Try again.";
 }
 
 export function useVoicePromptAgent({
+  apiKeys,
   captureTarget,
-  insertDraft,
+  insertTranscript,
   executeSpaceCommand,
 }: Options) {
-  const modelId = useChatStore((state) => state.selectedModelId);
-  const keys = useChatStore((state) => state.apiKeys);
   const speechToTextModelId = usePreferencesStore(
     (state) => state.speechToTextModelId,
   );
@@ -80,7 +75,7 @@ export function useVoicePromptAgent({
     setMessage(nextMessage);
   }, []);
 
-  const refineTranscript = useCallback(
+  const handleTranscript = useCallback(
     async (transcript: string) => {
       const spaceCommand = parseSpaceCommand(transcript);
       if (spaceCommand) {
@@ -104,56 +99,28 @@ export function useVoicePromptAgent({
       }
 
       setPhase("refining");
-      setMessage("Refining request…");
+      setMessage("Inserting transcript…");
       try {
-        const preferences = usePreferencesStore.getState();
-        const historyScope = `${target.kind}:${target.tabId}:${target.terminalId}`;
-        const recentDrafts = (await loadVoicePromptHistory(historyScope)).map(
-          (entry) => entry.text,
-        );
-        const result = await generateVoicePrompt({
-          transcript,
-          cwd: target.cwd,
-          terminalContext: target.terminalContext,
-          recentDrafts,
-          modelId,
-          keys,
-          local: {
-            lmstudioBaseURL: preferences.lmstudioBaseURL,
-            lmstudioModelId: preferences.lmstudioModelId,
-            mlxBaseURL: preferences.mlxBaseURL,
-            mlxModelId: preferences.mlxModelId,
-            ollamaBaseURL: preferences.ollamaBaseURL,
-            ollamaModelId: preferences.ollamaModelId,
-            openaiCompatibleBaseURL: preferences.openaiCompatibleBaseURL,
-            openaiCompatibleModelId: preferences.openaiCompatibleModelId,
-          },
-        });
-        if (!insertDraft(target, result.text)) {
+        if (!insertTranscript(target, transcript)) {
           throw new Error(
             "The terminal is busy. Wait for the command to finish, then try again.",
           );
         }
-        await saveVoicePromptHistory(historyScope, result);
         setPhase("ready");
-        setMessage(
-          result.kind === "ship"
-            ? "Task ready — review, then press Enter."
-            : "Investigation ready — review, then press Enter.",
-        );
+        setMessage("Transcript inserted into terminal.");
         clearLater();
       } catch (error) {
         setError(messageFor(error));
       }
     },
-    [clearLater, executeSpaceCommand, insertDraft, keys, modelId, setError],
+    [clearLater, executeSpaceCommand, insertTranscript, setError],
   );
 
   const recorder = useWhisperRecording({
-    onResult: refineTranscript,
+    onResult: handleTranscript,
     onError: setError,
     speechToTextModelId,
-    apiKeys: keys,
+    apiKeys,
   });
 
   const toggle = useCallback(async () => {

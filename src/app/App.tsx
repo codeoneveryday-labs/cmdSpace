@@ -15,27 +15,20 @@ import { cn } from "@/lib/utils";
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  AgentRunBridge,
-  AiMiniWindow,
-  AiSidebarHelper,
-  getAllKeys,
-  hasAnyKey,
-  useChatStore,
-} from "@/modules/ai";
-import { AiComposerProvider } from "@/modules/ai/lib/composer";
-import {
   FloatingVoiceAgent,
   type FloatingVoiceAgentHandle,
   type VoiceDraftTarget,
 } from "@/modules/ai/components/FloatingVoiceAgent";
+import {
+  EMPTY_PROVIDER_KEYS,
+  getAllKeys,
+  type ProviderKeys,
+} from "@/modules/ai/lib/keyring";
 import { redactSensitive } from "@/modules/ai/lib/redact";
 import { native } from "@/modules/ai/lib/native";
 import type { SpaceCommand } from "@/modules/ai/lib/spaceCommand";
-import { useAgentsStore } from "@/modules/ai/store/agentsStore";
-import { useSnippetsStore } from "@/modules/ai/store/snippetsStore";
 import {
   ArchitectureStack,
-  parseCanvasWorkspaceDiagram,
   serializeCanvasWorkspaceDiagram,
   type CanvasTerminalHandle,
 } from "@/modules/architecture";
@@ -103,7 +96,6 @@ import {
   setTerminalResizePaused,
   BottomTerminalDrawer,
   TerminalStack,
-  type PaneNode,
   type BottomTerminalDrawerHandle,
   type TerminalPaneHandle,
 } from "@/modules/terminal";
@@ -134,7 +126,6 @@ import { listen } from "@tauri-apps/api/event";
 import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SearchAddon } from "@xterm/addon-search";
-import { AnimatePresence } from "motion/react";
 import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
@@ -159,6 +150,11 @@ import {
   WORKSPACES_PANEL_COMPACT_WIDTH,
   WORKSPACES_PANEL_WIDTH,
 } from "./constants";
+import { useWorkspacePersistence } from "./lib/useWorkspacePersistence";
+import {
+  useWorkspaceSelection,
+  type WorkspaceSelectionPane,
+} from "./lib/useWorkspaceSelection";
 
 function dirname(path: string | null): string | null {
   if (!path) return null;
@@ -276,7 +272,7 @@ function readSidebarWidth(): number {
 function readSidebarView(): SidebarViewId {
   try {
     const stored = window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY);
-    if (stored === "browser" || stored === "editor" || stored === "helper") {
+    if (stored === "browser" || stored === "editor") {
       return stored;
     }
     if (stored === "explorer") return "editor";
@@ -322,8 +318,6 @@ export default function App() {
     newPreviewTab,
     newMarkdownTab,
     newArchitectureTab,
-    openAiDiffTab,
-    closeAiDiffTab,
     openGitDiffTab,
     openCommitHistoryTab,
     openCommitFileDiffTab,
@@ -789,34 +783,7 @@ export default function App() {
   const [bottomTerminalCwd, setBottomTerminalCwd] = useState<string | null>(
     null,
   );
-  const miniOpen = useChatStore((s) => s.mini.open);
-  const openMini = useChatStore((s) => s.openMini);
-  const focusInput = useChatStore((s) => s.focusInput);
-  const openPanel = useChatStore((s) => s.openPanel);
-  const apiKeys = useChatStore((s) => s.apiKeys);
-  const setApiKeys = useChatStore((s) => s.setApiKeys);
-  const setSelectedModelId = useChatStore((s) => s.setSelectedModelId);
-  const setLive = useChatStore((s) => s.setLive);
-  const respondToApproval = useChatStore((s) => s.respondToApproval);
-  const lmstudioModelId = usePreferencesStore((s) => s.lmstudioModelId);
-  const lmstudioBaseURL = usePreferencesStore((s) => s.lmstudioBaseURL);
-  const mlxModelId = usePreferencesStore((s) => s.mlxModelId);
-  const mlxBaseURL = usePreferencesStore((s) => s.mlxBaseURL);
-  const ollamaModelId = usePreferencesStore((s) => s.ollamaModelId);
-  const ollamaBaseURL = usePreferencesStore((s) => s.ollamaBaseURL);
-  const openaiCompatibleModelId = usePreferencesStore(
-    (s) => s.openaiCompatibleModelId,
-  );
-  const openaiCompatibleBaseURL = usePreferencesStore(
-    (s) => s.openaiCompatibleBaseURL,
-  );
-  const hasLocalModel =
-    (lmstudioBaseURL.trim().length > 0 && lmstudioModelId.trim().length > 0) ||
-    (mlxBaseURL.trim().length > 0 && mlxModelId.trim().length > 0) ||
-    (ollamaBaseURL.trim().length > 0 && ollamaModelId.trim().length > 0) ||
-    (openaiCompatibleBaseURL.trim().length > 0 &&
-      openaiCompatibleModelId.trim().length > 0);
-  const hasComposer = hasAnyKey(apiKeys) || hasLocalModel;
+  const [apiKeys, setApiKeys] = useState<ProviderKeys>(EMPTY_PROVIDER_KEYS);
 
   useEffect(() => {
     let alive = true;
@@ -838,19 +805,12 @@ export default function App() {
     };
   }, [setApiKeys]);
 
-  // Hydrate the cross-window preference store and mirror the default model
-  // into chatStore so the dropdown reflects what the user picked in Settings.
   const initPrefs = usePreferencesStore((s) => s.init);
-  const prefDefaultModel = usePreferencesStore((s) => s.defaultModelId);
   const prefsHydrated = usePreferencesStore((s) => s.hydrated);
   const remoteAccessEnabled = usePreferencesStore((s) => s.remoteAccessEnabled);
   useEffect(() => {
     void initPrefs();
   }, [initPrefs]);
-  useEffect(() => {
-    if (!prefsHydrated) return;
-    setSelectedModelId(prefDefaultModel);
-  }, [prefsHydrated, prefDefaultModel, setSelectedModelId]);
   useEffect(() => {
     if (!prefsHydrated || !remoteAccessEnabled) return;
     let alive = true;
@@ -874,12 +834,6 @@ export default function App() {
     };
   }, [prefsHydrated, remoteAccessEnabled]);
 
-  const hydrateSessions = useChatStore((s) => s.hydrateSessions);
-  useEffect(() => {
-    void useAgentsStore.getState().hydrate();
-    void useSnippetsStore.getState().hydrate();
-  }, []);
-
   const activeTab = tabs.find((t) => t.id === activeId);
   const activeWorkspace = workspaces.find(
     (workspace) =>
@@ -887,12 +841,6 @@ export default function App() {
   );
   const activeWorkspaceId = activeWorkspace?.id ?? null;
   const activeWorkspaceFolder = activeWorkspace?.workingFolder ?? null;
-  const helperSessionScope = activeWorkspaceId
-    ? `workspace:${activeWorkspaceId}`
-    : "global";
-  useEffect(() => {
-    void hydrateSessions(helperSessionScope);
-  }, [hydrateSessions, helperSessionScope]);
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
   const respondingLeaves = useAgentResponseLeaves();
   const pendingDeleteWorkspace =
@@ -1109,23 +1057,6 @@ export default function App() {
     return () => cancelAnimationFrame(frame);
   }, [bottomTerminalOpen]);
 
-  const handleAttachFileToAgent = useCallback(
-    (path: string) => {
-      if (!hasComposer) {
-        void openSettingsWindow("models");
-        return;
-      }
-      // Dispatch a window event the composer listens for. Same pattern as
-      // selections — keeps file-explorer decoupled from the AI module.
-      window.dispatchEvent(
-        new CustomEvent<string>("cmdspace:ai-attach-file", { detail: path }),
-      );
-      openPanel();
-      focusInput(null);
-    },
-    [hasComposer, openPanel, focusInput],
-  );
-
   const openNewTab = useCallback(() => {
     newTab(inheritedCwdForNewTab());
   }, [newTab, inheritedCwdForNewTab]);
@@ -1269,141 +1200,42 @@ export default function App() {
     ],
   );
 
+  const selectWorkspace = useWorkspaceSelection({
+    workspaces,
+    tabs,
+    closeWorkspaceSetup: () => setWorkspaceSetupOpen(false),
+    saveRecentWorkspace,
+    activateTab: setActiveId,
+    updateCanvasTabDiagram: (tabId, diagram) => {
+      updateTab(tabId, { diagram });
+    },
+    createCanvasTab: newArchitectureTab,
+    createWorkspaceTab: newWorkspaceTab,
+    replaceWorkspace: (workspaceId, patch) => {
+      setWorkspaces((current) =>
+        current.map((workspace) =>
+          workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
+        ),
+      );
+    },
+    listWorkspacePanes: (workspaceId) =>
+      invoke<WorkspaceSelectionPane[]>("db_list_panes", { workspaceId }),
+    buildCanvasWorkspaceDiagram: canvasWorkspaceDiagram,
+    onLoadCanvasWorkspacePanesError: (err) => {
+      console.error("Failed to load canvas workspace panes from SQLite:", err);
+    },
+    onLoadWorkspacePanesError: (err) => {
+      console.error("Failed to load workspace panes from SQLite:", err);
+    },
+  });
+
   const handleSelectWorkspace = useCallback(
     (workspaceId: string) => {
-      void workspaceOpenGateRef.current.open(workspaceId, () => {
-      const workspace = workspaces.find((item) => item.id === workspaceId);
-      if (!workspace) return;
-      setWorkspaceSetupOpen(false);
-      saveRecentWorkspace(workspace);
-      if (workspace.workspaceMode === "canvas") {
-        const canvasTab = tabs.find((tab) => tab.id === workspace.canvasTabId);
-        const terminalNodeCount =
-          canvasTab?.kind === "architecture"
-            ? (canvasTab.diagram?.nodes.filter((node) => node.kind === "terminal")
-                .length ?? 0)
-            : 0;
-        if (workspace.canvasTabId !== null && terminalNodeCount >= workspace.count) {
-          setActiveId(workspace.canvasTabId);
-          return;
-        }
-        const persistedDiagram = parseCanvasWorkspaceDiagram(
-          workspace.paneLayout,
-        );
-        if (persistedDiagram) {
-          const canvasTabId = workspace.canvasTabId;
-          if (canvasTabId !== null) {
-            updateTab(canvasTabId, { diagram: persistedDiagram });
-            setActiveId(canvasTabId);
-            return;
-          }
-          const createdCanvasTabId = newArchitectureTab(
-            persistedDiagram,
-            `${workspace.name} Canvas`,
-          );
-          setWorkspaces((current) =>
-            current.map((item) =>
-              item.id === workspaceId
-                ? { ...item, canvasTabId: createdCanvasTabId }
-                : item,
-            ),
-          );
-          return;
-        }
-        return invoke<any[]>("db_list_panes", { workspaceId })
-          .then((panes) => {
-            const diagram = canvasWorkspaceDiagram(
-              workspace.count,
-              workspace.workingFolder,
-              panes.map((pane) =>
-                pane.autoLaunch ? (pane.lastCommand ?? "") : "",
-              ),
-            );
-            const canvasTabId = workspace.canvasTabId;
-            if (canvasTabId !== null) {
-              updateTab(canvasTabId, { diagram });
-              setActiveId(canvasTabId);
-              return;
-            }
-            const createdCanvasTabId = newArchitectureTab(
-              diagram,
-              `${workspace.name} Canvas`,
-            );
-            setWorkspaces((current) =>
-              current.map((item) =>
-                item.id === workspaceId
-                  ? { ...item, canvasTabId: createdCanvasTabId }
-                  : item,
-              ),
-            );
-          })
-          .catch((err) => {
-            console.error("Failed to load canvas workspace panes from SQLite:", err);
-            const diagram = canvasWorkspaceDiagram(
-              workspace.count,
-              workspace.workingFolder,
-              [],
-            );
-            const canvasTabId = workspace.canvasTabId;
-            if (canvasTabId !== null) {
-              updateTab(canvasTabId, { diagram });
-              setActiveId(canvasTabId);
-              return;
-            }
-            const createdCanvasTabId = newArchitectureTab(
-              diagram,
-              `${workspace.name} Canvas`,
-            );
-            setWorkspaces((current) =>
-              current.map((item) =>
-                item.id === workspaceId
-                  ? { ...item, canvasTabId: createdCanvasTabId }
-                  : item,
-              ),
-            );
-          });
-        return;
-      }
-
-      if (workspace.tabId !== null) {
-        setActiveId(workspace.tabId);
-      } else {
-        return invoke<any[]>("db_list_panes", { workspaceId })
-          .then((panes) => {
-            const tabId = newWorkspaceTab(
-              workspace.workingFolder ?? undefined,
-              workspace.count,
-              panes,
-              workspace.paneLayout,
-            );
-            setWorkspaces((current) =>
-              current.map((w) => (w.id === workspaceId ? { ...w, tabId } : w)),
-            );
-          })
-          .catch((err) => {
-            console.error("Failed to load workspace panes from SQLite:", err);
-            const tabId = newWorkspaceTab(
-              workspace.workingFolder ?? undefined,
-              workspace.count,
-              undefined,
-              workspace.paneLayout,
-            );
-            setWorkspaces((current) =>
-              current.map((w) => (w.id === workspaceId ? { ...w, tabId } : w)),
-            );
-          });
-      }
-      });
+      void workspaceOpenGateRef.current.open(workspaceId, () =>
+        selectWorkspace(workspaceId),
+      );
     },
-    [
-      newArchitectureTab,
-      newWorkspaceTab,
-      saveRecentWorkspace,
-      setActiveId,
-      tabs,
-      updateTab,
-      workspaces,
-    ],
+    [selectWorkspace],
   );
 
   const handleSelectWorkspaceRef = useRef(handleSelectWorkspace);
@@ -2191,30 +2023,14 @@ export default function App() {
     [],
   );
 
-  const handleTerminalPaneTreeChange = useCallback(
-    (tabId: number, paneTree: PaneNode) => {
-      setTerminalPaneTree(tabId, paneTree);
-
-      const workspace = workspacesRef.current.find((w) => w.tabId === tabId);
-      if (!workspace) return;
-
-      const updated: WorkspaceRecord = {
-        ...workspace,
-        count: leafIds(paneTree).length,
-        paneLayout: JSON.stringify(paneTree),
-        updatedAt: Date.now(),
-      };
-
-      setWorkspaces((current) =>
-        current.map((w) => (w.id === workspace.id ? updated : w)),
-      );
-
-      invoke("db_save_workspace", { workspace: updated }).catch((err) => {
-        console.error("Failed to save terminal pane layout to SQLite:", err);
-      });
-    },
-    [setTerminalPaneTree],
-  );
+  const { handleTerminalPaneTreeChange, handleArchitectureDiagramChange } =
+    useWorkspacePersistence<WorkspaceRecord>({
+      workspacesRef,
+      setTerminalPaneTree,
+      updateTab,
+      setWorkspaces,
+      persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace }),
+    });
 
   const handleFocusLeaf = useCallback(
     (tabId: number, leafId: number) => focusPane(tabId, leafId),
@@ -2276,183 +2092,6 @@ export default function App() {
   ]);
 
   const activeCwd = activeTerminalLeafCwd;
-
-  useEffect(() => {
-    const findCwd = () => {
-      const active = tabs.find((x) => x.id === activeId);
-      if (active?.kind === "terminal") {
-        return (
-          findLeafCwd(active.paneTree, active.activeLeafId) ??
-          active.cwd ??
-          null
-        );
-      }
-      for (let i = tabs.length - 1; i >= 0; i--) {
-        const t = tabs[i];
-        if (t.kind !== "terminal") continue;
-        const cwd = findLeafCwd(t.paneTree, t.activeLeafId) ?? t.cwd;
-        if (cwd) return cwd;
-      }
-      return explorerRoot ?? launchCwd ?? home ?? null;
-    };
-
-    setLive({
-      getCwd: findCwd,
-      getTerminalContext: () => {
-        const t = tabs.find((x) => x.id === activeId);
-        if (t?.kind !== "terminal") return null;
-        if (t.private) return null;
-        const buf = terminalRefs.current.get(t.activeLeafId)?.getBuffer(300);
-        return buf ? redactSensitive(buf) : null;
-      },
-      isActiveTerminalPrivate: () => {
-        const t = tabs.find((x) => x.id === activeId);
-        return t?.kind === "terminal" && t.private === true;
-      },
-      injectIntoActivePty: (text) => {
-        const t = tabs.find((x) => x.id === activeId);
-        if (t?.kind !== "terminal") return false;
-        const term = terminalRefs.current.get(t.activeLeafId);
-        if (!term) return false;
-        term.write(text);
-        term.focus();
-        return true;
-      },
-      getActiveTerminalAgents: () => {
-        if (!activeTerminalTab) return [];
-        return leafIds(activeTerminalTab.paneTree).map((leafId, paneIndex) => ({
-          paneIndex,
-          cwd: findLeafCwd(activeTerminalTab.paneTree, leafId) ?? null,
-          lastCommand: findLeafAutoLaunch(activeTerminalTab.paneTree, leafId)
-            ? (findLeafLastCommand(activeTerminalTab.paneTree, leafId) ?? null)
-            : null,
-          available: terminalRefs.current.has(leafId),
-        }));
-      },
-      getActiveTerminalPaneIndex: () => {
-        if (!activeTerminalTab) return null;
-        const index = leafIds(activeTerminalTab.paneTree).indexOf(
-          activeTerminalTab.activeLeafId,
-        );
-        return index === -1 ? null : index;
-      },
-      dispatchPromptsToTerminals: (assignments) => {
-        if (!activeTerminalTab) {
-          return assignments.map(({ paneIndex }) => ({
-            paneIndex,
-            sent: false,
-            error: "No active terminal tab",
-          }));
-        }
-        const leaves = leafIds(activeTerminalTab.paneTree);
-        return assignments.map(({ paneIndex, prompt }) => {
-          const leafId = leaves[paneIndex];
-          const term = leafId === undefined ? null : terminalRefs.current.get(leafId);
-          if (!term) {
-            return {
-              paneIndex,
-              sent: false,
-              error: "Terminal pane is not ready",
-            };
-          }
-          term.write(prompt.replace(/[\r\n]+$/, "") + "\r");
-          return { paneIndex, sent: true };
-        });
-      },
-      getWorkspaceRoot: () => explorerRoot ?? launchCwd ?? home ?? null,
-      getActiveFile: () => {
-        const t = tabs.find((x) => x.id === activeId);
-        return t?.kind === "editor" ? t.path : null;
-      },
-      openPreview: (url: string) => {
-        openPreviewTab(url);
-        return true;
-      },
-      createWorkspace: async (input) => {
-        const workspace = await handleOpenWorkspaceWithoutAi(
-          input.terminalCount,
-          input.folder,
-          input.initialCommands,
-          input.name,
-        );
-        return {
-          workspaceId: workspace?.id,
-          tabId: workspace?.tabId ?? undefined,
-          terminalCount: input.terminalCount,
-        };
-      },
-      openBrowser: (url: string) => {
-        persistSidebarView("browser");
-        setSidebarOpen(true);
-        persistSidebarBrowserUrl(url);
-        return true;
-      },
-      openArchitecture: () => {
-        newArchitectureTab();
-        return true;
-      },
-      createMindMap: async (input) => {
-        const tabId = newArchitectureTab(input.diagram, input.title);
-        return {
-          tabId,
-          nodeCount: input.diagram.nodes.length,
-          edgeCount: input.diagram.edges.length,
-        };
-      },
-    });
-  }, [
-    setLive,
-    activeId,
-    activeTerminalTab,
-    tabs,
-    explorerRoot,
-    launchCwd,
-    home,
-    openPreviewTab,
-    handleOpenWorkspaceWithoutAi,
-    persistSidebarView,
-    persistSidebarBrowserUrl,
-    newArchitectureTab,
-  ]);
-
-  const handleArchitectureDiagramChange = useCallback(
-    (tabId: number, diagram: ArchitectureDiagram) => {
-      updateTab(tabId, { diagram });
-
-      const workspace = workspacesRef.current.find(
-        (workspace) => workspace.canvasTabId === tabId,
-      );
-      if (!workspace) return;
-
-      const terminalCount = diagram.nodes.filter(
-        (node) => node.kind === "terminal",
-      ).length;
-      const serializedDiagram = serializeCanvasWorkspaceDiagram(diagram);
-      if (
-        workspace.count === terminalCount &&
-        workspace.paneLayout === serializedDiagram
-      ) {
-        return;
-      }
-
-      const updated: WorkspaceRecord = {
-        ...workspace,
-        count: terminalCount,
-        paneLayout: serializedDiagram,
-        updatedAt: Date.now(),
-      };
-      setWorkspaces((current) =>
-        current.map((item) => (item.id === workspace.id ? updated : item)),
-      );
-      invoke("db_save_workspace", { workspace: updated }).catch((err) => {
-        console.error(
-          "Failed to save canvas workspace diagram to SQLite:",
-          err,
-        );
-      });
-    },
-    [updateTab],
-  );
 
   const handleImportAgentSession = useCallback(
     async (session: ImportableAgentSession): Promise<boolean> => {
@@ -2656,8 +2295,8 @@ export default function App() {
         <AiDiffStack
           tabs={tabs}
           activeId={activeId}
-          onAccept={(id) => respondToApproval(id, true)}
-          onReject={(id) => respondToApproval(id, false)}
+          onAccept={() => undefined}
+          onReject={() => undefined}
         />
       </div>
       <div
@@ -2867,7 +2506,6 @@ export default function App() {
                             onPathRenamed={handlePathRenamed}
                             onPathDeleted={handlePathDeleted}
                             onRevealInTerminal={cdInNewTab}
-                            onAttachToAgent={handleAttachFileToAgent}
                             onOpenMarkdownPreview={openMarkdownPreview}
                           />
                         ) : (
@@ -2881,13 +2519,6 @@ export default function App() {
                             onOpenDiff={openGitDiffTab}
                           />
                         )
-                      ) : sidebarView === "helper" ? (
-                        <AiSidebarHelper
-                          hasComposer={hasComposer}
-                          onConnectProvider={() =>
-                            void openSettingsWindow("models")
-                          }
-                        />
                       ) : (
                         <div className="h-full min-h-0" />
                       )}
@@ -2917,28 +2548,17 @@ export default function App() {
             home={home}
             onCd={sendCd}
             onWorkspaceChange={switchWorkspace}
-            onOpenMini={openMini}
             onToggleTerminal={toggleBottomTerminal}
             privateActive={
               activeTab?.kind === "terminal" && activeTab.private === true
             }
           />
 
-          {hasComposer ? (
-            <AgentRunBridge
-              openAiDiffTab={openAiDiffTab}
-              closeAiDiffTab={closeAiDiffTab}
-            />
-          ) : null}
-
-          <AnimatePresence>
-            {miniOpen && hasComposer ? <AiMiniWindow key="ai-mini" /> : null}
-          </AnimatePresence>
-
           <FloatingVoiceAgent
             ref={voiceAgentRef}
             captureTarget={captureVoiceTarget}
-            insertDraft={insertVoiceDraft}
+            apiKeys={apiKeys}
+            insertTranscript={insertVoiceDraft}
             executeSpaceCommand={executeSpaceCommand}
           />
 
@@ -3077,5 +2697,5 @@ export default function App() {
     </ThemeProvider>
   );
 
-  return <AiComposerProvider>{shell}</AiComposerProvider>;
+  return shell;
 }

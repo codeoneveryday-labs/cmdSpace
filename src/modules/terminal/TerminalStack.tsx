@@ -1,6 +1,6 @@
 import type { Tab, TerminalTab } from "@/modules/tabs";
 import type { SearchAddon } from "@xterm/addon-search";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { PaneTreeView } from "./PaneTreeView";
 import type { TerminalPaneHandle } from "./TerminalPane";
 import {
@@ -11,8 +11,8 @@ import {
   type PaneNode,
   type SplitDir,
 } from "./lib/panes";
-
-const TERMINAL_LAZY_RESTORE_DELAY_MS = 90;
+import { usePaneBundles } from "./lib/usePaneBundles";
+import { usePaneHydration } from "./lib/usePaneHydration";
 
 type Props = {
   tabs: Tab[];
@@ -30,29 +30,6 @@ type Props = {
   focusAccentColor: string;
   onPaneTreeChange: (tabId: number, paneTree: PaneNode) => void;
 };
-
-type Bundle = {
-  setRef: (h: TerminalPaneHandle | null) => void;
-  getRef: () => TerminalPaneHandle | null;
-  onSearch: (addon: SearchAddon) => void;
-  onCwd: (cwd: string) => void;
-  onExit: (code: number) => void;
-  onCommand?: (cmd: string) => void;
-};
-
-function scheduleIdlePaneRestore(callback: () => void): () => void {
-  if (typeof window === "undefined") return () => {};
-
-  if ("requestIdleCallback" in window) {
-    const id = window.requestIdleCallback(callback, {
-      timeout: TERMINAL_LAZY_RESTORE_DELAY_MS * 3,
-    });
-    return () => window.cancelIdleCallback(id);
-  }
-
-  const id = globalThis.setTimeout(callback, TERMINAL_LAZY_RESTORE_DELAY_MS);
-  return () => globalThis.clearTimeout(id);
-}
 
 export function TerminalStack({
   tabs,
@@ -96,129 +73,19 @@ export function TerminalStack({
     () => (nodeToRender ? leafIds(nodeToRender) : []),
     [nodeToRender],
   );
-  const renderLeafSignature = renderLeafIds.join(",");
-  const [hydratedLeafIds, setHydratedLeafIds] = useState<Set<number>>(
-    () => new Set(),
-  );
-
-  const registerRef = useRef(registerHandle);
-  const searchReadyRef = useRef(onSearchReady);
-  const cwdRef = useRef(onCwd);
-  const exitRef = useRef(onExit);
-  const commandRef = useRef(onCommand);
-  useEffect(() => {
-    registerRef.current = registerHandle;
-  }, [registerHandle]);
-  useEffect(() => {
-    searchReadyRef.current = onSearchReady;
-  }, [onSearchReady]);
-  useEffect(() => {
-    cwdRef.current = onCwd;
-  }, [onCwd]);
-  useEffect(() => {
-    exitRef.current = onExit;
-  }, [onExit]);
-  useEffect(() => {
-    commandRef.current = onCommand;
-  }, [onCommand]);
-
-  const bundles = useRef(new Map<number, Bundle>());
-  const getBundle = (leafId: number): Bundle => {
-    let b = bundles.current.get(leafId);
-    if (!b) {
-      let handle: TerminalPaneHandle | null = null;
-      b = {
-        setRef: (h) => {
-          handle = h;
-          registerRef.current(leafId, h);
-        },
-        getRef: () => handle,
-        onSearch: (addon) => searchReadyRef.current(leafId, addon),
-        onCwd: (cwd) => cwdRef.current(leafId, cwd),
-        onExit: (code) => exitRef.current(leafId, code),
-        onCommand: (cmd) => commandRef.current?.(leafId, cmd),
-      };
-      bundles.current.set(leafId, b);
-    }
-    return b;
-  };
-
-  useEffect(() => {
-    const live = new Set<number>();
-    for (const t of terminals) for (const id of leafIds(t.paneTree)) live.add(id);
-    for (const id of bundles.current.keys()) {
-      if (!live.has(id)) bundles.current.delete(id);
-    }
-  }, [terminals]);
-
-  useEffect(() => {
-    if (!activeTerminal) {
-      setHydratedLeafIds(new Set());
-      return;
-    }
-    setHydratedLeafIds(new Set([activeTerminal.activeLeafId]));
-  }, [activeTerminal?.id, renderLeafSignature]);
-
-  useEffect(() => {
-    if (!activeTerminal) return;
-    setHydratedLeafIds((current) => {
-      if (current.has(activeTerminal.activeLeafId)) return current;
-      const next = new Set(current);
-      next.add(activeTerminal.activeLeafId);
-      return next;
-    });
-  }, [activeTerminal?.id, activeTerminal?.activeLeafId]);
-
-  useEffect(() => {
-    if (!activeTerminal || renderLeafIds.length <= 1) return;
-
-    let cancelled = false;
-    let cancelPendingRestore: (() => void) | null = null;
-    let index = 0;
-
-    const restoreNext = () => {
-      if (cancelled) return;
-
-      while (
-        index < renderLeafIds.length &&
-        renderLeafIds[index] === activeTerminal.activeLeafId
-      ) {
-        index += 1;
-      }
-      if (index >= renderLeafIds.length) return;
-
-      const leafId = renderLeafIds[index];
-      index += 1;
-      setHydratedLeafIds((current) => {
-        if (current.has(leafId)) return current;
-        const next = new Set(current);
-        next.add(leafId);
-        return next;
-      });
-      cancelPendingRestore = scheduleIdlePaneRestore(restoreNext);
-    };
-
-    cancelPendingRestore = scheduleIdlePaneRestore(restoreNext);
-    return () => {
-      cancelled = true;
-      cancelPendingRestore?.();
-    };
-  }, [activeTerminal?.id, renderLeafSignature]);
-
-  const hydrateLeaf = useCallback((leafId: number) => {
-    setHydratedLeafIds((current) => {
-      if (current.has(leafId)) return current;
-      const next = new Set(current);
-      next.add(leafId);
-      return next;
-    });
-  }, []);
-
-  const isLeafHydrated = useCallback(
-    (leafId: number) =>
-      leafId === activeTerminal?.activeLeafId || hydratedLeafIds.has(leafId),
-    [activeTerminal?.activeLeafId, hydratedLeafIds],
-  );
+  const { getBundle } = usePaneBundles({
+    terminals,
+    registerHandle,
+    onSearchReady,
+    onCwd,
+    onExit,
+    onCommand,
+  });
+  const { hydrateLeaf, isLeafHydrated } = usePaneHydration({
+    activeLeafId: activeTerminal?.activeLeafId ?? null,
+    renderLeafIds,
+    scopeKey: activeTerminal?.id ?? null,
+  });
 
   return (
     <div className="relative h-full w-full overflow-hidden">

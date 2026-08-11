@@ -48,16 +48,31 @@ import {
   type CanvasTerminalHandle,
 } from "./CanvasTerminalNode";
 import { CanvasBrowserNode } from "./CanvasBrowserNode";
-import { panViewFromPointer } from "./canvasPan";
-import { terminalWorldTransform } from "./canvasCoordinates";
 import { nextDiagramIdSequence } from "./diagramIds";
+import {
+  boundaryPoint,
+  connectorGeometry,
+  connectorControlPoint,
+  connectorPath,
+  edgeAnchorPoint,
+  isConnectorKind,
+  nodeCenter,
+  nodeTransform,
+  pointInsideNode,
+  resolveConnectorNode,
+  snapConnectorEndpoint,
+} from "./lib/canvasGeometry";
+import { useCanvasCamera } from "./lib/useCanvasCamera";
+import { useCanvasDocking } from "./lib/useCanvasDocking";
+import {
+  resolveTerminalDropResult,
+  useCanvasTerminalInteractions,
+} from "./lib/useCanvasTerminalInteractions";
 import {
   recommendTerminalPlacements,
   type TerminalPlacement,
 } from "./terminalPlacement";
 import {
-  activateTerminalTab,
-  detachTerminal,
   dockTerminal,
   layoutTerminalDockDividers,
   layoutTerminalDockGroups,
@@ -65,14 +80,11 @@ import {
   projectMaximizedTerminalDockGroups,
   projectTerminalDockLayouts,
   removeTerminalFromDock,
-  resolveTerminalDockDrop,
   terminalDockCornerClassName,
   terminalDockGroupUsesSharedHeader,
-  terminalDockIndicatorRect,
-  updateTerminalDockSplitRatio,
+  activateTerminalTab,
   updateTerminalGroupBounds,
   type TerminalDockDividerLayout,
-  type TerminalDockDropTarget,
   type TerminalDockRect,
   type TerminalDockStackLayout,
 } from "./terminalDockLayout";
@@ -146,13 +158,6 @@ type TerminalDropPreview = {
   height: number;
 };
 
-type PanState = {
-  clientX: number;
-  clientY: number;
-  viewX: number;
-  viewY: number;
-};
-
 type DrawingState = {
   id: string;
   kind: ShapeDrawingMode;
@@ -164,12 +169,6 @@ type ResizeState = {
   handle: ResizeHandle;
   startNode: ArchitectureNode;
   terminalGroupId?: string;
-};
-
-type DockDividerResizeState = {
-  divider: TerminalDockDividerLayout;
-  start: Point;
-  ratio: number;
 };
 
 type RotateState = {
@@ -411,8 +410,6 @@ export const ARCHITECTURE_SHAPES: ShapeConfig[] = [
     tone: "border-red-400/35 bg-red-500/[0.08] text-red-700 dark:text-red-200",
   },
 ];
-const VIEWBOX_WIDTH = 1200;
-const VIEWBOX_HEIGHT = 720;
 const NODE_WIDTH = 176;
 const NODE_HEIGHT = 82;
 // Keep a canvas terminal at Cate's native window size. At 55% zoom this still
@@ -421,13 +418,9 @@ const TERMINAL_DEFAULT_SIZE = { width: 640, height: 400 };
 const INTERACTIVE_SURFACE_DEFAULT_SIZE = { width: 720, height: 480 };
 const INTERACTIVE_SURFACE_MINIMUM_SIZE = { width: 400, height: 300 };
 const LEGACY_TERMINAL_SIZE = { width: 420, height: 280 };
-const MIN_ZOOM = 0.55;
-const MAX_ZOOM = 1.8;
 const MAX_HISTORY = 50;
 const CONNECTOR_SNAP_DISTANCE = 28;
 const TEXT_ATTACH_DISTANCE = 32;
-const CANVAS_PAN_MARGIN_RATIO = 0.75;
-const TRACKPAD_PAN_SENSITIVITY = 0.35;
 const ARCHITECTURE_TOOL_SHORTCUTS = new Map<string, CanvasMode>([
   ["v", "select"],
   ["h", "pan"],
@@ -642,35 +635,29 @@ export function ArchitectureCanvas({
   const [drag, setDrag] = useState<DragState | null>(null);
   const [terminalDropPreview, setTerminalDropPreview] =
     useState<TerminalDropPreview | null>(null);
-  const [terminalDockDropTarget, setTerminalDockDropTarget] =
-    useState<TerminalDockDropTarget | null>(null);
-  const [dockDividerResize, setDockDividerResize] =
-    useState<DockDividerResizeState | null>(null);
-  const dockDividerResizeFrameRef = useRef<number | null>(null);
-  const pendingDockDividerRatioRef = useRef<{
-    divider: TerminalDockDividerLayout;
-    ratio: number;
-  } | null>(null);
-  const terminalDockDropTargetRef = useRef<TerminalDockDropTarget | null>(null);
   const terminalWorldRef = useRef<HTMLDivElement | null>(null);
-  const terminalWorldPromotionTimerRef = useRef<number | null>(null);
-  const [pan, setPan] = useState<PanState | null>(null);
   const [drawing, setDrawing] = useState<DrawingState | null>(null);
   const [resize, setResize] = useState<ResizeState | null>(null);
   const [rotate, setRotate] = useState<RotateState | null>(null);
   const [connectorHandle, setConnectorHandle] =
     useState<ConnectorHandleState | null>(null);
   const [editingTextId, setEditingTextId] = useState("");
-  const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
-  const [canvasSize, setCanvasSize] = useState({
-    width: VIEWBOX_WIDTH,
-    height: VIEWBOX_HEIGHT,
-  });
+  const camera = useCanvasCamera({ appZoom, svgRef, terminalWorldRef });
+  const {
+    centerViewOnPlacement,
+    drawableBounds,
+    pan,
+    setView,
+    terminalTransform,
+    view,
+    viewHeight,
+    viewWidth,
+    zoomBy,
+  } = camera;
   const [terminalPlacements, setTerminalPlacements] = useState<TerminalPlacement[]>([]);
   const [isFreeTerminalPlacement, setIsFreeTerminalPlacement] = useState(false);
   const [pendingSurfaceKind, setPendingSurfaceKind] =
     useState<LiveSurfaceKind | null>(null);
-  const [activeTerminalId, setActiveTerminalId] = useState("");
   const [maximizedTerminalId, setMaximizedTerminalId] = useState("");
   // terminalId -> handle, populated via onTerminalHandleChange so Cmd+Arrow
   // can move real input focus to the newly active terminal node.
@@ -685,9 +672,6 @@ export function ArchitectureCanvas({
     () => new Map(nodes.map((item) => [item.id, item])),
     [nodes],
   );
-  const viewWidth = canvasSize.width / view.scale;
-  const viewHeight = canvasSize.height / view.scale;
-  const terminalTransform = terminalWorldTransform(view, appZoom);
   const liveSurfaceNodes = nodes.filter(isLiveSurfaceNode);
   const terminalNodes = liveSurfaceNodes.filter(
     (node) => node.kind === "terminal",
@@ -749,29 +733,25 @@ export function ArchitectureCanvas({
     () => layoutTerminalDockDividers(renderedTerminalDockGroups),
     [renderedTerminalDockGroups],
   );
-  const terminalPlacementObstacles = useMemo(() => {
-    const dockedTerminalIds = new Set(
-      terminalLayouts.flatMap((layout) => layout.terminalIds),
-    );
-    return [
-      ...nodes
-        .filter((node) => !isLiveSurfaceKind(node.kind))
-        .map(({ x, y, width, height }) => ({ x, y, width, height })),
-      ...terminalDockGroups.map(({ x, y, width, height }) => ({
-        x,
-        y,
-        width,
-        height,
-      })),
-      ...liveSurfaceNodes
-        .filter((node) => !dockedTerminalIds.has(node.id))
-        .map(({ x, y, width, height }) => ({ x, y, width, height })),
-    ];
-  }, [nodes, terminalDockGroups, terminalLayouts, liveSurfaceNodes]);
-  const terminalDockIndicator = terminalDockDropTarget
-    ? terminalDockIndicatorRect(terminalDockDropTarget, terminalLayouts)
-    : null;
-  const terminalResizePaused = Boolean(dockDividerResize || resize?.terminalGroupId);
+  const docking = useCanvasDocking({
+    nodes,
+    terminalNodes: liveSurfaceNodes,
+    terminalDockGroups,
+    terminalLayouts,
+    resizeTerminalGroupId: resize?.terminalGroupId,
+    view,
+    viewWidth,
+    viewHeight,
+    svgRef,
+    svgPointFromClient: camera.svgPointFromClient,
+    setTerminalDockGroups,
+  });
+  const {
+    terminalDockDropTarget,
+    terminalDockIndicator,
+    terminalPlacementObstacles,
+    terminalResizePaused,
+  } = docking;
 
   // Upgrade the short-lived 420×280 canvas-terminal default even when Vite
   // preserves this component's state during a hot reload.
@@ -789,97 +769,24 @@ export function ArchitectureCanvas({
     onDiagramChange?.(tabId, { nodes, edges, terminalDockGroups });
   }, [edges, nodes, onDiagramChange, tabId, terminalDockGroups]);
 
-  useEffect(() => {
-    onActiveTerminalChange?.(tabId, activeTerminalId || null);
-  }, [activeTerminalId, onActiveTerminalChange, tabId]);
-
-  useEffect(
-    () => () => onActiveTerminalChange?.(tabId, null),
-    [onActiveTerminalChange, tabId],
-  );
-
   const selectSingleNode = (id: string) => {
     setSelectedNodeId(id);
     setSelectedNodeIds(id ? [id] : []);
     setSelectedEdgeId("");
   };
+  const terminalInteractions = useCanvasTerminalInteractions({
+    onActiveTerminalChange,
+    selectSingleNode,
+    setMaximizedTerminalId,
+    setTerminalDockGroups,
+    tabId,
+  });
+  const { activeTerminalId, setActiveTerminalId } = terminalInteractions;
 
   const clearSelection = () => {
     setSelectedNodeId("");
     setSelectedNodeIds([]);
     setSelectedEdgeId("");
-  };
-
-  const updateTerminalDockDropTarget = (
-    target: TerminalDockDropTarget | null,
-  ) => {
-    terminalDockDropTargetRef.current = target;
-    setTerminalDockDropTarget(target);
-  };
-
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    const updateSize = () => {
-      const rect = svg.getBoundingClientRect();
-      const width = Math.max(1, Math.round(rect.width));
-      const height = Math.max(1, Math.round(rect.height));
-      setCanvasSize((current) =>
-        current.width === width && current.height === height
-          ? current
-          : { width, height },
-      );
-    };
-
-    updateSize();
-    if (typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(svg);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    setView((current) => clampView(current, current.scale));
-  }, [canvasSize.width, canvasSize.height]);
-
-  useEffect(() => {
-    terminalWorldPromotionTimerRef.current = window.setTimeout(() => {
-      terminalWorldPromotionTimerRef.current = null;
-      if (terminalWorldRef.current) {
-        terminalWorldRef.current.style.willChange = "auto";
-      }
-    }, 150);
-    return () => {
-      if (terminalWorldPromotionTimerRef.current !== null) {
-        window.clearTimeout(terminalWorldPromotionTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (dockDividerResizeFrameRef.current !== null) {
-        cancelAnimationFrame(dockDividerResizeFrameRef.current);
-      }
-    },
-    [],
-  );
-
-  const promoteTerminalWorld = () => {
-    const terminalWorld = terminalWorldRef.current;
-    if (!terminalWorld) return;
-    terminalWorld.style.willChange = "transform";
-    if (terminalWorldPromotionTimerRef.current !== null) {
-      window.clearTimeout(terminalWorldPromotionTimerRef.current);
-    }
-    terminalWorldPromotionTimerRef.current = window.setTimeout(() => {
-      terminalWorldPromotionTimerRef.current = null;
-      if (terminalWorldRef.current) {
-        terminalWorldRef.current.style.willChange = "auto";
-      }
-    }, 150);
   };
 
   useEffect(() => {
@@ -1259,7 +1166,7 @@ export function ArchitectureCanvas({
       return;
     }
     if (mode === "pan") {
-      startPan(event);
+      camera.startPan(event);
       return;
     }
     if (event.shiftKey) {
@@ -1277,13 +1184,14 @@ export function ArchitectureCanvas({
       selectSingleNode(item.id);
     }
     if (item.locked || isFreehandKind(item.kind)) return;
-    const point = svgPoint(event);
+    const point = camera.svgPointFromClient(event);
     pushHistory();
     setTerminalDropPreview(null);
-    updateTerminalDockDropTarget(null);
-    const sourceBounds = isLiveSurfaceKind(item.kind)
-      ? terminalLayoutById.get(item.id)?.rect
-      : undefined;
+    docking.clearTerminalDockDropTarget();
+    const sourceBounds =
+      isLiveSurfaceKind(item.kind)
+        ? terminalLayoutById.get(item.id)?.rect
+        : undefined;
     setDrag({
       id: item.id,
       dx: point.x - (sourceBounds?.x ?? item.x),
@@ -1313,10 +1221,10 @@ export function ArchitectureCanvas({
     }
     if (locked) return;
 
-    const point = svgPoint(event);
+    const point = camera.svgPointFromClient(event);
     pushHistory();
     setTerminalDropPreview(null);
-    updateTerminalDockDropTarget(null);
+    docking.clearTerminalDockDropTarget();
     setDrag({
       id: activeTerminalNode.id,
       dx: point.x - group.x,
@@ -1367,39 +1275,6 @@ export function ArchitectureCanvas({
     svgRef.current?.setPointerCapture(event.pointerId);
   };
 
-  const commitDockDividerRatio = (
-    divider: TerminalDockDividerLayout,
-    ratio: number,
-  ) => {
-    setTerminalDockGroups((current) =>
-      updateTerminalDockSplitRatio(
-        current,
-        divider.groupId,
-        divider.splitId,
-        ratio,
-      ),
-    );
-  };
-
-  const flushDockDividerResize = () => {
-    const pending = pendingDockDividerRatioRef.current;
-    pendingDockDividerRatioRef.current = null;
-    if (!pending) return;
-    commitDockDividerRatio(pending.divider, pending.ratio);
-  };
-
-  const updateDockDividerRatio = (
-    divider: TerminalDockDividerLayout,
-    ratio: number,
-  ) => {
-    pendingDockDividerRatioRef.current = { divider, ratio };
-    if (dockDividerResizeFrameRef.current !== null) return;
-    dockDividerResizeFrameRef.current = requestAnimationFrame(() => {
-      dockDividerResizeFrameRef.current = null;
-      flushDockDividerResize();
-    });
-  };
-
   const handleDockDividerPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
     divider: TerminalDockDividerLayout,
@@ -1412,77 +1287,26 @@ export function ArchitectureCanvas({
     setResize(null);
     setRotate(null);
     setConnectorHandle(null);
-    setDockDividerResize({
-      divider,
-      start: svgPointFromClient(event),
-      ratio: divider.ratio,
-    });
+    docking.beginDockDividerResize(divider, camera.svgPointFromClient(event));
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handleDockDividerPointerMove = (
     event: ReactPointerEvent<HTMLDivElement>,
     divider: TerminalDockDividerLayout,
-  ) => {
-    const resizing = dockDividerResize;
-    if (
-      !resizing ||
-      resizing.divider.groupId !== divider.groupId ||
-      resizing.divider.splitId !== divider.splitId
-    ) {
-      return;
-    }
-    const point = svgPointFromClient(event);
-    const axisDelta =
-      divider.direction === "horizontal"
-        ? point.x - resizing.start.x
-        : point.y - resizing.start.y;
-    const axisLength =
-      divider.direction === "horizontal"
-        ? resizing.divider.rect.width
-        : resizing.divider.rect.height;
-    if (axisLength <= 0) return;
-    updateDockDividerRatio(
-      divider,
-      clamp(resizing.ratio + axisDelta / axisLength, 0.1, 0.9),
-    );
-  };
+  ) => docking.handleDockDividerPointerMove(event, divider);
 
   const finishDockDividerResize = (
     event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    if (dockDividerResizeFrameRef.current !== null) {
-      cancelAnimationFrame(dockDividerResizeFrameRef.current);
-      dockDividerResizeFrameRef.current = null;
-    }
-    flushDockDividerResize();
-    setDockDividerResize(null);
-  };
+  ) => docking.finishDockDividerResize(event);
 
   const handleDockDividerKeyDown = (
     event: ReactKeyboardEvent<HTMLDivElement>,
     divider: TerminalDockDividerLayout,
-  ) => {
-    const step = event.shiftKey ? 0.1 : 0.05;
-    const delta =
-      divider.direction === "horizontal"
-        ? event.key === "ArrowLeft"
-          ? -step
-          : event.key === "ArrowRight"
-            ? step
-            : null
-        : event.key === "ArrowUp"
-          ? -step
-          : event.key === "ArrowDown"
-            ? step
-            : null;
-    if (delta === null) return;
-    event.preventDefault();
-    event.stopPropagation();
-    pushHistory();
-    updateDockDividerRatio(divider, clamp(divider.ratio + delta, 0.1, 0.9));
-  };
+  ) =>
+    docking.handleDockDividerKeyDown(event, divider, () => {
+      pushHistory();
+    });
 
   const handleRotatePointerDown = (
     event: ReactPointerEvent<SVGCircleElement>,
@@ -1562,7 +1386,7 @@ export function ArchitectureCanvas({
   ) => {
     if (isEditableShortcutTarget(event.target)) return;
     event.preventDefault();
-    const point = svgPointFromClient(event);
+    const point = camera.svgPointFromClient(event);
     pushHistory();
     const created = {
       ...createNode("text", point),
@@ -1579,11 +1403,11 @@ export function ArchitectureCanvas({
     event: ReactPointerEvent<SVGSVGElement>,
   ) => {
     if (mode === "pan") {
-      startPan(event);
+      camera.startPan(event);
       return;
     }
 
-    const point = svgPoint(event);
+    const point = camera.svgPointFromClient(event);
     if (terminalPlacements.length > 0) {
       if (isFreeTerminalPlacement) {
         if (pendingSurfaceKind) {
@@ -1615,31 +1439,14 @@ export function ArchitectureCanvas({
     if (mode === "connect") setConnectSourceId(null);
   };
 
-  const startPan = (event: ReactPointerEvent) => {
-    setPan({
-      clientX: event.clientX,
-      clientY: event.clientY,
-      viewX: view.x,
-      viewY: view.y,
-    });
-  };
-
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (pan) {
-      setView((current) => ({
-        ...clampView(
-          {
-            ...current,
-            ...panViewFromPointer(pan, event, current.scale),
-          },
-          current.scale,
-        ),
-      }));
+      camera.panFromPointer(event);
       return;
     }
 
     if (drawing) {
-      const point = svgPoint(event);
+      const point = camera.svgPointFromClient(event);
       setNodes((current) =>
         current.map((item) =>
           item.id === drawing.id
@@ -1651,7 +1458,7 @@ export function ArchitectureCanvas({
     }
 
     if (resize) {
-      const point = svgPoint(event);
+      const point = camera.svgPointFromClient(event);
       if (resize.terminalGroupId) {
         const terminalGroupId = resize.terminalGroupId;
         const resized = updateResizedNode(
@@ -1684,7 +1491,7 @@ export function ArchitectureCanvas({
     }
 
     if (rotate) {
-      const point = svgPoint(event);
+      const point = camera.svgPointFromClient(event);
       setNodes((current) =>
         current.map((item) =>
           item.id === rotate.id && !item.locked
@@ -1696,7 +1503,7 @@ export function ArchitectureCanvas({
     }
 
     if (connectorHandle) {
-      const point = svgPoint(event);
+      const point = camera.svgPointFromClient(event);
       setNodes((current) =>
         current.map((item) =>
           item.id === connectorHandle.id && !item.locked
@@ -1708,7 +1515,7 @@ export function ArchitectureCanvas({
     }
 
     if (!drag) return;
-    const point = svgPoint(event);
+    const point = camera.svgPointFromClient(event);
     const bounds = drawableBounds();
     const dragged = nodes.find((item) => item.id === drag.id);
     if (!dragged) return;
@@ -1727,24 +1534,10 @@ export function ArchitectureCanvas({
         : false;
       if (isSingleTerminalGroup) {
         setTerminalDropPreview({ id: dragged.id, ...nextBounds });
-        const svgRect = svgRef.current?.getBoundingClientRect();
-        if (svgRect) {
-          const clientLayouts = projectTerminalDockLayouts(
-            terminalLayouts,
-            { x: view.x, y: view.y, width: viewWidth, height: viewHeight },
-            {
-              x: svgRect.left,
-              y: svgRect.top,
-              width: svgRect.width,
-              height: svgRect.height,
-            },
-          );
-          updateTerminalDockDropTarget(
-            resolveTerminalDockDrop(
-              { x: event.clientX, y: event.clientY },
-              clientLayouts,
-              dragged.id,
-            ),
+        if (svgRef.current) {
+          resolveLiveSurfaceDockTarget(
+            { x: event.clientX, y: event.clientY },
+            dragged.id,
           );
         }
       }
@@ -1752,28 +1545,14 @@ export function ArchitectureCanvas({
     }
     if (isLiveSurfaceKind(dragged.kind)) {
       const nextBounds = draggedNodeAtPoint(dragged, drag, point, bounds);
-      const svgRect = svgRef.current?.getBoundingClientRect();
       setTerminalDropPreview({
         id: dragged.id,
         ...nextBounds,
       });
-      if (svgRect) {
-        const clientLayouts = projectTerminalDockLayouts(
-          terminalLayouts,
-          { x: view.x, y: view.y, width: viewWidth, height: viewHeight },
-          {
-            x: svgRect.left,
-            y: svgRect.top,
-            width: svgRect.width,
-            height: svgRect.height,
-          },
-        );
-        updateTerminalDockDropTarget(
-          resolveTerminalDockDrop(
-            { x: event.clientX, y: event.clientY },
-            clientLayouts,
-            dragged.id,
-          ),
+      if (svgRef.current) {
+        resolveLiveSurfaceDockTarget(
+          { x: event.clientX, y: event.clientY },
+          dragged.id,
         );
       }
       return;
@@ -1817,135 +1596,87 @@ export function ArchitectureCanvas({
     if (drawing && drawing.kind !== "pen") {
       setMode("select");
     }
-    if (drag && terminalDropPreview?.id === drag.id) {
-      const dragged = nodes.find((item) => item.id === drag.id);
-      const dockTarget = terminalDockDropTargetRef.current;
-      if (dragged && isLiveSurfaceKind(dragged.kind) && dockTarget) {
-        const targetStack = terminalLayouts.find(
-          (layout) =>
-            layout.groupId === dockTarget.groupId &&
-            layout.stackId === dockTarget.stackId,
-        );
-        const targetTerminal = targetStack
-          ? nodes.find((item) => item.id === targetStack.activeTerminalId)
-          : null;
-        setTerminalDockGroups((current) =>
-          normalizeTerminalDockGroups(
-            liveSurfaceNodes,
-            dockTerminal(current, dragged.id, dockTarget),
-          ),
-        );
-        if (targetTerminal) {
-          setNodes((current) =>
-            current.map((item) =>
-              item.id === dragged.id
-                ? { ...item, frameId: targetTerminal.frameId }
-                : item,
-            ),
-          );
-        }
-      } else if (!drag.terminalGroupId) {
-        const point = {
-          x: terminalDropPreview.x + drag.dx,
-          y: terminalDropPreview.y + drag.dy,
-        };
-        setNodes((current) =>
-          updateDraggedNodes(
-            current,
-            drag,
-            point,
-            drawableBounds(),
-            selectedNodeIds,
-          ),
-        );
-        if (dragged && isLiveSurfaceKind(dragged.kind)) {
-          setTerminalDockGroups((current) =>
-            detachTerminal(current, dragged.id, terminalDropPreview),
-          );
-        }
-      }
-    }
-    if (drag?.terminalGroupId && !terminalDockDropTargetRef.current) {
-      const terminalGroup = terminalDockGroups.find(
-        (group) => group.id === drag.terminalGroupId,
+    const dragged = drag ? nodes.find((item) => item.id === drag.id) : null;
+    const dockTarget = docking.getTerminalDockDropTarget();
+    const terminalGroup = drag?.terminalGroupId
+      ? terminalDockGroups.find((group) => group.id === drag.terminalGroupId)
+      : undefined;
+    const terminalDropResult = resolveTerminalDropResult({
+      drag,
+      dockTarget,
+      draggedTerminal: dragged ?? null,
+      frameId: terminalGroup ? snapTerminalFrame(terminalGroup, nodes)?.nodeId : undefined,
+      terminalDockGroups,
+      terminalDropPreview,
+      terminalLayouts,
+      terminalNodes,
+    });
+    if (terminalDropResult.kind === "dock" && dragged?.kind === "terminal") {
+      const targetStack = terminalLayouts.find(
+        (layout) =>
+          layout.groupId === dockTarget?.groupId &&
+          layout.stackId === dockTarget?.stackId,
       );
-      if (terminalGroup) {
-        const terminalIds = terminalLayouts
-          .filter((layout) => layout.groupId === terminalGroup.id)
-          .flatMap((layout) => layout.terminalIds);
-        const frameId = snapTerminalFrame(terminalGroup, nodes)?.nodeId;
+      const targetTerminal = targetStack
+        ? nodes.find((item) => item.id === targetStack.activeTerminalId)
+        : null;
+      setTerminalDockGroups(terminalDropResult.nextGroups);
+      if (targetTerminal) {
         setNodes((current) =>
           current.map((item) =>
-            terminalIds.includes(item.id)
-              ? { ...item, frameId }
+            item.id === dragged.id
+              ? { ...item, frameId: targetTerminal.frameId }
               : item,
           ),
         );
       }
+    } else if (terminalDropResult.kind === "detach" && drag && terminalDropPreview) {
+      const point = {
+        x: terminalDropPreview.x + drag.dx,
+        y: terminalDropPreview.y + drag.dy,
+      };
+      setNodes((current) =>
+        updateDraggedNodes(
+          current,
+          drag,
+          point,
+          drawableBounds(),
+          selectedNodeIds,
+        ),
+      );
+      setTerminalDockGroups(terminalDropResult.nextGroups);
+    } else if (terminalDropResult.kind === "sync-frame") {
+      setNodes((current) =>
+        current.map((item) =>
+          terminalDropResult.terminalIds.includes(item.id)
+            ? { ...item, frameId: terminalDropResult.frameId }
+            : item,
+        ),
+      );
     }
     setDrag(null);
     setTerminalDropPreview(null);
-    updateTerminalDockDropTarget(null);
-    setPan(null);
+    docking.clearTerminalDockDropTarget();
+    camera.stopPan();
     setDrawing(null);
     setResize(null);
     setRotate(null);
     setConnectorHandle(null);
   };
 
-  const handleCanvasWheel = (event: ReactWheelEvent<SVGSVGElement>) => {
-    event.preventDefault();
-    promoteTerminalWorld();
-    if (!event.ctrlKey && !event.metaKey) {
-      const delta = wheelPanDelta(event);
-      setView((current) =>
-        clampView(
-          {
-            ...current,
-            x: current.x + delta.x / current.scale,
-            y: current.y + delta.y / current.scale,
-          },
-          current.scale,
-        ),
-      );
-      return;
-    }
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const localX = (event.clientX - rect.left) / Math.max(rect.width, 1);
-    const localY = (event.clientY - rect.top) / Math.max(rect.height, 1);
-
-    setView((current) => {
-      const currentWidth = canvasSize.width / current.scale;
-      const currentHeight = canvasSize.height / current.scale;
-      const focal = {
-        x: current.x + localX * currentWidth,
-        y: current.y + localY * currentHeight,
-      };
-      const nextScale = clamp(
-        current.scale * Math.exp(-event.deltaY * 0.002),
-        MIN_ZOOM,
-        MAX_ZOOM,
-      );
-      const nextWidth = canvasSize.width / nextScale;
-      const nextHeight = canvasSize.height / nextScale;
-      return clampView(
-        {
-          scale: nextScale,
-          x: focal.x - localX * nextWidth,
-          y: focal.y - localY * nextHeight,
-        },
-        nextScale,
-      );
-    });
-  };
-
-  const zoomBy = (delta: number) => {
-    promoteTerminalWorld();
-    setView((current) => {
-      const nextScale = clamp(current.scale + delta, MIN_ZOOM, MAX_ZOOM);
-      return centeredView(current, nextScale);
-    });
+  const resolveLiveSurfaceDockTarget = (
+    point: { x: number; y: number },
+    surfaceId: string,
+  ) => {
+    const svgRect = svgRef.current?.getBoundingClientRect();
+    if (!svgRect) return docking.clearTerminalDockDropTarget();
+    const projectedLayouts = projectTerminalDockLayouts(
+      terminalLayouts,
+      { x: view.x, y: view.y, width: viewWidth, height: viewHeight },
+      { x: svgRect.left, y: svgRect.top, width: svgRect.width, height: svgRect.height },
+    );
+    if (projectedLayouts.length === 0) return docking.clearTerminalDockDropTarget();
+    return docking.resolveTerminalDockDropTargetAtPoint(point, surfaceId);
   };
 
   function createNode(
@@ -2074,7 +1805,10 @@ export function ArchitectureCanvas({
     setNodes((current) => [...current, created]);
     setTerminalDockGroups((current) =>
       dockTerminal(
-        [...current, ...normalizeTerminalDockGroups([created], undefined)],
+        [
+          ...normalizeTerminalDockGroups(liveSurfaceNodes, current),
+          ...normalizeTerminalDockGroups([created], undefined),
+        ],
         created.id,
         kind === "tab"
           ? {
@@ -2149,97 +1883,6 @@ export function ArchitectureCanvas({
     if (kind === "terminal") setActiveTerminalId(created.id);
     setTerminalPlacements([]);
     setPendingSurfaceKind(null);
-  }
-
-  function svgPoint(event: ReactPointerEvent): Point {
-    return svgPointFromClient(event);
-  }
-
-  function svgPointFromClient(event: { clientX: number; clientY: number }): Point {
-    const svg = svgRef.current;
-    if (!svg) return { x: 0, y: 0 };
-    const rect = svg.getBoundingClientRect();
-    return {
-      x: view.x + ((event.clientX - rect.left) / Math.max(rect.width, 1)) * viewWidth,
-      y: view.y + ((event.clientY - rect.top) / Math.max(rect.height, 1)) * viewHeight,
-    };
-  }
-
-  function centeredView(current: typeof view, scale: number): typeof view {
-    const centerX = current.x + canvasSize.width / current.scale / 2;
-    const centerY = current.y + canvasSize.height / current.scale / 2;
-    const width = canvasSize.width / scale;
-    const height = canvasSize.height / scale;
-    return clampView({
-      scale,
-      x: centerX - width / 2,
-      y: centerY - height / 2,
-    }, scale);
-  }
-
-  function centerViewOnPlacement(
-    current: typeof view,
-    placement: TerminalPlacement,
-  ): typeof view {
-    const width = canvasSize.width / current.scale;
-    const height = canvasSize.height / current.scale;
-    const centerX = placement.x + placement.width / 2;
-    const centerY = placement.y + placement.height / 2;
-    const next = {
-      ...current,
-      x: centerX - width / 2,
-      y: centerY - height / 2,
-    };
-    // A placement larger than the viewport can't be fully contained; clamping
-    // would prevent reaching its center. Clamp each axis independently, and
-    // skip the clamp on axes where the placement exceeds the viewport.
-    const clampedX =
-      placement.width >= width
-        ? next.x
-        : clampViewCoord(next.x, width, VIEWBOX_WIDTH, canvasSize.width);
-    const clampedY =
-      placement.height >= height
-        ? next.y
-        : clampViewCoord(next.y, height, VIEWBOX_HEIGHT, canvasSize.height);
-    return { ...next, x: clampedX, y: clampedY };
-  }
-
-  function clampView(current: typeof view, scale: number): typeof view {
-    const width = canvasSize.width / scale;
-    const height = canvasSize.height / scale;
-    return {
-      scale,
-      x: clampViewCoord(current.x, width, VIEWBOX_WIDTH, canvasSize.width),
-      y: clampViewCoord(current.y, height, VIEWBOX_HEIGHT, canvasSize.height),
-    };
-  }
-
-  function clampViewCoord(
-    value: number,
-    viewportSize: number,
-    canvasSize: number,
-    canvasPixels: number,
-  ): number {
-    const slack = canvasPanMargin(viewportSize, canvasPixels);
-    const min = -slack;
-    const max = Math.max(canvasSize - viewportSize, 0) + slack;
-    return clamp(value, min, max);
-  }
-
-  function canvasPanMargin(viewportSize: number, canvasPixels: number): number {
-    // Keep the free pan area from shrinking as the camera zooms in.
-    return Math.max(viewportSize, canvasPixels / MIN_ZOOM) * CANVAS_PAN_MARGIN_RATIO;
-  }
-
-  function drawableBounds(): { x: number; y: number; width: number; height: number } {
-    const x = Math.min(0, view.x);
-    const y = Math.min(0, view.y);
-    return {
-      x,
-      y,
-      width: Math.max(VIEWBOX_WIDTH, view.x + viewWidth) - x,
-      height: Math.max(VIEWBOX_HEIGHT, view.y + viewHeight) - y,
-    };
   }
 
   return (
@@ -2374,7 +2017,7 @@ export function ArchitectureCanvas({
             onPointerLeave={handlePointerEnd}
             onPointerDown={handleCanvasPointerDown}
             onDoubleClick={handleCanvasDoubleClick}
-            onWheel={handleCanvasWheel}
+            onWheel={camera.handleWheel}
           >
             <defs>
               <pattern
@@ -2756,7 +2399,7 @@ export function ArchitectureCanvas({
                     visible={visible}
                     resizePaused={terminalResizePaused}
                     panning={mode === "pan"}
-                    onCanvasPanStart={(event) => startPan(event)}
+                    onCanvasPanStart={(event) => camera.startPan(event)}
                     onCanvasPanMove={(event) =>
                       handlePointerMove(
                         event as unknown as ReactPointerEvent<SVGSVGElement>,
@@ -2764,7 +2407,7 @@ export function ArchitectureCanvas({
                     }
                     onCanvasPanEnd={() => handlePointerEnd()}
                     onCanvasWheel={(event) =>
-                      handleCanvasWheel(
+                      camera.handleWheel(
                         event as unknown as ReactWheelEvent<SVGSVGElement>,
                       )
                     }
@@ -2773,24 +2416,14 @@ export function ArchitectureCanvas({
                       renderedTerminalGroup ?? terminalGroup ?? bounds,
                     )}
                     onActivate={() => {
-                      setActiveTerminalId(node.id);
-                      selectSingleNode(node.id);
+                      terminalInteractions.activateTerminal(node.id);
                     }}
                     onActivateTab={(terminalId) => {
-                      setActiveTerminalId(terminalId);
-                      selectSingleNode(terminalId);
-                      if (maximized) {
-                        setMaximizedTerminalId(terminalId);
-                      }
-                      if (layout) {
-                        setTerminalDockGroups((current) =>
-                          activateTerminalTab(
-                            current,
-                            layout.stackId,
-                            terminalId,
-                          ),
-                        );
-                      }
+                      terminalInteractions.activateTerminalTab({
+                        layout,
+                        maximized,
+                        terminalId,
+                      });
                     }}
                     onTabPointerDown={(surfaceId, event) => {
                       const surfaceNode = nodeById.get(surfaceId);
@@ -2801,15 +2434,11 @@ export function ArchitectureCanvas({
                       );
                     }}
                     onRequestCloseTab={(terminalId) => {
-                      const nextActiveTerminalId = layout?.terminalIds.find(
-                        (id) => id !== terminalId,
-                      ) ?? "";
-                      if (activeTerminalId === terminalId) {
-                        setActiveTerminalId(nextActiveTerminalId);
-                      }
-                      if (maximizedTerminalId === terminalId) {
-                        setMaximizedTerminalId(nextActiveTerminalId);
-                      }
+                      terminalInteractions.closeTerminalTab({
+                        layout,
+                        maximizedTerminalId,
+                        terminalId,
+                      });
                       eraseNode(terminalId);
                     }}
                     onAddTab={() => {
@@ -2930,7 +2559,7 @@ export function ArchitectureCanvas({
                   (!maximizedTerminalId || Boolean(renderedLayout));
                 const selected = selectedNodeIds.includes(node.id);
                 const interactionBlocked = Boolean(
-                  mode === "pan" || pan || drag || resize || dockDividerResize,
+                  mode === "pan" || pan || drag || resize || terminalResizePaused,
                 );
                 const boundsRevision = [
                   view.x,
@@ -3211,7 +2840,7 @@ export function ArchitectureCanvas({
                     if (pendingSurfaceKind) {
                       commitFreeSurfacePlacement(
                         pendingSurfaceKind,
-                        svgPointFromClient(event),
+                        camera.svgPointFromClient(event),
                       );
                     }
                   }}
@@ -3871,10 +3500,6 @@ function DiagramNode({
   );
 }
 
-function nodeTransform(node: ArchitectureNode): string {
-  return `translate(${node.x} ${node.y}) rotate(${node.rotation ?? 0} ${node.width / 2} ${node.height / 2})`;
-}
-
 function SelectionHandles({
   node,
   onResizePointerDown,
@@ -4040,134 +3665,6 @@ function NodeLockBadge({ x, y }: { x: number | string; y: number | string }) {
   );
 }
 
-const EDGE_NODE_OVERLAP = 4;
-
-function edgeAnchorPoint(
-  source: ArchitectureNode,
-  target: ArchitectureNode,
-  enterTarget: boolean,
-): Point {
-  const boundary = boundaryPoint(source, nodeCenter(target));
-  if (!enterTarget) return boundary;
-  const targetCenter = nodeCenter(source);
-  const dx = targetCenter.x - boundary.x;
-  const dy = targetCenter.y - boundary.y;
-  const distance = Math.hypot(dx, dy);
-  if (distance === 0) return boundary;
-  return {
-    x: boundary.x + (dx / distance) * EDGE_NODE_OVERLAP,
-    y: boundary.y + (dy / distance) * EDGE_NODE_OVERLAP,
-  };
-}
-
-function nodeCenter(
-  node: Pick<ArchitectureNode, "x" | "y" | "width" | "height">,
-): Point {
-  return {
-    x: node.x + node.width / 2,
-    y: node.y + node.height / 2,
-  };
-}
-
-function pointInsideNode(point: Point, node: ArchitectureNode): boolean {
-  return (
-    point.x >= node.x &&
-    point.x <= node.x + node.width &&
-    point.y >= node.y &&
-    point.y <= node.y + node.height
-  );
-}
-
-function boundaryPoint(source: ArchitectureNode, target: Point): Point {
-  const center = nodeCenter(source);
-  const dx = target.x - center.x;
-  const dy = target.y - center.y;
-  const halfWidth = Math.max(Math.abs(source.width) / 2, 1);
-  const halfHeight = Math.max(Math.abs(source.height) / 2, 1);
-  const scale = Math.min(
-    dx === 0 ? Number.POSITIVE_INFINITY : halfWidth / Math.abs(dx),
-    dy === 0 ? Number.POSITIVE_INFINITY : halfHeight / Math.abs(dy),
-  );
-  return {
-    x: center.x + dx * scale,
-    y: center.y + dy * scale,
-  };
-}
-
-function connectorControlPoint(node: ArchitectureNode): Point {
-  return node.points?.[0] ?? { x: node.width / 2, y: node.height / 2 };
-}
-
-function connectorAbsoluteControl(node: ArchitectureNode): Point {
-  const control = connectorControlPoint(node);
-  return { x: node.x + control.x, y: node.y + control.y };
-}
-
-function connectorPath(node: ArchitectureNode): string {
-  const control = connectorControlPoint(node);
-  return `M 0 0 Q ${control.x} ${control.y}, ${node.width} ${node.height}`;
-}
-
-function resolveConnectorNode(
-  item: ArchitectureNode,
-  nodes: ArchitectureNode[],
-): ArchitectureNode {
-  if (!isConnectorKind(item.kind)) return item;
-  const geometry = connectorGeometry(item, nodes);
-  return {
-    ...item,
-    x: geometry.start.x,
-    y: geometry.start.y,
-    width: geometry.end.x - geometry.start.x,
-    height: geometry.end.y - geometry.start.y,
-    points: [
-      {
-        x: geometry.control.x - geometry.start.x,
-        y: geometry.control.y - geometry.start.y,
-      },
-    ],
-  };
-}
-
-function connectorGeometry(
-  item: ArchitectureNode,
-  nodes: ArchitectureNode[],
-): { start: Point; control: Point; end: Point } {
-  const rawControl = connectorAbsoluteControl(item);
-  const rawStart = { x: item.x, y: item.y };
-  const rawEnd = { x: item.x + item.width, y: item.y + item.height };
-  const startTarget = nodes.find((node) => node.id === item.connectorStartId);
-  const endTarget = nodes.find((node) => node.id === item.connectorEndId);
-  const startReference = endTarget ? nodeCenter(endTarget) : rawEnd;
-  const endReference = startTarget ? nodeCenter(startTarget) : rawStart;
-  return {
-    start: startTarget ? boundaryPoint(startTarget, startReference) : rawStart,
-    control: rawControl,
-    end: endTarget ? boundaryPoint(endTarget, endReference) : rawEnd,
-  };
-}
-
-function snapConnectorEndpoint(
-  point: Point,
-  connector: ArchitectureNode,
-  nodes: ArchitectureNode[],
-): { nodeId: string; point: Point } | null {
-  let nearest: { node: ArchitectureNode; distance: number } | null = null;
-  for (const node of nodes) {
-    if (node.id === connector.id || isDrawingOnlyKind(node.kind)) continue;
-    const nextDistance = distance(point, boundaryPoint(node, point));
-    if (nextDistance > CONNECTOR_SNAP_DISTANCE) continue;
-    if (!nearest || nextDistance < nearest.distance) {
-      nearest = { node, distance: nextDistance };
-    }
-  }
-  if (!nearest) return null;
-  return {
-    nodeId: nearest.node.id,
-    point: boundaryPoint(nearest.node, point),
-  };
-}
-
 function updateDraggedNodes(
   nodes: ArchitectureNode[],
   drag: DragState,
@@ -4294,14 +3791,6 @@ function draggedNodeAtPoint(
   };
 }
 
-function wheelPanDelta(event: ReactWheelEvent<SVGSVGElement>): Point {
-  const multiplier = event.deltaMode === 1 ? 24 : event.deltaMode === 2 ? 240 : 1;
-  return {
-    x: event.deltaX * multiplier * TRACKPAD_PAN_SENSITIVITY,
-    y: event.deltaY * multiplier * TRACKPAD_PAN_SENSITIVITY,
-  };
-}
-
 function snapTextAttachment(
   textNode: ArchitectureNode,
   nodes: ArchitectureNode[],
@@ -4363,8 +3852,18 @@ function updateDrawingNode(
     };
   }
   if (drawing.kind === "line" || drawing.kind === "arrow") {
-    const startSnap = snapConnectorEndpoint(drawing.start, item, nodes);
-    const endSnap = snapConnectorEndpoint(point, item, nodes);
+    const startSnap = snapConnectorEndpoint(
+      drawing.start,
+      item,
+      nodes,
+      CONNECTOR_SNAP_DISTANCE,
+    );
+    const endSnap = snapConnectorEndpoint(
+      point,
+      item,
+      nodes,
+      CONNECTOR_SNAP_DISTANCE,
+    );
     const start = startSnap?.point ?? drawing.start;
     const end = endSnap?.point ?? point;
     const width = end.x - start.x;
@@ -4393,7 +3892,12 @@ function updateConnectorHandle(
   nodes: ArchitectureNode[],
 ): ArchitectureNode {
   const geometry = connectorGeometry(item, nodes);
-  const snap = snapConnectorEndpoint(point, item, nodes);
+  const snap = snapConnectorEndpoint(
+    point,
+    item,
+    nodes,
+    CONNECTOR_SNAP_DISTANCE,
+  );
   const snappedPoint = snap?.point ?? point;
   const attachmentKey =
     connector.handle === "start" ? "connectorStartId" : "connectorEndId";
@@ -4657,10 +4161,6 @@ function isShapeDrawingMode(mode: CanvasMode): mode is ShapeDrawingMode {
     "image",
     "frame",
   ].includes(mode);
-}
-
-function isConnectorKind(kind: ShapeKind): boolean {
-  return kind === "line" || kind === "arrow";
 }
 
 /** Pick the terminal node closest in the given direction from `current`,

@@ -84,6 +84,121 @@ struct DesktopBlurState {
     _unsupported: (),
 }
 
+macro_rules! cmdspace_commands {
+    () => {
+        tauri::generate_handler![
+            // Agent usage
+            agent_usage::agent_usage_statuses,
+            agent_usage::provider_limit_status,
+            agent_usage::provider_limit_statuses,
+            // PTY
+            pty::pty_open,
+            pty::pty_write,
+            pty::pty_trace_input,
+            pty::pty_resize,
+            pty::pty_close,
+            pty::pty_register_metadata,
+            pty::pty_list,
+            pty::check_agent_clis,
+            pty::list_agent_sessions,
+            // Filesystem
+            fs::tree::list_subdirs,
+            fs::tree::fs_read_dir,
+            fs::file::fs_read_file,
+            fs::file::fs_read_image,
+            fs::file::fs_read_video,
+            fs::file::fs_write_file,
+            fs::file::fs_stat,
+            fs::file::select_folder,
+            fs::file::fs_canonicalize,
+            fs::mutate::fs_create_file,
+            fs::mutate::fs_create_dir,
+            fs::mutate::fs_rename,
+            fs::mutate::fs_import_paths,
+            fs::mutate::fs_import_clipboard_file,
+            fs::mutate::fs_clipboard_paths,
+            fs::mutate::fs_delete,
+            fs::mutate::fs_restore,
+            fs::search::fs_search,
+            fs::search::fs_list_files,
+            fs::grep::fs_grep,
+            fs::grep::fs_glob,
+            // Git
+            git::commands::git_resolve_repo,
+            git::commands::git_panel_snapshot,
+            git::commands::git_status,
+            git::commands::git_diff,
+            git::commands::git_diff_content,
+            git::commands::git_stage,
+            git::commands::git_unstage,
+            git::commands::git_discard,
+            git::commands::git_commit,
+            git::commands::git_fetch,
+            git::commands::git_pull_ff_only,
+            git::commands::git_push,
+            git::commands::git_log,
+            git::commands::git_show_commit,
+            git::commands::git_commit_files,
+            git::commands::git_commit_file_diff,
+            git::commands::git_remote_url,
+            // Shell
+            shell::shell_run_command,
+            shell::shell_session_open,
+            shell::shell_session_run,
+            shell::shell_session_close,
+            shell::shell_bg_spawn,
+            shell::shell_bg_logs,
+            shell::shell_bg_kill,
+            shell::shell_bg_list,
+            // Workspace
+            workspace::wsl_list_distros,
+            workspace::wsl_default_distro,
+            workspace::wsl_home,
+            workspace::workspace_authorize,
+            workspace::workspace_current_dir,
+            workspace::app_dev_repo_root,
+            // Window surfaces
+            get_launch_dir,
+            open_settings_window,
+            hide_workspace_switcher,
+            open_workspace_from_tray,
+            set_desktop_blur,
+            // Secrets
+            secrets::secrets_get,
+            secrets::secrets_set,
+            secrets::secrets_delete,
+            secrets::secrets_get_all,
+            // Network / AI transport
+            net::lm_ping,
+            net::ai_http_request,
+            net::ai_http_stream,
+            // Music
+            music::music_is_playing,
+            music::install_music_cli_script,
+            // Remote access
+            remote::remote_access_status,
+            remote::remote_access_start,
+            remote::remote_access_stop,
+            remote::remote_access_reset_password,
+            // Speech
+            speech::speech_supported_locales,
+            speech::speech_start,
+            speech::speech_stop,
+            // Database / persistence
+            db::db_list_workspaces,
+            db::db_save_workspace,
+            db::db_delete_workspace,
+            db::db_reorder_workspaces,
+            db::db_list_panes,
+            db::db_save_pane,
+            db::db_list_recent_workspaces,
+            db::db_save_recent_workspace,
+            db::db_load_workspace_setup_custom_command,
+            db::db_save_workspace_setup_custom_command,
+        ]
+    };
+}
+
 #[cfg(all(test, target_os = "macos"))]
 mod desktop_blur_tests {
     use super::desktop_blur_collection_behavior;
@@ -165,6 +280,53 @@ mod windows_focus_mode_tests {
         assert!(source.contains("set_windows_window_alpha(&window, 0)"));
         assert!(source.contains("order_windows_overlay_below(&window, &main_window)"));
         assert!(source.contains("SWP_NOACTIVATE"));
+    }
+}
+
+#[cfg(test)]
+mod native_command_registration_tests {
+    #[test]
+    fn invoke_handler_uses_the_grouped_native_command_macro() {
+        let source = include_str!("lib.rs");
+        let run_body = source
+            .split_once("#[cfg_attr(mobile, tauri::mobile_entry_point)]\npub fn run() {\n")
+            .expect("run() must exist")
+            .1;
+
+        assert!(
+            run_body.contains(".invoke_handler(cmdspace_commands!())"),
+            "run() should register commands through the grouped cmdspace_commands! macro"
+        );
+    }
+
+    #[test]
+    fn grouped_native_command_macro_keeps_domain_sections_together() {
+        let source = include_str!("lib.rs");
+        let prelude = source
+            .split_once("#[cfg(test)]\nmod native_command_registration_tests")
+            .expect("native command registration tests must exist after the macro definitions")
+            .0;
+
+        assert!(
+            prelude.contains("macro_rules! cmdspace_commands"),
+            "lib.rs should define a top-level grouped command macro"
+        );
+        assert!(
+            prelude.contains("// Agent usage")
+                && prelude.contains("// PTY")
+                && prelude.contains("// Filesystem")
+                && prelude.contains("// Git")
+                && prelude.contains("// Shell")
+                && prelude.contains("// Workspace")
+                && prelude.contains("// Window surfaces")
+                && prelude.contains("// Secrets")
+                && prelude.contains("// Network / AI transport")
+                && prelude.contains("// Music")
+                && prelude.contains("// Remote access")
+                && prelude.contains("// Speech")
+                && prelude.contains("// Database / persistence"),
+            "cmdspace_commands! should group registrations into domain sections"
+        );
     }
 }
 
@@ -875,104 +1037,7 @@ pub fn run() {
             setup_workspace_tray(_app)?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            agent_usage::agent_usage_statuses,
-            agent_usage::provider_limit_status,
-            agent_usage::provider_limit_statuses,
-            pty::pty_open,
-            pty::pty_write,
-            pty::pty_trace_input,
-            pty::pty_resize,
-            pty::pty_close,
-            pty::pty_register_metadata,
-            pty::pty_list,
-            pty::check_agent_clis,
-            pty::list_agent_sessions,
-            fs::tree::list_subdirs,
-            fs::tree::fs_read_dir,
-            fs::file::fs_read_file,
-            fs::file::fs_read_image,
-            fs::file::fs_read_video,
-            fs::file::fs_write_file,
-            fs::file::fs_stat,
-            fs::file::select_folder,
-            fs::file::fs_canonicalize,
-            fs::mutate::fs_create_file,
-            fs::mutate::fs_create_dir,
-            fs::mutate::fs_rename,
-            fs::mutate::fs_import_paths,
-            fs::mutate::fs_import_clipboard_file,
-            fs::mutate::fs_clipboard_paths,
-            fs::mutate::fs_delete,
-            fs::mutate::fs_restore,
-            fs::search::fs_search,
-            fs::search::fs_list_files,
-            fs::grep::fs_grep,
-            fs::grep::fs_glob,
-            git::commands::git_resolve_repo,
-            git::commands::git_panel_snapshot,
-            git::commands::git_status,
-            git::commands::git_diff,
-            git::commands::git_diff_content,
-            git::commands::git_stage,
-            git::commands::git_unstage,
-            git::commands::git_discard,
-            git::commands::git_commit,
-            git::commands::git_fetch,
-            git::commands::git_pull_ff_only,
-            git::commands::git_push,
-            git::commands::git_log,
-            git::commands::git_show_commit,
-            git::commands::git_commit_files,
-            git::commands::git_commit_file_diff,
-            git::commands::git_remote_url,
-            shell::shell_run_command,
-            shell::shell_session_open,
-            shell::shell_session_run,
-            shell::shell_session_close,
-            shell::shell_bg_spawn,
-            shell::shell_bg_logs,
-            shell::shell_bg_kill,
-            shell::shell_bg_list,
-            workspace::wsl_list_distros,
-            workspace::wsl_default_distro,
-            workspace::wsl_home,
-            workspace::workspace_authorize,
-            workspace::workspace_current_dir,
-            workspace::app_dev_repo_root,
-            get_launch_dir,
-            open_settings_window,
-            hide_workspace_switcher,
-            open_workspace_from_tray,
-            set_desktop_blur,
-            set_webview_corner_radius,
-            secrets::secrets_get,
-            secrets::secrets_set,
-            secrets::secrets_delete,
-            secrets::secrets_get_all,
-            net::lm_ping,
-            net::ai_http_request,
-            net::ai_http_stream,
-            music::music_is_playing,
-            music::install_music_cli_script,
-            remote::remote_access_status,
-            remote::remote_access_start,
-            remote::remote_access_stop,
-            remote::remote_access_reset_password,
-            speech::speech_supported_locales,
-            speech::speech_start,
-            speech::speech_stop,
-            db::db_list_workspaces,
-            db::db_save_workspace,
-            db::db_delete_workspace,
-            db::db_reorder_workspaces,
-            db::db_list_panes,
-            db::db_save_pane,
-            db::db_list_recent_workspaces,
-            db::db_save_recent_workspace,
-            db::db_load_workspace_setup_custom_command,
-            db::db_save_workspace_setup_custom_command,
-        ])
+        .invoke_handler(cmdspace_commands!())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

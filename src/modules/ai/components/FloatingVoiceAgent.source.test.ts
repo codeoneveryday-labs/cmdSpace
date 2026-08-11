@@ -66,22 +66,18 @@ describe("FloatingVoiceAgent", () => {
     expect(canvasTerminal).toContain("getBuffer");
   });
 
-  it("writes every Voice Agent draft into the active terminal", () => {
+  it("writes every transcript directly into the active terminal without chat refinement", () => {
     const voiceAgent = readFileSync(
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",
     );
 
-    expect(voiceAgent).toContain('result.kind === "ship"');
-    expect(voiceAgent).toContain("insertDraft(target, result.text)");
-    expect(voiceAgent).toContain(
-      "The terminal is busy. Wait for the command to finish, then try again.",
-    );
-    expect(voiceAgent).not.toContain(
-      "Review or submit the current terminal draft before replacing it.",
-    );
-    expect(voiceAgent).not.toContain('setPhase("clarification")');
-    expect(voiceAgent).toContain('"Task ready — review, then press Enter."');
+    expect(voiceAgent).toContain("insertTranscript(target, transcript)");
+    expect(voiceAgent).not.toContain("generateVoicePrompt");
+    expect(voiceAgent).not.toContain("loadVoicePromptHistory");
+    expect(voiceAgent).not.toContain("saveVoicePromptHistory");
+    expect(voiceAgent).not.toContain("useChatStore");
+    expect(voiceAgent).toContain('"Transcript inserted into terminal."');
   });
 
   it("lets Space handle a spoken music request without inserting a terminal draft", () => {
@@ -150,17 +146,13 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain("motion-reduce:transition-none");
   });
 
-  it("uses the selected shared-key STT provider and keeps native speech as fallback", () => {
+  it("uses the selected STT provider and keeps native speech as fallback", () => {
     const recordingHook = readFileSync(
       path.join(here, "../hooks/useWhisperRecording.ts"),
       "utf8",
     );
     const voiceAgent = readFileSync(
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
-      "utf8",
-    );
-    const composer = readFileSync(
-      path.join(here, "../lib/composer.tsx"),
       "utf8",
     );
 
@@ -177,9 +169,7 @@ describe("FloatingVoiceAgent", () => {
     expect(recordingHook).toContain('listen<SpeechResult>("cmdspace:speech-result"');
     expect(recordingHook).not.toContain("webkitSpeechRecognition");
     expect(voiceAgent).toContain("speechToTextModelId");
-    expect(voiceAgent).toContain("apiKeys: keys");
-    expect(composer).toContain("speechToTextModelId");
-    expect(composer).toContain("apiKeys,");
+    expect(voiceAgent).toContain("apiKeys,");
     expect(recordingHook).toContain('formData.append("language", request.language)');
   });
 
@@ -248,21 +238,15 @@ describe("FloatingVoiceAgent", () => {
     expect(speech).toContain('.get("final")');
   });
 
-  it("keeps AI prompt compilation language-neutral for automatic multilingual transcripts", () => {
+  it("keeps terminal transcript insertion language-neutral for automatic multilingual transcripts", () => {
     const voiceAgent = readFileSync(
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",
     );
-    const voicePrompt = readFileSync(
-      path.join(here, "../lib/voicePrompt.ts"),
-      "utf8",
-    );
 
     expect(voiceAgent).not.toContain("voiceLanguage");
-    expect(voicePrompt).not.toContain("speechLanguage?: string | null");
-    expect(voicePrompt).not.toContain("Transcription language:");
-    expect(voicePrompt).toContain("code-switching");
-    expect(voicePrompt).not.toContain("lambda function");
+    expect(voiceAgent).toContain("insertTranscript(target, transcript)");
+    expect(voiceAgent).not.toContain("generateVoicePrompt");
   });
 
   it("drives the voice waveform from native microphone levels", () => {
@@ -321,13 +305,13 @@ describe("FloatingVoiceAgent", () => {
     expect(buildScript).toContain('cargo:rerun-if-changed=Info.plist');
   });
 
-  it("keeps the composer microphone available without an OpenAI key", () => {
-    const statusControls = readFileSync(
-      path.join(here, "AiStatusBarControls.tsx"),
+  it("keeps voice input independent from the removed text-chat controls", () => {
+    const modelsSection = readFileSync(
+      path.join(here, "../../../settings/sections/ModelsSection.tsx"),
       "utf8",
     );
 
-    expect(statusControls).not.toContain("c.voice.hasKey");
-    expect(statusControls).not.toContain("Voice needs an OpenAI key");
+    expect(modelsSection).toContain("Configured speech providers");
+    expect(modelsSection).not.toContain("Voice needs an OpenAI key");
   });
 });

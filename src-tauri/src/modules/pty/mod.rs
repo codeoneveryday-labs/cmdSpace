@@ -288,11 +288,7 @@ fn is_executable_file(path: &std::path::Path) -> bool {
 /// trying each of `exts` (empty string = the bare name). Windows built-in
 /// shell names (e.g. `cmd.exe` in System32) are excluded so the Command Code
 /// CLI isn't conflated with the OS shell.
-fn resolvable_in_dirs(
-    name: &str,
-    dirs: &[std::path::PathBuf],
-    exts: &[String],
-) -> bool {
+fn resolvable_in_dirs(name: &str, dirs: &[std::path::PathBuf], exts: &[String]) -> bool {
     if name.trim().is_empty() {
         return false;
     }
@@ -345,14 +341,7 @@ pub fn check_agent_clis(
                 .map(|ext| ext.to_ascii_lowercase())
                 .collect()
         })
-        .unwrap_or_else(|_| {
-            vec![
-                ".exe".into(),
-                ".cmd".into(),
-                ".bat".into(),
-                ".com".into(),
-            ]
-        });
+        .unwrap_or_else(|_| vec![".exe".into(), ".cmd".into(), ".bat".into(), ".com".into()]);
     #[cfg(windows)]
     {
         // Always probe plain names too (a no-extension shim or a unix-style
@@ -387,9 +376,7 @@ fn is_windows_system32_path(path: &std::path::Path) -> bool {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
     let system32 = system_root.join("System32");
-    let path = path
-        .canonicalize()
-        .unwrap_or_else(|_| path.to_path_buf());
+    let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     path.starts_with(&system32)
 }
 
@@ -404,15 +391,14 @@ fn check_agent_clis_wsl(workspace: &WorkspaceEnv, names: &[String]) -> Result<Ve
         .map(|name| {
             // command -v prints the path when found; empty when not. Quote so a
             // malicious name can't inject shell.
-            format!("command -v '{}' >/dev/null 2>&1; printf '%s\\n' $?", name.replace('\'', "'\\''"))
+            format!(
+                "command -v '{}' >/dev/null 2>&1; printf '%s\\n' $?",
+                name.replace('\'', "'\\''")
+            )
         })
         .collect::<Vec<_>>()
         .join("");
-    let out = crate::modules::workspace::wsl_exec_capture(
-        distro,
-        "sh",
-        &["-c", &script],
-    )?;
+    let out = crate::modules::workspace::wsl_exec_capture(distro, "sh", &["-c", &script])?;
     let flags: Vec<bool> = out.lines().map(|line| line.trim() == "0").collect();
     // A distro that returns fewer lines than names is a bug; pad with false.
     let mut flags = flags;
@@ -572,8 +558,7 @@ mod cli_probe_tests {
     #[cfg(windows)]
     #[test]
     fn user_path_cmd_exe_is_accepted() {
-        let candidate =
-            std::path::PathBuf::from(r"C:\Users\me\AppData\Roaming\npm\cmd.exe");
+        let candidate = std::path::PathBuf::from(r"C:\Users\me\AppData\Roaming\npm\cmd.exe");
         assert!(!is_windows_system32_path(&candidate));
         let dirs = vec![std::path::PathBuf::from(r"C:\Users\me\AppData\Roaming\npm")];
         let exts = vec![String::new(), ".exe".to_string()];

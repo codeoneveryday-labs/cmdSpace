@@ -8,6 +8,8 @@ const indexPath = path.join(here, "index.ts");
 const lazyStackPath = path.join(here, "ArchitectureStackLazy.tsx");
 const errorBoundaryPath = path.join(here, "ArchitectureErrorBoundary.tsx");
 const canvasPath = path.join(here, "ArchitectureCanvas.tsx");
+const cameraPath = path.join(here, "lib/useCanvasCamera.ts");
+const geometryPath = path.join(here, "lib/canvasGeometry.ts");
 const canvasTerminalPath = path.join(here, "CanvasTerminalNode.tsx");
 const preferencesPath = path.join(here, "../settings/store.ts");
 const tabsPath = path.join(here, "../tabs/lib/useTabs.ts");
@@ -182,11 +184,13 @@ describe("Architecture workspace page", () => {
 
   it("starts empty without an overlay and keeps the full drawable grid square", () => {
     const canvasSource = readFileSync(canvasPath, "utf8");
+    const cameraSource = readFileSync(cameraPath, "utf8");
 
     expect(canvasSource).toContain("const [nodes, setNodes] = useState<ArchitectureNode[]>(");
-    expect(canvasSource).toContain("ResizeObserver");
-    expect(canvasSource).toContain("canvasSize.width / view.scale");
-    expect(canvasSource).toContain("canvasSize.height / view.scale");
+    expect(canvasSource).toContain("useCanvasCamera");
+    expect(cameraSource).toContain("ResizeObserver");
+    expect(cameraSource).toContain("canvasSize.width / view.scale");
+    expect(cameraSource).toContain("canvasSize.height / view.scale");
     expect(canvasSource).toContain('preserveAspectRatio="none"');
     expect(canvasSource).not.toContain("Blank canvas");
     expect(canvasSource).not.toContain("Pick a shape");
@@ -200,6 +204,7 @@ describe("Architecture workspace page", () => {
 
   it("keeps core diagram operations available from the canvas-only workspace", () => {
     const canvasSource = readFileSync(canvasPath, "utf8");
+    const cameraSource = readFileSync(cameraPath, "utf8");
 
     expect(canvasSource).toContain(
       'type CanvasMode = "select" | "pan" | "connect" | "rectangle" | "circle" | "line" | "arrow" | "pen" | "text" | "image" | "terminal" | "frame" | "eraser"',
@@ -215,23 +220,26 @@ describe("Architecture workspace page", () => {
     expect(canvasSource).toContain("locked");
     expect(canvasSource).toContain("Zoom in");
     expect(canvasSource).toContain("Zoom out");
-    expect(canvasSource).toContain("function clampView");
-    expect(canvasSource).toContain("function clampViewCoord");
+    expect(canvasSource).toContain("useCanvasCamera");
+    expect(cameraSource).toContain("function clampCanvasView");
+    expect(cameraSource).toContain("function clampCanvasCoord");
   });
 
   it("lets the pan tool move the canvas in every direction", () => {
     const canvasSource = readFileSync(canvasPath, "utf8");
+    const cameraSource = readFileSync(cameraPath, "utf8");
 
-    expect(canvasSource).toContain("CANVAS_PAN_MARGIN_RATIO");
-    expect(canvasSource).toContain("function canvasPanMargin");
-    expect(canvasSource).toContain("Math.max(viewportSize, canvasPixels / MIN_ZOOM)");
-    expect(canvasSource).toContain("const slack = canvasPanMargin(viewportSize, canvasPixels)");
-    expect(canvasSource).toContain("const min = -slack");
-    expect(canvasSource).toContain("const max = Math.max(canvasSize - viewportSize, 0) + slack");
-    expect(canvasSource).toContain("function drawableBounds(): { x: number; y: number; width: number; height: number }");
-    expect(canvasSource).toContain("const x = Math.min(0, view.x)");
-    expect(canvasSource).toContain("const y = Math.min(0, view.y)");
-    expect(canvasSource).not.toContain("clamp(value, 0, Math.max(0, canvasSize - viewportSize))");
+    expect(canvasSource).toContain("drawableBounds()");
+    expect(cameraSource).toContain("CANVAS_PAN_MARGIN_RATIO");
+    expect(cameraSource).toContain("function canvasPanMargin");
+    expect(cameraSource).toContain("Math.max(viewportSize, canvasPixels / MIN_ZOOM)");
+    expect(cameraSource).toContain("const slack = canvasPanMargin(viewportSize, canvasPixels)");
+    expect(cameraSource).toContain("const min = -slack");
+    expect(cameraSource).toContain("const max = Math.max(canvasSize - viewportSize, 0) + slack");
+    expect(cameraSource).toContain("const drawableBounds = () =>");
+    expect(cameraSource).toContain("const x = Math.min(0, view.x)");
+    expect(cameraSource).toContain("const y = Math.min(0, view.y)");
+    expect(cameraSource).not.toContain("clamp(value, 0, Math.max(0, canvasSize - viewportSize))");
   });
 
   it("supports single-key shortcuts for canvas tools while active", () => {
@@ -330,13 +338,15 @@ describe("Architecture workspace page", () => {
 
   it("lets edge arrowheads overlap target bounds to avoid visible gaps", () => {
     const canvasSource = readFileSync(canvasPath, "utf8");
+    const geometrySource = readFileSync(geometryPath, "utf8");
 
-    expect(canvasSource).toContain("const EDGE_NODE_OVERLAP = 4;");
+    expect(canvasSource).toContain("edgeAnchorPoint(from, to, false)");
+    expect(geometrySource).toContain("const EDGE_NODE_OVERLAP = 4;");
     expect(canvasSource).toContain("edgeAnchorPoint(from, to, false)");
     expect(canvasSource).toContain("edgeAnchorPoint(to, from, true)");
-    expect(canvasSource).toContain("const scale = Math.min(");
-    expect(canvasSource).toContain("halfWidth / Math.abs(dx)");
-    expect(canvasSource).toContain("halfHeight / Math.abs(dy)");
+    expect(geometrySource).toContain("const scale = Math.min(");
+    expect(geometrySource).toContain("halfWidth / Math.abs(dx)");
+    expect(geometrySource).toContain("halfHeight / Math.abs(dy)");
   });
 
   it("supports multiline text editing and Shift multi-select group movement", () => {
@@ -377,23 +387,24 @@ describe("Architecture workspace page", () => {
 
   it("supports trackpad pinch zoom around the cursor on the canvas", () => {
     const canvasSource = readFileSync(canvasPath, "utf8");
+    const cameraSource = readFileSync(cameraPath, "utf8");
 
-    expect(canvasSource).toContain("WheelEvent as ReactWheelEvent");
-    expect(canvasSource).toContain("handleCanvasWheel");
-    expect(canvasSource).toContain("onWheel={handleCanvasWheel}");
-    expect(canvasSource).toContain("!event.ctrlKey && !event.metaKey");
-    expect(canvasSource).toContain("const delta = wheelPanDelta(event)");
-    expect(canvasSource).toContain("x: current.x + delta.x / current.scale");
-    expect(canvasSource).toContain("y: current.y + delta.y / current.scale");
-    expect(canvasSource).toContain("event.preventDefault()");
-    expect(canvasSource).toContain("Math.exp(-event.deltaY * 0.002)");
-    expect(canvasSource).toContain("focal.x - localX * nextWidth");
-    expect(canvasSource).toContain("focal.y - localY * nextHeight");
-    expect(canvasSource).toContain("TRACKPAD_PAN_SENSITIVITY = 0.35");
-    expect(canvasSource).toContain("function wheelPanDelta(event: ReactWheelEvent<SVGSVGElement>): Point");
-    expect(canvasSource).toContain("event.deltaMode === 1 ? 24 : event.deltaMode === 2 ? 240 : 1");
-    expect(canvasSource).toContain("event.deltaX * multiplier * TRACKPAD_PAN_SENSITIVITY");
-    expect(canvasSource).toContain("event.deltaY * multiplier * TRACKPAD_PAN_SENSITIVITY");
+    expect(canvasSource).toContain("onWheel={camera.handleWheel}");
+    expect(cameraSource).toContain("WheelEvent as ReactWheelEvent");
+    expect(cameraSource).toContain("const handleWheel");
+    expect(cameraSource).toContain("!event.ctrlKey && !event.metaKey");
+    expect(cameraSource).toContain("const delta = wheelPanDelta(event)");
+    expect(cameraSource).toContain("x: current.x + delta.x / current.scale");
+    expect(cameraSource).toContain("y: current.y + delta.y / current.scale");
+    expect(cameraSource).toContain("event.preventDefault()");
+    expect(cameraSource).toContain("Math.exp(-deltaY * 0.002)");
+    expect(cameraSource).toContain("focal.x - localPoint.x * nextWidth");
+    expect(cameraSource).toContain("focal.y - localPoint.y * nextHeight");
+    expect(cameraSource).toContain("TRACKPAD_PAN_SENSITIVITY = 0.35");
+    expect(cameraSource).toContain("function wheelPanDelta(");
+    expect(cameraSource).toContain("event.deltaMode === 1 ? 24 : event.deltaMode === 2 ? 240 : 1");
+    expect(cameraSource).toContain("event.deltaX * multiplier * TRACKPAD_PAN_SENSITIVITY");
+    expect(cameraSource).toContain("event.deltaY * multiplier * TRACKPAD_PAN_SENSITIVITY");
   });
 
   it("draws selected drawing shapes by drag-sizing them on the canvas", () => {

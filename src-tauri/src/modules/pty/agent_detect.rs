@@ -65,13 +65,31 @@ pub struct AgentSignal {
 impl Transition {
     pub fn into_signal(self, id: u32) -> AgentSignal {
         match self {
-            Transition::Started { agent } => {
-                AgentSignal { id, kind: "started", agent: Some(agent) }
-            }
-            Transition::Working => AgentSignal { id, kind: "working", agent: None },
-            Transition::Attention => AgentSignal { id, kind: "attention", agent: None },
-            Transition::Finished => AgentSignal { id, kind: "finished", agent: None },
-            Transition::Exited => AgentSignal { id, kind: "exited", agent: None },
+            Transition::Started { agent } => AgentSignal {
+                id,
+                kind: "started",
+                agent: Some(agent),
+            },
+            Transition::Working => AgentSignal {
+                id,
+                kind: "working",
+                agent: None,
+            },
+            Transition::Attention => AgentSignal {
+                id,
+                kind: "attention",
+                agent: None,
+            },
+            Transition::Finished => AgentSignal {
+                id,
+                kind: "finished",
+                agent: None,
+            },
+            Transition::Exited => AgentSignal {
+                id,
+                kind: "exited",
+                agent: None,
+            },
         }
     }
 }
@@ -244,7 +262,9 @@ impl AgentDetector {
         if !self.armed {
             self.armed = true;
             self.status = Status::Working;
-            emit(Transition::Started { agent: agent.to_string() });
+            emit(Transition::Started {
+                agent: agent.to_string(),
+            });
         }
     }
 
@@ -298,13 +318,18 @@ mod tests {
     }
 
     fn started(agent: &str) -> Transition {
-        Transition::Started { agent: agent.into() }
+        Transition::Started {
+            agent: agent.into(),
+        }
     }
 
     #[test]
     fn arms_on_agent_command() {
         let mut d = AgentDetector::new();
-        assert_eq!(run(&mut d, &osc("133;C;claude -p hello")), vec![started("claude")]);
+        assert_eq!(
+            run(&mut d, &osc("133;C;claude -p hello")),
+            vec![started("claude")]
+        );
     }
 
     #[test]
@@ -332,13 +357,19 @@ mod tests {
             vec![started("codex")]
         );
         let mut d2 = AgentDetector::new();
-        assert_eq!(run(&mut d2, &osc("133;C;npx claude")), vec![started("claude")]);
+        assert_eq!(
+            run(&mut d2, &osc("133;C;npx claude")),
+            vec![started("claude")]
+        );
     }
 
     #[test]
     fn arms_on_dash_suffixed_alias() {
         let mut d = AgentDetector::new();
-        assert_eq!(run(&mut d, &osc("133;C;claude-enigma")), vec![started("claude")]);
+        assert_eq!(
+            run(&mut d, &osc("133;C;claude-enigma")),
+            vec![started("claude")]
+        );
     }
 
     #[test]
@@ -361,10 +392,19 @@ mod tests {
     fn terax_marker_drives_status() {
         let mut d = AgentDetector::new();
         run(&mut d, &osc("133;C;claude"));
-        assert_eq!(run(&mut d, &osc("777;notify;Terax;attention")), vec![Transition::Attention]);
-        assert_eq!(run(&mut d, &osc("777;notify;Terax;working")), vec![Transition::Working]);
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Terax;attention")),
+            vec![Transition::Attention]
+        );
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Terax;working")),
+            vec![Transition::Working]
+        );
         assert!(run(&mut d, &osc("777;notify;Terax;working")).is_empty());
-        assert_eq!(run(&mut d, &osc("777;notify;Terax;finished")), vec![Transition::Finished]);
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Terax;finished")),
+            vec![Transition::Finished]
+        );
     }
 
     #[test]
@@ -380,7 +420,10 @@ mod tests {
     fn four_field_marker_self_arms_named_agent() {
         // Fresh arm already implies Working, so `working` emits only Started.
         let mut d = AgentDetector::new();
-        assert_eq!(run(&mut d, &osc("777;notify;Terax;codex;working")), vec![started("codex")]);
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Terax;codex;working")),
+            vec![started("codex")]
+        );
         let mut g = AgentDetector::new();
         assert_eq!(
             run(&mut g, &osc("777;notify;Terax;gemini;finished")),
@@ -416,9 +459,18 @@ mod tests {
     fn four_field_marker_drives_status_after_preexec() {
         let mut d = AgentDetector::new();
         run(&mut d, &osc("133;C;gemini"));
-        assert_eq!(run(&mut d, &osc("777;notify;Terax;gemini;attention")), vec![Transition::Attention]);
-        assert_eq!(run(&mut d, &osc("777;notify;Terax;gemini;working")), vec![Transition::Working]);
-        assert_eq!(run(&mut d, &osc("777;notify;Terax;gemini;finished")), vec![Transition::Finished]);
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Terax;gemini;attention")),
+            vec![Transition::Attention]
+        );
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Terax;gemini;working")),
+            vec![Transition::Working]
+        );
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Terax;gemini;finished")),
+            vec![Transition::Finished]
+        );
     }
 
     #[test]
@@ -426,8 +478,14 @@ mod tests {
         let mut d = AgentDetector::new();
         assert!(run(&mut d, &osc("777;notify;Other;ready")).is_empty());
         run(&mut d, &osc("133;C;codex"));
-        assert_eq!(run(&mut d, &osc("777;notify;Codex;ready")), vec![Transition::Attention]);
-        assert_eq!(run(&mut d, &osc("9;needs you")), vec![Transition::Attention]);
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Codex;ready")),
+            vec![Transition::Attention]
+        );
+        assert_eq!(
+            run(&mut d, &osc("9;needs you")),
+            vec![Transition::Attention]
+        );
         assert!(run(&mut d, &osc("9;4;1;50")).is_empty());
     }
 
@@ -479,6 +537,9 @@ mod tests {
         seq.extend(std::iter::repeat_n(b'x', OSC_MAX + 100));
         seq.extend_from_slice(&[ESC, ST_FINAL]);
         assert!(run(&mut d, &seq).is_empty());
-        assert_eq!(run(&mut d, &osc("777;notify;Terax;attention")), vec![Transition::Attention]);
+        assert_eq!(
+            run(&mut d, &osc("777;notify;Terax;attention")),
+            vec![Transition::Attention]
+        );
     }
 }

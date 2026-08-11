@@ -12,6 +12,7 @@ import {
   type VoiceAgentStatus,
   type VoiceDraftTarget,
 } from "../hooks/useVoicePromptAgent";
+import type { ProviderKeys } from "../lib/keyring";
 import type { SpaceCommand } from "../lib/spaceCommand";
 
 export type { VoiceDraftTarget } from "../hooks/useVoicePromptAgent";
@@ -19,8 +20,9 @@ export type { VoiceDraftTarget } from "../hooks/useVoicePromptAgent";
 export type FloatingVoiceAgentHandle = { toggle: () => void };
 
 type Props = {
+  apiKeys: ProviderKeys;
   captureTarget: () => VoiceDraftTarget | null;
-  insertDraft: (target: VoiceDraftTarget, draft: string) => boolean;
+  insertTranscript: (target: VoiceDraftTarget, transcript: string) => boolean;
   executeSpaceCommand: (command: SpaceCommand) => Promise<void>;
 };
 
@@ -39,13 +41,14 @@ const VOICE_SCREEN_EDGE_PX = 12;
 
 export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
   function FloatingVoiceAgent(
-    { captureTarget, insertDraft, executeSpaceCommand },
+    { apiKeys, captureTarget, insertTranscript, executeSpaceCommand },
     ref,
   ) {
     const enabled = usePreferencesStore((state) => state.floatingVoiceAgentEnabled);
     const { status, message, toggle, audioLevel } = useVoicePromptAgent({
+      apiKeys,
       captureTarget,
-      insertDraft,
+      insertTranscript,
       executeSpaceCommand,
     });
     const label = status === "error" ? message ?? LABELS[status] : LABELS[status];

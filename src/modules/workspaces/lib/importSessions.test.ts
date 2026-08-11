@@ -3,6 +3,7 @@ import {
   buildSessionResumeCommand,
   filterImportableSessions,
   formatRelativeActivity,
+  isSessionInWorkspace,
   regularTerminalCount,
   sessionProviderCounts,
   sessionsForEnabledProviders,
@@ -96,6 +97,41 @@ describe("workspace session imports", () => {
       ),
     ).toEqual(["current-new", "current-old", "other"]);
   });
+
+  it.each([
+    ["C:/Users/me/repo/", "C:/Users/me/repo"],
+    ["C:\\Users\\me\\repo\\", "C:\\Users\\me\\repo"],
+  ])(
+    "treats trailing Windows separators as the same workspace cwd (%s ~ %s)",
+    (sessionCwd, workspaceCwd) => {
+      const session: ImportableAgentSession = {
+        provider: "codex",
+        sessionId: "current",
+        cwd: sessionCwd,
+        title: "Current",
+        lastActivityAt: 10,
+        active: false,
+      };
+
+      expect(isSessionInWorkspace(session, workspaceCwd)).toBe(true);
+      expect(
+        sessionsForWorkspace(
+          [
+            {
+              provider: "claude",
+              sessionId: "other",
+              cwd: "C:/Users/me/other",
+              title: "Other",
+              lastActivityAt: 20,
+              active: false,
+            },
+            session,
+          ],
+          workspaceCwd,
+        ).map((item) => item.sessionId),
+      ).toEqual(["current", "other"]);
+    },
+  );
 
   it("filters sessions by CLI provider and search text", () => {
     const sessions: ImportableAgentSession[] = [

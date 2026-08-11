@@ -98,6 +98,15 @@ describe("OSC 7 cwd handler — gated by OSC 133 in-command state", () => {
     expect(onCwd).toHaveBeenCalledWith("C:/Users/me/project");
   });
 
+  it("decodes percent-encoded Windows drive-letter OSC 7 paths and strips the synthetic leading slash", () => {
+    const { term, handlers } = makeFakeTerm();
+    const onCwd = vi.fn();
+    registerCwdHandler(term, onCwd);
+
+    handlers.get(7)?.("file://host/D:/Users/me/My%20Project");
+    expect(onCwd).toHaveBeenCalledWith("D:/Users/me/My Project");
+  });
+
   it("notifies when a new prompt marker is received", () => {
     const { term, handlers } = makeFakeTerm();
     const onPrompt = vi.fn();

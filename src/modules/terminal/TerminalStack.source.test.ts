@@ -14,14 +14,14 @@ describe("TerminalStack lazy renderer restore", () => {
   it("mounts only the active terminal workspace and lazily restores its inactive panes", () => {
     const source = readFileSync(terminalStackPath, "utf8");
 
-    expect(source).toContain("TERMINAL_LAZY_RESTORE_DELAY_MS");
+    expect(source).toContain('import { usePaneHydration } from "./lib/usePaneHydration";');
+    expect(source).toContain("usePaneHydration({");
     expect(source).toContain(
       "const activeTerminal = terminals.find((t) => t.id === activeId) ?? null;",
     );
     expect(source).not.toContain("terminals.map((t) => {");
-    expect(source).toContain("requestIdleCallback");
-    expect(source).toContain("cancelIdleCallback");
-    expect(source).toContain("hydratedLeafIds.has(leafId)");
+    expect(source).not.toContain("requestIdleCallback");
+    expect(source).not.toContain("hydratedLeafIds.has(leafId)");
     expect(source).toContain("onHydrateLeaf={hydrateLeaf}");
   });
 

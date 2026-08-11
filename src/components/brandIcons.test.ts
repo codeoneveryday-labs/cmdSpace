@@ -10,13 +10,12 @@ import {
 } from "./brandIcons";
 
 describe("brand icon catalog", () => {
-  it("maps supported AI providers to Paseo artwork", () => {
+  it("maps bundled STT brand artwork before falling back to a generic icon", () => {
     expect(getProviderBrandIcon("openai")).toBe("codex");
-    expect(getProviderBrandIcon("anthropic")).toBe("claude");
-    expect(getProviderBrandIcon("google")).toBe("gemini");
-    expect(getProviderBrandIcon("xai")).toBe("grok");
-    expect(getProviderBrandIcon("mistral")).toBe("mistral");
-    expect(getProviderBrandIcon("ollama")).toBeNull();
+    expect(getProviderBrandIcon("deepgram")).toBe("deepgram");
+    expect(getProviderBrandIcon("google")).toBe("googlecloud");
+    expect(getProviderBrandIcon("groq")).toBe("grok");
+    expect(getProviderBrandIcon("nvidia")).toBe("nvidia");
   });
 
   it("maps supported coding agents to the same Paseo artwork", () => {

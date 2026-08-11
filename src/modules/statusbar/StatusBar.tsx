@@ -1,4 +1,3 @@
-import { AgentStatusPill } from "@/modules/ai/components/AgentStatusPill";
 import { Kbd } from "@/components/ui/kbd";
 import {
   Tooltip,
@@ -18,7 +17,6 @@ type Props = {
   home: string | null;
   onCd: (path: string) => void;
   onWorkspaceChange: (env: WorkspaceEnv) => void;
-  onOpenMini: () => void;
   onToggleTerminal: () => void;
   privateActive: boolean;
 };
@@ -29,7 +27,6 @@ export function StatusBar({
   home,
   onCd,
   onWorkspaceChange,
-  onOpenMini,
   onToggleTerminal,
   privateActive,
 }: Props) {
@@ -54,7 +51,6 @@ export function StatusBar({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
-        <AgentStatusPill onClick={onOpenMini} />
         <button
           type="button"
           onClick={onToggleTerminal}

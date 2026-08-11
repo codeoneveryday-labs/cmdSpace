@@ -15,6 +15,8 @@ describe("ProviderUsagePopover", () => {
     expect(source).toContain('"provider_limit_status",');
     expect(tauriLib).toContain("agent_usage::provider_limit_status,");
     expect(source).toContain("getEnabledCliAgentDefinitions");
+    expect(source).toContain("USAGE_TRACKED_CLI_AGENT_IDS");
+    expect(source).toContain(".filter((agent) => USAGE_TRACKED_CLI_AGENT_IDS.has(agent.id))");
     expect(source).toContain("loadPreferences");
     expect(source).toContain("pendingProviders.has(agent.id)");
     expect(source).toContain("Promise.allSettled");

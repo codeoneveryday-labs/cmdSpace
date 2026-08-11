@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import {
-  AiChat02Icon,
   CodeIcon,
   Folder01Icon,
   GitBranchIcon,
@@ -32,7 +31,6 @@ export function SidebarRail({
   const items: RailItem[] = [
     { id: "browser", label: "Browser", icon: Globe02Icon },
     { id: "editor", label: "Editor", icon: CodeIcon },
-    { id: "helper", label: "Helper", icon: AiChat02Icon },
   ];
 
   return (
