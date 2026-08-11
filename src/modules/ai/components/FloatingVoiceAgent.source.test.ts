@@ -25,7 +25,7 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain("onPointerMove={move}");
     expect(component).toContain("suppressClickRef");
     expect(component).toContain('draggable={false}');
-    expect(component).toContain("Toggle Space");
+    expect(component).toContain("Toggle voice input");
     expect(app).toContain("captureVoiceTarget");
     expect(app).toContain("insertVoiceDraft");
     expect(app).toContain('"voice.toggle": toggleVoiceAgent');
@@ -80,7 +80,7 @@ describe("FloatingVoiceAgent", () => {
     expect(voiceAgent).toContain('"Transcript inserted into terminal."');
   });
 
-  it("lets Space handle a spoken music request without inserting a terminal draft", () => {
+  it("keeps voice input as literal speech to text without task control", () => {
     const component = readFileSync(
       path.join(here, "FloatingVoiceAgent.tsx"),
       "utf8",
@@ -94,11 +94,32 @@ describe("FloatingVoiceAgent", () => {
       "utf8",
     );
 
-    expect(component).toContain("Toggle Space");
-    expect(voiceAgent).toContain("parseSpaceCommand");
-    expect(voiceAgent).toContain("executeSpaceCommand(spaceCommand)");
-    expect(app).toContain("mcli --play-first");
-    expect(app).toContain("executeSpaceCommand={executeSpaceCommand}");
+    expect(component).toContain("Toggle voice input");
+    expect(voiceAgent).not.toContain("parseSpaceCommand");
+    expect(voiceAgent).not.toContain("executeSpaceCommand");
+    expect(voiceAgent).not.toContain("Space is starting music");
+    expect(app).not.toContain("executeSpaceCommand={executeSpaceCommand}");
+  });
+
+  it("does not carry prompt context into the speech-to-text input path", () => {
+    const component = readFileSync(
+      path.join(here, "FloatingVoiceAgent.tsx"),
+      "utf8",
+    );
+    const voiceAgent = readFileSync(
+      path.join(here, "../hooks/useVoicePromptAgent.ts"),
+      "utf8",
+    );
+    const app = readFileSync(
+      path.join(here, "../../../app/App.tsx"),
+      "utf8",
+    );
+
+    expect(component).toContain("useSpeechToTextInput");
+    expect(voiceAgent).toContain("export function useSpeechToTextInput");
+    expect(voiceAgent).not.toContain("terminalContext");
+    expect(voiceAgent).not.toContain("cwd:");
+    expect(app).not.toContain("terminalContext:");
   });
 
   it("shows the actionable voice failure instead of a generic retry label", () => {
@@ -140,7 +161,7 @@ describe("FloatingVoiceAgent", () => {
       "utf8",
     );
 
-    expect(component).toContain("spaceEmberGlow");
+    expect(component).toContain("voiceInputGlow");
     expect(component).toContain("audioLevel * 26");
     expect(component).toContain("transition-[box-shadow,color,border-color,background-color]");
     expect(component).toContain("motion-reduce:transition-none");

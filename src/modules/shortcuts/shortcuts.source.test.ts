@@ -53,6 +53,9 @@ describe("voice agent shortcut", () => {
       'id: "voice.toggle",\n    label: "Toggle Space",\n    group: "AI",\n    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "v" }]',
     );
     expect(appSource).toContain('"voice.toggle": toggleVoiceAgent');
+    expect(appSource).toContain(
+      'listen("cmdspace:open-shortcuts", () => {',
+    );
   });
 });
 
@@ -82,11 +85,45 @@ describe("pane maximize shortcut", () => {
     expect(shortcutsSource).toContain(
       'defaultBindings: [{ [MOD_PROP]: true, shift: true, key: ">" }]',
     );
-    expect(appSource).toContain('"pane.maximize": () => {');
+    expect(appSource).toContain('"pane.maximize": maximizeActivePane');
     expect(globalShortcutsSource).toContain(
       "!isPaneMaximizeKeyboardEvent(e)",
     );
     expect(appSource).toContain("toggleMaximizePane(activeTerminalTab.activeLeafId)");
+    expect(appSource).toContain(
+      'listen("cmdspace:maximize-pane", maximizeActivePane)',
+    );
+  });
+});
+
+describe("workspace navigation shortcuts", () => {
+  it("uses up and down labels that match the workspace list direction", () => {
+    const shortcutsSource = readFileSync(shortcutsPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+
+    expect(shortcutsSource).toContain('id: "workspace.next"');
+    expect(shortcutsSource).toContain('label: "Workspace down"');
+    expect(shortcutsSource).toContain(
+      'defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "ArrowDown" }]',
+    );
+    expect(shortcutsSource).toContain('id: "workspace.prev"');
+    expect(shortcutsSource).toContain('label: "Workspace up"');
+    expect(shortcutsSource).toContain(
+      'defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "ArrowUp" }]',
+    );
+    expect(appSource).toContain('"workspace.next": () => cycleWorkspace(1)');
+    expect(appSource).toContain('"workspace.prev": () => cycleWorkspace(-1)');
+  });
+
+  it("opens the adjacent workspace from the ordered workspace list", () => {
+    const appSource = readFileSync(appPath, "utf8");
+
+    expect(appSource).toContain(
+      "const currentIdx = workspaces.findIndex((w) => w.id === activeWorkspaceId)",
+    );
+    expect(appSource).toContain(
+      "handleSelectWorkspace(workspaces[nextIdx].id)",
+    );
   });
 });
 

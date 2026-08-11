@@ -269,13 +269,13 @@ export const SHORTCUTS: Shortcut[] = [
   },
   {
     id: "workspace.next",
-    label: "Next workspace",
+    label: "Workspace down",
     group: "Tabs",
     defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "ArrowDown" }],
   },
   {
     id: "workspace.prev",
-    label: "Previous workspace",
+    label: "Workspace up",
     group: "Tabs",
     defaultBindings: [{ [MOD_PROP]: true, alt: true, key: "ArrowUp" }],
   },

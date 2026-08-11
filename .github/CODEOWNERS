@@ -1,1 +1,52 @@
+# Default owner until additional reviewer handles are explicitly authorized.
 * @crynta
+
+# Architecture and coordination hubs
+/CMDSPACE.md @crynta
+/COMPREHENSIVE_PLAN.md @crynta
+/docs/architecture/phase-1-boundaries.md @crynta
+/src/app/App.tsx @crynta
+/src-tauri/src/lib.rs @crynta
+/src-tauri/capabilities/ @crynta
+
+# Terminal / PTY
+/src/modules/terminal/ @crynta
+/src-tauri/src/modules/pty/ @crynta
+
+# Canvas
+/src/modules/architecture/ @crynta
+
+# AI
+/src/modules/ai/ @crynta
+
+# Editor / explorer
+/src/modules/editor/ @crynta
+/src/modules/explorer/ @crynta
+
+# Git / source control
+/src/modules/git/ @crynta
+/src/modules/git-history/ @crynta
+/src/modules/source-control/ @crynta
+/src-tauri/src/modules/git/ @crynta
+
+# Workspace / persistence
+/src/modules/tabs/ @crynta
+/src/modules/workspace/ @crynta
+/src/modules/workspaces/ @crynta
+/src-tauri/src/modules/db.rs @crynta
+/src-tauri/src/modules/workspace.rs @crynta
+
+# Remote access
+/src/remote/ @crynta
+/src/modules/settings/remoteAccess.ts @crynta
+/src-tauri/src/modules/remote.rs @crynta
+/src-tauri/src/modules/remote_auth.rs @crynta
+/src-tauri/src/modules/remote_protocol.rs @crynta
+/src-tauri/src/modules/remote_tunnel.rs @crynta
+
+# Native security-sensitive surfaces
+/src-tauri/src/modules/fs/ @crynta
+/src-tauri/src/modules/net.rs @crynta
+/src-tauri/src/modules/secrets.rs @crynta
+/src-tauri/src/modules/shell/ @crynta
+/src-tauri/src/modules/speech.rs @crynta
