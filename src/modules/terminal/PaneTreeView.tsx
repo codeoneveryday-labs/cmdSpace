@@ -142,6 +142,8 @@ export function PaneTreeView({
     const focused = node.id === activeLeafId;
     const hydrated = isLeafHydrated(node.id);
     const b = getBundle(node.id);
+    const isDragging = dragContext?.draggingId === node.id;
+    const isDropTarget = dragContext?.targetId === node.id;
     const focusAndHydrate = () => {
       onHydrateLeaf(node.id);
       if (!focused) onFocusLeaf(node.id);
@@ -158,11 +160,17 @@ export function PaneTreeView({
         }}
         data-pane-leaf={node.id}
         className={`relative h-full w-full group overflow-hidden @container ${
-          dragContext?.targetId === node.id
-            ? "ring-2 ring-inset ring-primary/80"
+          isDropTarget
+            ? "bg-primary/[0.04] ring-2 ring-inset ring-primary/80"
             : ""
         }`}
       >
+        {isDragging ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-40 border-2 border-dashed border-primary/80"
+          />
+        ) : null}
         {hydrated ? (
           <TerminalPane
             leafId={node.id}
@@ -214,7 +222,7 @@ export function PaneTreeView({
           agentResponding={agentResponding}
           hydrated={hydrated}
           onDragStart={(event) => dragContext?.onDragStart(node.id, event)}
-          isDragging={dragContext?.draggingId === node.id}
+          isDragging={isDragging}
         />
       </div>
     );

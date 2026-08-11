@@ -112,6 +112,8 @@ describe("PaneTreeView header swapping", () => {
     expect(source).toContain("onPointerDown={onDragStart}");
     expect(source).toContain("dragContext?.targetId === node.id");
     expect(source).toContain("ring-2 ring-inset ring-primary/80");
+    expect(source).toContain("dragContext?.draggingId === node.id");
+    expect(source).toContain("border-dashed border-primary/80");
     expect(source).toContain("cursor-grab");
     expect(source).toContain("cursor-grabbing");
   });
