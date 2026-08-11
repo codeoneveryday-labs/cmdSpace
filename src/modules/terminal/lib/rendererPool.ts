@@ -40,6 +40,7 @@ export type SlotAdapter = {
 
 export type LeafBridge = {
   writeToPty(data: string): void;
+  isHerdr?(): boolean;
   observeInputLine?(line: string): void;
   resizePty(cols: number, rows: number): void;
   // Force a SIGWINCH on the underlying PTY at the given dims. Implemented
@@ -266,13 +267,14 @@ function createSlot(): Slot {
     const leafId = slot.currentLeafId;
     if (leafId === null) return;
 
-    // xterm emits OSC 10/11 color reports on its input channel. They are
-    // terminal metadata, not user input; forwarding them can corrupt zsh's
-    // history recall when a report arrives alongside an arrow key sequence.
-    if (OSC_COLOR_REPORT.test(data)) return;
-
     const bridge = adapter?.resolveLeaf(leafId);
     if (!bridge) return;
+    // Herdr uses OSC 10/11 host-palette reports for its documented auto-switch
+    // mode. Ordinary shells must not receive them as user input.
+    if (OSC_COLOR_REPORT.test(data)) {
+      if (bridge.isHerdr?.()) bridge.writeToPty(data);
+      return;
+    }
     // WebKit on macOS can surface space characters in clipboard content as
     // invisible C1 control chars (U+0080–U+009F), causing pasted words to
     // fuse into a single token at the shell. xterm's native paste listener

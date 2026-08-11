@@ -61,7 +61,8 @@ describe("TerminalStack lazy renderer restore", () => {
 
     expect(source).toContain("interactiveCodingAgent: boolean");
     expect(source).toContain("isInteractiveCodingAgentCommand,");
-    expect(source).toContain("s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);");
+    expect(source).toContain("s.cliAgent = detectCliAgent(command);");
+    expect(source).toContain("s.interactiveCodingAgent = s.cliAgent !== null;");
     expect(source).toContain("s.shellState?.inCommand && !s.interactiveCodingAgent");
     expect(source).toContain("function trackAgentLaunchInput");
     expect(source).toContain("detectCodingAgentBanner,");

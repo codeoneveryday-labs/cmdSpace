@@ -35,7 +35,9 @@ import {
 } from "./rendererPool";
 import {
   detectCodingAgentBanner,
+  detectCliAgent,
   isInteractiveCodingAgentCommand,
+  type CliAgent,
 } from "./cliAgents";
 
 type Callbacks = {
@@ -71,6 +73,7 @@ type Session = {
   agentLaunchBuffer: string;
   agentOutputTail: string;
   interactiveCodingAgent: boolean;
+  cliAgent: CliAgent | null;
   shellState: ShellIntegrationState | null;
   initialCommandFallbackTimer: number | null;
   agentActivityTimer: number | null;
@@ -98,7 +101,8 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
     s.inputBuffer += beforeEnter;
     const command = s.inputBuffer.trim();
     if (command.length > 0) {
-      s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);
+      s.cliAgent = detectCliAgent(command);
+      s.interactiveCodingAgent = s.cliAgent !== null;
       if (s.interactiveCodingAgent) setAgentCliCommand(leafId, command);
       if (!s.interactiveCodingAgent) {
         setAgentResponseActivity(leafId, false);
@@ -132,7 +136,8 @@ function trackAgentLaunchInput(leafId: number, s: Session, data: string): void {
   if (data.includes("\r") || data.includes("\n")) {
     const [beforeEnter = ""] = data.split(/[\r\n]+/);
     const command = (s.agentLaunchBuffer + beforeEnter).trim();
-    if (isInteractiveCodingAgentCommand(command)) {
+    s.cliAgent = detectCliAgent(command);
+    if (s.cliAgent !== null) {
       s.interactiveCodingAgent = true;
       setAgentCliCommand(leafId, command);
       void s.pty?.setMetadata({ agent: command });
@@ -166,6 +171,7 @@ function observeTerminalInputLine(
   line: string,
 ): void {
   if (s.shellState?.inCommand || !isInteractiveCodingAgentCommand(line)) return;
+  s.cliAgent = detectCliAgent(line);
   s.interactiveCodingAgent = true;
   setAgentCliCommand(leafId, line);
   void s.pty?.setMetadata({ agent: line });
@@ -180,6 +186,7 @@ configureRendererPool({
       writeToPty: (data) => {
         writeToSessionPty(leafId, s, data);
       },
+      isHerdr: () => s.cliAgent === "herdr",
       observeInputLine: (line) => {
         observeTerminalInputLine(leafId, s, line);
       },
@@ -245,6 +252,7 @@ function ensureSession(
     agentLaunchBuffer: "",
     agentOutputTail: "",
     interactiveCodingAgent: isInteractiveCodingAgentCommand(initialCommand),
+    cliAgent: detectCliAgent(initialCommand),
     shellState: null,
     initialCommandFallbackTimer: null,
     agentActivityTimer: null,
@@ -279,6 +287,7 @@ function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   const detectedAgent = detectCodingAgentBanner(output);
   if (detectedAgent) {
     const wasInteractiveCodingAgent = s.interactiveCodingAgent;
+    s.cliAgent = detectedAgent;
     s.interactiveCodingAgent = true;
     setAgentCliCommand(leafId, detectedAgent);
     if (!wasInteractiveCodingAgent) {

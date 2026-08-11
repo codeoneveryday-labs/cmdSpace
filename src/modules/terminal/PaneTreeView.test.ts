@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const paneTreePath = path.join(here, "PaneTreeView.tsx");
+const terminalStackPath = path.join(here, "TerminalStack.tsx");
 const agentCliIconPath = path.join(here, "AgentCliIcon.tsx");
 
 describe("FloatingTerminalOverlay", () => {
@@ -100,5 +101,28 @@ describe("PaneTreeView split resizing", () => {
     expect(source).toContain("cursor-col-resize");
     expect(source).toContain("cursor-row-resize");
     expect(source).not.toContain("<ResizableHandle");
+  });
+});
+
+describe("PaneTreeView header swapping", () => {
+  it("keeps drag ownership on the header and highlights a leaf drop target", () => {
+    const source = readFileSync(paneTreePath, "utf8");
+
+    expect(source).toContain("data-pane-drag-handle");
+    expect(source).toContain("onPointerDown={onDragStart}");
+    expect(source).toContain("dragContext?.targetId === node.id");
+    expect(source).toContain("ring-2 ring-inset ring-primary/80");
+    expect(source).toContain("cursor-grab");
+    expect(source).toContain("cursor-grabbing");
+  });
+
+  it("supports cancellation and commits a tree swap through the drag context", () => {
+    const source = readFileSync(terminalStackPath, "utf8");
+
+    expect(source).toContain('ownerDocument.addEventListener("pointercancel"');
+    expect(source).toContain('ownerDocument.addEventListener("keydown"');
+    expect(source).toContain('ownerWindow.addEventListener("blur"');
+    expect(source).toContain("swapLeafNodes");
+    expect(source).toContain("swapLeafNodes(tab.paneTree");
   });
 });

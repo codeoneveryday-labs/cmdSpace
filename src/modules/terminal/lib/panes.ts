@@ -210,6 +210,57 @@ export function hasLeaf(tree: PaneNode, id: PaneId): boolean {
   return leafIds(tree).includes(id);
 }
 
+/** Swap two complete leaf positions without mutating the pane tree. */
+export function swapLeafNodes(
+  tree: PaneNode,
+  sourceId: PaneId,
+  targetId: PaneId,
+): PaneNode {
+  if (sourceId === targetId) return tree;
+  const source = findLeafNode(tree, sourceId);
+  const target = findLeafNode(tree, targetId);
+  if (!source || !target) return tree;
+
+  return replaceLeafNodes(tree, sourceId, target, targetId, source);
+}
+
+function findLeafNode(tree: PaneNode, id: PaneId): PaneNode | null {
+  if (isLeaf(tree)) return tree.id === id ? tree : null;
+  for (const child of tree.children) {
+    const found = findLeafNode(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function replaceLeafNodes(
+  tree: PaneNode,
+  sourceId: PaneId,
+  sourceReplacement: PaneNode,
+  targetId: PaneId,
+  targetReplacement: PaneNode,
+): PaneNode {
+  if (isLeaf(tree)) {
+    if (tree.id === sourceId) return sourceReplacement;
+    if (tree.id === targetId) return targetReplacement;
+    return tree;
+  }
+
+  let changed = false;
+  const children = tree.children.map((child) => {
+    const next = replaceLeafNodes(
+      child,
+      sourceId,
+      sourceReplacement,
+      targetId,
+      targetReplacement,
+    );
+    if (next !== child) changed = true;
+    return next;
+  });
+  return changed ? { ...tree, children } : tree;
+}
+
 export function setSplitChildSizes(
   tree: PaneNode,
   splitId: PaneId,

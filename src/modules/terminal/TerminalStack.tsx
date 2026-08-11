@@ -1,13 +1,21 @@
 import type { Tab, TerminalTab } from "@/modules/tabs";
 import type { SearchAddon } from "@xterm/addon-search";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PaneTreeView } from "./PaneTreeView";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import { PaneTreeView, type PaneDragContext } from "./PaneTreeView";
 import type { TerminalPaneHandle } from "./TerminalPane";
 import {
   findLeafCwd,
   findLeafAutoLaunch,
   findLeafLastCommand,
   leafIds,
+  swapLeafNodes,
   type PaneNode,
   type SplitDir,
 } from "./lib/panes";
@@ -100,6 +108,116 @@ export function TerminalStack({
   const [hydratedLeafIds, setHydratedLeafIds] = useState<Set<number>>(
     () => new Set(),
   );
+  const [dragState, setDragState] = useState<{
+    tabId: number;
+    sourceId: number;
+    targetId: number | null;
+  } | null>(null);
+  const dragStateRef = useRef(dragState);
+  dragStateRef.current = dragState;
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+
+  const finishPaneDrag = useCallback(
+    (commit: boolean, targetOverride?: number | null) => {
+      const activeDrag = dragStateRef.current;
+      dragCleanupRef.current?.();
+      dragCleanupRef.current = null;
+      setDragState(null);
+      if (!commit || !activeDrag) return;
+
+      const tab = terminals.find((candidate) => candidate.id === activeDrag.tabId);
+      const targetId =
+        targetOverride === undefined ? activeDrag.targetId : targetOverride;
+      if (targetId === null || !tab || targetId === activeDrag.sourceId) return;
+
+      const nextTree = swapLeafNodes(tab.paneTree, activeDrag.sourceId, targetId);
+      if (nextTree === tab.paneTree) return;
+      onPaneTreeChange(tab.id, nextTree);
+      onFocusLeaf(tab.id, activeDrag.sourceId);
+    },
+    [onFocusLeaf, onPaneTreeChange, terminals],
+  );
+
+  const startPaneDrag = useCallback(
+    (sourceId: number, event: ReactPointerEvent<HTMLDivElement>) => {
+      if (
+        event.button !== 0 ||
+        (event.target instanceof Element && event.target.closest("button"))
+      ) {
+        return;
+      }
+      const tab = activeTerminal;
+      if (!tab || leafIds(tab.paneTree).length < 2) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      finishPaneDrag(false);
+
+      const pointerId = event.pointerId;
+      const updateTarget = (point: { clientX: number; clientY: number }) => {
+        const hit = document
+          .elementsFromPoint(point.clientX, point.clientY)
+          .map((element) => element.closest<HTMLElement>("[data-pane-leaf]"))
+          .find((element): element is HTMLElement => element !== null);
+        const candidateId = hit ? Number(hit.dataset.paneLeaf) : null;
+        const targetId =
+          candidateId !== null && leafIds(tab.paneTree).includes(candidateId)
+            ? candidateId
+            : null;
+        const normalizedTargetId = targetId === sourceId ? null : targetId;
+        setDragState((current) =>
+          current && current.targetId === normalizedTargetId
+            ? current
+              : current
+              ? { ...current, targetId: normalizedTargetId }
+              : current,
+        );
+        return normalizedTargetId;
+      };
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        moveEvent.preventDefault();
+        updateTarget(moveEvent);
+      };
+      const handlePointerUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== pointerId) return;
+        const targetId = updateTarget(upEvent);
+        finishPaneDrag(true, targetId);
+      };
+      const handleKeyDown = (keyEvent: KeyboardEvent) => {
+        if (keyEvent.key !== "Escape") return;
+        keyEvent.preventDefault();
+        finishPaneDrag(false);
+      };
+      const cancel = () => finishPaneDrag(false);
+
+      const ownerDocument = event.currentTarget.ownerDocument;
+      const ownerWindow = ownerDocument.defaultView ?? window;
+      ownerDocument.addEventListener("pointermove", handlePointerMove);
+      ownerDocument.addEventListener("pointerup", handlePointerUp);
+      ownerDocument.addEventListener("pointercancel", cancel);
+      ownerDocument.addEventListener("keydown", handleKeyDown);
+      ownerWindow.addEventListener("blur", cancel);
+      dragCleanupRef.current = () => {
+        ownerDocument.removeEventListener("pointermove", handlePointerMove);
+        ownerDocument.removeEventListener("pointerup", handlePointerUp);
+        ownerDocument.removeEventListener("pointercancel", cancel);
+        ownerDocument.removeEventListener("keydown", handleKeyDown);
+        ownerWindow.removeEventListener("blur", cancel);
+      };
+      setDragState({ tabId: tab.id, sourceId, targetId: null });
+    },
+    [activeTerminal, finishPaneDrag],
+  );
+
+  useEffect(() => () => dragCleanupRef.current?.(), []);
+
+  const paneDragContext: PaneDragContext = {
+    draggingId: dragState?.sourceId ?? null,
+    targetId: dragState?.targetId ?? null,
+    onDragStart: startPaneDrag,
+  };
 
   const registerRef = useRef(registerHandle);
   const searchReadyRef = useRef(onSearchReady);
@@ -241,6 +359,7 @@ export function TerminalStack({
             onPaneTreeChange={(paneTree) =>
               onPaneTreeChange(activeTerminal.id, paneTree)
             }
+            dragContext={paneDragContext}
           />
         </div>
       ) : null}

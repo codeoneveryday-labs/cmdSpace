@@ -89,6 +89,13 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain("term.options.theme = buildTerminalTheme()");
   });
 
+  it("forwards host palette reports only to Herdr sessions", () => {
+    const source = readFileSync(rendererPoolPath, "utf8");
+
+    expect(source).toContain("isHerdr?(): boolean;");
+    expect(source).toContain("if (bridge.isHerdr?.()) bridge.writeToPty(data);");
+  });
+
   it("leaves macOS IME composition to xterm's native input path", () => {
     const source = readFileSync(rendererPoolPath, "utf8");
     const imeSource = readFileSync(macImeBridgePath, "utf8");
@@ -109,11 +116,12 @@ describe("rendererPool WebGL stability", () => {
     expect(source).not.toContain("navigator.clipboard\n          .readText()");
   });
 
-  it("does not forward OSC 10/11 color reports as shell input", () => {
+  it("does not forward OSC 10/11 color reports to ordinary shells", () => {
     const source = readFileSync(rendererPoolPath, "utf8");
 
     expect(source).toContain("const OSC_COLOR_REPORT");
-    expect(source).toContain("if (OSC_COLOR_REPORT.test(data)) return;");
+    expect(source).toContain("if (OSC_COLOR_REPORT.test(data)) {");
+    expect(source).toContain("if (bridge.isHerdr?.()) bridge.writeToPty(data);");
   });
 
   it("reports the visible shell command before forwarding Enter", () => {
