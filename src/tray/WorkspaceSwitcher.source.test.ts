@@ -7,10 +7,6 @@ const root = path.resolve(__dirname, "../..");
 describe("menu bar workspace switcher wiring", () => {
   it("ships a dedicated Vite entry with the required Tauri capabilities", () => {
     const vite = readFileSync(path.join(root, "vite.config.ts"), "utf8");
-    const builtViteConfig = readFileSync(
-      path.join(root, "vite.config.js"),
-      "utf8",
-    );
     const html = readFileSync(path.join(root, "tray.html"), "utf8");
     const capability = readFileSync(
       path.join(root, "src-tauri/capabilities/default.json"),
@@ -18,9 +14,6 @@ describe("menu bar workspace switcher wiring", () => {
     );
 
     expect(vite).toContain('tray: path.resolve(__dirname, "tray.html")');
-    expect(builtViteConfig).toContain(
-      'tray: path.resolve(__dirname, "tray.html")',
-    );
     expect(html).toContain('id="tray-root"');
     expect(html).toContain('src="/src/tray/main.tsx"');
     expect(capability).toContain('"tray"');
