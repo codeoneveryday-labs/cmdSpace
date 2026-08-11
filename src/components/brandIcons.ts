@@ -14,8 +14,14 @@ import grokIconSvg from "@/assets/provider-icons/grok.svg?raw";
 import herdrIconSvg from "@/assets/provider-icons/herdr.svg?raw";
 import mistralIconSvg from "@/assets/provider-icons/mistral.svg?raw";
 import commandCodeIconSvg from "@/assets/provider-icons/cmd.svg?raw";
-import type { ProviderId } from "@/modules/ai/config";
+import deepgramIconSvg from "@/assets/provider-icons/deepgram.svg?raw";
+import googleCloudIconSvg from "@/assets/provider-icons/googlecloud.svg?raw";
+import elevenLabsIconSvg from "@/assets/provider-icons/elevenlabs.svg?raw";
+import cloudflareIconSvg from "@/assets/provider-icons/cloudflare.svg?raw";
+import replicateIconSvg from "@/assets/provider-icons/replicate.svg?raw";
+import nvidiaIconSvg from "@/assets/provider-icons/nvidia.svg?raw";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
+import type { ProviderId } from "@/modules/ai/config";
 
 export const BRAND_ICON_ASSETS = {
   claude: claudeIconSvg,
@@ -34,6 +40,12 @@ export const BRAND_ICON_ASSETS = {
   herdr: herdrIconSvg,
   mistral: mistralIconSvg,
   cmd: commandCodeIconSvg,
+  deepgram: deepgramIconSvg,
+  googlecloud: googleCloudIconSvg,
+  elevenlabs: elevenLabsIconSvg,
+  cloudflare: cloudflareIconSvg,
+  replicate: replicateIconSvg,
+  nvidia: nvidiaIconSvg,
 } as const;
 
 export type BrandIconName = keyof typeof BRAND_ICON_ASSETS;
@@ -48,10 +60,13 @@ export const BRAND_ICON_SOURCE_URLS: Partial<
 
 const PROVIDER_BRAND_ICONS: Partial<Record<ProviderId, BrandIconName>> = {
   openai: "codex",
-  anthropic: "claude",
-  google: "gemini",
-  xai: "grok",
-  mistral: "mistral",
+  deepgram: "deepgram",
+  google: "googlecloud",
+  elevenlabs: "elevenlabs",
+  groq: "grok",
+  cloudflare: "cloudflare",
+  replicate: "replicate",
+  nvidia: "nvidia",
 };
 
 const AGENT_BRAND_ICONS: Partial<Record<CliAgent, BrandIconName>> = {

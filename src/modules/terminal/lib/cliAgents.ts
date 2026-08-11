@@ -21,12 +21,15 @@ export const CLI_AGENT_IDS = [
 
 export type CliAgent = (typeof CLI_AGENT_IDS)[number];
 
+export type CliAgentLaunchPolicy = "standard" | "unattended";
+
 export type CliAgentDefinition = {
   id: CliAgent;
   name: string;
   executable: string;
   command: string;
   launch: string;
+  launchPolicy: CliAgentLaunchPolicy;
   bannerPatterns: RegExp[];
 };
 
@@ -127,25 +130,43 @@ const kimiLaunch =
 const grokLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; grok';
 
+const UNATTENDED_LAUNCH_FLAGS: Partial<Record<CliAgent, string>> = {
+  claude: "--dangerously-skip-permissions",
+  codex: "--dangerously-bypass-approvals-and-sandbox",
+  opencode: "--auto",
+  cmd: "--dangerously-skip-permissions",
+};
+
+function unattendedLaunch(agent: CliAgent, baseLaunch: string): string {
+  const flag = UNATTENDED_LAUNCH_FLAGS[agent];
+  if (!flag) throw new Error(`Missing unattended launch flag for ${agent}`);
+  return `${baseLaunch} ${flag}`;
+}
+
+const claudeLaunch = unattendedLaunch("claude", "claude");
+const codexLaunch = unattendedLaunch("codex", "codex");
+const opencodeLaunch = unattendedLaunch("opencode", "opencode");
+const commandCodeLaunch = unattendedLaunch("cmd", "cmd");
+
 export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
-  { id: "claude", name: "Claude Code", executable: "claude", command: "claude --dangerously-skip-permissions", launch: "claude --dangerously-skip-permissions", bannerPatterns: [/\bclaude code\b/i] },
-  { id: "codex", name: "Codex", executable: "codex", command: "codex --dangerously-bypass-approvals-and-sandbox", launch: "codex --dangerously-bypass-approvals-and-sandbox", bannerPatterns: [/\bopenai codex\b/i] },
-  { id: "gemini", name: "Gemini CLI", executable: "gemini", command: "gemini", launch: "gemini", bannerPatterns: [/\bgemini cli\b/i] },
-  { id: "opencode", name: "OpenCode", executable: "opencode", command: "opencode --auto", launch: "opencode --auto", bannerPatterns: [/\bopencode\b/i] },
-  { id: "copilot", name: "GitHub Copilot", executable: "copilot", command: "copilot", launch: "copilot", bannerPatterns: [/\bgithub copilot\b/i, /\bcopilot cli\b/i] },
-  { id: "cursor", name: "Cursor Agent", executable: "cursor-agent", command: "cursor-agent", launch: "cursor-agent", bannerPatterns: [/\bcursor agent\b/i] },
-  { id: "aider", name: "Aider", executable: "aider", command: "aider", launch: "aider", bannerPatterns: [/\baider\b/i] },
-  { id: "pi", name: "Pi Coding Agent", executable: "pi", command: "pi", launch: "pi", bannerPatterns: [/\bpi coding agent\b/i] },
-  { id: "amp", name: "Amp CLI", executable: "amp", command: "amp", launch: "amp", bannerPatterns: [/\bamp cli\b/i, /\bsourcegraph amp\b/i] },
-  { id: "cline", name: "Cline CLI", executable: "cline", command: "cline", launch: "cline", bannerPatterns: [/\bcline cli\b/i] },
-  { id: "goose", name: "Goose", executable: "goose", command: "goose", launch: "goose", bannerPatterns: [/\bgoose\b/i] },
-  { id: "qwen", name: "Qwen Code", executable: "qwen", command: "qwen", launch: "qwen", bannerPatterns: [/\bqwen code\b/i] },
-  { id: "kimi", name: "Kimi Code", executable: "kimi", command: "kimi", launch: kimiLaunch, bannerPatterns: [/\bkimi code\b/i] },
-  { id: "openhands", name: "OpenHands CLI", executable: "openhands", command: "openhands", launch: "openhands", bannerPatterns: [/\bopenhands\b/i] },
-  { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli", launch: "kiro-cli", bannerPatterns: [/\bkiro cli\b/i] },
-  { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: grokLaunch, bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
-  { id: "herdr", name: "Herdr", executable: "herdr", command: "herdr", launch: "herdr", bannerPatterns: [/\bherdr\b/i] },
-  { id: "cmd", name: "Command Code", executable: "cmd", command: "cmd --dangerously-skip-permissions", launch: "cmd --dangerously-skip-permissions", bannerPatterns: [/\bcommand code\b/i] },
+  { id: "claude", name: "Claude Code", executable: "claude", command: claudeLaunch, launch: claudeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bclaude code\b/i] },
+  { id: "codex", name: "Codex", executable: "codex", command: codexLaunch, launch: codexLaunch, launchPolicy: "unattended", bannerPatterns: [/\bopenai codex\b/i] },
+  { id: "gemini", name: "Gemini CLI", executable: "gemini", command: "gemini", launch: "gemini", launchPolicy: "standard", bannerPatterns: [/\bgemini cli\b/i] },
+  { id: "opencode", name: "OpenCode", executable: "opencode", command: opencodeLaunch, launch: opencodeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bopencode\b/i] },
+  { id: "copilot", name: "GitHub Copilot", executable: "copilot", command: "copilot", launch: "copilot", launchPolicy: "standard", bannerPatterns: [/\bgithub copilot\b/i, /\bcopilot cli\b/i] },
+  { id: "cursor", name: "Cursor Agent", executable: "cursor-agent", command: "cursor-agent", launch: "cursor-agent", launchPolicy: "standard", bannerPatterns: [/\bcursor agent\b/i] },
+  { id: "aider", name: "Aider", executable: "aider", command: "aider", launch: "aider", launchPolicy: "standard", bannerPatterns: [/\baider\b/i] },
+  { id: "pi", name: "Pi Coding Agent", executable: "pi", command: "pi", launch: "pi", launchPolicy: "standard", bannerPatterns: [/\bpi coding agent\b/i] },
+  { id: "amp", name: "Amp CLI", executable: "amp", command: "amp", launch: "amp", launchPolicy: "standard", bannerPatterns: [/\bamp cli\b/i, /\bsourcegraph amp\b/i] },
+  { id: "cline", name: "Cline CLI", executable: "cline", command: "cline", launch: "cline", launchPolicy: "standard", bannerPatterns: [/\bcline cli\b/i] },
+  { id: "goose", name: "Goose", executable: "goose", command: "goose", launch: "goose", launchPolicy: "standard", bannerPatterns: [/\bgoose\b/i] },
+  { id: "qwen", name: "Qwen Code", executable: "qwen", command: "qwen", launch: "qwen", launchPolicy: "standard", bannerPatterns: [/\bqwen code\b/i] },
+  { id: "kimi", name: "Kimi Code", executable: "kimi", command: "kimi", launch: kimiLaunch, launchPolicy: "standard", bannerPatterns: [/\bkimi code\b/i] },
+  { id: "openhands", name: "OpenHands CLI", executable: "openhands", command: "openhands", launch: "openhands", launchPolicy: "standard", bannerPatterns: [/\bopenhands\b/i] },
+  { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli", launch: "kiro-cli", launchPolicy: "standard", bannerPatterns: [/\bkiro cli\b/i] },
+  { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: grokLaunch, launchPolicy: "standard", bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
+  { id: "herdr", name: "Herdr", executable: "herdr", command: "herdr", launch: "herdr", launchPolicy: "standard", bannerPatterns: [/\bherdr\b/i] },
+  { id: "cmd", name: "Command Code", executable: "cmd", command: commandCodeLaunch, launch: commandCodeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bcommand code\b/i] },
 ];
 
 export const CLI_AGENT_BY_ID = Object.fromEntries(

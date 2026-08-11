@@ -3,12 +3,11 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useCallback, useEffect, useState } from "react";
 import { IS_LINUX } from "@/lib/platform";
+import { PRODUCT_IDENTITY } from "@/lib/productIdentity";
 
 const LAST_CHECK_KEY = "cmdspace:updater:last-check";
 const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const AUTO_CHECK_ENABLED = !import.meta.env.DEV;
-const GITHUB_LATEST_RELEASE =
-  "https://api.github.com/repos/codeoneveryday-labs/cmdSpace/releases/latest";
 const LEGACY_UPDATER_KEY_MISMATCH =
   "different key than the one provided";
 
@@ -61,7 +60,7 @@ async function checkManualRelease(
 ): Promise<ManualUpdateInfo | null> {
   const [current, res] = await Promise.all([
     getVersion(),
-    fetch(GITHUB_LATEST_RELEASE, {
+    fetch(PRODUCT_IDENTITY.github.latestReleaseApiUrl, {
       headers: { Accept: "application/vnd.github+json" },
     }),
   ]);

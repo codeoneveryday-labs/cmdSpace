@@ -29,4 +29,14 @@ describe("sidebar rails", () => {
     expect(railSource).toContain('{ id: "browser", label: "Browser", icon: Globe02Icon }');
     expect(railSource).not.toContain("BrowserIcon");
   });
+
+  it("limits the main rail to browser and editor tabs", () => {
+    const railSource = readFileSync(sidebarRailPath, "utf8");
+
+    expect(railSource).toContain('{ id: "browser", label: "Browser", icon: Globe02Icon }');
+    expect(railSource).toContain('{ id: "editor", label: "Editor", icon: CodeIcon }');
+    expect(railSource).not.toContain('id: "helper"');
+    expect(railSource).not.toContain('label: "Helper"');
+    expect(railSource).not.toContain("AiChat02Icon");
+  });
 });

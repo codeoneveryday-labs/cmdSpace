@@ -6,6 +6,14 @@ const here = path.dirname(new URL(import.meta.url).pathname);
 const panelPath = path.join(here, "WorkspacesPanel.tsx");
 const appPath = path.join(here, "../../app/App.tsx");
 const appConstantsPath = path.join(here, "../../app/constants.ts");
+const workspacePersistencePath = path.join(
+  here,
+  "../../app/lib/useWorkspacePersistence.ts",
+);
+const workspaceSelectionPath = path.join(
+  here,
+  "../../app/lib/useWorkspaceSelection.ts",
+);
 const headerPath = path.join(here, "../header/Header.tsx");
 const useTabsPath = path.join(here, "../tabs/lib/useTabs.ts");
 const rendererPoolPath = path.join(here, "../terminal/lib/rendererPool.ts");
@@ -20,6 +28,11 @@ describe("WorkspacesPanel", () => {
     const panelSource = readFileSync(panelPath, "utf8");
     const appSource = readFileSync(appPath, "utf8");
     const appConstantsSource = readFileSync(appConstantsPath, "utf8");
+    const workspacePersistenceSource = readFileSync(
+      workspacePersistencePath,
+      "utf8",
+    );
+    const workspaceSelectionSource = readFileSync(workspaceSelectionPath, "utf8");
     const headerSource = readFileSync(headerPath, "utf8");
     const useTabsSource = readFileSync(useTabsPath, "utf8");
     const rendererPoolSource = readFileSync(rendererPoolPath, "utf8");
@@ -121,24 +134,14 @@ describe("WorkspacesPanel", () => {
     ]) {
       expect(cliAgentsSource).toContain(name);
     }
+    expect(cliAgentsSource).toContain("UNATTENDED_LAUNCH_FLAGS");
+    expect(cliAgentsSource).toContain('claude: "--dangerously-skip-permissions"');
     expect(cliAgentsSource).toContain(
-      'command: "claude --dangerously-skip-permissions"',
+      'codex: "--dangerously-bypass-approvals-and-sandbox"',
     );
-    expect(cliAgentsSource).toContain(
-      'command: "codex --dangerously-bypass-approvals-and-sandbox"',
-    );
-    expect(cliAgentsSource).toContain(
-      'command: "cmd --dangerously-skip-permissions"',
-    );
-    expect(cliAgentsSource).toContain(
-      'launch: "claude --dangerously-skip-permissions"',
-    );
-    expect(cliAgentsSource).toContain(
-      'launch: "codex --dangerously-bypass-approvals-and-sandbox"',
-    );
-    expect(cliAgentsSource).toContain(
-      'launch: "cmd --dangerously-skip-permissions"',
-    );
+    expect(cliAgentsSource).toContain('cmd: "--dangerously-skip-permissions"');
+    expect(cliAgentsSource).toContain("function unattendedLaunch");
+    expect(cliAgentsSource).toContain('launchPolicy: "unattended"');
     expect(panelSource).not.toContain("CODEX_CONFIG");
     expect(panelSource).not.toContain("trust_level");
     expect(panelSource).not.toContain("expect -c");
@@ -268,9 +271,13 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("workspaceMode: WorkspaceMode = \"standard\"");
     expect(appSource).toContain("function canvasWorkspaceDiagram");
     expect(appSource).toContain("canvasWorkspaceDiagram(");
-    expect(appSource).toContain("workspace.canvasTabId === tabId");
-    expect(appSource).toContain("const terminalCount = diagram.nodes.filter(");
-    expect(appSource).toContain('(node) => node.kind === "terminal",');
+    expect(workspacePersistenceSource).toContain(
+      "item.canvasTabId === currentTabId",
+    );
+    expect(workspaceSelectionSource).toContain("function countTerminalNodes");
+    expect(workspaceSelectionSource).toContain(
+      'filter((node) => node.kind === "terminal")',
+    );
     expect(appSource).toContain("count: terminalCount");
     expect(appSource).toContain("workspaceMode === \"canvas\"");
     expect(appSource).toContain("tabId: workspaceMode === \"canvas\" ? null : tabId");

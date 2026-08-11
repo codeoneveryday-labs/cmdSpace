@@ -145,3 +145,32 @@ fn supervisor_captures_the_public_url_and_stops_cleanly() {
     tunnel.stop();
     assert_eq!(tunnel.snapshot().state, TunnelState::Stopped);
 }
+
+#[cfg(unix)]
+#[test]
+fn supervisor_surfaces_start_failures_and_stop_remains_idempotent() {
+    let temp = tempfile::tempdir().unwrap();
+    let missing = temp.path().join("missing-tunnel-command");
+
+    let mut tunnel = LocalhostRunTunnel::start_command_for_test(&missing, Vec::new()).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while tunnel.snapshot().state == TunnelState::Starting && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+
+    let failed = tunnel.snapshot();
+    assert_eq!(failed.state, TunnelState::Error);
+    assert!(
+        failed
+            .error
+            .as_deref()
+            .is_some_and(|message| message.contains("could not start ssh tunnel")),
+        "unexpected tunnel start error: {:?}",
+        failed.error
+    );
+
+    tunnel.stop();
+    tunnel.stop();
+
+    assert_eq!(tunnel.snapshot().state, TunnelState::Stopped);
+}

@@ -17,6 +17,7 @@ import {
   type PreviewAddressBarHandle,
 } from "./PreviewAddressBar";
 import { intersectBrowserBounds } from "./browserBounds";
+import { normalizePreviewUrl } from "./normalizePreviewUrl";
 
 type Props = {
   url: string;
@@ -40,7 +41,7 @@ export function SidebarBrowserPane({
   const webviewLabelRef = useRef(
     `sidebar-browser-${Math.random().toString(36).slice(2)}`,
   );
-  const normalizedUrl = useMemo(() => normalizeBrowserUrl(url), [url]);
+  const normalizedUrl = useMemo(() => normalizePreviewUrl(url), [url]);
   const [error, setError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
   const useNativeWebview = hasTauriWebviewRuntime();
@@ -79,7 +80,7 @@ export function SidebarBrowserPane({
 
   const handleSubmitUrl = useCallback(
     (nextUrl: string) => {
-      const normalized = normalizeBrowserUrl(nextUrl);
+      const normalized = normalizePreviewUrl(nextUrl);
       if (!normalized) return;
       pushHistory(normalized);
       onUrlChange(normalized);
@@ -408,18 +409,6 @@ function useNativeLayerBlocker(): boolean {
   }, []);
 
   return blocked;
-}
-
-function normalizeBrowserUrl(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^localhost(:|\/|$)/i.test(trimmed)) return `http://${trimmed}`;
-  if (/^\d{1,3}(\.\d{1,3}){3}(:|\/|$)/.test(trimmed)) {
-    return `http://${trimmed}`;
-  }
-  if (/^[\w.-]+\.[a-z]{2,}/i.test(trimmed)) return `https://${trimmed}`;
-  return trimmed;
 }
 
 function hasTauriWebviewRuntime(): boolean {

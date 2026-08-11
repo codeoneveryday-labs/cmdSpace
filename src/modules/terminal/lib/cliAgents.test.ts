@@ -77,6 +77,25 @@ describe("CLI agent registry", () => {
     ]);
   });
 
+  it("makes unattended launch behavior an explicit catalog policy", () => {
+    const claude = CLI_AGENT_DEFINITIONS.find(({ id }) => id === "claude");
+    const codex = CLI_AGENT_DEFINITIONS.find(({ id }) => id === "codex");
+    const gemini = CLI_AGENT_DEFINITIONS.find(({ id }) => id === "gemini");
+
+    expect(claude).toMatchObject({
+      launchPolicy: "unattended",
+      launch: "claude --dangerously-skip-permissions",
+    });
+    expect(codex).toMatchObject({
+      launchPolicy: "unattended",
+      launch: "codex --dangerously-bypass-approvals-and-sandbox",
+    });
+    expect(gemini).toMatchObject({
+      launchPolicy: "standard",
+      launch: "gemini",
+    });
+  });
+
   it("filters enabled workspace agents from configured preferences", () => {
     expect(
       getEnabledCliAgentDefinitions(["claude", "codex", "cursor"], ["codex"]).map(

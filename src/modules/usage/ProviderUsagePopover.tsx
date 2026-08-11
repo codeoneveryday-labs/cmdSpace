@@ -50,6 +50,13 @@ type Props = {
   trigger: ReactNode;
 };
 
+const USAGE_TRACKED_CLI_AGENT_IDS = new Set<CliAgent>([
+  "codex",
+  "claude",
+  "opencode",
+  "cmd",
+]);
+
 export function ProviderUsagePopover({ trigger }: Props) {
   const [open, setOpen] = useState(false);
   const [statuses, setStatuses] = useState<ProviderLimitStatus[]>([]);
@@ -71,7 +78,7 @@ export function ProviderUsagePopover({ trigger }: Props) {
       nextAgents = getEnabledCliAgentDefinitions(
         preferences.cliAgentIds,
         preferences.disabledCliAgentIds,
-      );
+      ).filter((agent) => USAGE_TRACKED_CLI_AGENT_IDS.has(agent.id));
       if (id === requestId.current) setAgents(nextAgents);
     } catch {
       if (id === requestId.current) {

@@ -4,22 +4,19 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const sectionPath = path.join(here, "ModelsSection.tsx");
-const catalogPath = path.join(here, "providerCatalog.ts");
 
-describe("Models settings provider catalog", () => {
-  it("uses an inline provider catalog instead of an add-provider popup", () => {
+describe("Voice settings section", () => {
+  it("uses the CLI-agent catalog pattern for speech providers", () => {
     const section = readFileSync(sectionPath, "utf8");
-    const catalog = readFileSync(catalogPath, "utf8");
 
-    expect(section).toContain("Configured providers");
-    expect(section).toContain("Search providers");
-    expect(section).toContain("ProviderCatalogRow");
-    expect(section).toContain("filterProviderCatalog");
-    expect(catalog).toContain("provider.id");
-    expect(catalog).toContain("provider.description");
-    expect(catalog).toContain("provider.modelLabels");
-    expect(section).not.toContain("function AddProviderMenu");
-    expect(section).not.toContain("ProviderMenuItem");
-    expect(section).not.toContain("DropdownMenuLabel");
+    expect(section).toContain("STT model");
+    expect(section).toContain("SpeechToTextRow");
+    expect(section).toContain("Configured speech providers");
+    expect(section).toContain("Add speech provider");
+    expect(section).toContain("Search speech providers");
+    expect(section).toContain("ConfiguredProviderRow");
+    expect(section).toContain("CatalogProviderRow");
+    expect(section).toContain("setSpeechToTextProviderIds");
+    expect(section).toContain("setDisabledSpeechToTextProviderIds");
   });
 });

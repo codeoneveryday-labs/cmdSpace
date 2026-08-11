@@ -8,39 +8,6 @@ const appConstantsPath = path.join(here, "constants.ts");
 const shortcutsPath = path.join(here, "../modules/shortcuts/shortcuts.ts");
 
 describe("App sidebar toggle", () => {
-  it("ships a prompt engineer role for prompt-first requests", () => {
-    const source = readFileSync(
-      path.join(here, "../modules/ai/lib/agents.ts"),
-      "utf8",
-    );
-
-    expect(source).toContain('id: "builtin:prompt-engineer"');
-    expect(source).toContain('name: "Prompt Engineer"');
-    expect(source).toContain("prompt engineer");
-    expect(source).toContain("do not write the implementation");
-    expect(source).toContain("dispatch_to_terminals");
-    expect(source).toContain("Task, Context, Requirements");
-    expect(source).toContain("focused terminal pane");
-    expect(source).toContain("do not create a markdown file");
-    expect(source).toContain("English");
-  });
-
-  it("does not ship Architect as a built-in role", () => {
-    const source = readFileSync(
-      path.join(here, "../modules/ai/lib/agents.ts"),
-      "utf8",
-    );
-
-    expect(source).toContain('id: "builtin:prompt-engineer"');
-    expect(source).toContain('DEFAULT_AGENT_ID = "builtin:prompt-engineer"');
-    expect(source).not.toContain('id: "builtin:architect"');
-    expect(source).not.toContain('name: "Architect"');
-    expect(source).not.toContain('id: "builtin:coder"');
-    expect(source).not.toContain('id: "builtin:reviewer"');
-    expect(source).not.toContain('id: "builtin:security"');
-    expect(source).not.toContain('id: "builtin:designer"');
-  });
-
   it("replaces the bottom AI composer with a terminal drawer", () => {
     const source = readFileSync(appPath, "utf8");
 
@@ -52,23 +19,20 @@ describe("App sidebar toggle", () => {
     expect(source).not.toContain("<AiInputBarConnect");
   });
 
-  it("uses the status-bar shortcut to open the terminal drawer, not the AI panel", () => {
+  it("uses the status-bar shortcut to open the terminal drawer without AI chat controls", () => {
     const appSource = readFileSync(appPath, "utf8");
     const statusBarSource = readFileSync(
       path.join(here, "../modules/statusbar/StatusBar.tsx"),
       "utf8",
     );
-    const aiControlsSource = readFileSync(
-      path.join(here, "../modules/ai/components/AiStatusBarControls.tsx"),
-      "utf8",
-    );
 
+    expect(statusBarSource).not.toContain("AgentStatusPill");
+    expect(statusBarSource).not.toContain("onOpenMini");
     expect(statusBarSource).toContain('onToggleTerminal: () => void;');
     expect(statusBarSource).toContain('onClick={onToggleTerminal}');
     expect(statusBarSource).toContain('title="Open terminal"');
     expect(statusBarSource).toContain("Open terminal");
     expect(statusBarSource).not.toContain("Open AI agent");
-    expect(aiControlsSource).not.toContain("Open AI agent");
     expect(appSource).toContain("onToggleTerminal={toggleBottomTerminal}");
   });
 
@@ -196,27 +160,68 @@ describe("App sidebar toggle", () => {
   });
 
   it("persists terminal pane layouts with workspace records", () => {
-    const source = readFileSync(appPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+    const persistenceSource = readFileSync(
+      path.join(here, "lib/useWorkspacePersistence.ts"),
+      "utf8",
+    );
+    const layoutSource = readFileSync(
+      path.join(here, "lib/workspaceLayoutPersistence.ts"),
+      "utf8",
+    );
 
-    expect(source).toContain("paneLayout: string | null;");
-    expect(source).toContain("paneLayout: w.paneLayout ?? null");
-    expect(source).toContain("setTerminalPaneTree(tabId, paneTree);");
-    expect(source).toContain("paneLayout: JSON.stringify(paneTree)");
-    expect(source).toContain("Failed to save terminal pane layout to SQLite");
-    expect(source).toContain("onPaneTreeChange={handleTerminalPaneTreeChange}");
+    expect(appSource).toContain("paneLayout: string | null;");
+    expect(appSource).toContain("paneLayout: w.paneLayout ?? null");
+    expect(appSource).toContain("useWorkspacePersistence<WorkspaceRecord>({");
+    expect(appSource).toContain(
+      'persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace })',
+    );
+    expect(appSource).toContain("onPaneTreeChange={handleTerminalPaneTreeChange}");
+    expect(persistenceSource).toContain(
+      "dependencies.setTerminalPaneTree(tabId, paneTree);",
+    );
+    expect(layoutSource).toContain(
+      "paneLayout: JSON.stringify(input.paneTree)",
+    );
+    expect(persistenceSource).toContain(
+      "Failed to save terminal pane layout to SQLite",
+    );
   });
 
   it("persists and restores the complete canvas workspace diagram", () => {
-    const source = readFileSync(appPath, "utf8");
-
-    expect(source).toContain("serializeCanvasWorkspaceDiagram(diagram)");
-    expect(source).toMatch(
-      /parseCanvasWorkspaceDiagram\(\s*workspace\.paneLayout,\s*\)/,
+    const appSource = readFileSync(appPath, "utf8");
+    const selectionSource = readFileSync(
+      path.join(here, "lib/useWorkspaceSelection.ts"),
+      "utf8",
     );
-    expect(source).toContain("paneLayout: serializedDiagram");
-    expect(source).toContain("persistedDiagram");
-    expect(source).toContain(
+    const persistenceSource = readFileSync(
+      path.join(here, "lib/useWorkspacePersistence.ts"),
+      "utf8",
+    );
+    const layoutSource = readFileSync(
+      path.join(here, "lib/workspaceLayoutPersistence.ts"),
+      "utf8",
+    );
+
+    expect(appSource).toContain("useWorkspaceSelection({");
+    expect(appSource).toContain(
+      "buildCanvasWorkspaceDiagram: canvasWorkspaceDiagram",
+    );
+    expect(selectionSource).toContain(
+      "parseCanvasWorkspaceDiagram(workspace.paneLayout)",
+    );
+    expect(selectionSource).toContain("persistedDiagram");
+    expect(layoutSource).toContain(
+      "const paneLayout = serializeCanvasWorkspaceDiagram(input.diagram);",
+    );
+    expect(layoutSource).toContain(
+      "workspace.count === count && workspace.paneLayout === paneLayout",
+    );
+    expect(persistenceSource).toContain(
       'Failed to save canvas workspace diagram to SQLite',
+    );
+    expect(appSource).toContain(
+      'console.error("Failed to load canvas workspace panes from SQLite:", err);',
     );
   });
 
@@ -317,50 +322,12 @@ describe("App sidebar toggle", () => {
     expect(sidebarAside).toContain("resizing={sidebarResizing}");
   });
 
-  it("mounts the AI helper chat in the right sidebar helper tab", () => {
+  it("keeps the right sidebar free of helper chat surfaces", () => {
     const source = readFileSync(appPath, "utf8");
 
-    expect(source).toContain("AiSidebarHelper");
-    expect(source).toContain('sidebarView === "helper"');
-    expect(source).toContain("hasComposer={hasComposer}");
-    expect(source).toContain("onConnectProvider={() =>");
-    expect(source).toContain('void openSettingsWindow("models")');
-    expect(source).not.toContain(
-      '<div className="text-sm font-medium text-foreground">\n                            Helper\n                          </div>',
-    );
-  });
-
-  it("keeps helper sidebar chat from opening the mini popup chat", () => {
-    const helperPath = path.join(
-      here,
-      "../modules/ai/components/AiSidebarHelper.tsx",
-    );
-    const helperSource = readFileSync(helperPath, "utf8");
-
-    expect(helperSource).toContain("openMiniOnSubmit={false}");
-    expect(helperSource).toContain("showAgentSwitcher={false}");
-  });
-
-  it("gives the helper sidebar a composed empty state and visible send control", () => {
-    const helperPath = path.join(
-      here,
-      "../modules/ai/components/AiSidebarHelper.tsx",
-    );
-    const inputPath = path.join(
-      here,
-      "../modules/ai/components/AiInputBar.tsx",
-    );
-    const helperSource = readFileSync(helperPath, "utf8");
-    const inputSource = readFileSync(inputPath, "utf8");
-
-    expect(helperSource).toContain("HelperEmptyState");
-    expect(helperSource).toContain("Ask about this terminal");
-    expect(helperSource).toContain("Fix the last error");
-    expect(helperSource).toContain("Draft a command");
-    expect(inputSource).toContain('aria-label={isBusy ? "Stop response" : "Send message"}');
-    expect(inputSource).toContain("ArrowUpIcon");
-    expect(inputSource).toContain("StopCircleIcon");
-    expect(inputSource).toContain('variant={isBusy ? "destructive" : "default"}');
-    expect(inputSource).toContain("rounded-xl border border-border/70 bg-background");
+    expect(source).not.toContain("AiSidebarHelper");
+    expect(source).not.toContain('sidebarView === "helper"');
+    expect(source).not.toContain("AgentRunBridge");
+    expect(source).not.toContain("AiMiniWindow");
   });
 });

@@ -2,12 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useChatStore } from "@/modules/ai/store/chatStore";
 import {
-  ArrowRight01Icon,
   CheckmarkCircle01Icon,
   CopyIcon,
-  TerminalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
@@ -185,10 +182,7 @@ function CommandCard({ code, lang }: { code: string; lang: string }) {
         <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
           {normalizeLangLabel(lang)}
         </span>
-        <div className="flex items-center gap-1">
-          <RunInTerminalButton command={code} />
-          <CopyButton text={code} />
-        </div>
+        <CopyButton text={code} />
       </div>
       <div className="border-t border-border/40 bg-background/40">
         <pre
@@ -209,36 +203,6 @@ function CommandCard({ code, lang }: { code: string; lang: string }) {
         </pre>
       </div>
     </div>
-  );
-}
-
-function RunInTerminalButton({ command }: { command: string }) {
-  const [sent, setSent] = useState(false);
-  const tRef = useRef<number>(0);
-  useEffect(() => () => window.clearTimeout(tRef.current), []);
-  const onRun = () => {
-    const ok = useChatStore.getState().live.injectIntoActivePty(command);
-    if (!ok) return;
-    setSent(true);
-    tRef.current = window.setTimeout(() => setSent(false), 1500);
-  };
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant="ghost"
-      onClick={onRun}
-      className="h-5 gap-1 px-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground"
-      aria-label="Run in active terminal"
-      title="Run in active terminal"
-    >
-      <HugeiconsIcon
-        icon={sent ? TerminalIcon : ArrowRight01Icon}
-        size={11}
-        strokeWidth={1.75}
-      />
-      <span>{sent ? "Sent" : "Run"}</span>
-    </Button>
   );
 }
 

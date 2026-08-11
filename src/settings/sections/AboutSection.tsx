@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { PRODUCT_IDENTITY } from "@/lib/productIdentity";
 import { useUpdater } from "@/modules/updater";
 import { GithubIcon, Globe02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -8,8 +9,8 @@ import { arch, platform } from "@tauri-apps/plugin-os";
 import { useEffect, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
 
-const REPO_URL = "https://github.com/codeoneveryday-labs/cmdSpace";
-const WEBSITE = "https://github.com/codeoneveryday-labs/cmdSpace";
+const REPO_URL = PRODUCT_IDENTITY.github.repoUrl;
+const WEBSITE = PRODUCT_IDENTITY.github.repoUrl;
 
 const PLATFORM_LABEL: Record<string, string> = {
   macos: "macOS",

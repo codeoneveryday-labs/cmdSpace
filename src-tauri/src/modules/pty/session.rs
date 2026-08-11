@@ -274,10 +274,7 @@ pub fn spawn(
                     Ok(n) => {
                         if !logged_first {
                             logged_first = true;
-                            log::info!(
-                                "pty first byte after {}ms",
-                                spawn_at.elapsed().as_millis()
-                            );
+                            log::info!("pty first byte after {}ms", spawn_at.elapsed().as_millis());
                         }
                         agent_detect.process(&buf[..n], |t| {
                             let _ = app_reader.emit(AGENT_EVENT, t.into_signal(id));

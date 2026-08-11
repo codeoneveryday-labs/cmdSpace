@@ -12,7 +12,6 @@ use super::workspace;
 #[cfg(windows)]
 use super::workspace::WorkspaceEnv;
 use serde::Serialize;
-use tauri::Manager;
 use std::{
     collections::{HashMap, VecDeque},
     fs,
@@ -26,6 +25,7 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
+use tauri::Manager;
 
 use tungstenite::{protocol::Role, Error as WebSocketError, Message, WebSocket};
 
@@ -2487,10 +2487,8 @@ mod tests {
 
     #[test]
     fn authorize_remote_cwd_rejects_missing_path() {
-        let missing = std::env::temp_dir().join(format!(
-            "cmdspace-remote-missing-{}",
-            std::process::id()
-        ));
+        let missing =
+            std::env::temp_dir().join(format!("cmdspace-remote-missing-{}", std::process::id()));
         let error = authorize_remote_cwd(missing.to_str()).unwrap_err();
         assert!(error.contains("not accessible"), "got: {error}");
     }

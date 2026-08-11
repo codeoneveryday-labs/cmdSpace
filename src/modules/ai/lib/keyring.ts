@@ -3,32 +3,16 @@ import {
   getProvider,
   KEYRING_SERVICE,
   PROVIDERS,
-  providerSupportsKey,
   type ProviderId,
 } from "../config";
 
 export type ProviderKeys = Record<ProviderId, string | null>;
 
-export const EMPTY_PROVIDER_KEYS: ProviderKeys = {
-  openai: null,
-  anthropic: null,
-  google: null,
-  xai: null,
-  cerebras: null,
-  groq: null,
-  deepseek: null,
-  mistral: null,
-  nvidia: null,
-  openrouter: null,
-  zenmux: null,
-  "openai-compatible": null,
-  lmstudio: null,
-  mlx: null,
-  ollama: null,
-};
+export const EMPTY_PROVIDER_KEYS = Object.fromEntries(
+  PROVIDERS.map((provider) => [provider.id, null]),
+) as ProviderKeys;
 
 export async function getKey(provider: ProviderId): Promise<string | null> {
-  if (!providerSupportsKey(provider)) return null;
   try {
     const v = await invoke<string | null>("secrets_get", {
       service: KEYRING_SERVICE,
@@ -41,9 +25,6 @@ export async function getKey(provider: ProviderId): Promise<string | null> {
 }
 
 export async function setKey(provider: ProviderId, key: string): Promise<void> {
-  if (!providerSupportsKey(provider)) {
-    throw new Error(`${provider} does not use an API key`);
-  }
   const trimmed = key.trim();
   if (!trimmed) throw new Error("API key is empty");
   await invoke("secrets_set", {
@@ -54,7 +35,6 @@ export async function setKey(provider: ProviderId, key: string): Promise<void> {
 }
 
 export async function clearKey(provider: ProviderId): Promise<void> {
-  if (!providerSupportsKey(provider)) return;
   try {
     await invoke("secrets_delete", {
       service: KEYRING_SERVICE,
@@ -67,7 +47,7 @@ export async function clearKey(provider: ProviderId): Promise<void> {
 
 export async function getAllKeys(): Promise<ProviderKeys> {
   const out = { ...EMPTY_PROVIDER_KEYS };
-  const need = PROVIDERS.filter((p) => providerSupportsKey(p.id));
+  const need = PROVIDERS;
   try {
     const results = await invoke<(string | null)[]>("secrets_get_all", {
       service: KEYRING_SERVICE,
@@ -85,8 +65,4 @@ export async function getAllKeys(): Promise<ProviderKeys> {
     for (const [id, v] of entries) out[id] = v;
     return out;
   }
-}
-
-export function hasAnyKey(keys: ProviderKeys): boolean {
-  return PROVIDERS.some((p) => providerSupportsKey(p.id) && !!keys[p.id]);
 }

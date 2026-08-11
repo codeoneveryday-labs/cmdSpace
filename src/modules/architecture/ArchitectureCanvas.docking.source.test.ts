@@ -8,8 +8,33 @@ const source = readFileSync(
   path.join(here, "ArchitectureCanvas.tsx"),
   "utf8",
 );
+const dockingHookSource = readFileSync(
+  path.join(here, "lib/useCanvasDocking.ts"),
+  "utf8",
+);
 
 describe("ArchitectureCanvas terminal docking integration", () => {
+  it("delegates dock layout orchestration to the extracted docking hook", () => {
+    expect(source).toContain(
+      'import { useCanvasDocking } from "./lib/useCanvasDocking";',
+    );
+    expect(source).toContain("const docking = useCanvasDocking({");
+    expect(source).not.toContain(
+      "const [terminalDockDropTarget, setTerminalDockDropTarget]",
+    );
+    expect(source).not.toContain(
+      "const [dockDividerResize, setDockDividerResize]",
+    );
+    expect(source).not.toContain(
+      "const terminalPlacementObstacles = useMemo(() =>",
+    );
+
+    expect(dockingHookSource).toContain("projectTerminalDockLayouts");
+    expect(dockingHookSource).toContain("resolveTerminalDockDrop");
+    expect(dockingHookSource).toContain("updateTerminalDockSplitRatio");
+    expect(dockingHookSource).toContain("terminalDockIndicatorRect");
+  });
+
   it("resizes the outer dock group instead of an individual terminal leaf", () => {
     expect(source).toContain("terminalGroupId?: string");
     expect(source).toContain("updateTerminalGroupBounds");
@@ -39,13 +64,13 @@ describe("ArchitectureCanvas terminal docking integration", () => {
   });
 
   it("batches dock divider resizing to one layout update per animation frame", () => {
-    expect(source).toContain("dockDividerResizeFrameRef");
-    expect(source).toContain("requestAnimationFrame(() =>");
-    expect(source).toContain("flushDockDividerResize");
+    expect(dockingHookSource).toContain("dockDividerResizeFrameRef");
+    expect(dockingHookSource).toContain("requestAnimationFrame(() =>");
+    expect(dockingHookSource).toContain("flushDockDividerResize");
   });
 
   it("pauses Canvas xterm fitting while a dock divider is being dragged", () => {
-    expect(source).toContain("const terminalResizePaused =");
+    expect(dockingHookSource).toContain("const terminalResizePaused =");
     expect(source).toContain("resizePaused={terminalResizePaused}");
   });
 
@@ -83,9 +108,13 @@ describe("ArchitectureCanvas terminal docking integration", () => {
   });
 
   it("uses rendered dock-group bounds as terminal placement obstacles", () => {
-    expect(source).toContain("const terminalPlacementObstacles = useMemo(() =>");
-    expect(source).toContain("const dockedTerminalIds = new Set(");
-    expect(source).toContain("terminalDockGroups.map(({ x, y, width, height }) => ({");
+    expect(dockingHookSource).toContain(
+      "const terminalPlacementObstacles = useMemo(() =>",
+    );
+    expect(dockingHookSource).toContain("const dockedTerminalIds = new Set(");
+    expect(dockingHookSource).toContain(
+      "terminalDockGroups.map(({ x, y, width, height }) => ({",
+    );
     expect(source).toContain("terminalPlacementObstacles,");
   });
 
@@ -93,8 +122,8 @@ describe("ArchitectureCanvas terminal docking integration", () => {
     expect(source).toContain("const isSingleTerminalGroup =");
     expect(source).toContain("if (isSingleTerminalGroup)");
     expect(source).toContain("setTerminalDropPreview({");
-    expect(source).toContain("resolveTerminalDockDrop(");
-    expect(source).toContain("} else if (!drag.terminalGroupId) {");
+    expect(dockingHookSource).toContain("resolveTerminalDockDrop(");
+    expect(source).toContain('terminalDropResult.kind === "detach"');
   });
 
   it("creates header tabs and right splits through the persisted dock model", () => {

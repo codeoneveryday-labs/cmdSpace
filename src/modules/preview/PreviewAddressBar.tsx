@@ -19,6 +19,7 @@ import {
   useState,
 } from "react";
 import { PORT_PRESETS } from "./constants";
+import { normalizePreviewUrl } from "./normalizePreviewUrl";
 
 export type PreviewAddressBarHandle = {
   focus: () => void;
@@ -71,7 +72,7 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
     const [checkingPort, setCheckingPort] = useState<number | null>(null);
 
     const submit = () => {
-      const next = normalizeUrl(draft);
+      const next = normalizePreviewUrl(draft);
       if (!next) {
         setNotice("Enter a URL or pick a port preset.");
         return;
@@ -243,14 +244,4 @@ async function probeUrl(url: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function normalizeUrl(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^localhost(:|\/|$)/i.test(trimmed)) return `http://${trimmed}`;
-  if (/^\d{1,3}(\.\d{1,3}){3}(:|\/|$)/.test(trimmed)) return `http://${trimmed}`;
-  if (/^[\w.-]+\.[a-z]{2,}/i.test(trimmed)) return `https://${trimmed}`;
-  return trimmed;
 }
