@@ -132,6 +132,12 @@ function createSlot(): Slot {
   // ignoring palette writes so the app theme remains authoritative.
   term.parser.registerOscHandler(10, (data) => data !== "?");
   term.parser.registerOscHandler(11, (data) => data !== "?");
+  // xterm's built-in color service still observes OSC color events after
+  // custom parser handlers run. Reapply the app palette after each parsed
+  // write so a CLI cannot leave the pane in a black-on-black state.
+  term.onWriteParsed(() => {
+    term.options.theme = buildTerminalTheme();
+  });
   const fitAddon = new FitAddon();
   const searchAddon = new SearchAddon();
   const serializeAddon = new SerializeAddon();
