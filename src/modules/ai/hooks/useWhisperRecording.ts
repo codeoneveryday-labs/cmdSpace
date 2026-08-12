@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProviderId } from "../config";
 import {
-  createSpeechToTextFormData,
   getSpeechToTextRequest,
+  transcribeSpeechToText,
   type SpeechToTextRequest,
 } from "../lib/speechToText";
 import { hasDetectedVoiceActivity } from "../lib/voiceActivity";
@@ -258,31 +258,13 @@ export function useWhisperRecording({
 
   const transcribeCloudRecording = useCallback(
     async (recording: Blob, request: SpeechToTextRequest) => {
-      const formData = createSpeechToTextFormData(
+      const transcript = await transcribeSpeechToText(
         recording,
         recordingFilename(recording.type),
         request,
         developerVocabularyRef.current,
       );
-
-      const response = await fetch(request.endpoint, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${request.apiKey}` },
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error(`${request.provider} transcription failed (${response.status}).`);
-      }
-      const payload: unknown = await response.json();
-      if (
-        typeof payload !== "object" ||
-        payload === null ||
-        !("text" in payload) ||
-        typeof payload.text !== "string"
-      ) {
-        throw new Error(`${request.provider} transcription returned no text.`);
-      }
-      await finishWithTranscript(payload.text);
+      await finishWithTranscript(transcript);
     },
     [finishWithTranscript],
   );

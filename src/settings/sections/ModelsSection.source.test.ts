@@ -16,6 +16,8 @@ describe("Voice settings section", () => {
     expect(section).toContain("Search speech providers");
     expect(section).toContain("ConfiguredProviderRow");
     expect(section).toContain("CatalogProviderRow");
+    expect(section).toContain("Key saved · unavailable");
+    expect(section).toContain("!model.developmentOnly");
     expect(section).toContain("setSpeechToTextProviderIds");
     expect(section).toContain("setDisabledSpeechToTextProviderIds");
   });
