@@ -32,8 +32,15 @@ import {
   remoteAccessStart,
   remoteAccessStatus,
   remoteAccessStop,
+  remoteDeviceList,
+  remoteDevicePairingStart,
+  remoteDeviceRevoke,
 } from "@/modules/settings/remoteAccess";
-import type { RemoteTunnelState } from "@/modules/settings/remoteAccess";
+import type {
+  RemoteDevicePairingStatus,
+  RemotePairedDeviceStatus,
+  RemoteTunnelState,
+} from "@/modules/settings/remoteAccess";
 import type { ThemePref } from "@/modules/settings/store";
 import {
   TERMINAL_FONT_SIZES,
@@ -147,6 +154,10 @@ export function GeneralSection() {
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const [remoteResetDialogOpen, setRemoteResetDialogOpen] = useState(false);
   const [remoteResetNotice, setRemoteResetNotice] = useState("");
+  const [devicePairing, setDevicePairing] =
+    useState<RemoteDevicePairingStatus | null>(null);
+  const [pairedDevices, setPairedDevices] = useState<RemotePairedDeviceStatus[]>([]);
+  const [devicePairingBusy, setDevicePairingBusy] = useState(false);
   const [copiedRemoteLink, setCopiedRemoteLink] = useState<
     "public" | "lan" | null
   >(null);
@@ -175,6 +186,17 @@ export function GeneralSection() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!remoteEnabledDraft) {
+      setDevicePairing(null);
+      setPairedDevices([]);
+      return;
+    }
+    void refreshPairedDevices().catch((error) => {
+      console.error("paired device list failed", error);
+    });
+  }, [remoteEnabledDraft]);
 
   const onToggleAutostart = async (next: boolean) => {
     try {
@@ -322,6 +344,38 @@ export function GeneralSection() {
     remotePublicUrl,
     remoteBootstrapSecret,
   );
+
+  const refreshPairedDevices = async () => {
+    if (!remoteEnabledDraft) return;
+    setPairedDevices(await remoteDeviceList());
+  };
+
+  const onStartDevicePairing = async () => {
+    if (!remoteEnabledDraft || devicePairingBusy) return;
+    setDevicePairingBusy(true);
+    setRemoteError(null);
+    try {
+      const pairing = await remoteDevicePairingStart();
+      setDevicePairing(pairing);
+      await refreshPairedDevices();
+    } catch (error) {
+      setRemoteError(String(error));
+    } finally {
+      setDevicePairingBusy(false);
+    }
+  };
+
+  const onRevokeDevice = async (deviceId: string) => {
+    if (devicePairingBusy) return;
+    setDevicePairingBusy(true);
+    try {
+      setPairedDevices(await remoteDeviceRevoke(deviceId));
+    } catch (error) {
+      setRemoteError(String(error));
+    } finally {
+      setDevicePairingBusy(false);
+    }
+  };
 
   const copyRemoteLink = async (kind: "public" | "lan", value: string) => {
     if (!navigator.clipboard?.writeText) return;
@@ -716,6 +770,65 @@ export function GeneralSection() {
               Public tunnel unavailable. LAN access still works. {remoteTunnelError}
             </p>
           ) : null}
+
+          <div className="mt-3 border-t border-border/50 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[12px] font-semibold">Native iPhone / iPad</div>
+                <p className="mt-0.5 text-[10.5px] text-muted-foreground">
+                  Create a one-time pairing QR for the native remote app.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!remoteEnabledDraft || devicePairingBusy}
+                onClick={() => void onStartDevicePairing()}
+                className="h-9 rounded-md border border-border/50 bg-background px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {devicePairingBusy ? "Preparing…" : "Pair device"}
+              </button>
+            </div>
+            {devicePairing ? (
+              <div className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] gap-3 rounded-lg border border-border/50 bg-background/70 p-2.5">
+                <div className="grid size-[112px] place-items-center rounded-lg bg-white p-2 shadow-sm" aria-label="Scan to pair native device">
+                  <QRCode
+                    value={`cmdspace://device-pair?url=${encodeURIComponent(devicePairing.url)}&grant=${encodeURIComponent(devicePairing.secret)}`}
+                    size={88}
+                    bgColor="#ffffff"
+                    fgColor="#111827"
+                    level="M"
+                  />
+                </div>
+                <p className="self-center text-[10.5px] leading-5 text-muted-foreground">
+                  This QR expires in 10 minutes and can be used once. Pairing grants terminal access only to this remote runtime.
+                </p>
+              </div>
+            ) : null}
+            {pairedDevices.length > 0 ? (
+              <ul className="mt-3 divide-y divide-border/50 rounded-lg border border-border/50 bg-background/45">
+                {pairedDevices.map((device) => (
+                  <li key={device.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11px] font-medium text-foreground">{device.displayName}</p>
+                      <p className="font-mono text-[10px] text-muted-foreground">{device.id}</p>
+                    </div>
+                    {device.revoked ? (
+                      <span className="text-[10px] text-muted-foreground">Revoked</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={devicePairingBusy}
+                        onClick={() => void onRevokeDevice(device.id)}
+                        className="h-8 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 text-[10.5px] font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
           <div className="mt-3 flex justify-end">
             <button

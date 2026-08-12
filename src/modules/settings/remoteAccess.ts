@@ -18,6 +18,18 @@ export type RemoteAccessStatus = {
   bootstrapSecret?: string;
 };
 
+export type RemoteDevicePairingStatus = {
+  secret: string;
+  expiresAt: number;
+  url: string;
+};
+
+export type RemotePairedDeviceStatus = {
+  id: string;
+  displayName: string;
+  revoked: boolean;
+};
+
 function withRemoteTimeout(request: Promise<RemoteAccessStatus>) {
   return Promise.race([
     request,
@@ -46,4 +58,18 @@ export function remoteAccessResetPassword() {
   return withRemoteTimeout(
     invoke<RemoteAccessStatus>("remote_access_reset_password"),
   );
+}
+
+export function remoteDevicePairingStart(displayName = "cmdSpace iOS device") {
+  return invoke<RemoteDevicePairingStatus>("remote_device_pairing_start", {
+    displayName,
+  });
+}
+
+export function remoteDeviceList() {
+  return invoke<RemotePairedDeviceStatus[]>("remote_device_list");
+}
+
+export function remoteDeviceRevoke(deviceId: string) {
+  return invoke<RemotePairedDeviceStatus[]>("remote_device_revoke", { deviceId });
 }
