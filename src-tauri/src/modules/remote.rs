@@ -2627,10 +2627,12 @@ fn remote_ui_dir(app: &tauri::AppHandle) -> PathBuf {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     #[cfg(debug_assertions)]
     {
-        return development_remote_ui_dir(resource_dir.as_deref(), &cwd);
+        development_remote_ui_dir(resource_dir.as_deref(), &cwd)
     }
     #[cfg(not(debug_assertions))]
-    remote_ui_dir_from(resource_dir.as_deref(), &cwd)
+    {
+        remote_ui_dir_from(resource_dir.as_deref(), &cwd)
+    }
 }
 
 fn development_remote_ui_dir(_resource_dir: Option<&Path>, cwd: &Path) -> PathBuf {
