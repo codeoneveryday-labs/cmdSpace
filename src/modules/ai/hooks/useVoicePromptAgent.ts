@@ -26,6 +26,7 @@ export type SpeechInputStatus =
 type Options = {
   apiKeys: ProviderKeys;
   captureTarget: () => SpeechInputTarget | null;
+  captureVocabulary: () => Promise<string>;
   insertTranscript: (target: SpeechInputTarget, transcript: string) => boolean;
 };
 
@@ -40,6 +41,7 @@ function messageFor(error: unknown): string {
 export function useSpeechToTextInput({
   apiKeys,
   captureTarget,
+  captureVocabulary,
   insertTranscript,
 }: Options) {
   const speechToTextModelId = usePreferencesStore(
@@ -115,8 +117,8 @@ export function useSpeechToTextInput({
     if (clearTimerRef.current !== null) window.clearTimeout(clearTimerRef.current);
     setPhase("idle");
     setMessage(null);
-    await recorder.start();
-  }, [captureTarget, phase, recorder, setError]);
+    await recorder.start(await captureVocabulary());
+  }, [captureTarget, captureVocabulary, phase, recorder, setError]);
 
   useEffect(() => {
     return () => {

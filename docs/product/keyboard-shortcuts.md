@@ -17,11 +17,8 @@ shortcut handler, the new-tab menu, the shortcuts dialog, and Settings.
 - Toggle Space: `Cmd/Ctrl+Shift+V`
 
 Space must first be enabled in Settings -> General. It records a spoken
-request, refines coding tasks with the configured AI model, and inserts an
-editable draft into the terminal pane that was active when recording started.
-It never presses Enter or runs coding drafts automatically. Supported direct
-Space requests can instead open and operate a new pane, such as playing music
-in Music CLI.
+request and inserts its transcript into the terminal pane that was active when
+recording started. It never presses Enter or runs the input automatically.
 
 Users can customize these shortcuts from Settings -> Shortcuts. The new-tab menu
 reflects custom bindings from the same registry.

@@ -176,9 +176,16 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",
     );
+    const speechToText = readFileSync(
+      path.join(here, "../lib/speechToText.ts"),
+      "utf8",
+    );
 
     expect(recordingHook).toContain("getSpeechToTextRequest");
-    expect(recordingHook).toContain('formData.append("model", request.modelId)');
+    expect(recordingHook).toContain("createSpeechToTextFormData");
+    expect(speechToText).toContain('formData.append("model", request.modelId)');
+    expect(speechToText).toContain('formData.append(\n    "prompt",');
+    expect(speechToText).toContain("Từ vựng workspace hiện tại");
     expect(recordingHook).toContain("fetch(request.endpoint");
     expect(recordingHook).toContain("speechToTextModelId: string");
     expect(recordingHook).toContain("apiKeys: Partial<Record<ProviderId, string | null>>");
@@ -191,7 +198,9 @@ describe("FloatingVoiceAgent", () => {
     expect(recordingHook).not.toContain("webkitSpeechRecognition");
     expect(voiceAgent).toContain("speechToTextModelId");
     expect(voiceAgent).toContain("apiKeys,");
-    expect(recordingHook).toContain('formData.append("language", request.language)');
+    expect(speechToText).toContain('formData.append("language", request.language)');
+    expect(voiceAgent).toContain("captureVocabulary");
+    expect(recordingHook).toContain("developerVocabulary");
   });
 
   it("falls back to native speech immediately and does not turn silence into a draft", () => {

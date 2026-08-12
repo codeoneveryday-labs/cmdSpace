@@ -21,6 +21,7 @@ export type FloatingVoiceAgentHandle = { toggle: () => void };
 type Props = {
   apiKeys: ProviderKeys;
   captureTarget: () => SpeechInputTarget | null;
+  captureVocabulary: () => Promise<string>;
   insertTranscript: (target: SpeechInputTarget, transcript: string) => boolean;
 };
 
@@ -39,13 +40,14 @@ const VOICE_SCREEN_EDGE_PX = 12;
 
 export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
   function FloatingVoiceAgent(
-    { apiKeys, captureTarget, insertTranscript },
+    { apiKeys, captureTarget, captureVocabulary, insertTranscript },
     ref,
   ) {
     const enabled = usePreferencesStore((state) => state.floatingVoiceAgentEnabled);
     const { status, message, toggle, audioLevel } = useSpeechToTextInput({
       apiKeys,
       captureTarget,
+      captureVocabulary,
       insertTranscript,
     });
     const label = status === "error" ? message ?? LABELS[status] : LABELS[status];

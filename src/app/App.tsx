@@ -24,6 +24,7 @@ import {
   getAllKeys,
   type ProviderKeys,
 } from "@/modules/ai/lib/keyring";
+import { developerVocabularyFromWorkspace } from "@/modules/ai/lib/developerVocabulary";
 import { native } from "@/modules/ai/lib/native";
 import {
   ArchitectureStack,
@@ -1760,6 +1761,28 @@ export default function App() {
     };
   }, [activeId]);
 
+  const captureVoiceVocabulary = useCallback(async (): Promise<string> => {
+    if (!activeWorkspaceFolder) return "";
+    const folder = activeWorkspaceFolder.replace(/[\\/]+$/, "");
+    const names = ["package.json", "Cargo.toml", "go.mod", "pyproject.toml"];
+    const manifests = await Promise.all(
+      names.map(async (name) => {
+        try {
+          const result = await native.readFile(`${folder}/${name}`);
+          return result.kind === "text" ? { name, content: result.content } : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return developerVocabularyFromWorkspace(
+      activeWorkspaceFolder,
+      manifests.filter(
+        (manifest): manifest is { name: string; content: string } => manifest !== null,
+      ),
+    );
+  }, [activeWorkspaceFolder]);
+
   const insertVoiceDraft = useCallback(
     (target: SpeechInputTarget, draft: string): boolean => {
       const tab = tabsRef.current.find((item) => item.id === target.tabId);
@@ -2551,6 +2574,7 @@ export default function App() {
           <FloatingVoiceAgent
             ref={voiceAgentRef}
             captureTarget={captureVoiceTarget}
+            captureVocabulary={captureVoiceVocabulary}
             apiKeys={apiKeys}
             insertTranscript={insertVoiceDraft}
           />

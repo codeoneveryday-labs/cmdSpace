@@ -32,20 +32,22 @@ can also be toggled with `Cmd/Ctrl+Shift+V`. It captures the current
 non-private terminal pane when recording begins, transcribes with the selected
 shared-key STT provider when one is available, and immediately falls back to
 native speech if that provider fails. It ignores silent microphone sessions,
-then asks the selected chat model to act as Space. It turns a
-spoken coding request into a compact but implementation-ready `ship` task
-brief, or an explicitly requested investigation into a `scout` task brief.
-For non-trivial implementation requests, the brief preserves the named
-technologies, integrations, primary behavior, and grounded checks without
-inventing an unstated language or stack. The brief is written into that
-captured pane without a carriage return, so the user can edit it and explicitly
-press Enter. A supported Space app request can be performed directly; for
-example, asking it to create a music terminal and play a playlist opens Music
-CLI and starts the top result, even when speech recognition omits the wake word.
-Speech without a clear task objective becomes a compact, reviewable draft instead of interrupting the
-voice-to-terminal flow with a follow-up question.
+then writes the transcript into that captured pane without a carriage return.
+The user can edit it and explicitly press Enter; Space does not call a chat
+model, create a task brief, or execute terminal input.
 
-Voice audio, transcript, and generated task brief are transient. cmdSpace does
-not persist them. The raw transcript is never appended to the CLI brief. If
-transcription, task compilation, or the target pane fails, the control shows an
-error and does not insert the raw transcript elsewhere.
+Settings -> Models checks the selected cloud STT provider when it opens. A
+green `STT ready` state means the selected key, model, and transcription
+endpoint accepted an in-memory test recording; an unavailable state explains
+the failure and offers a retry. The check never captures microphone input.
+
+Voice audio and transcript are transient. cmdSpace does not persist them. If
+transcription or the target-pane insertion fails, the control shows an error
+and does not insert the transcript elsewhere.
+
+For supported cloud transcription, Space sends a compact Vietnamese-English
+developer vocabulary to preserve cmdSpace, framework, package, and CLI names.
+It also extracts only safe identifiers (project name, dependencies, and script
+names) from the active workspace's `package.json`, `Cargo.toml`, `go.mod`, and
+`pyproject.toml`; raw manifest content is never sent. This improves recognition
+of technical terms but does not rewrite the resulting transcript.

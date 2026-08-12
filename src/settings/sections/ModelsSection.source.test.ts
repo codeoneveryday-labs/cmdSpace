@@ -19,4 +19,14 @@ describe("Voice settings section", () => {
     expect(section).toContain("setSpeechToTextProviderIds");
     expect(section).toContain("setDisabledSpeechToTextProviderIds");
   });
+
+  it("checks the selected STT provider and exposes a retryable status", () => {
+    const section = readFileSync(sectionPath, "utf8");
+
+    expect(section).toContain("probeSpeechToText");
+    expect(section).toContain("STT ready");
+    expect(section).toContain("Checking STT");
+    expect(section).toContain("Retry");
+    expect(section).toContain('aria-live="polite"');
+  });
 });

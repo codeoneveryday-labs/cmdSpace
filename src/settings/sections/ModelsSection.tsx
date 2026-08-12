@@ -12,6 +12,8 @@ import { getProvider, PROVIDERS, type ProviderId } from "@/modules/ai/config";
 import { clearKey, getAllKeys, setKey } from "@/modules/ai/lib/keyring";
 import {
   DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
+  getSpeechToTextRequest,
+  probeSpeechToText,
   SPEECH_TO_TEXT_MODELS,
 } from "@/modules/ai/lib/speechToText";
 import { usePreferencesStore } from "@/modules/settings/preferences";
@@ -336,6 +338,64 @@ function SpeechToTextRow({
     )!;
   const connected = !!keys[currentModel.provider];
   const providerLabel = getProvider(currentModel.provider).label;
+  const request = useMemo(
+    () => getSpeechToTextRequest(currentModel.modelId, keys),
+    [currentModel.modelId, keys],
+  );
+  const [health, setHealth] = useState<
+    | { state: "checking" }
+    | { state: "ready" }
+    | { state: "unavailable"; message: string }
+  >({ state: "checking" });
+  const [healthCheckAttempt, setHealthCheckAttempt] = useState(0);
+
+  useEffect(() => {
+    let disposed = false;
+    const unavailable = (message: string) => {
+      if (!disposed) setHealth({ state: "unavailable", message });
+    };
+
+    if (currentModel.developmentOnly) {
+      unavailable("This STT provider is not available yet.");
+      return () => {
+        disposed = true;
+      };
+    }
+    if (!configured.has(currentModel.provider) || disabled.has(currentModel.provider)) {
+      unavailable("Enable this provider to check STT.");
+      return () => {
+        disposed = true;
+      };
+    }
+    if (!request) {
+      unavailable(`${providerLabel} needs an API key.`);
+      return () => {
+        disposed = true;
+      };
+    }
+
+    setHealth({ state: "checking" });
+    void probeSpeechToText(request).then(
+      () => {
+        if (!disposed) setHealth({ state: "ready" });
+      },
+      (error: unknown) => {
+        if (!disposed) {
+          setHealth({
+            state: "unavailable",
+            message:
+              error instanceof Error && error.message
+                ? error.message
+                : "Could not reach the STT service.",
+          });
+        }
+      },
+    );
+
+    return () => {
+      disposed = true;
+    };
+  }, [configured, currentModel, disabled, healthCheckAttempt, providerLabel, request]);
 
   return (
     <>
@@ -417,6 +477,32 @@ function SpeechToTextRow({
           {providerLabel} isn&apos;t connected — configure its API key below.
         </p>
       ) : null}
+      <div className="pl-19" aria-live="polite">
+        {health.state === "checking" ? (
+          <p className="text-[10.5px] text-muted-foreground">Checking STT…</p>
+        ) : health.state === "ready" ? (
+          <p className="text-[10.5px] text-emerald-600 dark:text-emerald-300">
+            STT ready — the selected key, model, and transcription endpoint are working.
+          </p>
+        ) : (
+          <div className="flex items-center gap-2">
+            <p className="min-w-0 flex-1 text-[10.5px] text-destructive">
+              STT unavailable — {health.message}
+            </p>
+            {request ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 shrink-0 px-1.5 text-[10.5px]"
+                onClick={() => setHealthCheckAttempt((attempt) => attempt + 1)}
+              >
+                Retry
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </div>
     </>
   );
 }
