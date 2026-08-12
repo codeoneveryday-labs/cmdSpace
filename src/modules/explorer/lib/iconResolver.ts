@@ -1,111 +1,63 @@
-import catppuccinIcons from "@iconify-json/catppuccin/icons.json";
-import { EXT_TO_LANGUAGE_ID } from "./constants";
-import * as fileIconsMod from "./fileIcons";
-import * as folderIconsMod from "./folderIcons";
+import materialTheme from "material-icon-theme/dist/material-icons.json";
 
-const catFileNames = fileIconsMod.fileNames as Record<string, string>;
-const catFileExtensions = fileIconsMod.fileExtensions as Record<string, string>;
-const catLanguageIds = fileIconsMod.languageIds as Record<string, string>;
-const catFolderNames = folderIconsMod.folderNames as Record<string, string>;
-
-type IconifySet = {
-  icons: Record<string, { body: string }>;
-  aliases?: Record<string, { parent: string }>;
-  width?: number;
-  height?: number;
+type MaterialTheme = {
+  file: string;
+  folder: string;
+  folderExpanded: string;
+  fileNames: Record<string, string>;
+  fileExtensions: Record<string, string>;
+  folderNames: Record<string, string>;
+  folderNamesExpanded: Record<string, string>;
+  iconDefinitions: Record<string, { iconPath: string }>;
 };
 
-const cat = catppuccinIcons as unknown as IconifySet;
-const CAT_W = cat.width ?? 16;
-const CAT_H = cat.height ?? 16;
+const theme = materialTheme as MaterialTheme;
+const FILE_NAME_OVERRIDES: Record<string, string> = {
+  "cargo.toml": "rust",
+};
+const iconModules = import.meta.glob(
+  "../../../../node_modules/material-icon-theme/icons/*.svg",
+  { eager: true, import: "default", query: "?url" },
+) as Record<string, string>;
 
-const DEFAULT_FILE = "file";
-const DEFAULT_FOLDER = "folder";
-const DEFAULT_FOLDER_OPEN = "folder-open";
+const iconUrls = new Map(
+  Object.entries(iconModules).map(([path, url]) => [path.split("/").pop()!, url]),
+);
 
-const dataUrlCache = new Map<string, string>();
-
-// Catppuccin's manifest emits names like `folder_src`/`typescript-react`, but
-// the iconify export normalizes everything to hyphenated slugs.
-function toIconifySlug(name: string): string {
-  return name.replace(/_/g, "-");
+function extensionOf(name: string): string {
+  const dot = name.indexOf(".");
+  return dot === -1 || dot === name.length - 1 ? "" : name.slice(dot + 1);
 }
 
-function catBody(iconName: string): string | null {
-  const slug = toIconifySlug(iconName);
-  const direct = cat.icons[slug];
-  if (direct) return direct.body;
-  const alias = cat.aliases?.[slug];
-  if (alias) {
-    const parent = cat.icons[alias.parent];
-    if (parent) return parent.body;
+function urlFor(iconId: string): string | null {
+  const iconPath = theme.iconDefinitions[iconId]?.iconPath;
+  if (!iconPath) return null;
+  return iconUrls.get(iconPath.split("/").pop()!) ?? null;
+}
+
+function fileIconId(name: string): string {
+  if (FILE_NAME_OVERRIDES[name]) return FILE_NAME_OVERRIDES[name];
+  if (theme.fileNames[name]) return theme.fileNames[name];
+
+  let extension = extensionOf(name);
+  while (extension) {
+    if (theme.fileExtensions[extension]) return theme.fileExtensions[extension];
+    const nextDot = extension.indexOf(".");
+    if (nextDot === -1) break;
+    extension = extension.slice(nextDot + 1);
   }
-  return null;
-}
 
-function buildDataUrl(iconName: string): string | null {
-  const cached = dataUrlCache.get(iconName);
-  if (cached !== undefined) return cached || null;
-  const body = catBody(iconName);
-  if (!body) {
-    dataUrlCache.set(iconName, "");
-    return null;
-  }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CAT_W} ${CAT_H}">${body}</svg>`;
-  const url = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-  dataUrlCache.set(iconName, url);
-  return url;
-}
-
-function extOf(name: string): string {
-  const lower = name.toLowerCase();
-  const dot = lower.indexOf(".");
-  if (dot === -1 || dot === lower.length - 1) return "";
-  return lower.slice(dot + 1);
+  return theme.file;
 }
 
 export function fileIconUrl(name: string): string {
-  const lower = name.toLowerCase();
-
-  const byName = catFileNames[lower];
-  if (byName) {
-    const url = buildDataUrl(byName);
-    if (url) return url;
-  }
-
-  let ext = extOf(lower);
-  while (ext) {
-    const iconName = catFileExtensions[ext];
-    if (iconName) {
-      const url = buildDataUrl(iconName);
-      if (url) return url;
-    }
-    const langId = EXT_TO_LANGUAGE_ID[ext];
-    if (langId) {
-      const iconByLang = catLanguageIds[langId];
-      if (iconByLang) {
-        const url = buildDataUrl(iconByLang);
-        if (url) return url;
-      }
-    }
-    const nextDot = ext.indexOf(".");
-    if (nextDot === -1) break;
-    ext = ext.slice(nextDot + 1);
-  }
-
-  return buildDataUrl(DEFAULT_FILE) ?? "";
+  return urlFor(fileIconId(name.toLowerCase())) ?? urlFor(theme.file) ?? "";
 }
 
 export function folderIconUrl(name: string, expanded: boolean): string {
   const lower = name.toLowerCase();
-
-  const mapped = catFolderNames[lower];
-  if (mapped) {
-    const slug = toIconifySlug(mapped);
-    const target = expanded ? `${slug}-open` : slug;
-    const url = buildDataUrl(target);
-    if (url) return url;
-  }
-
-  return buildDataUrl(expanded ? DEFAULT_FOLDER_OPEN : DEFAULT_FOLDER) ?? "";
+  const iconId = expanded
+    ? theme.folderNamesExpanded[lower] ?? theme.folderExpanded
+    : theme.folderNames[lower] ?? theme.folder;
+  return urlFor(iconId) ?? urlFor(expanded ? theme.folderExpanded : theme.folder) ?? "";
 }
