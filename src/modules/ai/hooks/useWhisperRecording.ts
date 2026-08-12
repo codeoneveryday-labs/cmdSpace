@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProviderId } from "../config";
 import {
+  createSpeechToTextFormData,
   getSpeechToTextRequest,
   type SpeechToTextRequest,
 } from "../lib/speechToText";
@@ -78,6 +79,7 @@ export function useWhisperRecording({
   const audioContextRef = useRef<AudioContext | null>(null);
   const unavailableRequestRef = useRef<string | null>(null);
   const silenceTimerRef = useRef<number | null>(null);
+  const developerVocabularyRef = useRef("");
   const cloudRequest = getSpeechToTextRequest(speechToTextModelId, apiKeys);
 
   const clearSilenceStop = useCallback(() => {
@@ -256,17 +258,12 @@ export function useWhisperRecording({
 
   const transcribeCloudRecording = useCallback(
     async (recording: Blob, request: SpeechToTextRequest) => {
-      const formData = new FormData();
-      formData.append(
-        "file",
-        new File([recording], recordingFilename(recording.type), {
-          type: recording.type || "audio/webm",
-        }),
+      const formData = createSpeechToTextFormData(
+        recording,
+        recordingFilename(recording.type),
+        request,
+        developerVocabularyRef.current,
       );
-      if (request.sendModel !== false) {
-        formData.append("model", request.modelId);
-      }
-      if (request.language) formData.append("language", request.language);
 
       const response = await fetch(request.endpoint, {
         method: "POST",
@@ -332,10 +329,11 @@ export function useWhisperRecording({
 
   const stop = useCallback(() => stopCapture(), [stopCapture]);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (developerVocabulary = "") => {
     if (state !== "idle" || startingRef.current) return;
 
     startingRef.current = true;
+    developerVocabularyRef.current = developerVocabulary;
     finishedRef.current = false;
     voiceDetectedRef.current = false;
     clearSilenceStop();

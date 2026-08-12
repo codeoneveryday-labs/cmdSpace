@@ -24,6 +24,8 @@ export type SpeechToTextRequest = SpeechToTextModel & { apiKey: string };
 
 const HEALTH_CHECK_SAMPLE_RATE = 8_000;
 const HEALTH_CHECK_SAMPLE_DURATION_SECONDS = 0.25;
+const DEVELOPER_VOCABULARY_PROMPT =
+  "Đây là câu đọc chính tả của lập trình viên, có thể xen tiếng Việt và English. Giữ nguyên chính tả của thuật ngữ kỹ thuật và tên riêng: cmdSpace, Codex, Claude, OpenAI, Tauri, Rust, Cargo, TypeScript, JavaScript, React, Vite, pnpm, Node.js, xterm.js, CodeMirror, Vitest, Git, GitHub, API, SDK, CLI, terminal, workspace, repository, Docker, Kubernetes, PostgreSQL, SQLite.";
 
 function healthCheckAudio(): File {
   const sampleCount = HEALTH_CHECK_SAMPLE_RATE * HEALTH_CHECK_SAMPLE_DURATION_SECONDS;
@@ -61,6 +63,27 @@ function healthCheckAudio(): File {
   });
 }
 
+/** Builds the common payload for every supported Space cloud transcription. */
+export function createSpeechToTextFormData(
+  recording: Blob,
+  filename: string,
+  request: SpeechToTextRequest,
+  developerVocabulary = "",
+): FormData {
+  const formData = new FormData();
+  formData.append("file", new File([recording], filename, { type: recording.type }));
+  if (request.sendModel !== false) formData.append("model", request.modelId);
+  if (request.language) formData.append("language", request.language);
+  const workspaceVocabulary = developerVocabulary.trim();
+  formData.append(
+    "prompt",
+    workspaceVocabulary
+      ? `${DEVELOPER_VOCABULARY_PROMPT} Từ vựng workspace hiện tại: ${workspaceVocabulary}.`
+      : DEVELOPER_VOCABULARY_PROMPT,
+  );
+  return formData;
+}
+
 /**
  * Verifies the same authenticated multipart endpoint used for a real Space
  * transcription without capturing microphone audio or retaining any content.
@@ -69,10 +92,11 @@ export async function probeSpeechToText(
   request: SpeechToTextRequest,
   fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
 ): Promise<void> {
-  const formData = new FormData();
-  formData.append("file", healthCheckAudio());
-  if (request.sendModel !== false) formData.append("model", request.modelId);
-  if (request.language) formData.append("language", request.language);
+  const formData = createSpeechToTextFormData(
+    healthCheckAudio(),
+    "cmdspace-stt-health-check.wav",
+    request,
+  );
 
   const response = await fetcher(request.endpoint, {
     method: "POST",

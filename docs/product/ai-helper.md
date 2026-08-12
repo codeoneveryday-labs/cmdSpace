@@ -44,3 +44,10 @@ the failure and offers a retry. The check never captures microphone input.
 Voice audio and transcript are transient. cmdSpace does not persist them. If
 transcription or the target-pane insertion fails, the control shows an error
 and does not insert the transcript elsewhere.
+
+For supported cloud transcription, Space sends a compact Vietnamese-English
+developer vocabulary to preserve cmdSpace, framework, package, and CLI names.
+It also extracts only safe identifiers (project name, dependencies, and script
+names) from the active workspace's `package.json`, `Cargo.toml`, `go.mod`, and
+`pyproject.toml`; raw manifest content is never sent. This improves recognition
+of technical terms but does not rewrite the resulting transcript.

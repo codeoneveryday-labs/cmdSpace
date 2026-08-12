@@ -81,6 +81,9 @@ describe("speech-to-text models", () => {
     const form = fetcher.mock.calls[0][1].body as FormData;
     expect(form.get("model")).toBe("gpt-4o-transcribe");
     expect(form.get("file")).toBeInstanceOf(Blob);
+    expect(form.get("prompt")).toContain("cmdSpace");
+    expect(form.get("prompt")).toContain("TypeScript");
+    expect(form.get("prompt")).toContain("tiếng Việt");
   });
 
   it("surfaces the STT endpoint failure", async () => {
