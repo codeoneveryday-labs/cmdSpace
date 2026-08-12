@@ -95,3 +95,39 @@ fn remote_screen_keeps_session_metadata_and_terminal_output() {
     assert_eq!(app.sessions()[0].title, "Project terminal");
     assert_eq!(app.terminal_text(7), Some("ready\\n"));
 }
+
+#[test]
+fn remote_screen_delegates_terminal_intent_to_the_shared_client() {
+    let mut app = TeraxMobileApp::new();
+    app.begin_pairing("ws://192.168.1.2", "device-token")
+        .unwrap();
+    app.socket_opened();
+    app.handle_server_message(ServerMessage::Hello {
+        authenticated: false,
+        runtime_id: 1,
+    });
+    app.handle_server_message(ServerMessage::Authenticated);
+
+    assert_eq!(
+        app.select_session(Some(7)),
+        vec![RemoteClientAction::Send(ClientMessage::Attach {
+            session_id: 7,
+            after: 0,
+        })]
+    );
+    assert_eq!(
+        app.send_input(7, "ls\\r".to_owned()),
+        vec![RemoteClientAction::Send(ClientMessage::Input {
+            session_id: 7,
+            data: "ls\\r".to_owned(),
+        })]
+    );
+    assert_eq!(
+        app.resize(7, 80, 24),
+        vec![RemoteClientAction::Send(ClientMessage::Resize {
+            session_id: 7,
+            cols: 80,
+            rows: 24,
+        })]
+    );
+}

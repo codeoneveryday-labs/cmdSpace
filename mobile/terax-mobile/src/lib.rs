@@ -85,6 +85,26 @@ impl TeraxMobileApp {
         }
     }
 
+    pub fn request_sessions(&mut self) -> Vec<RemoteClientAction> {
+        self.with_client(RemoteClient::request_sessions)
+    }
+
+    pub fn select_session(&mut self, session_id: Option<u64>) -> Vec<RemoteClientAction> {
+        self.with_client(|client| client.select_session(session_id))
+    }
+
+    pub fn send_input(&mut self, session_id: u64, data: String) -> Vec<RemoteClientAction> {
+        self.with_client(|client| client.send_input(session_id, data))
+    }
+
+    pub fn resize(&mut self, session_id: u64, cols: u16, rows: u16) -> Vec<RemoteClientAction> {
+        self.with_client(|client| client.resize(session_id, cols, rows))
+    }
+
+    pub fn close_session(&mut self, session_id: u64) -> Vec<RemoteClientAction> {
+        self.with_client(|client| client.close_session(session_id))
+    }
+
     pub fn handle_server_message(&mut self, message: ServerMessage) -> Vec<RemoteClientAction> {
         let Some(client) = self.client.as_mut() else {
             return Vec::new();
@@ -121,6 +141,13 @@ impl TeraxMobileApp {
             Some(ConnectionState::Authenticating) => "Authenticating secure session",
             Some(ConnectionState::Authenticated) => "Connected",
         }
+    }
+
+    fn with_client(
+        &mut self,
+        operation: impl FnOnce(&mut RemoteClient) -> Vec<RemoteClientAction>,
+    ) -> Vec<RemoteClientAction> {
+        self.client.as_mut().map(operation).unwrap_or_default()
     }
 }
 
