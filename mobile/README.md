@@ -43,3 +43,7 @@ distribution terms are explicitly reviewed.
 endpoint, normalizes it to `/api/remote/ws`, does not persist the token, and
 surfaces Pair device, Connecting, and Remote screens for a future platform UI
 adapter to render.
+
+The Remote state also retains session metadata and ordered terminal output from
+the shared client actions. The future UI adapter should render these values; it
+must not recreate protocol sequencing or output de-duplication.

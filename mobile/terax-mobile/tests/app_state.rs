@@ -64,3 +64,34 @@ fn socket_loss_returns_an_active_remote_screen_to_connecting() {
     assert_eq!(app.screen(), MobileScreen::Connecting);
     assert_eq!(app.connection_status(), "Connect a desktop to begin");
 }
+
+#[test]
+fn remote_screen_keeps_session_metadata_and_terminal_output() {
+    let mut app = TeraxMobileApp::new();
+    app.begin_pairing("ws://192.168.1.2", "device-token")
+        .unwrap();
+    app.socket_opened();
+    app.handle_server_message(ServerMessage::Hello {
+        authenticated: false,
+        runtime_id: 1,
+    });
+    app.handle_server_message(ServerMessage::Authenticated);
+
+    app.handle_server_message(ServerMessage::Sessions {
+        sessions: vec![terax_remote_protocol::RemoteProtocolSession {
+            id: 7,
+            title: "Project terminal".to_owned(),
+            cwd: Some("/project".to_owned()),
+            agent: None,
+            attached: true,
+        }],
+    });
+    app.handle_server_message(ServerMessage::Output {
+        session_id: 7,
+        sequence: 1,
+        data: "ready\\n".to_owned(),
+    });
+
+    assert_eq!(app.sessions()[0].title, "Project terminal");
+    assert_eq!(app.terminal_text(7), Some("ready\\n"));
+}
