@@ -8,7 +8,7 @@ selection, but it owns neither a network socket nor a terminal emulator.
 
 ## Boundaries
 
-`terax-remote-client` depends only on `terax-remote-protocol`. It turns user
+`cmdspace-remote-client` depends only on `cmdspace-remote-protocol`. It turns user
 intent and received `ServerMessage` values into explicit `RemoteClientAction`
 values. A future platform adapter is responsible for executing `Send`
 actions on its WebSocket, persisting its token in a device secure store, and

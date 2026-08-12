@@ -5,6 +5,7 @@
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 pub const REMOTE_PROTOCOL_VERSION: u16 = 2;
+pub const REMOTE_DEVICE_PROTOCOL_VERSION: u16 = 3;
 
 #[derive(Default)]
 pub struct Utf8StreamDecoder {
@@ -120,6 +121,56 @@ pub enum ServerMessage {
     Pong,
 }
 
+/// Device-only messages. They deliberately use a separate v3 envelope so the
+/// browser v2 protocol cannot accidentally interpret a native pairing request.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum DeviceClientMessage {
+    PairDevice {
+        #[serde(rename = "grantSecret")]
+        grant_secret: String,
+        #[serde(rename = "deviceName")]
+        device_name: String,
+        #[serde(rename = "publicKey")]
+        public_key: String,
+        proof: String,
+    },
+    AuthenticateDevice {
+        #[serde(rename = "deviceId")]
+        device_id: String,
+        proof: String,
+    },
+    Command {
+        command: ClientMessage,
+    },
+    Ping,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum DeviceServerMessage {
+    PairingChallenge {
+        challenge: String,
+    },
+    DeviceAuthenticated {
+        #[serde(rename = "deviceId")]
+        device_id: String,
+    },
+    SnapshotRequired {
+        #[serde(rename = "sessionId")]
+        session_id: u64,
+    },
+    Event {
+        event: ServerMessage,
+    },
+    Error {
+        code: String,
+        message: String,
+        retryable: bool,
+    },
+    Pong,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteProtocolSession {
@@ -142,6 +193,18 @@ pub struct RemoteServerEnvelope {
     pub message: ServerMessage,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RemoteDeviceClientEnvelope {
+    pub version: u16,
+    pub message: DeviceClientMessage,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RemoteDeviceServerEnvelope {
+    pub version: u16,
+    pub message: DeviceServerMessage,
+}
+
 impl RemoteClientEnvelope {
     pub fn new(message: ClientMessage) -> Self {
         Self {
@@ -155,6 +218,24 @@ impl RemoteServerEnvelope {
     pub fn new(message: ServerMessage) -> Self {
         Self {
             version: REMOTE_PROTOCOL_VERSION,
+            message,
+        }
+    }
+}
+
+impl RemoteDeviceClientEnvelope {
+    pub fn new(message: DeviceClientMessage) -> Self {
+        Self {
+            version: REMOTE_DEVICE_PROTOCOL_VERSION,
+            message,
+        }
+    }
+}
+
+impl RemoteDeviceServerEnvelope {
+    pub fn new(message: DeviceServerMessage) -> Self {
+        Self {
+            version: REMOTE_DEVICE_PROTOCOL_VERSION,
             message,
         }
     }
@@ -196,6 +277,44 @@ impl<'de> Deserialize<'de> for RemoteServerEnvelope {
     }
 }
 
+impl Serialize for RemoteDeviceClientEnvelope {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serialize_envelope(self.version, &self.message, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for RemoteDeviceClientEnvelope {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserialize_envelope_for_version(deserializer, REMOTE_DEVICE_PROTOCOL_VERSION)
+            .map(|(version, message)| Self { version, message })
+    }
+}
+
+impl Serialize for RemoteDeviceServerEnvelope {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serialize_envelope(self.version, &self.message, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for RemoteDeviceServerEnvelope {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserialize_envelope_for_version(deserializer, REMOTE_DEVICE_PROTOCOL_VERSION)
+            .map(|(version, message)| Self { version, message })
+    }
+}
+
 fn serialize_envelope<S, M>(version: u16, message: &M, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -215,18 +334,29 @@ where
     D: Deserializer<'de>,
     M: DeserializeOwned,
 {
-    #[derive(Deserialize)]
-    struct RawEnvelope<M> {
-        version: u16,
-        message: M,
-    }
+    deserialize_envelope_for_version(deserializer, REMOTE_PROTOCOL_VERSION)
+}
 
+fn deserialize_envelope_for_version<'de, D, M>(
+    deserializer: D,
+    expected_version: u16,
+) -> Result<(u16, M), D::Error>
+where
+    D: Deserializer<'de>,
+    M: DeserializeOwned,
+{
     let raw = RawEnvelope::<M>::deserialize(deserializer)?;
-    if raw.version != REMOTE_PROTOCOL_VERSION {
+    if raw.version != expected_version {
         return Err(serde::de::Error::custom(format!(
             "unsupported remote protocol version: {}",
             raw.version
         )));
     }
     Ok((raw.version, raw.message))
+}
+
+#[derive(Deserialize)]
+struct RawEnvelope<M> {
+    version: u16,
+    message: M,
 }

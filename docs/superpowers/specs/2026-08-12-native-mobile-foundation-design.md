@@ -8,7 +8,7 @@ iOS/Android clients share the same authoritative protocol.
 
 ## Seams
 
-`terax-remote-protocol` owns protocol versioning, wire messages, session
+`cmdspace-remote-protocol` owns protocol versioning, wire messages, session
 metadata, envelopes, and UTF-8 stream decoding. It depends only on `serde`.
 The Tauri remote server remains the host adapter: it owns PTYs, authentication,
 WebSocket transport, and storage. Mobile will be a second adapter later.

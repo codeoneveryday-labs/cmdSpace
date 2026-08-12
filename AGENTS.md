@@ -41,7 +41,7 @@ fallback-only integrations as fully supported.
   ship. Read it once before working.
 - [`CMDSPACE.md`](CMDSPACE.md) — the authoritative living architecture doc.
 
-## Terax-AI Project Guidance
+## cmdSpace Project Guidance
 
 - The desktop app is React 19 + Vite + TypeScript under `src/`; native and
   privileged behavior lives in the Tauri/Rust crate under `src-tauri/`. Keep

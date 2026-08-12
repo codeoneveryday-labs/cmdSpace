@@ -49,11 +49,11 @@ caused real friction during onboarding.
 
 **Landing order:** second — cheap, removes a known wrong-source trap.
 
-### B3 (P2) — Branding drift: `cmdSpace` vs `Terax-AI`
+### B3 (P2) — Branding drift: `cmdSpace` vs legacy names
 
-**Why blocking:** Repo dir is `terax-ai`, product/bundle/identifier say
-`cmdSpace`, AGENTS.md says "Terax-AI Project Guidance". Every new contributor
-spends cycles reconciling the mismatch, and release metadata could drift.
+**Why blocking:** Product, bundle, identifier, and source must consistently say
+`cmdSpace`. Any legacy identifier makes contributors spend cycles reconciling
+the mismatch and can cause release metadata drift.
 
 **Proposed fix:**
 - Decide the canonical name (product: cmdSpace) and document it in

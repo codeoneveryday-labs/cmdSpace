@@ -1,0 +1,35 @@
+name: CmdSpaceMobile
+options:
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  CmdSpaceMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: CmdSpaceMobileApp
+        excludes:
+          - Assets.xcassets
+      - path: ../../public/logo.png
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tranhoangpich.cmdspace.mobile
+        PRODUCT_NAME: cmdSpace
+        SWIFT_VERSION: "5.10"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: cmdSpace
+        INFOPLIST_KEY_NSCameraUsageDescription: Scan a cmdSpace desktop pairing QR code.
+    dependencies:
+      - target: CmdSpaceMobileCore
+  CmdSpaceMobileCore:
+    type: framework
+    platform: iOS
+    sources:
+      - path: CmdSpaceMobileCore/Sources/CmdSpaceMobileCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.tranhoangpich.cmdspace.mobile.core
+        SWIFT_VERSION: "5.10"
+        DEFINES_MODULE: YES
+        GENERATE_INFOPLIST_FILE: YES

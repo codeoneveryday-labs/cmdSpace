@@ -182,6 +182,9 @@ macro_rules! cmdspace_commands {
             remote::remote_access_start,
             remote::remote_access_stop,
             remote::remote_access_reset_password,
+            remote::remote_device_pairing_start,
+            remote::remote_device_list,
+            remote::remote_device_revoke,
             // Speech
             speech::speech_supported_locales,
             speech::speech_start,

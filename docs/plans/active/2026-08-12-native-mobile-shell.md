@@ -2,13 +2,13 @@
 
 **Outcome:** Establish a standalone native application workspace without coupling it to desktop Tauri or unapproved third-party UI source.
 
-**Approach:** Keep `terax-mobile` as a small Terax-authored app-state crate. The shared Rust remote client remains the application state source; UI, platform transport, and secure storage remain isolated until an approved dependency is chosen.
+**Approach:** Keep `cmdspace-mobile` as a small cmdSpace-authored app-state crate. The shared Rust remote client remains the application state source; UI, platform transport, and secure storage remain isolated until an approved dependency is chosen.
 
-**Proof:** `cargo test --manifest-path mobile/Cargo.toml -p terax-mobile`, focused client/protocol tests, and the existing desktop build.
+**Proof:** `cargo test --manifest-path mobile/Cargo.toml -p cmdspace-mobile`, focused client/protocol tests, and the existing desktop build.
 
 ## Progress
 
-- [x] Add the standalone Terax app-state foundation.
+- [x] Add the standalone cmdSpace app-state foundation.
 - [x] Remove external UI source and its associated dependency lock data.
 - [ ] Select an independently reviewed UI/runtime dependency before building platform adapters.
 
