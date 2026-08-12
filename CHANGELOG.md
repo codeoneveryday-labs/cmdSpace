@@ -3,6 +3,29 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.88] - 2026-08-12
+
+### Added
+
+- VS Code-style SVG icons in the file explorer for common code, configuration,
+  and document file types.
+- A provider-specific Space speech-to-text readiness check and bounded
+  workspace terminology sent with cloud transcription requests.
+
+### Changed
+
+- Polished the native iOS pairing screen: the Settings control stays in the
+  top-right corner, the GitHub destination uses its official vector mark, and
+  obsolete pairing copy is removed.
+
+### Known limitations
+
+- The iOS source is ready for local device testing, but a physical-device
+  pairing pass and Apple signing/archive setup remain required before TestFlight
+  upload.
+- Live cloud STT readiness and Vietnamese-English transcription still require a
+  user-configured provider key and manual device test.
+
 ## [0.7.87] - 2026-08-12
 
 ### Added
@@ -53,5 +76,6 @@ All notable changes to cmdSpace are documented in this file. The format follows
   and persisted canvas layout.
 
 [0.7.87]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.86...v0.7.87
+[0.7.88]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.87...v0.7.88
 [0.7.85]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.84...v0.7.85
 [0.7.80]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.79...v0.7.80
