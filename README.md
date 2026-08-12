@@ -72,8 +72,8 @@ No account is required. There is no telemetry. AI can use your own provider keys
 ### Space voice input
 
 - Space is available across normal workspaces, Canvas, and terminal surfaces.
-- Use Space to invoke supported direct actions. For example, ask it to create a music terminal and play a playlist; cmdSpace opens Music CLI and starts the first result, even if speech recognition omits the wake word.
-- Automatic language detection supports Vietnamese, English, and other spoken languages without a manual language selector.
+- Space transcribes a spoken request and inserts the transcript into the terminal that was active when recording began. It never presses Enter or runs the input automatically.
+- The selected transcription provider determines language recognition. cmdSpace does not require a manual language selector for the default cloud transcription flow.
 - Voice can remain active while a CLI agent is running.
 - The voice control is draggable and stays above the workspace UI.
 

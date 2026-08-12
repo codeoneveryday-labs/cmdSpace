@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
   getSpeechToTextRequest,
+  probeSpeechToText,
   SPEECH_TO_TEXT_MODELS,
 } from "./speechToText";
 
@@ -60,5 +61,38 @@ describe("speech-to-text models", () => {
 
   it("does not create a cloud request without the selected provider key", () => {
     expect(getSpeechToTextRequest("gpt-4o-transcribe", {})).toBeNull();
+  });
+
+  it("probes the selected STT endpoint with an in-memory audio sample", async () => {
+    const request = getSpeechToTextRequest("gpt-4o-transcribe", {
+      openai: "test-key",
+    });
+    const fetcher = vi.fn().mockResolvedValue(new Response('{"text":""}'));
+
+    await expect(probeSpeechToText(request!, fetcher)).resolves.toBeUndefined();
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/audio/transcriptions",
+      expect.objectContaining({
+        method: "POST",
+        headers: { Authorization: "Bearer test-key" },
+      }),
+    );
+    const form = fetcher.mock.calls[0][1].body as FormData;
+    expect(form.get("model")).toBe("gpt-4o-transcribe");
+    expect(form.get("file")).toBeInstanceOf(Blob);
+  });
+
+  it("surfaces the STT endpoint failure", async () => {
+    const request = getSpeechToTextRequest("gpt-4o-transcribe", {
+      openai: "test-key",
+    });
+
+    await expect(
+      probeSpeechToText(
+        request!,
+        vi.fn().mockResolvedValue(new Response("", { status: 401 })),
+      ),
+    ).rejects.toThrow("OpenAI transcription check failed (401).");
   });
 });
