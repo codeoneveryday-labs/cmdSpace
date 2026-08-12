@@ -2,7 +2,6 @@ import {
   ArrowRight01Icon,
   File01Icon,
   Folder01Icon,
-  Mic01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -14,7 +13,6 @@ import {
   type FormEvent,
 } from "react";
 
-import { RemoteKeyboard } from "./RemoteKeyboard";
 import { RemoteTerminal } from "./RemoteTerminal";
 import {
   RemoteTerminalClient,
@@ -23,39 +21,6 @@ import {
 
 const REMOTE_TOKEN_STORAGE_KEY = "cmdspace.remote.token";
 const REMOTE_CWD_STORAGE_KEY = "cmdspace.remote.cwd";
-
-type BrowserSpeechRecognitionResult = {
-  0?: { transcript?: string };
-  isFinal?: boolean;
-};
-
-type BrowserSpeechRecognitionEvent = Event & {
-  resultIndex: number;
-  results: ArrayLike<BrowserSpeechRecognitionResult>;
-};
-
-type BrowserSpeechRecognitionErrorEvent = Event & {
-  error: string;
-};
-
-type BrowserSpeechRecognition = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onend: (() => void) | null;
-  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
-  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
-  abort: () => void;
-  start: () => void;
-  stop: () => void;
-};
-
-type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
-
-type BrowserWindow = Window & {
-  SpeechRecognition?: BrowserSpeechRecognitionConstructor;
-  webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
-};
 
 type RemoteFolder = {
   name: string;
@@ -87,19 +52,6 @@ function remoteFolderName(path: string): string {
   const normalized = path.replace(/\/+$/, "");
   const segments = normalized.split("/").filter(Boolean);
   return segments[segments.length - 1] ?? path;
-}
-
-function getSpeechRecognitionConstructor(): BrowserSpeechRecognitionConstructor | null {
-  const browserWindow = window as BrowserWindow;
-  return browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition ?? null;
-}
-
-function speechRecognitionErrorMessage(error: string): string {
-  if (error === "not-allowed" || error === "service-not-allowed") {
-    return "Allow microphone access in your browser, then try again.";
-  }
-  if (error === "no-speech") return "No speech detected. Try again.";
-  return "Voice input failed. Try again.";
 }
 
 function readRemoteBootstrapSecret(): string {
@@ -327,14 +279,27 @@ function AuthenticatedRemoteApp({
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [screen, setScreen] = useState<"sessions" | "terminal">("terminal");
-  const [keyboardVisible, setKeyboardVisible] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches,
+  const [viewportHeight, setViewportHeight] = useState(() =>
+    typeof window === "undefined"
+      ? 0
+      : Math.round(window.visualViewport?.height ?? window.innerHeight),
   );
-  const [voiceInput, setVoiceInput] = useState({
-    listening: false,
-    error: null as string | null,
-  });
-  const speechRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const updateHeight = () =>
+      setViewportHeight(Math.round(viewport?.height ?? window.innerHeight));
+
+    updateHeight();
+    viewport?.addEventListener("resize", updateHeight);
+    viewport?.addEventListener("scroll", updateHeight);
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      viewport?.removeEventListener("resize", updateHeight);
+      viewport?.removeEventListener("scroll", updateHeight);
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, []);
+
   useEffect(() => {
     if (!remoteCwd) return;
     const next = new RemoteTerminalClient({ token: authToken, onUnauthorized });
@@ -389,67 +354,6 @@ function AuthenticatedRemoteApp({
     if (client && activeSessionId !== null) client.sendInput(activeSessionId, value);
   }, [activeSessionId, client]);
 
-  useEffect(() => () => {
-    const recognition = speechRecognitionRef.current;
-    speechRecognitionRef.current = null;
-    recognition?.abort();
-  }, []);
-
-  const toggleVoiceInput = useCallback(() => {
-    if (speechRecognitionRef.current) {
-      speechRecognitionRef.current.stop();
-      return;
-    }
-
-    const SpeechRecognition = getSpeechRecognitionConstructor();
-    if (!SpeechRecognition) {
-      setVoiceInput({ listening: false, error: "Voice input is not supported by this browser." });
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    let pendingTranscript = "";
-    let recognitionFailed = false;
-    let transcriptCommitted = false;
-    const commitTranscript = () => {
-      if (transcriptCommitted || !pendingTranscript) return;
-      transcriptCommitted = true;
-      sendKey(pendingTranscript);
-    };
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = navigator.language || "en-US";
-    recognition.onresult = (event) => {
-      const results = Array.from(event.results);
-      const transcript = results
-        .map((result) => result[0]?.transcript ?? "")
-        .join("")
-        .trim();
-      if (!transcript) return;
-      pendingTranscript = transcript;
-      if (results.some((result) => result.isFinal)) commitTranscript();
-    };
-    recognition.onerror = (event) => {
-      recognitionFailed = true;
-      setVoiceInput({ listening: false, error: speechRecognitionErrorMessage(event.error) });
-    };
-    recognition.onend = () => {
-      if (speechRecognitionRef.current === recognition) {
-        if (!recognitionFailed) commitTranscript();
-        speechRecognitionRef.current = null;
-        setVoiceInput((current) => ({ ...current, listening: false }));
-      }
-    };
-    speechRecognitionRef.current = recognition;
-    setVoiceInput({ listening: true, error: null });
-    try {
-      recognition.start();
-    } catch {
-      speechRecognitionRef.current = null;
-      setVoiceInput({ listening: false, error: "Voice input could not start. Try again." });
-    }
-  }, [sendKey]);
-
   if (!remoteCwd) {
     return (
       <RemoteFolderPicker
@@ -466,7 +370,7 @@ function AuthenticatedRemoteApp({
   const activeSession = cwdSessions.find((session) => session.id === activeSessionId) ?? null;
 
   return (
-    <main className="remote-shell">
+    <main className="remote-shell" style={{ height: `${viewportHeight}px` }}>
       <header className="remote-topbar">
         <div className="remote-traffic-lights" aria-hidden="true">
           <span />
@@ -479,22 +383,6 @@ function AuthenticatedRemoteApp({
         </button>
         <nav className="remote-topbar-actions" aria-label="Remote terminal controls">
           <button type="button" aria-label="Sessions" onClick={() => setScreen("sessions")}>▦</button>
-          <button
-            type="button"
-            aria-label="Toggle keyboard"
-            data-active={keyboardVisible || undefined}
-            onClick={() => setKeyboardVisible((value) => !value)}
-          >⌨</button>
-          <button
-            type="button"
-            aria-label={voiceInput.listening ? "Stop voice input" : "Start voice input"}
-            aria-pressed={voiceInput.listening}
-            title={voiceInput.error ?? "Speak to type into the terminal"}
-            data-active={voiceInput.listening || undefined}
-            data-error={voiceInput.error || undefined}
-            disabled={!client || activeSessionId === null}
-            onClick={toggleVoiceInput}
-          ><HugeiconsIcon icon={Mic01Icon} size={18} /></button>
           <button
             type="button"
             aria-label="Change folder"
@@ -520,10 +408,12 @@ function AuthenticatedRemoteApp({
         />
       ) : (
         <section className="remote-terminal-screen">
-          {voiceInput.error ? <p className="remote-voice-error" role="status">{voiceInput.error}</p> : null}
           <div className="remote-terminal-stage">
             {client && activeSession ? (
-              <RemoteTerminal client={client} sessionId={activeSession.id} />
+              <RemoteTerminal
+                client={client}
+                sessionId={activeSession.id}
+              />
             ) : (
               <div className="remote-terminal-loading">
                 <div>Starting terminal…</div>
@@ -538,16 +428,21 @@ function AuthenticatedRemoteApp({
             )}
           </div>
           <div className="remote-context-strip" aria-label="Terminal shortcuts">
-            <Shortcut label="esc" value="\u001b" onSend={sendKey} danger />
-            <Shortcut label="F1" value="\u001bOP" onSend={sendKey} />
-            <Shortcut label="F2" value="\u001bOQ" onSend={sendKey} />
-            <Shortcut label="F3" value="\u001bOR" onSend={sendKey} />
-            <Shortcut label="F5" value="\u001b[15~" onSend={sendKey} />
-            <Shortcut label="ctrl-c" value="\u0003" onSend={sendKey} />
+            <Shortcut label="esc" value={"\u001b"} onSend={sendKey} danger />
+            <Shortcut label="tab" value={"\t"} onSend={sendKey} />
+            <Shortcut label="←" value={"\u001b[D"} onSend={sendKey} />
+            <Shortcut label="↓" value={"\u001b[B"} onSend={sendKey} />
+            <Shortcut label="↑" value={"\u001b[A"} onSend={sendKey} />
+            <Shortcut label="→" value={"\u001b[C"} onSend={sendKey} />
+            <Shortcut label="↵" value={"\r"} onSend={sendKey} />
+            <Shortcut label="F1" value={"\u001bOP"} onSend={sendKey} />
+            <Shortcut label="F2" value={"\u001bOQ"} onSend={sendKey} />
+            <Shortcut label="F3" value={"\u001bOR"} onSend={sendKey} />
+            <Shortcut label="F5" value={"\u001b[15~"} onSend={sendKey} />
+            <Shortcut label="ctrl-c" value={"\u0003"} onSend={sendKey} />
             <Shortcut label="commit" value="git commit " onSend={sendKey} />
             <Shortcut label="diff" value="git diff\r" onSend={sendKey} />
           </div>
-          {keyboardVisible ? <RemoteKeyboard onKey={sendKey} /> : null}
         </section>
       )}
     </main>
@@ -771,8 +666,6 @@ function Shortcut({
     <button
       type="button"
       data-danger={danger || undefined}
-      onTouchStart={trigger}
-      onPointerDown={trigger}
       onClick={trigger}
     >
       {label}
