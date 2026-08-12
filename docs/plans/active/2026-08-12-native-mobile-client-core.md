@@ -4,7 +4,7 @@
 
 **Context:** `crates/terax-remote-protocol` is the shared v2 protocol contract. The desktop remote web client already proves desired lifecycle behavior: authenticate after hello, attach one selected session, deduplicate output, and reattach from sequence zero after a host runtime restart.
 
-**Approach:** Add one dependency-free Rust crate, `terax-remote-client`. It returns explicit actions for a later GPUI/WebSocket adapter rather than performing network or platform work internally.
+**Approach:** Add one dependency-free Rust crate, `terax-remote-client`. It returns explicit actions for a later platform/WebSocket adapter rather than performing network or platform work internally.
 
 **Risks and recovery:** This is additive and does not alter the desktop remote host. Reverting its commit removes the new client crate without changing the protocol crate or Tauri dependency graph.
 
@@ -12,7 +12,7 @@
 
 - [x] Add lifecycle tests for the pure client controller.
 - [x] Implement controller state and actions.
-- [x] Document the GPUI adapter contract.
+- [x] Document the platform adapter contract.
 - [x] Validate the new crate, existing protocol consumers, and desktop build.
 
 ## Decisions

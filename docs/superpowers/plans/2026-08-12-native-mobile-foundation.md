@@ -76,7 +76,7 @@ Expected: PASS.
 - [x] **Step 1: Record the mobile crate contract**
 
 ```text
-The future GPUI mobile adapter depends on terax-remote-protocol and never on src-tauri.
+The future mobile adapter depends on terax-remote-protocol and never on src-tauri.
 ```
 
 - [x] **Step 2: Run complete validation**

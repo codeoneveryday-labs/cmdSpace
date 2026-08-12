@@ -36,3 +36,10 @@ cargo test --manifest-path mobile/Cargo.toml -p terax-mobile
 
 A UI/runtime dependency will be selected only after its license and
 distribution terms are explicitly reviewed.
+
+## Current pairing state
+
+`terax-mobile` owns the pairing flow: it validates a `ws://` or `wss://`
+endpoint, normalizes it to `/api/remote/ws`, does not persist the token, and
+surfaces Pair device, Connecting, and Remote screens for a future platform UI
+adapter to render.

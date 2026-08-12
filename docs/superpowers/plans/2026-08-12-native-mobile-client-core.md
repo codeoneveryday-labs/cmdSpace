@@ -4,7 +4,7 @@
 
 **Goal:** Build a platform-neutral Rust state core for the future native Terax remote app.
 
-**Architecture:** `terax-remote-client` converts protocol messages and user intents into explicit actions. A future GPUI/WebSocket adapter executes `Send` actions and renders `TerminalData`; it never embeds transport or UI concerns in the controller.
+**Architecture:** `terax-remote-client` converts protocol messages and user intents into explicit actions. A future platform/WebSocket adapter executes `Send` actions and renders `TerminalData`; it never embeds transport or UI concerns in the controller.
 
 **Tech Stack:** Rust 2021, `terax-remote-protocol`, standard library collections.
 
@@ -60,7 +60,7 @@ Expected: PASS.
 - Modify: `mobile/README.md`
 - Modify: `docs/plans/active/2026-08-12-native-mobile-client-core.md`
 
-- [x] **Step 1: Describe GPUI adapter responsibilities**
+- [x] **Step 1: Describe platform adapter responsibilities**
 
 ```text
 The adapter delivers decoded ServerMessage values to RemoteClient and executes Send actions over one WebSocket.

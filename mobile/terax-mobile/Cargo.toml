@@ -10,3 +10,4 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
 terax-remote-client = { path = "../../crates/terax-remote-client" }
+terax-remote-protocol = { path = "../../crates/terax-remote-protocol" }

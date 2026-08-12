@@ -66,6 +66,7 @@ name = "terax-mobile"
 version = "0.1.0"
 dependencies = [
  "terax-remote-client",
+ "terax-remote-protocol",
 ]
 
 [[package]]

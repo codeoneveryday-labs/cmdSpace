@@ -1,0 +1,66 @@
+use terax_mobile::{MobileScreen, TeraxMobileApp};
+use terax_remote_client::RemoteClientAction;
+use terax_remote_protocol::{ClientMessage, ServerMessage};
+
+#[test]
+fn new_install_starts_on_the_pairing_screen() {
+    let app = TeraxMobileApp::new();
+
+    assert_eq!(app.screen(), MobileScreen::PairDevice);
+    assert_eq!(app.connection_status(), "Connect a desktop to begin");
+}
+
+#[test]
+fn pairing_requires_a_websocket_endpoint_and_device_token() {
+    let mut app = TeraxMobileApp::new();
+
+    assert!(app.begin_pairing("https://desktop.local", "token").is_err());
+    assert!(app.begin_pairing("wss://desktop.local", "").is_err());
+    assert_eq!(app.screen(), MobileScreen::PairDevice);
+}
+
+#[test]
+fn pairing_normalizes_endpoint_and_reaches_remote_after_authentication() {
+    let mut app = TeraxMobileApp::new();
+
+    app.begin_pairing("wss://desktop.local/", "device-token")
+        .unwrap();
+    assert_eq!(app.endpoint(), Some("wss://desktop.local/api/remote/ws"));
+    assert_eq!(app.screen(), MobileScreen::Connecting);
+
+    app.socket_opened();
+    assert_eq!(
+        app.handle_server_message(ServerMessage::Hello {
+            authenticated: false,
+            runtime_id: 1,
+        }),
+        vec![RemoteClientAction::Send(ClientMessage::Auth {
+            token: "device-token".to_owned(),
+        })]
+    );
+    assert_eq!(app.screen(), MobileScreen::Connecting);
+
+    assert!(app
+        .handle_server_message(ServerMessage::Authenticated)
+        .is_empty());
+    assert_eq!(app.screen(), MobileScreen::Remote);
+    assert_eq!(app.connection_status(), "Connected");
+}
+
+#[test]
+fn socket_loss_returns_an_active_remote_screen_to_connecting() {
+    let mut app = TeraxMobileApp::new();
+    app.begin_pairing("ws://192.168.1.2", "device-token")
+        .unwrap();
+    app.socket_opened();
+    app.handle_server_message(ServerMessage::Hello {
+        authenticated: false,
+        runtime_id: 1,
+    });
+    app.handle_server_message(ServerMessage::Authenticated);
+
+    app.socket_lost();
+
+    assert_eq!(app.screen(), MobileScreen::Connecting);
+    assert_eq!(app.connection_status(), "Connect a desktop to begin");
+}
