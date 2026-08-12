@@ -37,6 +37,11 @@ cargo test --manifest-path mobile/Cargo.toml -p terax-mobile
 A UI/runtime dependency will be selected only after its license and
 distribution terms are explicitly reviewed.
 
+For the first iOS artifact and app-host path, see
+[`docs/mobile/ios-first-build.md`](../docs/mobile/ios-first-build.md). The
+runbook distinguishes the Rust library that can be built now from the iOS host,
+Rust bridge, and signing work that are still required for an installable app.
+
 ## Current pairing state
 
 `terax-mobile` owns the pairing flow: it validates a `ws://` or `wss://`
