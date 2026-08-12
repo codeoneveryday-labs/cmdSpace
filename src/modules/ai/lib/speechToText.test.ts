@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createSpeechToTextHttpRequest,
   DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
   getSpeechToTextRequest,
   probeSpeechToText,
   SPEECH_TO_TEXT_MODELS,
+  transcribeSpeechToText,
 } from "./speechToText";
 
 describe("speech-to-text models", () => {
@@ -46,17 +48,20 @@ describe("speech-to-text models", () => {
     });
   });
 
-  it("marks the staged providers as development-only so native fallback stays intact", () => {
+  it("enables Deepgram Nova-3 once its provider adapter is available", () => {
     const model = SPEECH_TO_TEXT_MODELS.find(
       (candidate) => candidate.provider === "deepgram",
     );
 
     expect(model).toMatchObject({
-      developmentOnly: true,
       modelId: "nova-3",
       endpoint: "https://api.deepgram.com/v1/listen",
     });
-    expect(getSpeechToTextRequest("nova-3", { deepgram: "dg_test" })).toBeNull();
+    expect(model?.developmentOnly).toBeUndefined();
+    expect(getSpeechToTextRequest("nova-3", { deepgram: "dg_test" })).toMatchObject({
+      provider: "deepgram",
+      apiKey: "dg_test",
+    });
   });
 
   it("does not create a cloud request without the selected provider key", () => {
@@ -84,6 +89,54 @@ describe("speech-to-text models", () => {
     expect(form.get("prompt")).toContain("cmdSpace");
     expect(form.get("prompt")).toContain("TypeScript");
     expect(form.get("prompt")).toContain("tiếng Việt");
+  });
+
+  it("sends Deepgram audio with Token auth, Vietnamese multilingual mode, and keyterms", async () => {
+    const request = getSpeechToTextRequest("nova-3", { deepgram: "dg_test" });
+    const recording = new Blob(["audio"], { type: "audio/webm" });
+    const prepared = createSpeechToTextHttpRequest(
+      recording,
+      "voice.webm",
+      request!,
+      "cmdSpace, Prisma, Zod",
+    );
+
+    const url = new URL(prepared.endpoint);
+    expect(url.origin + url.pathname).toBe("https://api.deepgram.com/v1/listen");
+    expect(url.searchParams.get("model")).toBe("nova-3");
+    expect(url.searchParams.get("language")).toBe("multi");
+    expect(url.searchParams.getAll("keyterm")).toEqual(
+      expect.arrayContaining(["cmdSpace", "TypeScript", "Prisma", "Zod"]),
+    );
+    expect(prepared.headers).toEqual({
+      Authorization: "Token dg_test",
+      "Content-Type": "audio/webm",
+    });
+    expect(prepared.body).toBe(recording);
+  });
+
+  it("reads Deepgram's nested transcript response", async () => {
+    const request = getSpeechToTextRequest("nova-3", { deepgram: "dg_test" });
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: { channels: [{ alternatives: [{ transcript: "mở package json" }] }] },
+        }),
+      ),
+    );
+
+    await expect(
+      transcribeSpeechToText(
+        new Blob(["audio"], { type: "audio/webm" }),
+        "voice.webm",
+        request!,
+        "package.json",
+        fetcher,
+      ),
+    ).resolves.toBe("mở package json");
+    expect(fetcher.mock.calls[0][1].headers).toEqual(
+      expect.objectContaining({ Authorization: "Token dg_test" }),
+    );
   });
 
   it("surfaces the STT endpoint failure", async () => {

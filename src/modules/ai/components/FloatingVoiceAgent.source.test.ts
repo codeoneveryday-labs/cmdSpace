@@ -182,11 +182,11 @@ describe("FloatingVoiceAgent", () => {
     );
 
     expect(recordingHook).toContain("getSpeechToTextRequest");
-    expect(recordingHook).toContain("createSpeechToTextFormData");
+    expect(recordingHook).toContain("transcribeSpeechToText");
     expect(speechToText).toContain('formData.append("model", request.modelId)');
     expect(speechToText).toContain('formData.append(\n    "prompt",');
     expect(speechToText).toContain("Từ vựng workspace hiện tại");
-    expect(recordingHook).toContain("fetch(request.endpoint");
+    expect(speechToText).toContain("Token ${request.apiKey}");
     expect(recordingHook).toContain("speechToTextModelId: string");
     expect(recordingHook).toContain("apiKeys: Partial<Record<ProviderId, string | null>>");
     expect(recordingHook).toContain("startNativeRecognition");

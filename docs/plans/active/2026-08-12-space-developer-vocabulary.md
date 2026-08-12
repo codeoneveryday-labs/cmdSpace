@@ -23,20 +23,23 @@ In scope:
 
 - Add a stable bilingual developer-vocabulary prompt to supported cloud STT.
 - Derive only project/dependency identifiers from safe workspace manifests.
-- Verify multipart requests preserve the prompt for both health probes and real
-  recordings.
+- Verify provider-native requests preserve their vocabulary context for both
+  health probes and real recordings.
 
 Out of scope:
 
-- New provider adapters, automatic language selection, or post-transcription
-  AI rewriting.
+- Post-transcription AI rewriting and adapters beyond Deepgram Nova-3.
 
 ## Approach
 
 1. Lock the prompt and request contract with focused tests.
 2. Add a small shared request helper so health and live transcription cannot
    drift, plus a bounded manifest parser for workspace terms.
-3. Document the behavior and run focused validation.
+3. Add the Deepgram Nova-3 wire contract: raw audio, `Token` authorization,
+   `language=multi`, response decoding, and bounded keyterms.
+4. Migrate a stale staged selection to the first enabled, keyed live provider;
+   label staged keys honestly and disable staged picker choices.
+5. Document the behavior and run focused validation.
 
 ## Risks And Recovery
 
@@ -50,6 +53,8 @@ Out of scope:
 - [x] Add a failing request-contract test.
 - [x] Implement the shared vocabulary prompt.
 - [x] Validate the focused tests and build.
+- [x] Add and validate the Deepgram Nova-3 adapter.
+- [x] Prevent staged providers from being presented as connected/usable.
 
 ## Decisions
 
@@ -63,10 +68,12 @@ Out of scope:
 
 ## Result
 
-Cloud STT payloads now carry the cmdSpace developer vocabulary plus safe,
-bounded terms extracted from the active workspace's `package.json`,
-`Cargo.toml`, `go.mod`, and `pyproject.toml` for OpenAI and Groq-compatible
-multipart requests. Focused tests passed (30 tests), `pnpm build` passed, and
-`git diff --check` passed. This is context bias rather than a guarantee:
-acoustic quality, accents, and provider behavior still affect individual
-transcriptions.
+OpenAI and Groq-compatible requests keep the cmdSpace developer-vocabulary
+prompt. Deepgram Nova-3 now sends raw audio with Deepgram `Token`
+authorization, `language=multi`, and up to 100 technical/workspace keyterms;
+it also decodes Deepgram's nested transcript response. A saved model choice for
+a staged provider automatically migrates to an enabled keyed live provider;
+staged providers show "Key saved · unavailable" and cannot be picked. Focused
+tests passed (30 tests), `pnpm build` passed, and `git diff --check` passed.
+This is context bias rather than a guarantee: acoustic quality, accents, and
+provider behavior still affect individual transcriptions.
