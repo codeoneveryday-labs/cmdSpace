@@ -1,4 +1,4 @@
-//! Platform-neutral lifecycle controller for a Terax remote client.
+//! Platform-neutral lifecycle controller for a cmdSpace remote client.
 //!
 //! A mobile adapter feeds decoded protocol messages into [`RemoteClient`] and
 //! executes its returned actions. Networking, token persistence, terminal
@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use terax_remote_protocol::{ClientMessage, RemoteProtocolSession, ServerMessage};
+use cmdspace_remote_protocol::{ClientMessage, RemoteProtocolSession, ServerMessage};
 
 const MAX_PENDING_MESSAGES: usize = 256;
 

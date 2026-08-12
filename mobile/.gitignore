@@ -1,2 +1,4 @@
 target/
 vendor/
+ios/CmdSpaceMobileCore/.build/
+ios/CmdSpaceMobile.xcodeproj/

@@ -25,7 +25,7 @@ Research date: 2026-08-12
 
 ## Implications for this repository
 
-The current `terax-mobile` crate can compile as a static library after the
+The current `cmdspace-mobile` crate can compile as a static library after the
 Rust iOS targets and full Xcode are installed. It cannot yet create a usable
 iOS XCFramework or app because it exposes no C ABI/header and the repository
 contains no Swift/Xcode host or signing configuration.

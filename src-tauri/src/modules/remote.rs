@@ -3,14 +3,17 @@ use super::db;
 use super::pty::shell_init;
 use super::pty::PtyState;
 use super::remote_auth::{now_unix_seconds, RemoteAuth, RemoteAuthError};
+use super::remote_devices::{DeviceRegistry, PairingGrant};
 use super::remote_protocol::{
-    ClientMessage, RemoteClientEnvelope, RemoteProtocolSession, RemoteServerEnvelope,
-    ServerMessage, Utf8StreamDecoder,
+    ClientMessage, DeviceClientMessage, DeviceServerMessage, RemoteClientEnvelope,
+    RemoteDeviceClientEnvelope, RemoteDeviceServerEnvelope, RemoteProtocolSession,
+    RemoteServerEnvelope, ServerMessage, Utf8StreamDecoder,
 };
 use super::remote_tunnel::{LocalhostRunTunnel, TunnelSnapshot, TunnelState};
 use super::workspace;
 #[cfg(windows)]
 use super::workspace::WorkspaceEnv;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde::Serialize;
 use std::{
     collections::{HashMap, VecDeque},
@@ -42,6 +45,7 @@ struct RemoteServer {
     tunnel_start_error: Option<String>,
     auth: Arc<Mutex<RemoteAuth>>,
     bootstrap_secret: Option<String>,
+    devices: Arc<Mutex<DeviceRegistry>>,
 }
 
 const REMOTE_OUTPUT_LIMIT: usize = 512;
@@ -61,6 +65,7 @@ struct RemoteTerminal {
     killer: Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>,
     output: Mutex<RemoteOutput>,
     changed: Condvar,
+    native_controller: Mutex<Option<String>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -108,6 +113,22 @@ pub struct RemoteAccessStatus {
     auto_target: bool,
     ignored_cmdspace_dev_port: Option<u16>,
     bootstrap_secret: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDevicePairingStatus {
+    pub secret: String,
+    pub expires_at: u64,
+    pub url: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemotePairedDeviceStatus {
+    pub id: String,
+    pub display_name: String,
+    pub revoked: bool,
 }
 
 #[tauri::command]
@@ -161,10 +182,16 @@ pub fn remote_access_start(
             .map_err(|error| error.to_string())?;
     }
     let auth = Arc::new(Mutex::new(auth));
+    let device_store_path = remote_device_store_path();
+    let devices = Arc::new(Mutex::new(
+        DeviceRegistry::load_or_create(&device_store_path, remote_device_registry_key())
+            .map_err(|error| format!("load paired devices failed: {error:?}"))?,
+    ));
     let thread_shutdown = Arc::clone(&shutdown);
     let thread_runtime = Arc::clone(&runtime);
     let thread_pty_state = pty_state.inner().clone();
     let thread_auth = Arc::clone(&auth);
+    let thread_devices = Arc::clone(&devices);
     let thread_password_store_path = Arc::clone(&password_store_path);
     let remote_ui_dir = Arc::new(remote_ui_dir(&app));
     let handle = thread::Builder::new()
@@ -176,6 +203,7 @@ pub fn remote_access_start(
                 thread_runtime,
                 thread_pty_state,
                 thread_auth,
+                thread_devices,
                 thread_password_store_path,
                 remote_ui_dir,
             )
@@ -197,6 +225,7 @@ pub fn remote_access_start(
         tunnel_start_error,
         auth,
         bootstrap_secret: stored_password.is_none().then_some(bootstrap_secret),
+        devices,
     };
     let next_status = server.status();
     log::info!(
@@ -223,6 +252,99 @@ pub fn remote_access_stop(
     }
     log::info!("remote access disabled");
     Ok(status(false, 0))
+}
+
+#[tauri::command]
+pub fn remote_device_pairing_start(
+    state: tauri::State<'_, RemoteAccessState>,
+    display_name: String,
+) -> Result<RemoteDevicePairingStatus, String> {
+    let mut guard = state
+        .server
+        .lock()
+        .map_err(|_| "remote access state lock poisoned".to_string())?;
+    let server = guard
+        .as_mut()
+        .ok_or_else(|| "enable remote access before pairing a device".to_string())?;
+    let now = now_unix_seconds();
+    let PairingGrant { secret, expires_at } = server
+        .devices
+        .lock()
+        .map_err(|_| "remote device registry poisoned".to_string())?
+        .issue_grant(
+            if display_name.trim().is_empty() {
+                "cmdSpace iOS device"
+            } else {
+                display_name.trim()
+            },
+            DeviceRegistry::default_native_capability(),
+            now,
+            10 * 60,
+        );
+    Ok(RemoteDevicePairingStatus {
+        url: server.status().url,
+        secret,
+        expires_at,
+    })
+}
+
+#[tauri::command]
+pub fn remote_device_list(
+    state: tauri::State<'_, RemoteAccessState>,
+) -> Result<Vec<RemotePairedDeviceStatus>, String> {
+    let guard = state
+        .server
+        .lock()
+        .map_err(|_| "remote access state lock poisoned".to_string())?;
+    let server = guard
+        .as_ref()
+        .ok_or_else(|| "enable remote access before listing devices".to_string())?;
+    let devices = server
+        .devices
+        .lock()
+        .map_err(|_| "remote device registry poisoned".to_string())?;
+    Ok(devices
+        .devices()
+        .iter()
+        .map(|device| RemotePairedDeviceStatus {
+            id: device.id.clone(),
+            display_name: device.display_name.clone(),
+            revoked: device.revoked_at.is_some(),
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn remote_device_revoke(
+    state: tauri::State<'_, RemoteAccessState>,
+    device_id: String,
+) -> Result<Vec<RemotePairedDeviceStatus>, String> {
+    let guard = state
+        .server
+        .lock()
+        .map_err(|_| "remote access state lock poisoned".to_string())?;
+    let server = guard
+        .as_ref()
+        .ok_or_else(|| "enable remote access before revoking a device".to_string())?;
+    let mut devices = server
+        .devices
+        .lock()
+        .map_err(|_| "remote device registry poisoned".to_string())?;
+    devices
+        .revoke(&device_id, now_unix_seconds())
+        .map_err(|_| "paired device was not found".to_string())?;
+    devices
+        .save()
+        .map_err(|error| format!("save paired devices failed: {error:?}"))?;
+    Ok(devices
+        .devices()
+        .iter()
+        .map(|device| RemotePairedDeviceStatus {
+            id: device.id.clone(),
+            display_name: device.display_name.clone(),
+            revoked: device.revoked_at.is_some(),
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -527,12 +649,14 @@ fn interface_lan_ip() -> Option<IpAddr> {
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn serve(
     listener: TcpListener,
     shutdown: Arc<AtomicBool>,
     runtime: Arc<Mutex<RemoteRuntime>>,
     pty_state: PtyState,
     auth: Arc<Mutex<RemoteAuth>>,
+    devices: Arc<Mutex<DeviceRegistry>>,
     password_store_path: Arc<PathBuf>,
     remote_ui_dir: Arc<PathBuf>,
 ) {
@@ -543,6 +667,7 @@ fn serve(
                 let runtime = Arc::clone(&runtime);
                 let pty_state = pty_state.clone();
                 let auth = Arc::clone(&auth);
+                let devices = Arc::clone(&devices);
                 let password_store_path = Arc::clone(&password_store_path);
                 let remote_ui_dir = Arc::clone(&remote_ui_dir);
                 thread::spawn(move || {
@@ -552,6 +677,7 @@ fn serve(
                         runtime,
                         pty_state,
                         auth,
+                        devices,
                         password_store_path,
                         remote_ui_dir,
                     )
@@ -568,12 +694,14 @@ fn serve(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_connection(
     stream: &mut TcpStream,
     shutdown: Arc<AtomicBool>,
     runtime: Arc<Mutex<RemoteRuntime>>,
     pty_state: PtyState,
     auth: Arc<Mutex<RemoteAuth>>,
+    devices: Arc<Mutex<DeviceRegistry>>,
     password_store_path: Arc<PathBuf>,
     remote_ui_dir: Arc<PathBuf>,
 ) {
@@ -600,8 +728,11 @@ fn handle_connection(
     }
 
     if is_remote_websocket_upgrade(&request) {
-        if request_path(&request).and_then(|path| path.split('?').next()) != Some("/api/remote/ws")
-        {
+        let Some(websocket_path) = request_path(&request).and_then(|path| path.split('?').next())
+        else {
+            return;
+        };
+        if !matches!(websocket_path, "/api/remote/ws" | "/api/remote/device/ws") {
             write_text_response(
                 stream,
                 "404 Not Found",
@@ -619,11 +750,15 @@ fn handle_connection(
             );
             return;
         }
-        let client_ip = stream
-            .peer_addr()
-            .map(|address| address.ip())
-            .unwrap_or(IpAddr::from([127, 0, 0, 1]));
-        handle_remote_websocket(stream, &request, runtime, auth, client_ip);
+        if websocket_path == "/api/remote/ws" {
+            let client_ip = stream
+                .peer_addr()
+                .map(|address| address.ip())
+                .unwrap_or(IpAddr::from([127, 0, 0, 1]));
+            handle_remote_websocket(stream, &request, runtime, auth, client_ip);
+        } else {
+            handle_remote_device_websocket(stream, &request, runtime, devices);
+        }
         return;
     }
 
@@ -853,6 +988,15 @@ enum RemoteWebSocketAttachment {
     },
 }
 
+enum RemoteDeviceAttachment {
+    Runtime {
+        id: u64,
+        session: Arc<RemoteTerminal>,
+        cursor: u64,
+        decoder: Utf8StreamDecoder,
+    },
+}
+
 fn handle_remote_websocket(
     stream: &mut TcpStream,
     request: &[u8],
@@ -967,6 +1111,484 @@ fn handle_remote_websocket(
     }
 }
 
+/// Native devices use a deliberately separate endpoint and v3 envelope. The
+/// browser's password-based v2 endpoint remains byte-for-byte compatible.
+fn handle_remote_device_websocket(
+    stream: &mut TcpStream,
+    request: &[u8],
+    runtime: Arc<Mutex<RemoteRuntime>>,
+    devices: Arc<Mutex<DeviceRegistry>>,
+) {
+    let Some(key) = request_header(request, "Sec-WebSocket-Key") else {
+        return;
+    };
+    let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
+    let handshake = format!(
+        "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept_key}\r\n\r\n"
+    );
+    if stream.write_all(handshake.as_bytes()).is_err() || stream.flush().is_err() {
+        return;
+    }
+    let Ok(socket_stream) = stream.try_clone() else {
+        return;
+    };
+    let mut socket = WebSocket::from_raw_socket(socket_stream, Role::Server, None);
+    let _ = socket
+        .get_mut()
+        .set_read_timeout(Some(Duration::from_millis(100)));
+
+    let challenge = device_challenge();
+    let _ = send_remote_device_websocket_message(
+        &mut socket,
+        DeviceServerMessage::PairingChallenge {
+            challenge: challenge.clone(),
+        },
+    );
+    let mut device_id = None::<String>;
+    let mut attachment = None;
+
+    loop {
+        drain_remote_device_websocket_output(&mut socket, &mut attachment);
+        match socket.read() {
+            Ok(Message::Text(text)) => {
+                let result = serde_json::from_str::<RemoteDeviceClientEnvelope>(text.as_ref())
+                    .map_err(|error| error.to_string())
+                    .and_then(|envelope| match envelope.message {
+                        DeviceClientMessage::PairDevice {
+                            grant_secret,
+                            device_name: _,
+                            public_key,
+                            proof,
+                        } => {
+                            if device_id.is_some() {
+                                return Err(
+                                    "device is already paired for this connection".to_string()
+                                );
+                            }
+                            let public_key = decode_device_bytes::<32>(&public_key, "public key")?;
+                            let proof = decode_device_bytes::<64>(&proof, "pairing proof")?;
+                            let paired = devices
+                                .lock()
+                                .map_err(|_| "remote device registry poisoned".to_string())?
+                                .consume_grant_with_proof(
+                                    &grant_secret,
+                                    public_key,
+                                    proof,
+                                    now_unix_seconds(),
+                                )
+                                .map_err(|error| format!("pairing failed: {error:?}"))?;
+                            devices
+                                .lock()
+                                .map_err(|_| "remote device registry poisoned".to_string())?
+                                .save()
+                                .map_err(|error| format!("save paired device failed: {error:?}"))?;
+                            log::info!("paired native remote device {}", paired.id);
+                            Ok(())
+                        }
+                        DeviceClientMessage::AuthenticateDevice {
+                            device_id: requested,
+                            proof,
+                        } => {
+                            let proof = decode_device_bytes::<64>(&proof, "authentication proof")?;
+                            let valid = devices
+                                .lock()
+                                .map_err(|_| "remote device registry poisoned".to_string())?
+                                .verify_device_proof(&requested, challenge.as_bytes(), proof);
+                            if !valid {
+                                return Err("device authentication failed".to_string());
+                            }
+                            device_id = Some(requested.clone());
+                            send_remote_device_websocket_message(
+                                &mut socket,
+                                DeviceServerMessage::DeviceAuthenticated {
+                                    device_id: requested,
+                                },
+                            )
+                        }
+                        DeviceClientMessage::Command { command } => {
+                            let device_id = device_id.as_deref().ok_or_else(|| {
+                                "authenticate the device before sending commands".to_string()
+                            })?;
+                            handle_remote_device_command(
+                                &mut socket,
+                                command,
+                                &runtime,
+                                &devices,
+                                device_id,
+                                &mut attachment,
+                            )
+                        }
+                        DeviceClientMessage::Ping => send_remote_device_websocket_message(
+                            &mut socket,
+                            DeviceServerMessage::Pong,
+                        ),
+                    });
+                if let Err(error) = result {
+                    log::warn!("remote device WebSocket request failed: {error}");
+                    let code = if error.contains("controlled by another paired device") {
+                        "session_occupied"
+                    } else if error.contains("cannot ") || error.contains("attach this terminal") {
+                        "capability_denied"
+                    } else if error.contains("authentication") || error.contains("pairing") {
+                        "authentication_failed"
+                    } else {
+                        "invalid_message"
+                    };
+                    let _ = send_remote_device_websocket_message(
+                        &mut socket,
+                        DeviceServerMessage::Error {
+                            code: code.to_string(),
+                            message: error,
+                            retryable: false,
+                        },
+                    );
+                }
+            }
+            Ok(Message::Ping(payload)) => {
+                if socket.send(Message::Pong(payload)).is_err() {
+                    return;
+                }
+            }
+            Ok(Message::Pong(_) | Message::Frame(_)) => {}
+            Ok(Message::Binary(_)) => {
+                let _ = send_remote_device_websocket_message(
+                    &mut socket,
+                    DeviceServerMessage::Error {
+                        code: "binary_not_supported".to_string(),
+                        message: "remote protocol messages must be JSON text".to_string(),
+                        retryable: false,
+                    },
+                );
+            }
+            Ok(Message::Close(frame)) => {
+                release_native_attachment(&mut attachment, device_id.as_deref());
+                let _ = socket.close(frame);
+                return;
+            }
+            Err(WebSocketError::Io(error))
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) => {}
+            Err(_) => {
+                release_native_attachment(&mut attachment, device_id.as_deref());
+                return;
+            }
+        }
+    }
+}
+
+fn decode_device_bytes<const N: usize>(value: &str, label: &str) -> Result<[u8; N], String> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(value)
+        .map_err(|_| format!("{label} is not valid base64url"))?;
+    bytes
+        .try_into()
+        .map_err(|_| format!("{label} has an invalid length"))
+}
+
+fn handle_remote_device_command(
+    socket: &mut WebSocket<TcpStream>,
+    message: ClientMessage,
+    runtime: &Arc<Mutex<RemoteRuntime>>,
+    devices: &Arc<Mutex<DeviceRegistry>>,
+    device_id: &str,
+    attachment: &mut Option<RemoteDeviceAttachment>,
+) -> Result<(), String> {
+    const WORKSPACE_ID: &str = "remote-runtime";
+    let session_allowed = |session_id, check: fn(&DeviceRegistry, &str, &str, u64) -> bool| {
+        devices
+            .lock()
+            .map_err(|_| "remote device registry poisoned".to_string())
+            .map(|devices| check(&devices, device_id, WORKSPACE_ID, session_id))
+    };
+    match message {
+        ClientMessage::Auth { .. } => {
+            Err("native devices authenticate with a device signature".to_string())
+        }
+        ClientMessage::ListSessions => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .device(device_id)
+                .is_some_and(|device| device.revoked_at.is_none() && device.capability.can_view)
+            {
+                return Err("device cannot view sessions".to_string());
+            }
+            send_remote_device_sessions(socket, runtime)
+        }
+        ClientMessage::CreateSession { cwd } => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .can_create_terminal(device_id, WORKSPACE_ID)
+            {
+                return Err("device cannot create terminals".to_string());
+            }
+            let cwd = authorize_remote_cwd(cwd.as_deref())?;
+            let mut guard = runtime
+                .lock()
+                .map_err(|_| "remote runtime poisoned".to_string())?;
+            let session = spawn_remote_terminal(cwd)?;
+            let id = guard.next_id;
+            guard.next_id = guard.next_id.saturating_add(1);
+            guard.sessions.insert(id, session);
+            drop(guard);
+            send_remote_device_sessions(socket, runtime)
+        }
+        ClientMessage::Attach { session_id, after } => {
+            if !session_allowed(session_id, DeviceRegistry::can_view)? {
+                return Err("device cannot view this terminal".to_string());
+            }
+            release_native_attachment(attachment, Some(device_id));
+            let session = session_from_runtime(runtime, session_id)?;
+            if session_allowed(session_id, DeviceRegistry::can_input)? {
+                let mut controller = session
+                    .native_controller
+                    .lock()
+                    .map_err(|_| "terminal controller poisoned".to_string())?;
+                if controller
+                    .as_deref()
+                    .is_some_and(|current| current != device_id)
+                {
+                    return Err("terminal is controlled by another paired device".to_string());
+                }
+                *controller = Some(device_id.to_string());
+            }
+            let chunks = session
+                .output
+                .lock()
+                .map_err(|_| "remote output poisoned".to_string())?
+                .chunks
+                .iter()
+                .filter(|(sequence, _)| *sequence > after)
+                .cloned()
+                .collect::<Vec<_>>();
+            let mut cursor = after;
+            let mut decoder = Utf8StreamDecoder::default();
+            for (sequence, bytes) in chunks {
+                cursor = sequence;
+                let data = decoder.push(&bytes);
+                if !data.is_empty() {
+                    send_remote_device_event(
+                        socket,
+                        ServerMessage::Snapshot {
+                            session_id,
+                            sequence,
+                            data,
+                        },
+                    )?;
+                }
+            }
+            *attachment = Some(RemoteDeviceAttachment::Runtime {
+                id: session_id,
+                session,
+                cursor,
+                decoder,
+            });
+            Ok(())
+        }
+        ClientMessage::Detach { session_id } => {
+            if attachment
+                .as_ref()
+                .is_some_and(|current| remote_device_attachment_id(current) == session_id)
+            {
+                release_native_attachment(attachment, Some(device_id));
+            }
+            Ok(())
+        }
+        ClientMessage::Input { session_id, data } => {
+            if !session_allowed(session_id, DeviceRegistry::can_input)? {
+                return Err("device cannot input to this terminal".to_string());
+            }
+            let session = session_from_runtime(runtime, session_id)?;
+            if session
+                .native_controller
+                .lock()
+                .map_err(|_| "terminal controller poisoned".to_string())?
+                .as_deref()
+                != Some(device_id)
+            {
+                return Err("attach this terminal before sending input".to_string());
+            }
+            let mut writer = session
+                .writer
+                .lock()
+                .map_err(|_| "writer poisoned".to_string())?;
+            writer
+                .write_all(data.as_bytes())
+                .map_err(|error| error.to_string())?;
+            writer.flush().map_err(|error| error.to_string())
+        }
+        ClientMessage::Resize {
+            session_id,
+            cols,
+            rows,
+        } => {
+            if cols == 0 || rows == 0 {
+                return Err("terminal size must be positive".to_string());
+            }
+            if !session_allowed(session_id, DeviceRegistry::can_input)? {
+                return Err("device cannot resize this terminal".to_string());
+            }
+            let session = session_from_runtime(runtime, session_id)?;
+            if session
+                .native_controller
+                .lock()
+                .map_err(|_| "terminal controller poisoned".to_string())?
+                .as_deref()
+                != Some(device_id)
+            {
+                return Err("attach this terminal before resizing".to_string());
+            }
+            let result = session
+                .master
+                .lock()
+                .map_err(|_| "master poisoned".to_string())?
+                .resize(portable_pty::PtySize {
+                    cols: cols.min(400),
+                    rows: rows.min(200),
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(|error| error.to_string());
+            result
+        }
+        ClientMessage::Close { session_id } => {
+            if !session_allowed(session_id, DeviceRegistry::can_close_terminal)? {
+                return Err("device cannot close this terminal".to_string());
+            }
+            close_remote_session(runtime, session_id);
+            release_native_attachment(attachment, Some(device_id));
+            Ok(())
+        }
+        ClientMessage::Ping => {
+            send_remote_device_websocket_message(socket, DeviceServerMessage::Pong)
+        }
+    }
+}
+
+fn send_remote_device_sessions(
+    socket: &mut WebSocket<TcpStream>,
+    runtime: &Arc<Mutex<RemoteRuntime>>,
+) -> Result<(), String> {
+    let sessions = runtime
+        .lock()
+        .map_err(|_| "remote runtime poisoned".to_string())?
+        .sessions
+        .iter()
+        .map(|(id, session)| RemoteProtocolSession {
+            id: *id,
+            title: "Remote terminal".to_string(),
+            cwd: session.cwd.clone(),
+            agent: None,
+            attached: false,
+        })
+        .collect();
+    send_remote_device_event(socket, ServerMessage::Sessions { sessions })
+}
+
+fn send_remote_device_event(
+    socket: &mut WebSocket<TcpStream>,
+    event: ServerMessage,
+) -> Result<(), String> {
+    send_remote_device_websocket_message(socket, DeviceServerMessage::Event { event })
+}
+
+fn send_remote_device_websocket_message(
+    socket: &mut WebSocket<TcpStream>,
+    message: DeviceServerMessage,
+) -> Result<(), String> {
+    let payload = serde_json::to_string(&RemoteDeviceServerEnvelope::new(message))
+        .map_err(|error| error.to_string())?;
+    socket
+        .send(Message::text(payload))
+        .map_err(|error| error.to_string())
+}
+
+fn drain_remote_device_websocket_output(
+    socket: &mut WebSocket<TcpStream>,
+    attachment: &mut Option<RemoteDeviceAttachment>,
+) {
+    let Some(RemoteDeviceAttachment::Runtime {
+        id,
+        session,
+        cursor,
+        decoder,
+    }) = attachment
+    else {
+        return;
+    };
+    let (chunks, exited) = session
+        .output
+        .lock()
+        .map(|output| {
+            (
+                output
+                    .chunks
+                    .iter()
+                    .filter(|(sequence, _)| *sequence > *cursor)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                output.exited,
+            )
+        })
+        .unwrap_or_default();
+    for (sequence, bytes) in chunks {
+        let data = decoder.push(&bytes);
+        if !data.is_empty()
+            && send_remote_device_event(
+                socket,
+                ServerMessage::Output {
+                    session_id: *id,
+                    sequence,
+                    data,
+                },
+            )
+            .is_err()
+        {
+            return;
+        }
+        *cursor = sequence;
+    }
+    if exited {
+        let _ = send_remote_device_event(
+            socket,
+            ServerMessage::Exit {
+                session_id: *id,
+                code: None,
+            },
+        );
+        *attachment = None;
+    }
+}
+
+fn remote_device_attachment_id(attachment: &RemoteDeviceAttachment) -> u64 {
+    match attachment {
+        RemoteDeviceAttachment::Runtime { id, .. } => *id,
+    }
+}
+
+fn release_native_attachment(
+    attachment: &mut Option<RemoteDeviceAttachment>,
+    device_id: Option<&str>,
+) {
+    if let Some(RemoteDeviceAttachment::Runtime { session, .. }) = attachment.take() {
+        if let (Some(device_id), Ok(mut controller)) = (device_id, session.native_controller.lock())
+        {
+            if controller.as_deref() == Some(device_id) {
+                *controller = None;
+            }
+        }
+    }
+}
+
+fn device_challenge() -> String {
+    let mut bytes = [0_u8; 32];
+    getrandom::fill(&mut bytes).expect("operating system random source must be available");
+    URL_SAFE_NO_PAD.encode(bytes)
+}
+
 fn authenticate_remote_websocket(
     auth: &Arc<Mutex<RemoteAuth>>,
     client_ip: IpAddr,
@@ -1079,6 +1701,20 @@ fn remote_password_store_path() -> PathBuf {
     let _ = fs::create_dir_all(&path);
     path.push("remote-password.txt");
     path
+}
+
+fn remote_device_store_path() -> PathBuf {
+    let mut path = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
+    path.push("app.tranhoangpich.cmdspace");
+    let _ = fs::create_dir_all(&path);
+    path.push("remote-devices.json");
+    path
+}
+
+fn remote_device_registry_key() -> [u8; 32] {
+    let mut key = [0_u8; 32];
+    getrandom::fill(&mut key).expect("operating system random source must be available");
+    key
 }
 
 fn load_remote_password_verifier(path: &Path) -> Result<Option<String>, String> {
@@ -1355,7 +1991,11 @@ fn is_remote_websocket_upgrade(request: &[u8]) -> bool {
     let Some(path) = request_path(request) else {
         return false;
     };
-    if path.split('?').next() != Some("/api/remote/ws") || request_method(request) != Some("GET") {
+    if !matches!(
+        path.split('?').next(),
+        Some("/api/remote/ws" | "/api/remote/device/ws")
+    ) || request_method(request) != Some("GET")
+    {
         return false;
     }
     let headers = std::str::from_utf8(request)
@@ -1596,6 +2236,7 @@ fn spawn_remote_terminal(cwd: Option<String>) -> Result<Arc<RemoteTerminal>, Str
             exited: false,
         }),
         changed: Condvar::new(),
+        native_controller: Mutex::new(None),
     });
     let output_session = Arc::clone(&session);
     thread::spawn(move || {
@@ -2213,6 +2854,7 @@ fn write_binary_response(stream: &mut TcpStream, response: &RemoteResponse) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
     use std::time::Instant;
 
     #[test]
@@ -2357,6 +2999,7 @@ mod tests {
             })),
             PtyState::default(),
             Arc::new(Mutex::new(RemoteAuth::new().unwrap().0)),
+            Arc::new(Mutex::new(DeviceRegistry::new_for_test([0; 32]))),
             Arc::new(std::env::temp_dir().join("cmdspace-remote-health-password.txt")),
             Arc::new(std::env::temp_dir()),
         );
@@ -2692,6 +3335,7 @@ mod tests {
                 server_runtime,
                 PtyState::default(),
                 Arc::new(Mutex::new(remote_auth)),
+                Arc::new(Mutex::new(DeviceRegistry::new_for_test([0; 32]))),
                 Arc::new(std::env::temp_dir().join("cmdspace-remote-ws-test-password")),
                 Arc::new(std::env::temp_dir()),
             );
@@ -2811,6 +3455,172 @@ mod tests {
     }
 
     #[test]
+    fn native_device_websocket_pairs_authenticates_and_lists_remote_sessions() {
+        let listener = TcpListener::bind((IpAddr::from([127, 0, 0, 1]), 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut registry = DeviceRegistry::new_for_test([7; 32]);
+        let grant = registry.issue_grant(
+            "cmdSpace iPhone",
+            DeviceRegistry::default_native_capability(),
+            now_unix_seconds(),
+            60,
+        );
+        let signing_key = SigningKey::from_bytes(&[8; 32]);
+        let server_devices = Arc::new(Mutex::new(registry));
+        let runtime = Arc::new(Mutex::new(RemoteRuntime {
+            id: 1,
+            next_id: REMOTE_SESSION_ID_START,
+            sessions: HashMap::new(),
+        }));
+        let server_runtime = Arc::clone(&runtime);
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            handle_connection(
+                &mut stream,
+                Arc::new(AtomicBool::new(false)),
+                server_runtime,
+                PtyState::default(),
+                Arc::new(Mutex::new(RemoteAuth::new().unwrap().0)),
+                server_devices,
+                Arc::new(std::env::temp_dir().join("cmdspace-remote-device-test-password")),
+                Arc::new(std::env::temp_dir()),
+            );
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let (mut socket, _) =
+            tungstenite::client(format!("ws://{address}/api/remote/device/ws"), stream).unwrap();
+        let read = |socket: &mut WebSocket<TcpStream>| {
+            let Message::Text(payload) = socket.read().unwrap() else {
+                panic!("expected device text message")
+            };
+            serde_json::from_str::<RemoteDeviceServerEnvelope>(payload.as_ref()).unwrap()
+        };
+        let send = |socket: &mut WebSocket<TcpStream>, message| {
+            socket
+                .send(Message::text(
+                    serde_json::to_string(&RemoteDeviceClientEnvelope::new(message)).unwrap(),
+                ))
+                .unwrap();
+        };
+        let DeviceServerMessage::PairingChallenge { challenge } = read(&mut socket).message else {
+            panic!("expected pairing challenge")
+        };
+        send(
+            &mut socket,
+            DeviceClientMessage::PairDevice {
+                grant_secret: grant.secret.clone(),
+                device_name: "cmdSpace iPhone".to_string(),
+                public_key: URL_SAFE_NO_PAD.encode(signing_key.verifying_key().to_bytes()),
+                proof: URL_SAFE_NO_PAD.encode(signing_key.sign(grant.secret.as_bytes()).to_bytes()),
+            },
+        );
+        send(
+            &mut socket,
+            DeviceClientMessage::AuthenticateDevice {
+                device_id: crate::modules::remote_devices::device_id(
+                    &signing_key.verifying_key().to_bytes(),
+                ),
+                proof: URL_SAFE_NO_PAD.encode(signing_key.sign(challenge.as_bytes()).to_bytes()),
+            },
+        );
+        assert!(matches!(
+            read(&mut socket).message,
+            DeviceServerMessage::DeviceAuthenticated { .. }
+        ));
+        send(
+            &mut socket,
+            DeviceClientMessage::Command {
+                command: ClientMessage::ListSessions,
+            },
+        );
+        assert!(matches!(
+            read(&mut socket).message,
+            DeviceServerMessage::Event {
+                event: ServerMessage::Sessions { .. }
+            }
+        ));
+        socket.close(None).unwrap();
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn native_device_websocket_reconnects_with_a_fresh_challenge_without_the_qr_grant() {
+        let listener = TcpListener::bind((IpAddr::from([127, 0, 0, 1]), 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let signing_key = SigningKey::from_bytes(&[11; 32]);
+        let mut registry = DeviceRegistry::new_for_test([12; 32]);
+        let grant = registry.issue_grant(
+            "cmdSpace iPhone",
+            DeviceRegistry::default_native_capability(),
+            now_unix_seconds(),
+            60,
+        );
+        let paired = registry
+            .consume_grant_with_proof(
+                &grant.secret,
+                signing_key.verifying_key().to_bytes(),
+                signing_key.sign(grant.secret.as_bytes()).to_bytes(),
+                now_unix_seconds(),
+            )
+            .unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            handle_connection(
+                &mut stream,
+                Arc::new(AtomicBool::new(false)),
+                Arc::new(Mutex::new(RemoteRuntime {
+                    id: 2,
+                    next_id: REMOTE_SESSION_ID_START,
+                    sessions: HashMap::new(),
+                })),
+                PtyState::default(),
+                Arc::new(Mutex::new(RemoteAuth::new().unwrap().0)),
+                Arc::new(Mutex::new(registry)),
+                Arc::new(std::env::temp_dir().join("cmdspace-remote-device-reconnect-password")),
+                Arc::new(std::env::temp_dir()),
+            );
+        });
+        let stream = TcpStream::connect(address).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let (mut socket, _) =
+            tungstenite::client(format!("ws://{address}/api/remote/device/ws"), stream).unwrap();
+        let Message::Text(payload) = socket.read().unwrap() else {
+            panic!("expected device challenge")
+        };
+        let RemoteDeviceServerEnvelope {
+            message: DeviceServerMessage::PairingChallenge { challenge },
+            ..
+        } = serde_json::from_str(payload.as_ref()).unwrap()
+        else {
+            panic!("expected pairing challenge")
+        };
+        let payload = serde_json::to_string(&RemoteDeviceClientEnvelope::new(
+            DeviceClientMessage::AuthenticateDevice {
+                device_id: paired.id,
+                proof: URL_SAFE_NO_PAD.encode(signing_key.sign(challenge.as_bytes()).to_bytes()),
+            },
+        ))
+        .unwrap();
+        socket.send(Message::text(payload)).unwrap();
+        let Message::Text(payload) = socket.read().unwrap() else {
+            panic!("expected authentication result")
+        };
+        assert!(matches!(
+            serde_json::from_str::<RemoteDeviceServerEnvelope>(payload.as_ref())
+                .unwrap()
+                .message,
+            DeviceServerMessage::DeviceAuthenticated { .. }
+        ));
+        socket.close(None).unwrap();
+        server.join().unwrap();
+    }
+
+    #[test]
     fn remote_status_prefers_a_ready_public_url_and_keeps_lan_fallback() {
         let tunnel = super::super::remote_tunnel::TunnelSnapshot {
             state: super::super::remote_tunnel::TunnelState::Ready,
@@ -2864,6 +3674,7 @@ mod tests {
             tunnel_start_error: Some("test tunnel unavailable".to_string()),
             auth: Arc::clone(&auth),
             bootstrap_secret: Some("auto-start-secret".to_string()),
+            devices: Arc::new(Mutex::new(DeviceRegistry::new_for_test([1_u8; 32]))),
         };
 
         assert_eq!(
@@ -2897,6 +3708,7 @@ mod tests {
             tunnel_start_error: Some("test tunnel unavailable".to_string()),
             auth: Arc::clone(&auth),
             bootstrap_secret: Some("expired-secret".to_string()),
+            devices: Arc::new(Mutex::new(DeviceRegistry::new_for_test([2_u8; 32]))),
         };
 
         let refreshed = server

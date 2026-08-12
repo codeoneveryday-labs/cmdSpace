@@ -1,5 +1,5 @@
 [workspace]
-members = ["terax-mobile"]
+members = ["cmdspace-mobile"]
 resolver = "2"
 
 [workspace.package]

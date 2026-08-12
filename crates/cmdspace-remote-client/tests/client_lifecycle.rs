@@ -1,5 +1,5 @@
-use terax_remote_client::{ConnectionState, RemoteClient, RemoteClientAction};
-use terax_remote_protocol::{ClientMessage, RemoteProtocolSession, ServerMessage};
+use cmdspace_remote_client::{ConnectionState, RemoteClient, RemoteClientAction};
+use cmdspace_remote_protocol::{ClientMessage, RemoteProtocolSession, ServerMessage};
 
 fn session(id: u64) -> RemoteProtocolSession {
     RemoteProtocolSession {

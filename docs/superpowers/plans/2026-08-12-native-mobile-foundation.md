@@ -4,7 +4,7 @@
 
 **Goal:** Establish a reusable Rust remote-protocol module for the future native iOS/Android client without altering current desktop behavior.
 
-**Architecture:** A framework-free `terax-remote-protocol` crate becomes the protocol seam. `src-tauri` retains a re-export adapter so its WebSocket server and existing tests keep their local module path while mobile gains a stable crate dependency.
+**Architecture:** A framework-free `cmdspace-remote-protocol` crate becomes the protocol seam. `src-tauri` retains a re-export adapter so its WebSocket server and existing tests keep their local module path while mobile gains a stable crate dependency.
 
 **Tech Stack:** Rust 2021, serde, serde_json test fixtures, Tauri 2 desktop adapter.
 
@@ -13,9 +13,9 @@
 ### Task 1: Lock the shared wire contract
 
 **Files:**
-- Create: `crates/terax-remote-protocol/Cargo.toml`
-- Create: `crates/terax-remote-protocol/src/lib.rs`
-- Create: `crates/terax-remote-protocol/tests/wire_contract.rs`
+- Create: `crates/cmdspace-remote-protocol/Cargo.toml`
+- Create: `crates/cmdspace-remote-protocol/src/lib.rs`
+- Create: `crates/cmdspace-remote-protocol/tests/wire_contract.rs`
 
 - [x] **Step 1: Write contract tests**
 
@@ -26,7 +26,7 @@ assert_eq!(json["message"]["sessionId"], 7);
 
 - [x] **Step 2: Run the crate test before implementation**
 
-Run: `cargo test --manifest-path crates/terax-remote-protocol/Cargo.toml`
+Run: `cargo test --manifest-path crates/cmdspace-remote-protocol/Cargo.toml`
 
 Expected: FAIL because the crate has not been created.
 
@@ -39,7 +39,7 @@ pub enum ClientMessage { Input { session_id: u64, data: String }, /* … */ }
 
 - [x] **Step 4: Run the crate tests**
 
-Run: `cargo test --manifest-path crates/terax-remote-protocol/Cargo.toml`
+Run: `cargo test --manifest-path crates/cmdspace-remote-protocol/Cargo.toml`
 
 Expected: PASS.
 
@@ -53,13 +53,13 @@ Expected: PASS.
 - [x] **Step 1: Add the path dependency**
 
 ```toml
-terax-remote-protocol = { path = "../crates/terax-remote-protocol" }
+cmdspace-remote-protocol = { path = "../crates/cmdspace-remote-protocol" }
 ```
 
 - [x] **Step 2: Replace the Tauri-local implementation with a re-export adapter**
 
 ```rust
-pub use terax_remote_protocol::*;
+pub use cmdspace_remote_protocol::*;
 ```
 
 - [x] **Step 3: Run desktop protocol and crate checks**
@@ -76,11 +76,11 @@ Expected: PASS.
 - [x] **Step 1: Record the mobile crate contract**
 
 ```text
-The future mobile adapter depends on terax-remote-protocol and never on src-tauri.
+The future mobile adapter depends on cmdspace-remote-protocol and never on src-tauri.
 ```
 
 - [x] **Step 2: Run complete validation**
 
-Run: `cargo test --manifest-path crates/terax-remote-protocol/Cargo.toml && pnpm vitest run src/remote/protocol.test.ts && (cd src-tauri && cargo check --all-targets --locked) && pnpm build`
+Run: `cargo test --manifest-path crates/cmdspace-remote-protocol/Cargo.toml && pnpm vitest run src/remote/protocol.test.ts && (cd src-tauri && cargo check --all-targets --locked) && pnpm build`
 
 Expected: PASS.
