@@ -3,6 +3,23 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.89] - 2026-08-12
+
+### Added
+
+- Activated Deepgram cloud transcription when a configured provider is selected.
+
+### Changed
+
+- Preserved mobile terminal IME composition and sent remote shortcut keys as
+  terminal control bytes instead of text literals.
+- Anchored the native iOS pairing Settings control to the pairing scene.
+
+### Known limitations
+
+- Android Telex composition and the iOS pairing flow still need a manual
+  physical-device pass before TestFlight upload.
+
 ## [0.7.88] - 2026-08-12
 
 ### Added
@@ -75,6 +92,7 @@ All notable changes to cmdSpace are documented in this file. The format follows
 - Live Editor nodes on Architecture Canvas, with file-path selection, editing,
   and persisted canvas layout.
 
+[0.7.89]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.88...v0.7.89
 [0.7.87]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.86...v0.7.87
 [0.7.88]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.87...v0.7.88
 [0.7.85]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.84...v0.7.85
