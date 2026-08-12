@@ -24,7 +24,7 @@ private struct PairDeviceView: View {
     @State private var settingsOpen = false
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             VStack(spacing: 20) {
                 Spacer()
                 CmdSpaceLogo(size: 68)
@@ -42,15 +42,31 @@ private struct PairDeviceView: View {
                 if case let .failed(error) = remote.state { Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center).padding(.horizontal, 24) }
                 Spacer()
                 Link(destination: URL(string: "https://github.com/codeoneveryday-labs/cmdSpace")!) {
-                    HStack(spacing: 7) { Image(systemName: "chevron.left.forwardslash.chevron.right").font(.system(size: 15)); Text("GitHub").font(.system(size: 11, design: .monospaced)) }
+                    HStack(spacing: 7) {
+                        Image("GitHubMark")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 16, height: 16)
+                        Text("GitHub").font(.system(size: 11, design: .monospaced))
+                    }
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 8)
                 }
-                Text("native device pairing").font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
-            }.foregroundStyle(.primary)
-            Button { settingsOpen = true } label: { Image(systemName: "gearshape").font(.system(size: 19, weight: .light)).foregroundStyle(.secondary).padding(12) }
+            }
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button { settingsOpen = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 19, weight: .light))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+            }
                 .accessibilityLabel("Settings")
-                .padding(.top, 4).padding(.trailing, 14)
+                .padding(.top, 8)
+                .padding(.trailing, 16)
         }
         .sheet(isPresented: $settingsOpen) { CmdSpaceSettingsView(close: { settingsOpen = false }) }
         .sheet(isPresented: $remote.pairingSheetOpen) {
