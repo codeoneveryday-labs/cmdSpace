@@ -1,6 +1,5 @@
 [workspace]
 members = ["terax-mobile"]
-exclude = ["vendor/zed"]
 resolver = "2"
 
 [workspace.package]
