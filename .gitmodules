@@ -1,0 +1,4 @@
+[submodule "mobile/vendor/zed"]
+	path = mobile/vendor/zed
+	url = https://github.com/tanlethanh/zed.git
+	branch = feat/gpui-mobile

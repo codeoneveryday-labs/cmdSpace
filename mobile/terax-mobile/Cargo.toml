@@ -1,0 +1,25 @@
+[package]
+name = "terax-mobile"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[features]
+default = []
+android-platform = ["dep:gpui_android"]
+ios-platform = ["dep:gpui_ios"]
+
+[dependencies]
+gpui = { path = "../vendor/zed/crates/gpui", default-features = false }
+gpui_platform = { path = "../vendor/zed/crates/gpui_platform" }
+terax-remote-client = { path = "../../crates/terax-remote-client" }
+
+[target.'cfg(target_os = "android")'.dependencies]
+gpui_android = { path = "../vendor/zed/crates/gpui_android", optional = true }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+gpui_ios = { path = "../vendor/zed/crates/gpui_ios", optional = true }
