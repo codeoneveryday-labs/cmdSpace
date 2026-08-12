@@ -3,6 +3,26 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.87] - 2026-08-12
+
+### Added
+
+- Native cmdSpace iOS remote foundation with QR pairing, a secure device
+  identity, Keychain-backed credentials, reconnect support, and terminal intent
+  handling.
+- Desktop-side native-device pairing protocol with one-time QR payloads,
+  signed reconnect challenges, capability scopes, and device revocation.
+
+### Changed
+
+- Simplified the desktop bundle by removing stale generated Vite artifacts,
+  unreachable UI helpers, and unused direct npm dependencies.
+
+### Known limitations
+
+- The iOS source is ready for local device testing, but a physical-device pairing
+  pass and Apple signing/archive setup remain required before TestFlight upload.
+
 ## [0.7.85] - 2026-08-11
 
 ### Added
@@ -32,5 +52,6 @@ All notable changes to cmdSpace are documented in this file. The format follows
 - Live Editor nodes on Architecture Canvas, with file-path selection, editing,
   and persisted canvas layout.
 
+[0.7.87]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.86...v0.7.87
 [0.7.85]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.84...v0.7.85
 [0.7.80]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.79...v0.7.80
