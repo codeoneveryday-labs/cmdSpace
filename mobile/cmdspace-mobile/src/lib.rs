@@ -1,12 +1,12 @@
-//! Application state boundary for the native Terax remote app.
+//! Application state boundary for the native cmdSpace remote app.
 //!
 //! The shared remote client handles protocol lifecycle. A future mobile UI
 //! adapter will render this state and own the platform-specific transport.
 
 use std::collections::BTreeMap;
-use terax_remote_client::{ConnectionState, RemoteClient, RemoteClientAction};
+use cmdspace_remote_client::{ConnectionState, RemoteClient, RemoteClientAction};
 
-use terax_remote_protocol::{RemoteProtocolSession, ServerMessage};
+use cmdspace_remote_protocol::{RemoteProtocolSession, ServerMessage};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MobileScreen {
@@ -23,7 +23,7 @@ pub enum PairingError {
 }
 
 /// The native remote application's root state.
-pub struct TeraxMobileApp {
+pub struct CmdSpaceMobileApp {
     client: Option<RemoteClient>,
     endpoint: Option<String>,
     screen: MobileScreen,
@@ -31,7 +31,7 @@ pub struct TeraxMobileApp {
     terminal_output: BTreeMap<u64, String>,
 }
 
-impl TeraxMobileApp {
+impl CmdSpaceMobileApp {
     pub fn new() -> Self {
         Self {
             client: None,
@@ -151,7 +151,7 @@ impl TeraxMobileApp {
     }
 }
 
-impl Default for TeraxMobileApp {
+impl Default for CmdSpaceMobileApp {
     fn default() -> Self {
         Self::new()
     }

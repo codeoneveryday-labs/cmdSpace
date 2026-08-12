@@ -3,6 +3,28 @@
 version = 4
 
 [[package]]
+name = "cmdspace-mobile"
+version = "0.1.0"
+dependencies = [
+ "cmdspace-remote-client",
+ "cmdspace-remote-protocol",
+]
+
+[[package]]
+name = "cmdspace-remote-client"
+version = "0.1.0"
+dependencies = [
+ "cmdspace-remote-protocol",
+]
+
+[[package]]
+name = "cmdspace-remote-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -59,28 +81,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "terax-mobile"
-version = "0.1.0"
-dependencies = [
- "terax-remote-client",
- "terax-remote-protocol",
-]
-
-[[package]]
-name = "terax-remote-client"
-version = "0.1.0"
-dependencies = [
- "terax-remote-protocol",
-]
-
-[[package]]
-name = "terax-remote-protocol"
-version = "0.1.0"
-dependencies = [
- "serde",
 ]
 
 [[package]]

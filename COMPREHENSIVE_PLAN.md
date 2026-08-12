@@ -1,6 +1,6 @@
 # COMPREHENSIVE PLAN — cmdSpace
 
-**cmdSpace (repo dir `terax-ai`) — a terminal-first, AI-native agentic development
+**cmdSpace — a terminal-first, AI-native agentic development
 environment (ADE).** Tauri 2 + Rust backend, React 19 + Vite + TypeScript
 frontend, xterm.js (WebGL) terminal, CodeMirror 6 editor, Vercel AI SDK agents.
 
@@ -86,8 +86,7 @@ reviewable edits.
 - Not a monorepo — `pnpm-workspace.yaml` has one package, the app itself.
 - Not stateless — workspaces and pane launch plans persist in SQLite (Rust),
   preferences in a Tauri `LazyStore`, API keys in the OS keychain.
-- The directory is `terax-ai` but the product is **cmdSpace** (branding is
-  mid-rename; code says `cmdspace`, identifier `app.tranhoangpich.cmdspace`).
+- Product, bundle, identifier, and source surfaces use **cmdSpace**.
 
 ## 4. Tech stack
 
@@ -280,8 +279,7 @@ See `ROADMAP.md` for the shipped/planned matrix. Known open items:
 
 ## 15. Risks & open questions
 
-- **Branding drift**: repo/bundle say `cmdSpace`, docs say `Terax-AI` — decide
-  the canonical name and migrate.
+- **Brand identity**: cmdSpace is the canonical name across product surfaces.
 - **IME bridge fragility**: the textarea-diff heuristic is the most delicate
   code; a jsdom/happy-dom integration test suite would harden it.
 - **Terminal session loss**: live sessions are in-memory only; a session-restore

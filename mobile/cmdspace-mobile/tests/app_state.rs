@@ -1,10 +1,10 @@
-use terax_mobile::{MobileScreen, TeraxMobileApp};
-use terax_remote_client::RemoteClientAction;
-use terax_remote_protocol::{ClientMessage, ServerMessage};
+use cmdspace_mobile::{CmdSpaceMobileApp, MobileScreen};
+use cmdspace_remote_client::RemoteClientAction;
+use cmdspace_remote_protocol::{ClientMessage, ServerMessage};
 
 #[test]
 fn new_install_starts_on_the_pairing_screen() {
-    let app = TeraxMobileApp::new();
+    let app = CmdSpaceMobileApp::new();
 
     assert_eq!(app.screen(), MobileScreen::PairDevice);
     assert_eq!(app.connection_status(), "Connect a desktop to begin");
@@ -12,7 +12,7 @@ fn new_install_starts_on_the_pairing_screen() {
 
 #[test]
 fn pairing_requires_a_websocket_endpoint_and_device_token() {
-    let mut app = TeraxMobileApp::new();
+    let mut app = CmdSpaceMobileApp::new();
 
     assert!(app.begin_pairing("https://desktop.local", "token").is_err());
     assert!(app.begin_pairing("wss://desktop.local", "").is_err());
@@ -21,7 +21,7 @@ fn pairing_requires_a_websocket_endpoint_and_device_token() {
 
 #[test]
 fn pairing_normalizes_endpoint_and_reaches_remote_after_authentication() {
-    let mut app = TeraxMobileApp::new();
+    let mut app = CmdSpaceMobileApp::new();
 
     app.begin_pairing("wss://desktop.local/", "device-token")
         .unwrap();
@@ -49,7 +49,7 @@ fn pairing_normalizes_endpoint_and_reaches_remote_after_authentication() {
 
 #[test]
 fn socket_loss_returns_an_active_remote_screen_to_connecting() {
-    let mut app = TeraxMobileApp::new();
+    let mut app = CmdSpaceMobileApp::new();
     app.begin_pairing("ws://192.168.1.2", "device-token")
         .unwrap();
     app.socket_opened();
@@ -67,7 +67,7 @@ fn socket_loss_returns_an_active_remote_screen_to_connecting() {
 
 #[test]
 fn remote_screen_keeps_session_metadata_and_terminal_output() {
-    let mut app = TeraxMobileApp::new();
+    let mut app = CmdSpaceMobileApp::new();
     app.begin_pairing("ws://192.168.1.2", "device-token")
         .unwrap();
     app.socket_opened();
@@ -78,7 +78,7 @@ fn remote_screen_keeps_session_metadata_and_terminal_output() {
     app.handle_server_message(ServerMessage::Authenticated);
 
     app.handle_server_message(ServerMessage::Sessions {
-        sessions: vec![terax_remote_protocol::RemoteProtocolSession {
+        sessions: vec![cmdspace_remote_protocol::RemoteProtocolSession {
             id: 7,
             title: "Project terminal".to_owned(),
             cwd: Some("/project".to_owned()),
@@ -98,7 +98,7 @@ fn remote_screen_keeps_session_metadata_and_terminal_output() {
 
 #[test]
 fn remote_screen_delegates_terminal_intent_to_the_shared_client() {
-    let mut app = TeraxMobileApp::new();
+    let mut app = CmdSpaceMobileApp::new();
     app.begin_pairing("ws://192.168.1.2", "device-token")
         .unwrap();
     app.socket_opened();

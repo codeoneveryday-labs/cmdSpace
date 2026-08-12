@@ -30,3 +30,19 @@ describe("remote protocol v2", () => {
     ).toThrow("unsupported remote protocol version: 1");
   });
 });
+
+describe("remote protocol v3 device pairing", () => {
+  it("does not make a v3 device envelope appear valid to the v2 browser decoder", () => {
+    expect(() =>
+      decodeRemoteServerEnvelope(
+        JSON.stringify({
+          version: 3,
+          message: {
+            type: "deviceAuthenticated",
+            deviceId: "device-1",
+          },
+        }),
+      ),
+    ).toThrow("unsupported remote protocol version: 3");
+  });
+});
