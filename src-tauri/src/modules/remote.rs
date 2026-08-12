@@ -2625,9 +2625,22 @@ fn request_path(request: &[u8]) -> Option<&str> {
 fn remote_ui_dir(app: &tauri::AppHandle) -> PathBuf {
     let resource_dir = app.path().resource_dir().ok();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    remote_ui_dir_from(resource_dir.as_deref(), &cwd)
+    #[cfg(debug_assertions)]
+    {
+        development_remote_ui_dir(resource_dir.as_deref(), &cwd)
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        remote_ui_dir_from(resource_dir.as_deref(), &cwd)
+    }
 }
 
+fn development_remote_ui_dir(_resource_dir: Option<&Path>, cwd: &Path) -> PathBuf {
+    workspace_remote_ui_dir(cwd)
+}
+
+#[cfg(any(not(debug_assertions), test))]
+#[allow(dead_code)]
 fn remote_ui_dir_from(resource_dir: Option<&Path>, cwd: &Path) -> PathBuf {
     if let Some(packaged) = resource_dir.map(|dir| dir.join("remote-ui")) {
         if packaged.join("remote.html").is_file() {
@@ -2635,6 +2648,10 @@ fn remote_ui_dir_from(resource_dir: Option<&Path>, cwd: &Path) -> PathBuf {
         }
     }
 
+    workspace_remote_ui_dir(cwd)
+}
+
+fn workspace_remote_ui_dir(cwd: &Path) -> PathBuf {
     let direct = cwd.join("dist");
     if direct.exists() {
         return direct;
@@ -2940,6 +2957,21 @@ mod tests {
         let resolved = remote_ui_dir_from(Some(&resources), dir.path());
 
         assert_eq!(resolved, packaged);
+    }
+
+    #[test]
+    fn development_remote_ui_dir_ignores_stale_packaged_resources() {
+        let dir = tempfile::tempdir().unwrap();
+        let stale_resources = dir.path().join("resources/remote-ui");
+        let workspace_dist = dir.path().join("dist");
+        fs::create_dir_all(&stale_resources).unwrap();
+        fs::create_dir_all(&workspace_dist).unwrap();
+        fs::write(stale_resources.join("remote.html"), "stale remote ui").unwrap();
+        fs::write(workspace_dist.join("remote.html"), "fresh remote ui").unwrap();
+
+        let resolved = development_remote_ui_dir(Some(dir.path().join("resources").as_path()), dir.path());
+
+        assert_eq!(resolved, workspace_dist);
     }
 
     #[test]

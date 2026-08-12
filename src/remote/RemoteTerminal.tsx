@@ -22,7 +22,7 @@ export function RemoteTerminal({ client, sessionId }: RemoteTerminalProps) {
       convertEol: true,
       cursorBlink: true,
       cursorStyle: "block",
-      disableStdin: true,
+      disableStdin: false,
       fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, monospace',
       fontSize: 13,
       fontWeight: "400",

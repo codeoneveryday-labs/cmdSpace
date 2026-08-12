@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const here = path.dirname(new URL(import.meta.url).pathname);
 const sourcePath = path.join(here, "RemoteApp.tsx");
 const stylesPath = path.join(here, "remote.css");
+const remoteHtmlPath = path.join(here, "../../remote.html");
 
 describe("RemoteApp transport", () => {
   it("uses authenticated WebSocket terminal traffic instead of EventSource and POST input", () => {
@@ -21,12 +22,47 @@ describe("RemoteApp transport", () => {
 
     expect(source).toContain("RemoteSessionGrid");
     expect(source).toContain("RemoteTerminal");
-    expect(source).toContain("RemoteKeyboard");
     expect(source).toContain("remote-context-strip");
     expect(source).not.toContain("TerminalTile");
     expect(source).not.toContain("WorkspacesPanel");
     expect(source).not.toContain("RemoteSidebar");
     expect(source).not.toContain("WORKSPACES_PANEL_WIDTH");
+  });
+
+  it("sends terminal control bytes rather than literal escape text", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain('<Shortcut label="tab" value={"\\t"} onSend={sendKey} />');
+    expect(source).toContain('<Shortcut label="←" value={"\\u001b[D"} onSend={sendKey} />');
+    expect(source).toContain('<Shortcut label="↓" value={"\\u001b[B"} onSend={sendKey} />');
+    expect(source).toContain('<Shortcut label="↑" value={"\\u001b[A"} onSend={sendKey} />');
+    expect(source).toContain('<Shortcut label="→" value={"\\u001b[C"} onSend={sendKey} />');
+    expect(source).toContain('<Shortcut label="↵" value={"\\r"} onSend={sendKey} />');
+  });
+
+  it("does not send a shortcut while the user starts a horizontal swipe", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("onClick={trigger}");
+    expect(source).not.toContain("onTouchStart={trigger}");
+    expect(source).not.toContain("onPointerDown={trigger}");
+  });
+
+  it("uses the system keyboard without redundant remote controls", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("window.visualViewport?.height");
+    expect(source).toContain('style={{ height: `${viewportHeight}px` }}');
+    expect(source).not.toContain('aria-label="Show system keyboard"');
+    expect(source).not.toContain("terminalFocusRequest");
+    expect(source).not.toContain("RemoteKeyboard");
+    expect(source).not.toContain("keyboardVisible");
+  });
+
+  it("asks Chrome Android to resize content instead of overlaying the system keyboard", () => {
+    const html = readFileSync(remoteHtmlPath, "utf8");
+
+    expect(html).toContain("interactive-widget=resizes-content");
   });
 
   it("offers password setup or login without a temporary-code screen", () => {
@@ -56,25 +92,14 @@ describe("RemoteApp transport", () => {
     expect(styles).toContain("@media (max-width: 520px)");
   });
 
-  it("provides browser voice typing that inserts the final transcript into the terminal", () => {
+  it("does not add a browser voice-input control when the system keyboard provides dictation", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("webkitSpeechRecognition");
-    expect(source).toContain("SpeechRecognition");
-    expect(source).toContain('aria-label={voiceInput.listening ? "Stop voice input" : "Start voice input"}');
-    expect(source).toContain("recognition.onresult");
-    expect(source).toContain("sendKey(pendingTranscript)");
-    expect(source).toContain("recognition?.abort()");
-  });
-
-  it("commits the latest Android voice transcript when recognition ends normally", () => {
-    const source = readFileSync(sourcePath, "utf8");
-
-    expect(source).toContain("recognition.interimResults = true");
-    expect(source).toContain('let pendingTranscript = ""');
-    expect(source).toContain("const commitTranscript = () =>");
-    expect(source).toContain("result.isFinal");
-    expect(source).toContain("if (!recognitionFailed) commitTranscript()");
+    expect(source).not.toContain("webkitSpeechRecognition");
+    expect(source).not.toContain("SpeechRecognition");
+    expect(source).not.toContain("Mic01Icon");
+    expect(source).not.toContain("toggleVoiceInput");
+    expect(source).not.toContain("remote-voice-error");
   });
 
   it("accepts Android-safe setup paths and scrubs the one-time secret", () => {

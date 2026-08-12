@@ -19,20 +19,30 @@ describe("RemoteTerminal renderer", () => {
     expect(source).not.toContain("new WebSocket");
   });
 
-  it("keeps terminal rendering isolated while remote keyboard routes input", () => {
+  it("accepts hardware and system keyboard input directly in the terminal", () => {
     const source = readFileSync(path.join(here, "RemoteTerminal.tsx"), "utf8");
 
-    expect(source).toContain("disableStdin: true");
+    expect(source).toContain("disableStdin: false");
     expect(source).toContain("convertEol: true");
+    expect(source).toContain("terminal.onData((data) => client.sendInput(sessionId, data))");
+    expect(source).not.toContain("focusRequest");
     expect(source).toContain("terminal.write(data)");
     expect(source).not.toContain("TerminalOutputQueue");
-    expect(source).not.toContain("terminal.focus()");
   });
 
   it("does not stretch xterm's calculated screen to the full viewport", () => {
     const css = readFileSync(path.join(here, "remote.css"), "utf8");
 
     expect(css).not.toContain(".remote-terminal .xterm-screen");
+  });
+
+  it("keeps xterm's helper textarea in a fixed WebKit IME context", () => {
+    const css = readFileSync(path.join(here, "remote.css"), "utf8");
+
+    expect(css).toContain(".remote-terminal .xterm-helper-textarea {");
+    expect(css).toContain("position: fixed !important;");
+    expect(css).not.toContain("left: 0 !important;");
+    expect(css).not.toContain("z-index: -1 !important;");
   });
 
   it("uses clsh's font-ready lifecycle before opening and fitting xterm", () => {
