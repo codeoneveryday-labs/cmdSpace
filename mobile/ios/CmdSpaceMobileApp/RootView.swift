@@ -3,17 +3,40 @@ import VisionKit
 
 struct RootView: View {
     @EnvironmentObject private var remote: RemoteStore
+    @State private var settingsOpen = false
 
     var body: some View {
-        Group {
-            switch remote.state {
-            case .unpaired, .failed: PairDeviceView()
-            case .connecting: ConnectingView()
-            case .connected: TerminalRemoteView()
+        GeometryReader { proxy in
+            ZStack {
+                CmdSpaceTheme.canvas
+
+                switch remote.state {
+                case .unpaired, .failed: PairDeviceView()
+                case .connecting: ConnectingView()
+                case .connected: TerminalRemoteView()
+                }
             }
+            .overlay(alignment: .topTrailing) {
+                if remote.state.isPairingScreen {
+                    Button { settingsOpen = true } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 19, weight: .light))
+                            .foregroundStyle(CmdSpaceTheme.muted)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Settings")
+                    .padding(.top, 8)
+                    .padding(.trailing, 16)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .sheet(isPresented: $settingsOpen) {
+            CmdSpaceSettingsView(close: { settingsOpen = false })
         }
         .tint(CmdSpaceTheme.signal)
-        .background(CmdSpaceTheme.canvas.ignoresSafeArea())
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
     }
 }
 
@@ -21,7 +44,6 @@ private struct PairDeviceView: View {
     @EnvironmentObject private var remote: RemoteStore
     @State private var pairingText = ""
     @State private var scannerOpen = false
-    @State private var settingsOpen = false
 
     var body: some View {
         ZStack {
@@ -57,18 +79,6 @@ private struct PairDeviceView: View {
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .overlay(alignment: .topTrailing) {
-            Button { settingsOpen = true } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 19, weight: .light))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-            }
-                .accessibilityLabel("Settings")
-                .padding(.top, 8)
-                .padding(.trailing, 16)
-        }
-        .sheet(isPresented: $settingsOpen) { CmdSpaceSettingsView(close: { settingsOpen = false }) }
         .sheet(isPresented: $remote.pairingSheetOpen) {
             NavigationStack {
                 VStack(spacing: 16) {
@@ -91,6 +101,17 @@ private struct PairDeviceView: View {
                     Button("Continue") { scannerOpen = false; remote.pairingSheetOpen = true }.buttonStyle(CmdSpaceButtonStyle())
                 }.padding().background(CmdSpaceTheme.canvas.ignoresSafeArea())
             }
+        }
+    }
+}
+
+private extension RemoteStore.State {
+    var isPairingScreen: Bool {
+        switch self {
+        case .unpaired, .failed:
+            true
+        case .connecting, .connected:
+            false
         }
     }
 }
@@ -133,7 +154,7 @@ private struct WorkspaceDrawer: View {
     }
 }
 
-private enum CmdSpaceTheme { static let canvas = Color(red: 0.055, green: 0.047, blue: 0.05); static let panel = Color(red: 0.095, green: 0.085, blue: 0.09); static let signal = Color(red: 0.57, green: 0.78, blue: 0.45) }
+private enum CmdSpaceTheme { static let canvas = Color(red: 0.055, green: 0.047, blue: 0.05); static let panel = Color(red: 0.095, green: 0.085, blue: 0.09); static let signal = Color(red: 0.57, green: 0.78, blue: 0.45); static let muted = Color(red: 0.49, green: 0.47, blue: 0.5) }
 private struct CmdSpaceLogo: View { let size: CGFloat; var body: some View { Group { if let image = UIImage(named: "logo.png") { Image(uiImage: image).resizable().scaledToFit().colorInvert() } }.frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: size * 0.26)) } }
 private struct CmdSpaceSettingsView: View { let close: () -> Void; var body: some View { NavigationStack { VStack(alignment: .leading, spacing: 16) { Text("Settings").font(.system(.title2, design: .serif)); Text("Device identity is stored only in this iPhone's Keychain.").font(.system(.footnote, design: .monospaced)).foregroundStyle(.secondary); Spacer(); Link(destination: URL(string: "https://github.com/codeoneveryday-labs/cmdSpace")!) { Label("View cmdSpace on GitHub", systemImage: "chevron.left.forwardslash.chevron.right") }; Spacer() }.padding().background(CmdSpaceTheme.canvas.ignoresSafeArea()).toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done", action: close) } } }.preferredColorScheme(.dark) } }
 private struct CmdSpaceButtonStyle: ButtonStyle { func makeBody(configuration: Configuration) -> some View { configuration.label.font(.system(.body, design: .monospaced)).frame(maxWidth: .infinity).padding(13).background(CmdSpaceTheme.panel.opacity(configuration.isPressed ? 0.6 : 1)).overlay(RoundedRectangle(cornerRadius: 10).stroke(.gray.opacity(0.45))).clipShape(RoundedRectangle(cornerRadius: 10)) } }
