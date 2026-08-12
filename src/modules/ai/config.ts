@@ -67,7 +67,6 @@ export const PROVIDERS: readonly ProviderInfo[] = [
       label: "Nova-3",
       description: "Realtime and batch transcription from Deepgram.",
       endpoint: "https://api.deepgram.com/v1/listen",
-      developmentOnly: true,
     },
   },
   {

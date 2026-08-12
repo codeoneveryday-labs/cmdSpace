@@ -22,10 +22,47 @@ export const DEFAULT_SPEECH_TO_TEXT_MODEL_ID = "gpt-4o-transcribe";
 
 export type SpeechToTextRequest = SpeechToTextModel & { apiKey: string };
 
+export type SpeechToTextHttpRequest = {
+  endpoint: string;
+  headers: Record<string, string>;
+  body: BodyInit;
+  transcriptFromResponse: (payload: unknown) => string | null;
+};
+
 const HEALTH_CHECK_SAMPLE_RATE = 8_000;
 const HEALTH_CHECK_SAMPLE_DURATION_SECONDS = 0.25;
 const DEVELOPER_VOCABULARY_PROMPT =
   "Đây là câu đọc chính tả của lập trình viên, có thể xen tiếng Việt và English. Giữ nguyên chính tả của thuật ngữ kỹ thuật và tên riêng: cmdSpace, Codex, Claude, OpenAI, Tauri, Rust, Cargo, TypeScript, JavaScript, React, Vite, pnpm, Node.js, xterm.js, CodeMirror, Vitest, Git, GitHub, API, SDK, CLI, terminal, workspace, repository, Docker, Kubernetes, PostgreSQL, SQLite.";
+const DEVELOPER_KEYTERMS = [
+  "cmdSpace",
+  "Codex",
+  "Claude",
+  "OpenAI",
+  "Tauri",
+  "Rust",
+  "Cargo",
+  "TypeScript",
+  "JavaScript",
+  "React",
+  "Vite",
+  "pnpm",
+  "Node.js",
+  "xterm.js",
+  "CodeMirror",
+  "Vitest",
+  "Git",
+  "GitHub",
+  "API",
+  "SDK",
+  "CLI",
+  "terminal",
+  "workspace",
+  "repository",
+  "Docker",
+  "Kubernetes",
+  "PostgreSQL",
+  "SQLite",
+] as const;
 
 function healthCheckAudio(): File {
   const sampleCount = HEALTH_CHECK_SAMPLE_RATE * HEALTH_CHECK_SAMPLE_DURATION_SECONDS;
@@ -63,7 +100,7 @@ function healthCheckAudio(): File {
   });
 }
 
-/** Builds the common payload for every supported Space cloud transcription. */
+/** Builds the multipart payload for OpenAI-compatible Space cloud transcription. */
 export function createSpeechToTextFormData(
   recording: Blob,
   filename: string,
@@ -84,24 +121,121 @@ export function createSpeechToTextFormData(
   return formData;
 }
 
+function deepgramKeyterms(developerVocabulary: string): string[] {
+  const workspaceTerms = developerVocabulary
+    .split(/[\n,]/)
+    .map((term) => term.trim())
+    .filter(Boolean);
+  return [...new Set([...DEVELOPER_KEYTERMS, ...workspaceTerms])].slice(0, 100);
+}
+
+function deepgramTranscript(payload: unknown): string | null {
+  if (typeof payload !== "object" || payload === null || !("results" in payload)) {
+    return null;
+  }
+  const results = payload.results;
+  if (typeof results !== "object" || results === null || !("channels" in results)) {
+    return null;
+  }
+  const [channel] = Array.isArray(results.channels) ? results.channels : [];
+  if (typeof channel !== "object" || channel === null || !("alternatives" in channel)) {
+    return null;
+  }
+  const [alternative] = Array.isArray(channel.alternatives) ? channel.alternatives : [];
+  return typeof alternative === "object" && alternative !== null && "transcript" in alternative &&
+    typeof alternative.transcript === "string"
+    ? alternative.transcript
+    : null;
+}
+
+function openAiCompatibleTranscript(payload: unknown): string | null {
+  return typeof payload === "object" &&
+    payload !== null &&
+    "text" in payload &&
+    typeof payload.text === "string"
+    ? payload.text
+    : null;
+}
+
+/** Builds the provider-specific authenticated payload used by live STT and health checks. */
+export function createSpeechToTextHttpRequest(
+  recording: Blob,
+  filename: string,
+  request: SpeechToTextRequest,
+  developerVocabulary = "",
+): SpeechToTextHttpRequest {
+  if (request.provider === "deepgram") {
+    const endpoint = new URL(request.endpoint);
+    endpoint.searchParams.set("model", request.modelId);
+    endpoint.searchParams.set("language", "multi");
+    for (const term of deepgramKeyterms(developerVocabulary)) {
+      endpoint.searchParams.append("keyterm", term);
+    }
+    return {
+      endpoint: endpoint.toString(),
+      headers: {
+        Authorization: `Token ${request.apiKey}`,
+        "Content-Type": recording.type || "audio/wav",
+      },
+      body: recording,
+      transcriptFromResponse: deepgramTranscript,
+    };
+  }
+
+  return {
+    endpoint: request.endpoint,
+    headers: { Authorization: `Bearer ${request.apiKey}` },
+    body: createSpeechToTextFormData(recording, filename, request, developerVocabulary),
+    transcriptFromResponse: openAiCompatibleTranscript,
+  };
+}
+
+export async function transcribeSpeechToText(
+  recording: Blob,
+  filename: string,
+  request: SpeechToTextRequest,
+  developerVocabulary = "",
+  fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
+): Promise<string> {
+  const prepared = createSpeechToTextHttpRequest(
+    recording,
+    filename,
+    request,
+    developerVocabulary,
+  );
+  const response = await fetcher(prepared.endpoint, {
+    method: "POST",
+    headers: prepared.headers,
+    body: prepared.body,
+  });
+  if (!response.ok) {
+    throw new Error(`${request.provider} transcription failed (${response.status}).`);
+  }
+  const transcript = prepared.transcriptFromResponse(await response.json());
+  if (transcript === null) {
+    throw new Error(`${request.provider} transcription returned no text.`);
+  }
+  return transcript;
+}
+
 /**
- * Verifies the same authenticated multipart endpoint used for a real Space
- * transcription without capturing microphone audio or retaining any content.
+ * Verifies the same authenticated endpoint used for a real Space transcription
+ * without capturing microphone audio or retaining any content.
  */
 export async function probeSpeechToText(
   request: SpeechToTextRequest,
   fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
 ): Promise<void> {
-  const formData = createSpeechToTextFormData(
+  const prepared = createSpeechToTextHttpRequest(
     healthCheckAudio(),
     "cmdspace-stt-health-check.wav",
     request,
   );
 
-  const response = await fetcher(request.endpoint, {
+  const response = await fetcher(prepared.endpoint, {
     method: "POST",
-    headers: { Authorization: `Bearer ${request.apiKey}` },
-    body: formData,
+    headers: prepared.headers,
+    body: prepared.body,
   });
   if (!response.ok) {
     throw new Error(

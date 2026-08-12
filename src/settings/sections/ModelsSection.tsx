@@ -136,7 +136,7 @@ export function ModelsSection() {
             </p>
           </div>
           <span className="text-[10.5px] text-muted-foreground">
-            {connectedCount} connected
+            {connectedCount} keys saved
           </span>
         </div>
 
@@ -232,7 +232,9 @@ function ConfiguredProviderRow({
   onClear: () => Promise<void>;
 }) {
   const status = currentKey
-    ? { label: "Connected", dot: "bg-emerald-500" }
+    ? provider.speechToText.developmentOnly
+      ? { label: "Key saved · unavailable", dot: "bg-amber-500" }
+      : { label: "Key saved", dot: "bg-emerald-500" }
     : { label: "Needs key", dot: "bg-amber-500" };
 
   return (
@@ -342,12 +344,23 @@ function SpeechToTextRow({
     () => getSpeechToTextRequest(currentModel.modelId, keys),
     [currentModel.modelId, keys],
   );
+  const fallbackModel = enabledProviders
+    .flatMap((provider) =>
+      SPEECH_TO_TEXT_MODELS.filter((model) => model.provider === provider.id),
+    )
+    .find((model) => !model.developmentOnly && !!keys[model.provider]);
   const [health, setHealth] = useState<
     | { state: "checking" }
     | { state: "ready" }
     | { state: "unavailable"; message: string }
   >({ state: "checking" });
   const [healthCheckAttempt, setHealthCheckAttempt] = useState(0);
+
+  useEffect(() => {
+    if (currentModel.developmentOnly && fallbackModel) {
+      void setSpeechToTextModelId(fallbackModel.modelId);
+    }
+  }, [currentModel.developmentOnly, fallbackModel]);
 
   useEffect(() => {
     let disposed = false;
@@ -441,9 +454,11 @@ function SpeechToTextRow({
                   {models.map((model) => (
                     <DropdownMenuItem
                       key={model.modelId}
-                      disabled={!providerConnected}
+                      disabled={!providerConnected || model.developmentOnly}
                       onSelect={() =>
-                        providerConnected && void setSpeechToTextModelId(model.modelId)
+                        providerConnected &&
+                        !model.developmentOnly &&
+                        void setSpeechToTextModelId(model.modelId)
                       }
                       className={cn(
                         "text-[11.5px]",
@@ -454,6 +469,7 @@ function SpeechToTextRow({
                         <span>{model.label}</span>
                         <span className="text-[10px] text-muted-foreground">
                           {model.description}
+                          {model.developmentOnly ? " · unavailable" : ""}
                         </span>
                       </span>
                     </DropdownMenuItem>
