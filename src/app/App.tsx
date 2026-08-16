@@ -99,6 +99,7 @@ import {
   type TerminalPaneHandle,
 } from "@/modules/terminal";
 import {
+  clearAgentCompleted,
   useAgentCliCommands,
   useAgentCompletedLeaves,
   useAgentResponseLeaves,
@@ -2114,6 +2115,7 @@ export default function App() {
 
   const handleSelectWorkspaceTerminal = useCallback(
     (leafId: number) => {
+      clearAgentCompleted(leafId);
       if (activeTerminalTab) focusPane(activeTerminalTab.id, leafId);
     },
     [activeTerminalTab, focusPane],
