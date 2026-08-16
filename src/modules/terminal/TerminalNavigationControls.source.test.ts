@@ -10,9 +10,7 @@ describe("TerminalNavigationControls", () => {
     expect(existsSync(sourcePath)).toBe(true);
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("listTerminalSubdirectories(cwd, showHidden)");
-    expect(source).toContain(".. (Parent Directory)");
-    expect(source).toContain("onChangeDirectory(parentPath)");
+    expect(source).toContain('invoke<string | null>("select_folder")');
     expect(source).toContain("native.gitResolveRepo(cwd)");
     expect(source).toContain("wouldCheckoutReloadDevApp");
     expect(source).toContain("`git checkout ${shellQuote(branch)}`");

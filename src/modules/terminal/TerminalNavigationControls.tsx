@@ -1,9 +1,8 @@
 import { cn } from "@/lib/utils";
 import { native } from "@/modules/ai/lib/native";
-import { listTerminalSubdirectories } from "./lib/terminal-native";
+import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { VirtualizedDropdownList } from "@/components/ui/virtualized-dropdown-list";
-import { usePreferencesStore } from "@/modules/settings/preferences";
 import { wouldCheckoutReloadDevApp } from "@/modules/git/devReloadGuard";
 import { emitGitRepoChanged } from "@/modules/git/events";
 
@@ -34,11 +33,10 @@ export function TerminalNavigationControls({
   showDirectoryPicker = true,
   className,
 }: Props) {
-  const showHidden = usePreferencesStore((state) => state.showHidden);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
-  const [directories, setDirectories] = useState<string[]>([]);
-  const [directoryError, setDirectoryError] = useState<string | null>(null);
+  const [directories] = useState<string[]>([]);
+  const [directoryError] = useState<string | null>(null);
   const [branchName, setBranchName] = useState<string | null>(null);
   const [branches, setBranches] = useState<string[]>([]);
   const [repoRoot, setRepoRoot] = useState<string | null>(null);
@@ -47,6 +45,15 @@ export function TerminalNavigationControls({
 
   const folderName = cwd?.replace(/\/$/, "").split("/").pop() || "terminal";
   const parentPath = cwd ? dirname(cwd) : null;
+
+  const chooseFolder = useCallback(async () => {
+    try {
+      const selected = await invoke<string | null>("select_folder");
+      if (selected) onChangeDirectory(selected);
+    } catch (error) {
+      console.warn("Failed to choose folder:", error);
+    }
+  }, [onChangeDirectory]);
 
   const refreshRepository = useCallback(async () => {
     if (!cwd) {
@@ -79,20 +86,6 @@ export function TerminalNavigationControls({
     document.addEventListener("mousedown", closeWhenOutside);
     return () => document.removeEventListener("mousedown", closeWhenOutside);
   }, [branchOpen, directoryOpen]);
-
-  const openDirectories = async () => {
-    if (!cwd) return;
-    setDirectoryError(null);
-    setBranchOpen(false);
-    setDirectoryOpen(true);
-    try {
-      const list = await listTerminalSubdirectories(cwd, showHidden);
-      setDirectories(list);
-    } catch (error) {
-      setDirectoryError(String(error));
-      setDirectories([]);
-    }
-  };
 
   const openBranches = async () => {
     if (!repoRoot) return;
@@ -148,8 +141,7 @@ export function TerminalNavigationControls({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              if (directoryOpen) setDirectoryOpen(false);
-              else void openDirectories();
+              void chooseFolder();
             }}
             className="max-w-40 truncate text-left font-semibold text-foreground transition-colors hover:text-foreground/80 dark:text-zinc-300 dark:hover:text-zinc-100"
             aria-label="Choose terminal folder"
