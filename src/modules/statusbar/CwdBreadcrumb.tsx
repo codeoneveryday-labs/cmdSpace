@@ -186,6 +186,15 @@ function CurrentSegmentDropdown({
   const [error, setError] = useState<string | null>(null);
   const parentPath = dirname(path);
 
+  const chooseFolder = useCallback(async () => {
+    try {
+      const selected = await invoke<string | null>("select_folder");
+      if (selected) onCd(selected);
+    } catch (error) {
+      console.warn("Failed to choose folder:", error);
+    }
+  }, [onCd]);
+
   const load = useCallback(async () => {
     setError(null);
     try {
@@ -208,7 +217,15 @@ function CurrentSegmentDropdown({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <BreadcrumbPage className="flex cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-foreground hover:bg-accent">
+        <BreadcrumbPage
+          className="flex cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-foreground hover:bg-accent"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void chooseFolder();
+          }}
+          title="Choose folder"
+        >
           {label === "~" ? (
             <>
               <HugeiconsIcon
