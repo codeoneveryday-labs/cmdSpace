@@ -17,6 +17,8 @@ import {
   type ShellIntegrationState,
 } from "./osc-handlers";
 import { openPty, type PtySession } from "./pty-bridge";
+import { broadcastTargetsForInput } from "./terminalBroadcastRuntime";
+import { noteTerminalOutput } from "./terminalActivity";
 import {
   acquireSlot,
   applyBackgroundActive,
@@ -44,6 +46,7 @@ type Callbacks = {
   onCwd?: (cwd: string) => void;
   onCommand?: (cmd: string) => void;
   onAgentActivity?: (responding: boolean) => void;
+  onOutputActivity?: (active: boolean) => void;
 };
 
 type Session = {
@@ -74,12 +77,14 @@ type Session = {
   shellState: ShellIntegrationState | null;
   initialCommandFallbackTimer: number | null;
   agentActivityTimer: number | null;
+  outputActivityTimer: number | null;
   lastLocalInputAt: number;
 };
 
 const sessions = new Map<number, Session>();
 const LOCAL_INPUT_ECHO_GRACE_MS = 180;
 const FONT_READY_TIMEOUT_MS = 1500;
+const OUTPUT_ACTIVITY_QUIET_MS = 900;
 
 ensureAgentActivityListener();
 
@@ -178,7 +183,13 @@ configureRendererPool({
     if (!s) return null;
     return {
       writeToPty: (data) => {
-        writeToSessionPty(leafId, s, data);
+        for (const targetLeafId of broadcastTargetsForInput(
+          leafId,
+          [...sessions.keys()],
+        )) {
+          const target = sessions.get(targetLeafId);
+          if (target) writeToSessionPty(targetLeafId, target, data);
+        }
       },
       observeInputLine: (line) => {
         observeTerminalInputLine(leafId, s, line);
@@ -248,6 +259,7 @@ function ensureSession(
     shellState: null,
     initialCommandFallbackTimer: null,
     agentActivityTimer: null,
+    outputActivityTimer: null,
     lastLocalInputAt: 0,
   };
   if (session.interactiveCodingAgent && initialCommand) {
@@ -274,6 +286,13 @@ function ensureSession(
 function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   const s = sessions.get(leafId);
   if (!s) return;
+  const outputActivity = noteTerminalOutput(Date.now(), OUTPUT_ACTIVITY_QUIET_MS);
+  s.callbacks.onOutputActivity?.(outputActivity.active);
+  if (s.outputActivityTimer !== null) window.clearTimeout(s.outputActivityTimer);
+  s.outputActivityTimer = window.setTimeout(() => {
+    s.outputActivityTimer = null;
+    s.callbacks.onOutputActivity?.(false);
+  }, Math.max(0, outputActivity.expiresAt - Date.now()));
   const output = s.agentOutputTail + new TextDecoder().decode(bytes);
   s.agentOutputTail = output.slice(-512);
   const detectedAgent = detectCodingAgentBanner(output);
@@ -315,6 +334,11 @@ async function openPtyForSession(
     {
       onData: (bytes) => deliverPtyBytes(leafId, bytes),
       onExit: (code) => {
+        if (s.outputActivityTimer !== null) {
+          window.clearTimeout(s.outputActivityTimer);
+          s.outputActivityTimer = null;
+        }
+        s.callbacks.onOutputActivity?.(false);
         s.shellExited = true;
         s.pty = null;
         clearPtyLeaf(pty.id);
@@ -488,6 +512,11 @@ export async function respawnSession(
     window.clearTimeout(s.agentActivityTimer);
     s.agentActivityTimer = null;
   }
+  if (s.outputActivityTimer !== null) {
+    window.clearTimeout(s.outputActivityTimer);
+    s.outputActivityTimer = null;
+  }
+  s.callbacks.onOutputActivity?.(false);
   s.callbacks.onAgentActivity?.(false);
 
   const slot = getSlotForLeaf(leafId);
@@ -528,6 +557,11 @@ export function disposeSession(leafId: number): void {
     window.clearTimeout(s.agentActivityTimer);
     s.agentActivityTimer = null;
   }
+  if (s.outputActivityTimer !== null) {
+    window.clearTimeout(s.outputActivityTimer);
+    s.outputActivityTimer = null;
+  }
+  s.callbacks.onOutputActivity?.(false);
   s.callbacks.onAgentActivity?.(false);
   unbindLeafFromSlot(leafId, s);
   s.snapshot = null;
@@ -549,6 +583,7 @@ type Options = {
   onCwd?: (cwd: string) => void;
   onCommand?: (cmd: string) => void;
   onAgentActivity?: (responding: boolean) => void;
+  onOutputActivity?: (active: boolean) => void;
 };
 
 export function useTerminalSession({
@@ -563,9 +598,10 @@ export function useTerminalSession({
   onCwd,
   onCommand,
   onAgentActivity,
+  onOutputActivity,
 }: Options) {
-  const cbRef = useRef({ onSearchReady, onExit, onCwd, onCommand, onAgentActivity });
-  cbRef.current = { onSearchReady, onExit, onCwd, onCommand, onAgentActivity };
+  const cbRef = useRef({ onSearchReady, onExit, onCwd, onCommand, onAgentActivity, onOutputActivity });
+  cbRef.current = { onSearchReady, onExit, onCwd, onCommand, onAgentActivity, onOutputActivity };
 
   useEffect(() => {
     let cancelled = false;
@@ -580,6 +616,7 @@ export function useTerminalSession({
         onCwd: (c) => cbRef.current.onCwd?.(c),
         onCommand: (cmd) => cbRef.current.onCommand?.(cmd),
         onAgentActivity: (responding) => cbRef.current.onAgentActivity?.(responding),
+        onOutputActivity: (active) => cbRef.current.onOutputActivity?.(active),
       });
       if (s.visibleNow && s.focusedNow) focusSlot(leafId);
     });

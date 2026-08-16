@@ -29,6 +29,7 @@ type Props = {
   onCwd?: (leafId: number, cwd: string) => void;
   onCommand?: (leafId: number, cmd: string) => void;
   onAgentActivity?: (leafId: number, responding: boolean) => void;
+  onOutputActivity?: (leafId: number, active: boolean) => void;
 };
 
 export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
@@ -45,6 +46,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
       onCwd,
       onCommand,
       onAgentActivity,
+      onOutputActivity,
     },
     ref,
   ) {
@@ -63,6 +65,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
       onCwd: (c) => onCwd?.(leafId, c),
       onCommand: (c) => onCommand?.(leafId, c),
       onAgentActivity: (responding) => onAgentActivity?.(leafId, responding),
+      onOutputActivity: (active) => onOutputActivity?.(leafId, active),
     });
 
     useEffect(() => {

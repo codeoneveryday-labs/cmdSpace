@@ -79,4 +79,22 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     expect(canvasSource).toContain("sessionRef.current = null;");
     expect(canvasSource).toContain("void sessionRef.current?.write(normalized);");
   });
+
+  it("broadcasts only xterm user input and leaves imperative writes direct", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("broadcastTargetsForInput(");
+    expect(source).toContain("[...sessions.keys()]");
+    expect(source).toContain("const write = useCallback((data: string) => {");
+    expect(source).toContain("if (s) writeToSessionPty(leafId, s, data);");
+  });
+
+  it("publishes output activity and clears its timer on exit and disposal", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("noteTerminalOutput(Date.now(), OUTPUT_ACTIVITY_QUIET_MS)");
+    expect(source).toContain("s.callbacks.onOutputActivity?.(outputActivity.active)");
+    expect(source).toContain("window.clearTimeout(s.outputActivityTimer)");
+    expect(source).toContain("s.callbacks.onOutputActivity?.(false)");
+  });
 });

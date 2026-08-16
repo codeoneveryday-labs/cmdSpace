@@ -34,6 +34,7 @@ import {
   detectCliAgent,
 } from "./lib/cliAgents";
 import { AgentCliIcon } from "./AgentCliIcon";
+import { cn } from "@/lib/utils";
 
 const PANE_RESIZE_RESUME_DELAY_MS = 48;
 const PANE_SPLIT_MIN_SIZE = 10;
@@ -64,6 +65,11 @@ type Props = {
   onHydrateLeaf: (leafId: number) => void;
   onPaneTreeChange: (node: PaneNode) => void;
   dragContext?: PaneDragContext;
+  broadcastEnabled: boolean;
+  broadcastTargetLeafIds: readonly number[];
+  canBroadcast: boolean;
+  onToggleBroadcast: () => void;
+  onToggleBroadcastTarget: (leafId: number) => void;
 };
 
 export type PaneDragContext = {
@@ -92,11 +98,17 @@ export function PaneTreeView({
   onHydrateLeaf,
   onPaneTreeChange,
   dragContext,
+  broadcastEnabled,
+  broadcastTargetLeafIds,
+  canBroadcast,
+  onToggleBroadcast,
+  onToggleBroadcastTarget,
 }: Props) {
   const groupRef = useRef<GroupImperativeHandle | null>(null);
   const paneResizeResumeTimerRef = useRef<number | null>(null);
   const paneResizeDragCleanupRef = useRef<(() => void) | null>(null);
   const [agentResponding, setAgentResponding] = useState(false);
+  const [outputActive, setOutputActive] = useState(false);
   const storedAgentCommand = useAgentCliCommand(
     node.kind === "leaf" ? node.id : undefined,
   );
@@ -186,6 +198,7 @@ export function PaneTreeView({
               b.onCommand?.(cmd);
             }}
             onAgentActivity={(_id, responding) => setAgentResponding(responding)}
+            onOutputActivity={(_id, active) => setOutputActive(active)}
           />
         ) : null}
 
@@ -222,6 +235,12 @@ export function PaneTreeView({
           hydrated={hydrated}
           onDragStart={(event) => dragContext?.onDragStart(node.id, event)}
           isDragging={isDragging}
+          broadcastEnabled={broadcastEnabled}
+          broadcastTargeted={broadcastTargetLeafIds.includes(node.id)}
+          canBroadcast={canBroadcast}
+          onToggleBroadcast={onToggleBroadcast}
+          onToggleBroadcastTarget={() => onToggleBroadcastTarget(node.id)}
+          outputActive={outputActive}
         />
       </div>
     );
@@ -451,8 +470,13 @@ export function PaneTreeView({
                   ),
                 })
               }
-              dragContext={dragContext}
-            />
+               dragContext={dragContext}
+               broadcastEnabled={broadcastEnabled}
+               broadcastTargetLeafIds={broadcastTargetLeafIds}
+               canBroadcast={canBroadcast}
+               onToggleBroadcast={onToggleBroadcast}
+               onToggleBroadcastTarget={onToggleBroadcastTarget}
+             />
           </ResizablePanel>
         </Fragment>
       ))}
@@ -495,6 +519,12 @@ type FloatingTerminalOverlayProps = {
   hydrated: boolean;
   onDragStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
   isDragging: boolean;
+  broadcastEnabled: boolean;
+  broadcastTargeted: boolean;
+  canBroadcast: boolean;
+  onToggleBroadcast: () => void;
+  onToggleBroadcastTarget: () => void;
+  outputActive: boolean;
 };
 
 function shellQuote(value: string): string {
@@ -611,6 +641,12 @@ export function FloatingTerminalOverlay({
   hydrated,
   onDragStart,
   isDragging,
+  broadcastEnabled,
+  broadcastTargeted,
+  canBroadcast,
+  onToggleBroadcast,
+  onToggleBroadcastTarget,
+  outputActive,
 }: FloatingTerminalOverlayProps) {
   const [additions, setAdditions] = useState<number>(0);
   const [deletions, setDeletions] = useState<number>(0);
@@ -757,6 +793,13 @@ export function FloatingTerminalOverlay({
       } hover:border-border dark:hover:border-zinc-500`}
     >
       {cliAgent ? <AgentCliIcon agent={cliAgent} /> : null}
+      {outputActive ? (
+        <span
+          role="status"
+          aria-label="Terminal is producing output"
+          className="size-1.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]"
+        />
+      ) : null}
       {cliAgent && agentResponding ? <AgentResponseLoader /> : null}
       {activeAgentUsage ? <AgentUsageBadge status={activeAgentUsage} /> : null}
       {supportsUsage ? (
@@ -794,6 +837,44 @@ export function FloatingTerminalOverlay({
 
       {/* Control Buttons */}
       <div className="flex items-center gap-1">
+        {canBroadcast ? (
+          <>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleBroadcastTarget();
+              }}
+              aria-pressed={broadcastTargeted}
+              title={broadcastTargeted ? "Remove pane from broadcast" : "Add pane to broadcast"}
+              className={cn(
+                "grid size-5.5 place-items-center rounded text-[10px] font-bold transition-colors cursor-default",
+                broadcastTargeted
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              T
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleBroadcast();
+              }}
+              aria-pressed={broadcastEnabled}
+              title={broadcastEnabled ? "Disable input broadcast" : "Enable input broadcast"}
+              className={cn(
+                "grid size-5.5 place-items-center rounded text-[10px] font-bold transition-colors cursor-default",
+                broadcastEnabled
+                  ? "bg-amber-500/20 text-amber-600 dark:text-amber-300"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              B
+            </button>
+          </>
+        ) : null}
         {/* Split Vertically (Row) Button */}
         <button
           type="button"

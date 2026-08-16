@@ -61,6 +61,22 @@ describe("FloatingTerminalOverlay", () => {
     expect(source).toContain("onChangeDirectory={onCd}");
   });
 
+  it("exposes explicit broadcast membership and arming controls", () => {
+    const source = readFileSync(paneTreePath, "utf8");
+    const stack = readFileSync(terminalStackPath, "utf8");
+
+    expect(source).toContain('title={broadcastEnabled ? "Disable input broadcast"');
+    expect(source).toContain('title={broadcastTargeted ? "Remove pane from broadcast"');
+    expect(stack).toContain("registerBroadcastTab(");
+    expect(stack).toContain("onToggleBroadcastTarget");
+  });
+
+  it("shows output activity independently from agent detection", () => {
+    const source = readFileSync(paneTreePath, "utf8");
+    expect(source).toContain('aria-label="Terminal is producing output"');
+    expect(source).toContain("onOutputActivity");
+  });
+
   it("refreshes all pane git labels in the same repo after a branch switch", () => {
     const source = readFileSync(paneTreePath, "utf8");
 
