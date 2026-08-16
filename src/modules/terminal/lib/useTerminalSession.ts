@@ -106,7 +106,10 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
     const command = s.inputBuffer.trim();
     if (command.length > 0) {
       s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);
-      if (s.interactiveCodingAgent) setAgentCliCommand(leafId, command);
+      if (s.interactiveCodingAgent) {
+        s.launchCommand = command;
+        setAgentCliCommand(leafId, command);
+      }
       if (!s.interactiveCodingAgent) {
         setAgentResponseActivity(leafId, false);
         s.callbacks.onAgentActivity?.(false);
@@ -141,6 +144,7 @@ function trackAgentLaunchInput(leafId: number, s: Session, data: string): void {
     const command = (s.agentLaunchBuffer + beforeEnter).trim();
     if (isInteractiveCodingAgentCommand(command)) {
       s.interactiveCodingAgent = true;
+      s.launchCommand = command;
       setAgentCliCommand(leafId, command);
       void s.pty?.setMetadata({ agent: command });
       s.callbacks.onCommand?.(command);
@@ -174,6 +178,7 @@ function observeTerminalInputLine(
 ): void {
   if (s.shellState?.inCommand || !isInteractiveCodingAgentCommand(line)) return;
   s.interactiveCodingAgent = true;
+  s.launchCommand = line;
   setAgentCliCommand(leafId, line);
   void s.pty?.setMetadata({ agent: line });
   s.callbacks.onCommand?.(line);
@@ -303,6 +308,7 @@ function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   if (detectedAgent) {
     const wasInteractiveCodingAgent = s.interactiveCodingAgent;
     s.interactiveCodingAgent = true;
+    s.launchCommand = detectedAgent;
     setAgentCliCommand(leafId, detectedAgent);
     if (!wasInteractiveCodingAgent) {
       void s.pty?.setMetadata({ agent: detectedAgent });

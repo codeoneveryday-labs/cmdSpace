@@ -114,6 +114,13 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     );
   });
 
+  it("remembers agents launched interactively so directory relocation can reopen them", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("s.launchCommand = command;");
+    expect(source).toContain("s.launchCommand = detectedAgent;");
+  });
+
   it("publishes output activity and clears its timer on exit and disposal", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
 
