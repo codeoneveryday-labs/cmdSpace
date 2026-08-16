@@ -31,7 +31,7 @@ function shellQuote(value: string): string {
 export function TerminalNavigationControls({
   cwd,
   onChangeDirectory,
-  showDirectoryPicker = false,
+  showDirectoryPicker = true,
   className,
 }: Props) {
   const showHidden = usePreferencesStore((state) => state.showHidden);

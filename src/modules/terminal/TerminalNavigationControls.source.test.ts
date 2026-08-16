@@ -23,7 +23,7 @@ describe("TerminalNavigationControls", () => {
     const source = readFileSync(sourcePath, "utf8");
 
     expect(source).toContain("showDirectoryPicker?: boolean;");
-    expect(source).toContain("showDirectoryPicker = false");
+    expect(source).toContain("showDirectoryPicker = true");
     expect(source).toContain('data-directory-picker="inline"');
     expect(source).toContain("onPointerDown={(event) => event.stopPropagation()}");
   });
