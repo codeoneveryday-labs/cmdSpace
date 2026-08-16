@@ -45,7 +45,7 @@ describe("FloatingTerminalOverlay", () => {
   it("shows local coding-agent context and account-limit details without exposing credentials", () => {
     const source = readFileSync(paneTreePath, "utf8");
 
-    expect(source).toContain('invoke<AgentUsageStatus[]>("agent_usage_statuses"');
+    expect(source).toContain("getAgentUsageStatuses(cwd)");
     expect(source).toContain("AgentUsageBadge");
     expect(source).toContain("AgentUsageMenu");
     expect(source).toContain("Context window");

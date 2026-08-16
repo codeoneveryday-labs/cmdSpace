@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 import { native } from "@/modules/ai/lib/native";
-import { currentWorkspaceEnv } from "@/modules/workspace";
-import { invoke } from "@tauri-apps/api/core";
+import { listTerminalSubdirectories } from "./lib/terminal-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { VirtualizedDropdownList } from "@/components/ui/virtualized-dropdown-list";
 import { usePreferencesStore } from "@/modules/settings/preferences";
@@ -85,11 +84,7 @@ export function TerminalNavigationControls({
     setBranchOpen(false);
     setDirectoryOpen(true);
     try {
-      const list = await invoke<string[]>("list_subdirs", {
-        path: cwd,
-        showHidden,
-        workspace: currentWorkspaceEnv(),
-      });
+      const list = await listTerminalSubdirectories(cwd, showHidden);
       setDirectories(list);
     } catch (error) {
       setDirectoryError(String(error));

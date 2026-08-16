@@ -2,7 +2,7 @@ import { detectMonoFontFamily } from "@/lib/fonts";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { buildTerminalTheme } from "@/styles/terminalTheme";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { invoke } from "@tauri-apps/api/core";
+import { traceTerminalInput } from "./terminal-native";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
@@ -269,7 +269,7 @@ function createSlot(): Slot {
       ? normalizeMacTerminalInput(data)
       : data;
     if (!compositionCommitFilter.shouldForward(normalized)) return;
-    void invoke("pty_trace_input", { source: "xterm-ondata", data: normalized });
+    void traceTerminalInput("xterm-ondata", normalized);
     if (normalized.includes("\r") || normalized.includes("\n")) {
       bridge.observeInputLine?.(currentInputLine(slot.term));
     }

@@ -18,7 +18,10 @@ import { TerminalPane, type TerminalPaneHandle } from "./TerminalPane";
 import { TerminalNavigationControls } from "./TerminalNavigationControls";
 import { type PaneNode, type SplitDir } from "./lib/panes";
 import { native } from "@/modules/ai/lib/native";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  getAgentUsageStatuses,
+  type AgentUsageStatus,
+} from "./lib/terminal-native";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setTerminalResizePaused } from "./lib/rendererPool";
 import { useAgentCliCommand } from "./lib/agentActivity";
@@ -35,22 +38,6 @@ import { AgentCliIcon } from "./AgentCliIcon";
 const PANE_RESIZE_RESUME_DELAY_MS = 48;
 const PANE_SPLIT_MIN_SIZE = 10;
 const DEFAULT_FOCUS_ACCENT_COLOR = "#0088ff";
-
-type AgentRateLimit = {
-  label: string;
-  usedPercent: number;
-  windowMinutes?: number;
-  resetsAt?: number;
-};
-
-type AgentUsageStatus = {
-  provider: "codex" | "claude";
-  contextWindow?: number;
-  contextTokens?: number;
-  contextRemainingPercent?: number;
-  contextIsEstimated: boolean;
-  rateLimits: AgentRateLimit[];
-};
 
 type LeafBundle = {
   setRef: (h: TerminalPaneHandle | null) => void;
@@ -649,7 +636,7 @@ export function FloatingTerminalOverlay({
     let disposed = false;
     const refreshAgentUsage = async () => {
       try {
-        const statuses = await invoke<AgentUsageStatus[]>("agent_usage_statuses", { cwd });
+        const statuses = await getAgentUsageStatuses(cwd);
         if (!disposed) setAgentUsage(statuses);
       } catch (error) {
         // Usage telemetry is strictly optional; a terminal must never fail because
