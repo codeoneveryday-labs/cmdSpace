@@ -56,6 +56,7 @@ type Props = {
   onFocusLeaf: (leafId: number) => void;
   getBundle: (leafId: number) => LeafBundle;
   onCloseLeaf: (leafId: number) => void;
+  onChangeDirectory: (path: string) => void;
   onToggleMaximize: (leafId: number) => void;
   isMaximized: boolean;
   canMaximize: boolean;
@@ -89,6 +90,7 @@ export function PaneTreeView({
   onFocusLeaf,
   getBundle,
   onCloseLeaf,
+  onChangeDirectory,
   onToggleMaximize,
   isMaximized,
   canMaximize,
@@ -222,13 +224,7 @@ export function PaneTreeView({
           onCloseLeaf={onCloseLeaf}
           onCd={(path) => {
             focusAndHydrate();
-            const writeCd = () => {
-              const terminal = b.getRef();
-              terminal?.write(`cd ${shellQuote(path)}\r`);
-              terminal?.focus();
-            };
-            if (b.getRef()) writeCd();
-            else requestAnimationFrame(writeCd);
+            onChangeDirectory(path);
           }}
           agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}
           agentResponding={agentResponding}
@@ -455,6 +451,7 @@ export function PaneTreeView({
               onFocusLeaf={onFocusLeaf}
               getBundle={getBundle}
               onCloseLeaf={onCloseLeaf}
+              onChangeDirectory={onChangeDirectory}
               onToggleMaximize={onToggleMaximize}
               isMaximized={isMaximized}
               canMaximize={canMaximize}
@@ -526,10 +523,6 @@ type FloatingTerminalOverlayProps = {
   onToggleBroadcastTarget: () => void;
   outputActive: boolean;
 };
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
 
 function AgentResponseLoader() {
   return (

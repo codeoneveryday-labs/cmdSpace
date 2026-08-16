@@ -30,6 +30,7 @@ type Props = {
   registerHandle: (leafId: number, handle: TerminalPaneHandle | null) => void;
   onSearchReady: (leafId: number, addon: SearchAddon) => void;
   onCwd: (leafId: number, cwd: string) => void;
+  onChangeDirectory: (path: string) => void;
   onExit: (leafId: number, code: number) => void;
   onCommand?: (leafId: number, cmd: string) => void;
   onFocusLeaf: (tabId: number, leafId: number) => void;
@@ -46,6 +47,7 @@ export function TerminalStack({
   registerHandle,
   onSearchReady,
   onCwd,
+  onChangeDirectory,
   onExit,
   onCommand,
   onFocusLeaf,
@@ -237,6 +239,7 @@ export function TerminalStack({
             onFocusLeaf={(leafId) => onFocusLeaf(activeTerminal.id, leafId)}
             getBundle={getBundle}
             onCloseLeaf={onCloseLeaf}
+            onChangeDirectory={onChangeDirectory}
             onToggleMaximize={onToggleMaximize}
             isMaximized={activeTerminal.maximizedLeafId !== undefined}
             canMaximize={leafIds(activeTerminal.paneTree).length > 1}

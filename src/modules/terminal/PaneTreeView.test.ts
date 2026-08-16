@@ -60,7 +60,8 @@ describe("FloatingTerminalOverlay", () => {
     const source = readFileSync(paneTreePath, "utf8");
 
     expect(source).toContain("onCd={(path) =>");
-    expect(source).toContain("write(`cd ${shellQuote(path)}\\r`)");
+    expect(source).toContain("onChangeDirectory(path)");
+    expect(source).not.toContain("write(`cd ${shellQuote(path)}\\r`)");
     expect(source).toContain("TerminalNavigationControls");
     expect(source).toContain("onChangeDirectory={onCd}");
   });

@@ -89,6 +89,13 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     expect(source).toContain("if (s) writeToSessionPty(leafId, s, data);");
   });
 
+  it("keeps the selected directory for later retries after a respawn", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("if (cwd !== undefined) s.initialCwd = cwd;");
+    expect(source).toContain("openPtyForSession(leafId, s, cwd ?? s.initialCwd)");
+  });
+
   it("publishes output activity and clears its timer on exit and disposal", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
 

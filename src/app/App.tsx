@@ -1492,20 +1492,6 @@ export default function App() {
     [activeLeafId, activeTab, focusPane],
   );
 
-  const sendCd = useCallback(
-    (path: string) => {
-      if (activeLeafId === null) return;
-      const term = terminalRefs.current.get(activeLeafId);
-      if (!term) return;
-      const quoted = path.includes(" ")
-        ? `'${path.replace(/'/g, `'\\''`)}'`
-        : path;
-      term.write(`cd ${quoted}\r`);
-      term.focus();
-    },
-    [activeLeafId],
-  );
-
   const cdInNewTab = useCallback(
     (path: string) => {
       const tabId = newTab(path);
@@ -2003,6 +1989,21 @@ export default function App() {
     [setLeafCwd],
   );
 
+  const changeTerminalDirectory = useCallback(
+    (path: string) => {
+      const nextPath = path.trim();
+      if (activeLeafId === null || !nextPath) return;
+
+      // A coding CLI owns stdin after launch, so typing `cd` into the PTY is
+      // treated as agent input. Persist the pane's cwd and respawn the PTY,
+      // which starts the shell/agent directly in the selected directory.
+      handleTerminalCwd(activeLeafId, nextPath);
+      void respawnSession(activeLeafId, nextPath);
+      terminalRefs.current.get(activeLeafId)?.focus();
+    },
+    [activeLeafId, handleTerminalCwd],
+  );
+
   const handleTerminalCommand = useCallback(
     (leafId: number, _command: string) => {
       pendingVoiceDraftsRef.current.delete(leafId);
@@ -2253,6 +2254,7 @@ export default function App() {
           registerHandle={registerTerminalHandle}
           onSearchReady={handleSearchReady}
           onCwd={handleTerminalCwd}
+          onChangeDirectory={changeTerminalDirectory}
           onExit={handleLeafExit}
           onCommand={handleTerminalCommand}
           onFocusLeaf={handleFocusLeaf}
@@ -2563,7 +2565,7 @@ export default function App() {
             cwd={activeCwd}
             filePath={activeFilePath}
             home={home}
-            onCd={sendCd}
+            onCd={changeTerminalDirectory}
             onWorkspaceChange={switchWorkspace}
             onToggleTerminal={toggleBottomTerminal}
             privateActive={

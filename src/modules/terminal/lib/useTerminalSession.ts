@@ -494,6 +494,7 @@ export async function respawnSession(
 ): Promise<void> {
   const s = sessions.get(leafId);
   if (!s || s.disposed) return;
+  if (cwd !== undefined) s.initialCwd = cwd;
   setAgentResponseActivity(leafId, false);
   if (s.pty) clearPtyLeaf(s.pty.id);
   s.pty?.close();
