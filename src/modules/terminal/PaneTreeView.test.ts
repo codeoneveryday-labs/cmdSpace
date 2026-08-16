@@ -5,6 +5,10 @@ import { describe, expect, it } from "vitest";
 const here = path.dirname(new URL(import.meta.url).pathname);
 const paneTreePath = path.join(here, "PaneTreeView.tsx");
 const terminalStackPath = path.join(here, "TerminalStack.tsx");
+const collaborationHookPath = path.join(
+  here,
+  "lib/useTerminalCollaboration.ts",
+);
 const agentCliIconPath = path.join(here, "AgentCliIcon.tsx");
 
 describe("FloatingTerminalOverlay", () => {
@@ -64,11 +68,13 @@ describe("FloatingTerminalOverlay", () => {
   it("exposes explicit broadcast membership and arming controls", () => {
     const source = readFileSync(paneTreePath, "utf8");
     const stack = readFileSync(terminalStackPath, "utf8");
+    const collaboration = readFileSync(collaborationHookPath, "utf8");
 
     expect(source).toContain('title={broadcastEnabled ? "Disable input broadcast"');
     expect(source).toContain('title={broadcastTargeted ? "Remove pane from broadcast"');
-    expect(stack).toContain("registerBroadcastTab(");
     expect(stack).toContain("onToggleBroadcastTarget");
+    expect(collaboration).toContain("registerBroadcastTab(");
+    expect(collaboration).toContain("unregisterBroadcastLeaves");
   });
 
   it("shows output activity independently from agent detection", () => {

@@ -21,10 +21,7 @@ import {
 } from "./lib/panes";
 import { usePaneBundles } from "./lib/usePaneBundles";
 import { usePaneHydration } from "./lib/usePaneHydration";
-import {
-  registerBroadcastTab,
-  unregisterBroadcastLeaves,
-} from "./lib/terminalBroadcastRuntime";
+import { useTerminalCollaboration } from "./lib/useTerminalCollaboration";
 
 type Props = {
   tabs: Tab[];
@@ -104,28 +101,9 @@ export function TerminalStack({
     targetId: number | null;
     targetOffset: { x: number; y: number } | null;
   } | null>(null);
-  const [broadcastByTab, setBroadcastByTab] = useState<
-    Record<number, { enabled: boolean; targetLeafIds: number[] }>
-  >({});
-  const activeBroadcast = activeTerminal
-    ? broadcastByTab[activeTerminal.id] ?? {
-        enabled: false,
-        targetLeafIds: [activeTerminal.activeLeafId],
-      }
-    : { enabled: false, targetLeafIds: [] };
-
-  useEffect(() => {
-    const registeredLeaves = terminals.flatMap((tab) => {
-      const ids = leafIds(tab.paneTree);
-      const state = broadcastByTab[tab.id] ?? {
-        enabled: false,
-        targetLeafIds: [tab.activeLeafId],
-      };
-      registerBroadcastTab(tab.id, ids, state.enabled, state.targetLeafIds);
-      return ids;
-    });
-    return () => unregisterBroadcastLeaves(registeredLeaves);
-  }, [broadcastByTab, terminals]);
+  const { stateForTab, toggleBroadcast, toggleBroadcastTarget } =
+    useTerminalCollaboration(terminals);
+  const activeBroadcast = stateForTab(activeTerminal);
   const dragStateRef = useRef(dragState);
   dragStateRef.current = dragState;
   const dragCleanupRef = useRef<(() => void) | null>(null);
@@ -273,28 +251,9 @@ export function TerminalStack({
             broadcastEnabled={activeBroadcast.enabled}
             broadcastTargetLeafIds={activeBroadcast.targetLeafIds}
             canBroadcast={leafIds(activeTerminal.paneTree).length > 1}
-            onToggleBroadcast={() =>
-              setBroadcastByTab((current) => ({
-                ...current,
-                [activeTerminal.id]: {
-                  ...activeBroadcast,
-                  enabled: !activeBroadcast.enabled,
-                },
-              }))
-            }
+            onToggleBroadcast={() => toggleBroadcast(activeTerminal)}
             onToggleBroadcastTarget={(leafId) =>
-              setBroadcastByTab((current) => {
-                const selected = new Set(activeBroadcast.targetLeafIds);
-                if (selected.has(leafId)) selected.delete(leafId);
-                else selected.add(leafId);
-                return {
-                  ...current,
-                  [activeTerminal.id]: {
-                    ...activeBroadcast,
-                    targetLeafIds: [...selected],
-                  },
-                };
-              })
+              toggleBroadcastTarget(activeTerminal, leafId)
             }
           />
         </div>
