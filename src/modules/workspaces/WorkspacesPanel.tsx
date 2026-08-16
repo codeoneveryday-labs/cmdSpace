@@ -139,6 +139,7 @@ export function normalizeWorkspaceAccentColor(
 
 type Props = {
   activeWorkspaceId: string | null;
+  activeWorkspaceCodingAgentCount: number;
   compact?: boolean;
   workspaces: WorkspaceItem[];
   onSelectWorkspace: (workspaceId: string) => void;
@@ -156,6 +157,7 @@ type Props = {
 
 export function WorkspacesPanel({
   activeWorkspaceId,
+  activeWorkspaceCodingAgentCount,
   compact = false,
   workspaces,
   onSelectWorkspace,
@@ -429,6 +431,17 @@ export function WorkspacesPanel({
             </>
           )}
         </nav>
+        <section className="shrink-0 border-t border-border/60 px-2 py-2">
+          <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            TERMINALS
+          </div>
+          <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm text-muted-foreground">
+            <span className="truncate">Coding agents</span>
+            <span className="tabular-nums font-semibold text-foreground">
+              {activeWorkspaceCodingAgentCount}
+            </span>
+          </div>
+        </section>
       </aside>
 
       {dragVisual !== null && draggedWorkspace && (

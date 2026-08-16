@@ -360,4 +360,12 @@ describe("WorkspacesPanel", () => {
     );
     expect(dbSource).toContain("auto_launch: row.get(4)?");
   });
+
+  it("shows a terminal section with the active workspace coding-agent count", () => {
+    const source = readFileSync(panelPath, "utf8");
+
+    expect(source).toContain("activeWorkspaceCodingAgentCount: number");
+    expect(source).toContain("TERMINALS");
+    expect(source).toContain("Coding agents");
+  });
 });

@@ -2435,6 +2435,7 @@ export default function App() {
                 <div className="h-full" style={{ width: workspacesPanelWidth }}>
                   <WorkspacesPanel
                     activeWorkspaceId={activeWorkspaceId}
+                    activeWorkspaceCodingAgentCount={activeWorkspaceCodingAgentCount}
                     compact={workspacesPanelCompact}
                     workspaces={workspaceItems}
                     onSelectWorkspace={handleSelectWorkspace}
