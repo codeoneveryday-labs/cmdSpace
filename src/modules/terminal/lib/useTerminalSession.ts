@@ -90,13 +90,17 @@ const OUTPUT_ACTIVITY_QUIET_MS = 900;
 
 ensureAgentActivityListener();
 
-function markAgentResponding(leafId: number, s: Session): void {
+function markAgentResponding(
+  leafId: number,
+  s: Session,
+  markCompleted = true,
+): void {
   setAgentResponseActivity(leafId, true);
   s.callbacks.onAgentActivity?.(true);
   if (s.agentActivityTimer !== null) window.clearTimeout(s.agentActivityTimer);
   s.agentActivityTimer = window.setTimeout(() => {
     s.agentActivityTimer = null;
-    setAgentResponseActivity(leafId, false);
+    setAgentResponseActivity(leafId, false, markCompleted);
     s.callbacks.onAgentActivity?.(false);
   }, OUTPUT_ACTIVITY_QUIET_MS);
 }
@@ -120,7 +124,7 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
       if (s.interactiveCodingAgent) {
         s.launchCommand = command;
         setAgentCliCommand(leafId, command);
-        markAgentResponding(leafId, s);
+        markAgentResponding(leafId, s, false);
       }
       if (!s.interactiveCodingAgent) {
         setAgentResponseActivity(leafId, false);

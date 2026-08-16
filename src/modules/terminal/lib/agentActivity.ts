@@ -48,6 +48,7 @@ function getCompletedSnapshot(): ReadonlySet<number> {
 export function setAgentResponseActivity(
   leafId: number,
   responding: boolean,
+  markCompleted = true,
 ): void {
   const hasLeaf = respondingLeaves.has(leafId);
   if (hasLeaf === responding) return;
@@ -59,7 +60,7 @@ export function setAgentResponseActivity(
     completed.delete(leafId);
   } else {
     next.delete(leafId);
-    completed.add(leafId);
+    if (markCompleted) completed.add(leafId);
   }
   respondingLeaves = next;
   completedLeaves = completed;
