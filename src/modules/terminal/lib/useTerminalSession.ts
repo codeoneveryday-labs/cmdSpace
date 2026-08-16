@@ -497,8 +497,12 @@ export async function respawnSession(
   if (cwd !== undefined) s.initialCwd = cwd;
   setAgentResponseActivity(leafId, false);
   if (s.pty) clearPtyLeaf(s.pty.id);
-  s.pty?.close();
+  const previousPty = s.pty;
   s.pty = null;
+  // Wait for the native process to release its PTY before re-opening. This
+  // matters on Windows, where an immediate reuse can race the old process
+  // and leave the new agent in the previous working directory.
+  if (previousPty) await previousPty.close();
   s.snapshot = null;
   s.dormantRing = new DormantRing();
   s.shellExited = false;

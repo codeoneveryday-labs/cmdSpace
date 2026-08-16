@@ -93,6 +93,7 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
 
     expect(source).toContain("if (cwd !== undefined) s.initialCwd = cwd;");
+    expect(source).toContain("if (previousPty) await previousPty.close();");
     expect(source).toContain("openPtyForSession(leafId, s, cwd ?? s.initialCwd)");
   });
 
