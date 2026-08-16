@@ -97,6 +97,23 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     expect(source).toContain("openPtyForSession(leafId, s, cwd ?? s.initialCwd)");
   });
 
+  it("does not report a planned PTY replacement as a pane exit", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("respawning: boolean;");
+    expect(source).toContain("if (!s.respawning && s.callbacks.onExit)");
+  });
+
+  it("relaunches the original agent only for an explicit directory relocation", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("launchCommand: string | undefined;");
+    expect(source).toContain("launchCommand: initialCommand,");
+    expect(source).toContain(
+      "s.initialCommand = relaunchInitialCommand ? s.launchCommand : undefined;",
+    );
+  });
+
   it("publishes output activity and clears its timer on exit and disposal", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
 

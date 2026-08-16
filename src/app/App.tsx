@@ -1998,7 +1998,7 @@ export default function App() {
       // treated as agent input. Persist the pane's cwd and respawn the PTY,
       // which starts the shell/agent directly in the selected directory.
       handleTerminalCwd(activeLeafId, nextPath);
-      void respawnSession(activeLeafId, nextPath);
+      void respawnSession(activeLeafId, nextPath, true);
       terminalRefs.current.get(activeLeafId)?.focus();
     },
     [activeLeafId, handleTerminalCwd],

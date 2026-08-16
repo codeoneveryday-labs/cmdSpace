@@ -54,6 +54,7 @@ type Session = {
   ptyOpening: boolean;
   initialCwd: string | undefined;
   initialCommand: string | undefined;
+  launchCommand: string | undefined;
   lastCwd: string | null;
   pendingExit: number | null;
   shellExited: boolean;
@@ -79,6 +80,7 @@ type Session = {
   agentActivityTimer: number | null;
   outputActivityTimer: number | null;
   lastLocalInputAt: number;
+  respawning: boolean;
 };
 
 const sessions = new Map<number, Session>();
@@ -236,6 +238,7 @@ function ensureSession(
     ptyOpening: false,
     initialCwd,
     initialCommand,
+    launchCommand: initialCommand,
     lastCwd: null,
     pendingExit: null,
     shellExited: false,
@@ -261,6 +264,7 @@ function ensureSession(
     agentActivityTimer: null,
     outputActivityTimer: null,
     lastLocalInputAt: 0,
+    respawning: false,
   };
   if (session.interactiveCodingAgent && initialCommand) {
     setAgentCliCommand(leafId, initialCommand);
@@ -344,8 +348,8 @@ async function openPtyForSession(
         clearPtyLeaf(pty.id);
         const slot = getSlotForLeaf(leafId);
         if (slot) slot.term.options.disableStdin = true;
-        if (s.callbacks.onExit) s.callbacks.onExit(code);
-        else s.pendingExit = code;
+        if (!s.respawning && s.callbacks.onExit) s.callbacks.onExit(code);
+        else if (!s.respawning) s.pendingExit = code;
       },
     },
     cwd,
@@ -491,10 +495,13 @@ function detachSession(leafId: number): void {
 export async function respawnSession(
   leafId: number,
   cwd?: string,
+  relaunchInitialCommand = false,
 ): Promise<void> {
   const s = sessions.get(leafId);
   if (!s || s.disposed) return;
   if (cwd !== undefined) s.initialCwd = cwd;
+  s.initialCommand = relaunchInitialCommand ? s.launchCommand : undefined;
+  s.respawning = true;
   setAgentResponseActivity(leafId, false);
   if (s.pty) clearPtyLeaf(s.pty.id);
   const previousPty = s.pty;
@@ -537,15 +544,18 @@ export async function respawnSession(
     pty = await openPtyForSession(leafId, s, cwd ?? s.initialCwd);
   } catch (e) {
     s.ptyOpening = false;
+    s.respawning = false;
     console.error("[cmdspace] respawn openPty failed:", e);
     return;
   }
   s.ptyOpening = false;
   if (s.disposed) {
+    s.respawning = false;
     pty.close();
     return;
   }
   s.pty = pty;
+  s.respawning = false;
   if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
 }
 
