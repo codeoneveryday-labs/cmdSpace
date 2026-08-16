@@ -845,6 +845,7 @@ export default function App() {
   const activeWorkspaceId = activeWorkspace?.id ?? null;
   const activeWorkspaceFolder = activeWorkspace?.workingFolder ?? null;
   const agentCommands = useAgentCliCommands();
+  const respondingLeaves = useAgentResponseLeaves();
   const activeWorkspaceCodingAgentCount =
     activeTab?.kind === "terminal"
       ? leafIds(activeTab.paneTree).filter((leafId) =>
@@ -868,11 +869,11 @@ export default function App() {
           label: command ?? (agent ?? `Terminal ${index + 1}`),
           ...(agent ? { agent } : {}),
           active: leafId === activeLeafId,
+          responding: respondingLeaves.has(leafId),
         };
       });
-  }, [activeLeafId, activeTab, agentCommands]);
+  }, [activeLeafId, activeTab, agentCommands, respondingLeaves]);
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
-  const respondingLeaves = useAgentResponseLeaves();
   const pendingDeleteWorkspace =
     pendingDeleteWorkspaceId === null
       ? null

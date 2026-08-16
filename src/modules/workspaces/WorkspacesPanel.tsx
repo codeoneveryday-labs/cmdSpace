@@ -64,6 +64,7 @@ export type WorkspaceTerminalItem = {
   label: string;
   agent?: CliAgent;
   active: boolean;
+  responding: boolean;
 };
 
 const TERMINAL_COUNTS = [1, 2, 4, 6, 8, 10, 12] as const;
@@ -461,6 +462,7 @@ export function WorkspacesPanel({
                 title={`Focus ${terminal.label}`}
               >
                 {terminal.agent ? <AgentCliIcon agent={terminal.agent} /> : <HugeiconsIcon icon={ComputerTerminal02Icon} size={16} strokeWidth={1.8} />}
+                {terminal.responding ? <WorkspaceResponseLoader /> : null}
                 <span className="min-w-0 flex-1 truncate">{terminal.label}</span>
               </button>
             ))}
