@@ -141,6 +141,8 @@ export function TerminalNavigationControls({
       <div className="relative min-w-0">
         <button
           type="button"
+          data-directory-picker="inline"
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
             if (directoryOpen) setDirectoryOpen(false);

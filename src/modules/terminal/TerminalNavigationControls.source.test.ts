@@ -18,4 +18,11 @@ describe("TerminalNavigationControls", () => {
     expect(source).toContain("`git checkout ${shellQuote(branch)}`");
     expect(source).toContain("emitGitRepoChanged(repoRoot)");
   });
+
+  it("opens the inline directory browser without starting terminal drag", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain('data-directory-picker="inline"');
+    expect(source).toContain("onPointerDown={(event) => event.stopPropagation()}");
+  });
 });
