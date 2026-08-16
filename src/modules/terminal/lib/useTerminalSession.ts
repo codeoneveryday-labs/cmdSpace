@@ -333,7 +333,7 @@ function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   }
   const outputIsUserEcho = Date.now() - s.lastLocalInputAt < LOCAL_INPUT_ECHO_GRACE_MS;
   if (s.interactiveCodingAgent && !outputIsUserEcho) {
-    markAgentResponding(leafId, s);
+    markAgentResponding(leafId, s, s.lastLocalInputAt > 0);
   }
   const slot = getSlotForLeaf(leafId);
   if (slot) slot.term.write(bytes);

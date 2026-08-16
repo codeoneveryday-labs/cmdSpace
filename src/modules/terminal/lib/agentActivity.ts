@@ -105,10 +105,10 @@ export function applyAgentSignal(signal: AgentSignal): void {
       setAgentResponseActivity(leafId, true);
       break;
     case "finished":
-      setAgentResponseActivity(leafId, false);
+      setAgentResponseActivity(leafId, false, false);
       break;
     case "exited":
-      setAgentResponseActivity(leafId, false);
+      setAgentResponseActivity(leafId, false, false);
       setAgentCliCommand(leafId, undefined);
       clearPtyLeaf(signal.id);
       break;
