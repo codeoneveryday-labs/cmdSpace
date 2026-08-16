@@ -25,6 +25,7 @@ import {
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setTerminalResizePaused } from "./lib/rendererPool";
 import {
+  setAgentResponseActivity,
   useAgentCliCommand,
   useAgentResponseLeaves,
 } from "./lib/agentActivity";
@@ -204,7 +205,14 @@ export function PaneTreeView({
               b.onCommand?.(cmd);
             }}
             onAgentActivity={(_id, responding) => setAgentResponding(responding)}
-            onOutputActivity={(_id, active) => setOutputActive(active)}
+            onOutputActivity={(_id, active) => {
+              setOutputActive(active);
+              const agentCommand =
+                detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand;
+              if (detectCliAgent(agentCommand)) {
+                setAgentResponseActivity(node.id, active);
+              }
+            }}
           />
         ) : null}
 
