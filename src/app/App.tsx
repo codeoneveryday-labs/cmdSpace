@@ -98,7 +98,10 @@ import {
   type BottomTerminalDrawerHandle,
   type TerminalPaneHandle,
 } from "@/modules/terminal";
-import { useAgentResponseLeaves } from "@/modules/terminal/lib/agentActivity";
+import {
+  useAgentCliCommands,
+  useAgentResponseLeaves,
+} from "@/modules/terminal/lib/agentActivity";
 import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
 import { ThemeProvider } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
@@ -837,10 +840,16 @@ export default function App() {
   );
   const activeWorkspaceId = activeWorkspace?.id ?? null;
   const activeWorkspaceFolder = activeWorkspace?.workingFolder ?? null;
+  const agentCommands = useAgentCliCommands();
   const activeWorkspaceCodingAgentCount =
     activeTab?.kind === "terminal"
       ? leafIds(activeTab.paneTree).filter((leafId) =>
-          Boolean(detectCliAgent(findLeafLastCommand(activeTab.paneTree, leafId))),
+          Boolean(
+            detectCliAgent(
+              agentCommands.get(leafId) ??
+                findLeafLastCommand(activeTab.paneTree, leafId),
+            ),
+          ),
         ).length
       : 0;
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";

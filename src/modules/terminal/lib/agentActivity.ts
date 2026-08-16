@@ -36,6 +36,10 @@ function getSnapshot(): ReadonlySet<number> {
   return respondingLeaves;
 }
 
+function getAgentCommandsSnapshot(): ReadonlyMap<number, string> {
+  return agentCommands;
+}
+
 export function setAgentResponseActivity(
   leafId: number,
   responding: boolean,
@@ -119,5 +123,13 @@ export function useAgentCliCommand(leafId?: number): string | undefined {
     subscribe,
     () => (leafId === undefined ? undefined : agentCommands.get(leafId)),
     () => undefined,
+  );
+}
+
+export function useAgentCliCommands(): ReadonlyMap<number, string> {
+  return useSyncExternalStore(
+    subscribe,
+    getAgentCommandsSnapshot,
+    getAgentCommandsSnapshot,
   );
 }
