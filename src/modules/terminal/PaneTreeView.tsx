@@ -24,7 +24,10 @@ import {
 } from "./lib/terminal-native";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setTerminalResizePaused } from "./lib/rendererPool";
-import { useAgentCliCommand } from "./lib/agentActivity";
+import {
+  setAgentResponseActivity,
+  useAgentCliCommand,
+} from "./lib/agentActivity";
 import {
   GIT_REPO_CHANGED_EVENT,
   gitRepoRootFromChangedEvent,
@@ -199,7 +202,10 @@ export function PaneTreeView({
               if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);
               b.onCommand?.(cmd);
             }}
-            onAgentActivity={(_id, responding) => setAgentResponding(responding)}
+            onAgentActivity={(_id, responding) => {
+              setAgentResponding(responding);
+              setAgentResponseActivity(node.id, responding);
+            }}
             onOutputActivity={(_id, active) => setOutputActive(active)}
           />
         ) : null}
