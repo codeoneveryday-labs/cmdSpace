@@ -118,6 +118,7 @@ import {
   normalizeWorkspaceAccentColor,
   WORKSPACE_ACCENT_COLORS,
   WorkspacesPanel,
+  type WorkspaceTerminalItem,
   WorkspaceSetupView,
   type WorkspaceItem,
   type WorkspaceMode,
@@ -852,6 +853,22 @@ export default function App() {
           ),
         ).length
       : 0;
+  const activeWorkspaceTerminals = useMemo<WorkspaceTerminalItem[]>(() => {
+    if (activeTab?.kind !== "terminal") return [];
+    return leafIds(activeTab.paneTree)
+      .flatMap((leafId): WorkspaceTerminalItem[] => {
+        const command =
+          agentCommands.get(leafId) ?? findLeafLastCommand(activeTab.paneTree, leafId);
+        const agent = detectCliAgent(command);
+        if (!agent) return [];
+        return [{
+          leafId,
+          label: command ?? agent,
+          agent,
+          active: leafId === activeLeafId,
+        }];
+      });
+  }, [activeLeafId, activeTab, agentCommands]);
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
   const respondingLeaves = useAgentResponseLeaves();
   const pendingDeleteWorkspace =
@@ -2083,6 +2100,13 @@ export default function App() {
     [focusPane],
   );
 
+  const handleSelectWorkspaceTerminal = useCallback(
+    (leafId: number) => {
+      if (activeTerminalTab) focusPane(activeTerminalTab.id, leafId);
+    },
+    [activeTerminalTab, focusPane],
+  );
+
   const handleLeafExit = useCallback(
     (leafId: number, _code: number) => {
       const all = tabsRef.current;
@@ -2436,6 +2460,8 @@ export default function App() {
                   <WorkspacesPanel
                     activeWorkspaceId={activeWorkspaceId}
                     activeWorkspaceCodingAgentCount={activeWorkspaceCodingAgentCount}
+                    activeWorkspaceTerminals={activeWorkspaceTerminals}
+                    onSelectTerminal={handleSelectWorkspaceTerminal}
                     compact={workspacesPanelCompact}
                     workspaces={workspaceItems}
                     onSelectWorkspace={handleSelectWorkspace}
