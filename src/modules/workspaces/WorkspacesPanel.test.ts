@@ -158,6 +158,8 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("function buildAgentCliCommand");
     expect(panelSource).toContain("function agentCommandPlan");
     expect(panelSource).toContain("plannedAgentCommands");
+    expect(panelSource).toContain("Isolate agent changes in Git worktrees");
+    expect(panelSource).toContain("isolatedAgentCommand");
     expect(panelSource).toContain("initialCommands?: string[]");
     expect(panelSource).toContain('setSetupStep("agents")');
     expect(panelSource).toContain("Skip - no agents");

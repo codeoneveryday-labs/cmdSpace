@@ -35,6 +35,10 @@ import {
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAgentLaunchCommands } from "@/modules/settings/store";
+import {
+  isolatedAgentCommand,
+  worktreeGroup,
+} from "@/modules/ai/lib/agentWorktree";
 import { ImportSessionDialog } from "./ImportSessionDialog";
 import {
   buildSessionResumeCommand,
@@ -945,6 +949,8 @@ export function WorkspaceSetupView({
     ImportableAgentSession[]
   >([]);
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>({});
+  const [isolateAgentWorktrees, setIsolateAgentWorktrees] = useState(false);
+  const [agentWorktreeGroup] = useState(worktreeGroup);
   const [customCommand, setCustomCommand] = useState("");
   const [customCommandLoaded, setCustomCommandLoaded] = useState(false);
   const customCommandEditedRef = useRef(false);
@@ -993,15 +999,24 @@ export function WorkspaceSetupView({
         agent.command,
     ]),
   ) as Record<string, string>;
+  const plannedCliCommands = agentCommandPlan(
+    agentCounts,
+    customCommand,
+    effectiveAgentCommands,
+  ).slice(0, cliTerminalCapacity);
   const plannedAgentCommands = [
     ...selectedImportSessions.map((session) =>
       buildSessionResumeCommand(session.provider, session.sessionId),
     ),
-    ...agentCommandPlan(
-      agentCounts,
-      customCommand,
-      effectiveAgentCommands,
-    ).slice(0, cliTerminalCapacity),
+    ...plannedCliCommands.map((command, index) =>
+      isolateAgentWorktrees
+        ? isolatedAgentCommand(
+            command,
+            `agent-${index + 1}`,
+            agentWorktreeGroup,
+          )
+        : command,
+    ),
   ];
   const availableAgents = configuredAgentCliOptions;
 
@@ -1596,6 +1611,32 @@ export function WorkspaceSetupView({
                   </span>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setIsolateAgentWorktrees((current) => !current)}
+                className="flex w-full items-center gap-3 rounded-lg border border-border/50 bg-card/35 px-3 py-2.5 text-left transition-colors hover:bg-card/55"
+                aria-pressed={isolateAgentWorktrees}
+              >
+                <span
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded border transition-colors",
+                    isolateAgentWorktrees
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-transparent",
+                  )}
+                >
+                  <HugeiconsIcon icon={Tick02Icon} size={13} strokeWidth={2.4} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">
+                    Isolate agent changes in Git worktrees
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Each new agent gets a dedicated cmdspace branch; closing its pane preserves the worktree.
+                  </span>
+                </span>
+              </button>
 
               <div
                 className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/35 px-3 py-2.5"
