@@ -22,6 +22,8 @@ describe("TerminalNavigationControls", () => {
   it("opens the inline directory browser without starting terminal drag", () => {
     const source = readFileSync(sourcePath, "utf8");
 
+    expect(source).toContain("showDirectoryPicker?: boolean;");
+    expect(source).toContain("showDirectoryPicker = false");
     expect(source).toContain('data-directory-picker="inline"');
     expect(source).toContain("onPointerDown={(event) => event.stopPropagation()}");
   });

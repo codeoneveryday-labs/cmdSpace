@@ -10,6 +10,7 @@ import { emitGitRepoChanged } from "@/modules/git/events";
 type Props = {
   cwd?: string;
   onChangeDirectory: (path: string) => void;
+  showDirectoryPicker?: boolean;
   className?: string;
 };
 
@@ -30,6 +31,7 @@ function shellQuote(value: string): string {
 export function TerminalNavigationControls({
   cwd,
   onChangeDirectory,
+  showDirectoryPicker = false,
   className,
 }: Props) {
   const showHidden = usePreferencesStore((state) => state.showHidden);
@@ -138,23 +140,24 @@ export function TerminalNavigationControls({
 
   return (
     <div ref={dropdownRef} className={cn("flex min-w-0 items-center gap-3", className)}>
-      <div className="relative min-w-0">
-        <button
-          type="button"
-          data-directory-picker="inline"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (directoryOpen) setDirectoryOpen(false);
-            else void openDirectories();
-          }}
-          className="max-w-40 truncate text-left font-semibold text-foreground transition-colors hover:text-foreground/80 dark:text-zinc-300 dark:hover:text-zinc-100"
-          aria-label="Choose terminal folder"
-          title={cwd}
-        >
-          {folderName}
-        </button>
-        {directoryOpen && cwd ? (
+      {showDirectoryPicker ? (
+        <div className="relative min-w-0">
+          <button
+            type="button"
+            data-directory-picker="inline"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (directoryOpen) setDirectoryOpen(false);
+              else void openDirectories();
+            }}
+            className="max-w-40 truncate text-left font-semibold text-foreground transition-colors hover:text-foreground/80 dark:text-zinc-300 dark:hover:text-zinc-100"
+            aria-label="Choose terminal folder"
+            title={cwd}
+          >
+            {folderName}
+          </button>
+          {directoryOpen && cwd ? (
           <div className="absolute left-0 top-full z-40 mt-2.5 w-56 rounded-lg border border-border bg-popover/95 p-0 text-left text-popover-foreground shadow-2xl backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95">
             {parentPath ? (
               <button
@@ -198,8 +201,13 @@ export function TerminalNavigationControls({
               />
             )}
           </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      ) : (
+        <span className="max-w-40 truncate font-semibold text-foreground dark:text-zinc-300" title={cwd}>
+          {folderName}
+        </span>
+      )}
       {branchName ? (
         <>
           <span className="font-bold text-muted-foreground/60 dark:text-zinc-600">•</span>
