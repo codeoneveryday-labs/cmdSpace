@@ -100,6 +100,7 @@ import {
 } from "@/modules/terminal";
 import {
   useAgentCliCommands,
+  useAgentCompletedLeaves,
   useAgentResponseLeaves,
 } from "@/modules/terminal/lib/agentActivity";
 import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
@@ -846,6 +847,7 @@ export default function App() {
   const activeWorkspaceFolder = activeWorkspace?.workingFolder ?? null;
   const agentCommands = useAgentCliCommands();
   const respondingLeaves = useAgentResponseLeaves();
+  const completedLeaves = useAgentCompletedLeaves();
   const activeWorkspaceCodingAgentCount =
     activeTab?.kind === "terminal"
       ? leafIds(activeTab.paneTree).filter((leafId) =>
@@ -870,9 +872,10 @@ export default function App() {
           ...(agent ? { agent } : {}),
           active: leafId === activeLeafId,
           responding: respondingLeaves.has(leafId),
+          completed: completedLeaves.has(leafId),
         };
       });
-  }, [activeLeafId, activeTab, agentCommands, respondingLeaves]);
+  }, [activeLeafId, activeTab, agentCommands, completedLeaves, respondingLeaves]);
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
   const pendingDeleteWorkspace =
     pendingDeleteWorkspaceId === null
