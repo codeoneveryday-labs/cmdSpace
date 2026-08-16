@@ -49,6 +49,7 @@ export type BottomTerminalDrawerHandle = {
 
 type Props = {
   cwd?: string | null;
+  codingAgentCount: number;
   onClose: () => void;
 };
 
@@ -57,7 +58,7 @@ function tabLabel(tab: BottomTerminalTab): string {
 }
 
 export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props>(
-  function BottomTerminalDrawer({ cwd: initialCwd, onClose }, ref) {
+  function BottomTerminalDrawer({ cwd: initialCwd, codingAgentCount, onClose }, ref) {
     const firstTabRef = useRef<BottomTerminalTab | null>(null);
     if (!firstTabRef.current) {
       firstTabRef.current = createTerminalTab(initialCwd ?? undefined);
@@ -329,6 +330,12 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
               );
             })}
           </div>
+          <span
+            className="ml-2 shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground dark:bg-zinc-900 dark:text-zinc-300"
+            title="Coding agents configured in this workspace"
+          >
+            Coding agents {codingAgentCount}
+          </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

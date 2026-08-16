@@ -99,6 +99,7 @@ import {
   type TerminalPaneHandle,
 } from "@/modules/terminal";
 import { useAgentResponseLeaves } from "@/modules/terminal/lib/agentActivity";
+import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
 import { ThemeProvider } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
 import {
@@ -836,6 +837,12 @@ export default function App() {
   );
   const activeWorkspaceId = activeWorkspace?.id ?? null;
   const activeWorkspaceFolder = activeWorkspace?.workingFolder ?? null;
+  const activeWorkspaceCodingAgentCount =
+    activeTab?.kind === "terminal"
+      ? leafIds(activeTab.paneTree).filter((leafId) =>
+          Boolean(detectCliAgent(findLeafLastCommand(activeTab.paneTree, leafId))),
+        ).length
+      : 0;
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
   const respondingLeaves = useAgentResponseLeaves();
   const pendingDeleteWorkspace =
@@ -2463,6 +2470,7 @@ export default function App() {
                             <BottomTerminalDrawer
                               ref={bottomTerminalRef}
                               cwd={bottomTerminalCwd}
+                              codingAgentCount={activeWorkspaceCodingAgentCount}
                               onClose={() => setBottomTerminalOpen(false)}
                             />
                           </div>
