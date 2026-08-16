@@ -1254,11 +1254,23 @@ export default function App() {
       );
       if (!workspace) return;
 
-      if (workspace.tabId !== null) {
-        disposeTab(workspace.tabId);
-      }
-      if (workspace.canvasTabId !== null) {
-        disposeTab(workspace.canvasTabId);
+      const workspaceTabIds = new Set(
+        [workspace.tabId, workspace.canvasTabId].filter(
+          (tabId): tabId is number => tabId !== null,
+        ),
+      );
+      const wouldLeaveNoTabs =
+        workspaceTabIds.size > 0 &&
+        tabsRef.current.every((tab) => workspaceTabIds.has(tab.id));
+
+      if (wouldLeaveNoTabs) {
+        // closeTab preserves the final tab. Replace it here so the deleted
+        // workspace cannot leave a terminal tab without a workspace owner.
+        resetWorkspace(launchCwd ?? home ?? undefined);
+      } else {
+        for (const tabId of workspaceTabIds) {
+          disposeTab(tabId);
+        }
       }
 
       setWorkspaces((current) =>
@@ -1269,7 +1281,7 @@ export default function App() {
         console.error("Failed to delete workspace from SQLite:", err);
       });
     },
-    [disposeTab],
+    [disposeTab, home, launchCwd, resetWorkspace],
   );
 
   const handleCloseWorkspace = useCallback(
@@ -2565,6 +2577,7 @@ export default function App() {
             cwd={activeCwd}
             filePath={activeFilePath}
             home={home}
+            workspaceFolder={activeWorkspaceFolder}
             onCd={changeTerminalDirectory}
             onWorkspaceChange={switchWorkspace}
             onToggleTerminal={toggleBottomTerminal}
