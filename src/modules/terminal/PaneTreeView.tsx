@@ -25,8 +25,8 @@ import {
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setTerminalResizePaused } from "./lib/rendererPool";
 import {
-  setAgentResponseActivity,
   useAgentCliCommand,
+  useAgentResponseLeaves,
 } from "./lib/agentActivity";
 import {
   GIT_REPO_CHANGED_EVENT,
@@ -114,6 +114,7 @@ export function PaneTreeView({
   const paneResizeDragCleanupRef = useRef<(() => void) | null>(null);
   const [agentResponding, setAgentResponding] = useState(false);
   const [outputActive, setOutputActive] = useState(false);
+  const respondingLeaves = useAgentResponseLeaves();
   const storedAgentCommand = useAgentCliCommand(
     node.kind === "leaf" ? node.id : undefined,
   );
@@ -202,10 +203,7 @@ export function PaneTreeView({
               if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);
               b.onCommand?.(cmd);
             }}
-            onAgentActivity={(_id, responding) => {
-              setAgentResponding(responding);
-              setAgentResponseActivity(node.id, responding);
-            }}
+            onAgentActivity={(_id, responding) => setAgentResponding(responding)}
             onOutputActivity={(_id, active) => setOutputActive(active)}
           />
         ) : null}
@@ -233,7 +231,7 @@ export function PaneTreeView({
             onChangeDirectory(path);
           }}
           agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}
-          agentResponding={agentResponding}
+          agentResponding={agentResponding || respondingLeaves.has(node.id)}
           hydrated={hydrated}
           onDragStart={(event) => dragContext?.onDragStart(node.id, event)}
           isDragging={isDragging}
