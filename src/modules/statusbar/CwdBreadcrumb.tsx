@@ -219,6 +219,11 @@ function CurrentSegmentDropdown({
       <DropdownMenuTrigger asChild>
         <BreadcrumbPage
           className="flex cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-foreground hover:bg-accent"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void chooseFolder();
+          }}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();

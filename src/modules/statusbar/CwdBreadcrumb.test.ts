@@ -27,5 +27,6 @@ describe("CwdBreadcrumb", () => {
     expect(source).toContain('invoke<string | null>("select_folder")');
     expect(source).toContain('title="Choose folder"');
     expect(source).toContain("void chooseFolder()");
+    expect(source).toContain("onPointerDown={(event) => {");
   });
 });
