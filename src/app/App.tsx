@@ -856,17 +856,16 @@ export default function App() {
   const activeWorkspaceTerminals = useMemo<WorkspaceTerminalItem[]>(() => {
     if (activeTab?.kind !== "terminal") return [];
     return leafIds(activeTab.paneTree)
-      .flatMap((leafId): WorkspaceTerminalItem[] => {
+      .map((leafId, index): WorkspaceTerminalItem => {
         const command =
           agentCommands.get(leafId) ?? findLeafLastCommand(activeTab.paneTree, leafId);
         const agent = detectCliAgent(command);
-        if (!agent) return [];
-        return [{
+        return {
           leafId,
-          label: command ?? agent,
-          agent,
+          label: command ?? (agent ?? `Terminal ${index + 1}`),
+          ...(agent ? { agent } : {}),
           active: leafId === activeLeafId,
-        }];
+        };
       });
   }, [activeLeafId, activeTab, agentCommands]);
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
