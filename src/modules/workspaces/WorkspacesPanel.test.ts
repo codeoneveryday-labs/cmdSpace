@@ -304,10 +304,10 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("db_save_pane");
     expect(appSource).toContain("workspaceSetupOpen");
     expect(appSource).toContain("setWorkspaceSetupOpen(true)");
+    expect(appSource).toContain("if (hydrated.length === 0) setWorkspaceSetupOpen(true);");
+    expect(appSource).toContain("const handleWorkspaceSetupCancel");
     expect(appSource).toContain("<WorkspaceSetupView");
-    expect(appSource).toContain(
-      "onCancel={() => setWorkspaceSetupOpen(false)}",
-    );
+    expect(appSource).toContain("onCancel={handleWorkspaceSetupCancel}");
     expect(appSource).toContain("handleSelectWorkspace");
     expect(appSource).toContain("handleCloseWorkspace");
     expect(appSource).toContain("handleRenameWorkspace");

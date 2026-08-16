@@ -641,6 +641,7 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceItem[]>([]);
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
+  const [workspacesHydrated, setWorkspacesHydrated] = useState(false);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
   const workspaceOpenGateRef = useRef(createWorkspaceOpenGate());
@@ -682,6 +683,8 @@ export default function App() {
           workspaceMode: w.workspaceMode === "canvas" ? "canvas" : "standard",
         }));
         setWorkspaces(hydrated);
+        setWorkspacesHydrated(true);
+        if (hydrated.length === 0) setWorkspaceSetupOpen(true);
       })
       .catch((err) => {
         console.error("Failed to load workspaces from SQLite:", err);
@@ -1217,6 +1220,7 @@ export default function App() {
         console.error("Failed to save workspace to SQLite:", err);
       }
       setWorkspaces((current) => [...current, newWs]);
+      setWorkspaceSetupOpen(false);
       return newWs;
     },
     [
@@ -1227,6 +1231,11 @@ export default function App() {
       workspaces,
     ],
   );
+
+  const handleWorkspaceSetupCancel = useCallback(() => {
+    if (workspacesHydrated && workspaces.length === 0) return;
+    setWorkspaceSetupOpen(false);
+  }, [workspaces, workspacesHydrated]);
 
   const selectWorkspace = useWorkspaceSelection({
     workspaces,
@@ -2493,7 +2502,7 @@ export default function App() {
                             workspaces.length,
                           )}
                           recentWorkspaces={recentWorkspaces}
-                          onCancel={() => setWorkspaceSetupOpen(false)}
+                          onCancel={handleWorkspaceSetupCancel}
                           onOpenWithoutAi={handleOpenWorkspaceWithoutAi}
                         />
                       ) : (
