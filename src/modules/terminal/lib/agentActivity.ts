@@ -5,6 +5,7 @@ type Listener = () => void;
 
 let respondingLeaves = new Set<number>();
 let completedLeaves = new Set<number>();
+const completedTimers = new Map<number, ReturnType<typeof setTimeout>>();
 let agentCommands = new Map<number, string>();
 // pty id -> leaf id. Rust `cmdspace:agent-signal` events carry the PTY id;
 // the app keys sessions by leaf id, so this registry bridges the two.
@@ -58,9 +59,29 @@ export function setAgentResponseActivity(
   if (responding) {
     next.add(leafId);
     completed.delete(leafId);
+    const timer = completedTimers.get(leafId);
+    if (timer) {
+      clearTimeout(timer);
+      completedTimers.delete(leafId);
+    }
   } else {
     next.delete(leafId);
-    if (markCompleted) completed.add(leafId);
+    if (markCompleted) {
+      completed.add(leafId);
+      const previousTimer = completedTimers.get(leafId);
+      if (previousTimer) clearTimeout(previousTimer);
+      completedTimers.set(
+        leafId,
+        setTimeout(() => {
+          completedTimers.delete(leafId);
+          if (!completedLeaves.has(leafId)) return;
+          const nextCompleted = new Set(completedLeaves);
+          nextCompleted.delete(leafId);
+          completedLeaves = nextCompleted;
+          notify();
+        }, 1800),
+      );
+    }
   }
   respondingLeaves = next;
   completedLeaves = completed;
