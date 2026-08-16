@@ -90,6 +90,17 @@ const OUTPUT_ACTIVITY_QUIET_MS = 900;
 
 ensureAgentActivityListener();
 
+function markAgentResponding(leafId: number, s: Session): void {
+  setAgentResponseActivity(leafId, true);
+  s.callbacks.onAgentActivity?.(true);
+  if (s.agentActivityTimer !== null) window.clearTimeout(s.agentActivityTimer);
+  s.agentActivityTimer = window.setTimeout(() => {
+    s.agentActivityTimer = null;
+    setAgentResponseActivity(leafId, false);
+    s.callbacks.onAgentActivity?.(false);
+  }, OUTPUT_ACTIVITY_QUIET_MS);
+}
+
 /**
  * Keep the shell's editable prompt in sync regardless of whether input comes
  * from xterm, a shortcut, or an imperative caller such as the voice agent.
@@ -109,6 +120,7 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
       if (s.interactiveCodingAgent) {
         s.launchCommand = command;
         setAgentCliCommand(leafId, command);
+        markAgentResponding(leafId, s);
       }
       if (!s.interactiveCodingAgent) {
         setAgentResponseActivity(leafId, false);
@@ -317,14 +329,7 @@ function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   }
   const outputIsUserEcho = Date.now() - s.lastLocalInputAt < LOCAL_INPUT_ECHO_GRACE_MS;
   if (s.interactiveCodingAgent && !outputIsUserEcho) {
-    setAgentResponseActivity(leafId, true);
-    s.callbacks.onAgentActivity?.(true);
-    if (s.agentActivityTimer !== null) window.clearTimeout(s.agentActivityTimer);
-    s.agentActivityTimer = window.setTimeout(() => {
-      s.agentActivityTimer = null;
-      setAgentResponseActivity(leafId, false);
-      s.callbacks.onAgentActivity?.(false);
-    }, 900);
+    markAgentResponding(leafId, s);
   }
   const slot = getSlotForLeaf(leafId);
   if (slot) slot.term.write(bytes);
