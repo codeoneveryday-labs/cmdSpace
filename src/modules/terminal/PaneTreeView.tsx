@@ -543,15 +543,15 @@ function AgentResponseLoader() {
   return (
     <span
       aria-label="Agent is responding"
-      className="grid size-3.5 shrink-0 grid-cols-3 grid-rows-3 gap-0.5 text-foreground motion-safe:animate-[spin_1.2s_linear_infinite] motion-reduce:animate-none"
+      className="grid size-3.5 shrink-0 grid-cols-2 grid-rows-2 gap-px text-foreground"
       role="status"
     >
-      {Array.from({ length: 9 }, (_, index) => (
+      {[0, 1, 2, 3].map((index) => (
         <span
           key={index}
           aria-hidden="true"
           className="cmdspace-agent-response-dot size-1 rounded-[1px] bg-current"
-          style={{ animationDelay: `${index * 70}ms` }}
+          style={{ animationDelay: `${index * 120}ms` }}
         />
       ))}
     </span>
