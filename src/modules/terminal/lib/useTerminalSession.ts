@@ -578,6 +578,22 @@ export async function respawnSession(
   if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
 }
 
+export async function replaceSessionCommand(
+  leafId: number,
+  cwd: string | undefined,
+  command: string | null,
+): Promise<void> {
+  const session = sessions.get(leafId);
+  if (!session || session.disposed) return;
+  session.launchCommand = command ?? undefined;
+  session.interactiveCodingAgent = Boolean(
+    command && isInteractiveCodingAgentCommand(command),
+  );
+  session.agentResponseRequested = false;
+  setAgentCliCommand(leafId, command ?? undefined);
+  await respawnSession(leafId, cwd, Boolean(command));
+}
+
 export function disposeSession(leafId: number): void {
   const s = sessions.get(leafId);
   if (!s) return;

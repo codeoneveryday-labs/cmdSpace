@@ -8,6 +8,15 @@ const appConstantsPath = path.join(here, "constants.ts");
 const shortcutsPath = path.join(here, "../modules/shortcuts/shortcuts.ts");
 
 describe("App sidebar toggle", () => {
+  it("switches an agent in place and persists the pane launch plan", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("handleSwitchTerminalAgent");
+    expect(source).toContain("setLeafLaunchCommand(leafId, command)");
+    expect(source).toContain("replaceSessionCommand(leafId, cwd, command)");
+    expect(source).toContain('invoke("db_save_pane"');
+  });
+
   it("auto-activates the first workspace only once so standalone tabs remain selectable", () => {
     const source = readFileSync(appPath, "utf8");
 

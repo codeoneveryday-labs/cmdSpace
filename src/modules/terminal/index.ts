@@ -6,6 +6,7 @@ export {
 export { TerminalStack } from "./TerminalStack";
 export {
   disposeSession,
+  replaceSessionCommand,
   respawnSession,
 } from "./lib/useTerminalSession";
 export { setTerminalResizePaused } from "./lib/rendererPool";

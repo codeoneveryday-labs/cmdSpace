@@ -75,7 +75,7 @@ type Props = {
   canBroadcast: boolean;
   onToggleBroadcast: () => void;
   onToggleBroadcastTarget: (leafId: number) => void;
-  onSwitchAgent?: (leafId: number, command: string | null) => void;
+  onSwitchAgent: (leafId: number, command: string | null) => void;
 };
 
 export type PaneDragContext = {
@@ -110,7 +110,7 @@ export function PaneTreeView({
   canBroadcast,
   onToggleBroadcast,
   onToggleBroadcastTarget,
-  onSwitchAgent = () => {},
+  onSwitchAgent,
 }: Props) {
   const groupRef = useRef<GroupImperativeHandle | null>(null);
   const paneResizeResumeTimerRef = useRef<number | null>(null);
@@ -235,7 +235,12 @@ export function PaneTreeView({
           }}
           agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}
           agentResponding={agentResponding || respondingLeaves.has(node.id)}
-          onSwitchAgent={(_agent, command) => onSwitchAgent(node.id, command)}
+          onSwitchAgent={(_agent, command) => {
+            setDetectedAgentCommand(
+              command && detectCliAgent(command) ? command : undefined,
+            );
+            onSwitchAgent(node.id, command);
+          }}
           hydrated={hydrated}
           onDragStart={(event) => dragContext?.onDragStart(node.id, event)}
           isDragging={isDragging}

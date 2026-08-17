@@ -33,6 +33,7 @@ type Props = {
   onChangeDirectory: (path: string) => void;
   onExit: (leafId: number, code: number) => void;
   onCommand?: (leafId: number, cmd: string) => void;
+  onSwitchAgent: (leafId: number, command: string | null) => void;
   onFocusLeaf: (tabId: number, leafId: number) => void;
   onCloseLeaf: (leafId: number) => void;
   onToggleMaximize: (leafId: number) => void;
@@ -50,6 +51,7 @@ export function TerminalStack({
   onChangeDirectory,
   onExit,
   onCommand,
+  onSwitchAgent,
   onFocusLeaf,
   onCloseLeaf,
   onToggleMaximize,
@@ -237,6 +239,7 @@ export function TerminalStack({
             tabVisible={true}
             activeLeafId={activeTerminal.activeLeafId}
             onFocusLeaf={(leafId) => onFocusLeaf(activeTerminal.id, leafId)}
+            onSwitchAgent={onSwitchAgent}
             getBundle={getBundle}
             onCloseLeaf={onCloseLeaf}
             onChangeDirectory={onChangeDirectory}

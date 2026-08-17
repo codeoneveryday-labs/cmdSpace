@@ -91,6 +91,7 @@ import {
   findLeafLastCommand,
   hasLeaf,
   leafIds,
+  replaceSessionCommand,
   respawnSession,
   setTerminalResizePaused,
   BottomTerminalDrawer,
@@ -328,6 +329,7 @@ export default function App() {
     selectByIndex,
     reorderTab,
     setLeafCwd,
+    setLeafLaunchCommand,
     setTerminalPaneTree,
     focusPane,
     focusNextPaneInTab,
@@ -2112,6 +2114,43 @@ export default function App() {
     [activeLeafId, handleTerminalCwd],
   );
 
+  const handleSwitchTerminalAgent = useCallback(
+    (leafId: number, command: string | null) => {
+      const tab = tabsRef.current.find(
+        (item) => item.kind === "terminal" && hasLeaf(item.paneTree, leafId),
+      );
+      if (!tab || tab.kind !== "terminal") return;
+
+      const cwd = findLeafCwd(tab.paneTree, leafId) ?? tab.cwd;
+      setLeafLaunchCommand(leafId, command);
+
+      const workspace = workspacesRef.current.find(
+        (item) => item.tabId === tab.id,
+      );
+      if (workspace) {
+        const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
+        if (paneIndex !== -1) {
+          void invoke("db_save_pane", {
+            pane: {
+              workspaceId: workspace.id,
+              paneIndex,
+              workingFolder: cwd ?? null,
+              lastCommand: command,
+              autoLaunch: Boolean(command),
+            },
+          }).catch((error) => {
+            console.error("Failed to save switched terminal agent:", error);
+          });
+        }
+      }
+
+      void replaceSessionCommand(leafId, cwd, command).finally(() => {
+        terminalRefs.current.get(leafId)?.focus();
+      });
+    },
+    [setLeafLaunchCommand],
+  );
+
   const handleTerminalCommand = useCallback(
     (leafId: number, _command: string) => {
       pendingVoiceDraftsRef.current.delete(leafId);
@@ -2377,6 +2416,7 @@ export default function App() {
           onChangeDirectory={changeTerminalDirectory}
           onExit={handleLeafExit}
           onCommand={handleTerminalCommand}
+          onSwitchAgent={handleSwitchTerminalAgent}
           onFocusLeaf={handleFocusLeaf}
           onCloseLeaf={closePaneByLeaf}
           onToggleMaximize={toggleMaximizePane}
