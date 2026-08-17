@@ -35,8 +35,9 @@ import {
 } from "@/modules/git/events";
 import {
   detectCliAgent,
+  type CliAgent,
 } from "./lib/cliAgents";
-import { AgentCliIcon } from "./AgentCliIcon";
+import { TerminalAgentSwitcher } from "./TerminalAgentSwitcher";
 import { cn } from "@/lib/utils";
 
 const PANE_RESIZE_RESUME_DELAY_MS = 48;
@@ -74,6 +75,7 @@ type Props = {
   canBroadcast: boolean;
   onToggleBroadcast: () => void;
   onToggleBroadcastTarget: (leafId: number) => void;
+  onSwitchAgent?: (leafId: number, command: string | null) => void;
 };
 
 export type PaneDragContext = {
@@ -108,6 +110,7 @@ export function PaneTreeView({
   canBroadcast,
   onToggleBroadcast,
   onToggleBroadcastTarget,
+  onSwitchAgent = () => {},
 }: Props) {
   const groupRef = useRef<GroupImperativeHandle | null>(null);
   const paneResizeResumeTimerRef = useRef<number | null>(null);
@@ -232,6 +235,7 @@ export function PaneTreeView({
           }}
           agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}
           agentResponding={agentResponding || respondingLeaves.has(node.id)}
+          onSwitchAgent={(_agent, command) => onSwitchAgent(node.id, command)}
           hydrated={hydrated}
           onDragStart={(event) => dragContext?.onDragStart(node.id, event)}
           isDragging={isDragging}
@@ -477,6 +481,7 @@ export function PaneTreeView({
                canBroadcast={canBroadcast}
                onToggleBroadcast={onToggleBroadcast}
                onToggleBroadcastTarget={onToggleBroadcastTarget}
+               onSwitchAgent={onSwitchAgent}
              />
           </ResizablePanel>
         </Fragment>
@@ -526,6 +531,7 @@ type FloatingTerminalOverlayProps = {
   onToggleBroadcast: () => void;
   onToggleBroadcastTarget: () => void;
   outputActive: boolean;
+  onSwitchAgent: (agent: CliAgent | null, command: string | null) => void;
 };
 
 function AgentResponseLoader() {
@@ -644,6 +650,7 @@ export function FloatingTerminalOverlay({
   onToggleBroadcast,
   onToggleBroadcastTarget,
   outputActive,
+  onSwitchAgent,
 }: FloatingTerminalOverlayProps) {
   const [additions, setAdditions] = useState<number>(0);
   const [deletions, setDeletions] = useState<number>(0);
@@ -789,7 +796,10 @@ export function FloatingTerminalOverlay({
           : "border-border/70 dark:border-zinc-800/80"
       } hover:border-border dark:hover:border-zinc-500`}
     >
-      {cliAgent ? <AgentCliIcon agent={cliAgent} /> : null}
+      <TerminalAgentSwitcher
+        currentAgent={cliAgent}
+        onSelect={onSwitchAgent}
+      />
       {outputActive ? (
         <span
           role="status"

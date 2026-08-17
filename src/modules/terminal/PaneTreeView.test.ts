@@ -10,6 +10,7 @@ const collaborationHookPath = path.join(
   "lib/useTerminalCollaboration.ts",
 );
 const agentCliIconPath = path.join(here, "AgentCliIcon.tsx");
+const agentSwitcherPath = path.join(here, "TerminalAgentSwitcher.tsx");
 
 describe("FloatingTerminalOverlay", () => {
   it("keeps the terminal header flush without outer padding or rounding", () => {
@@ -33,9 +34,12 @@ describe("FloatingTerminalOverlay", () => {
   it("shows the coding CLI identity at the start of the pane header", () => {
     const source = readFileSync(paneTreePath, "utf8");
     const iconSource = readFileSync(agentCliIconPath, "utf8");
+    const switcherSource = readFileSync(agentSwitcherPath, "utf8");
 
     expect(source).toContain("detectCliAgent,");
-    expect(source).toContain("AgentCliIcon");
+    expect(source).toContain("TerminalAgentSwitcher");
+    expect(switcherSource).toContain("AgentCliIcon");
+    expect(switcherSource).toContain("getEnabledCliAgentDefinitions");
     expect(source).toContain(
       "agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}",
     );
