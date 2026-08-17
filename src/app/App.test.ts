@@ -8,6 +8,15 @@ const appConstantsPath = path.join(here, "constants.ts");
 const shortcutsPath = path.join(here, "../modules/shortcuts/shortcuts.ts");
 
 describe("App sidebar toggle", () => {
+  it("does not orphan a workspace when its tab is transiently absent during resume", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).not.toContain(
+      "workspace.tabId !== null && !tabIds.has(workspace.tabId)",
+    );
+    expect(source).toContain("clearWorkspaceTabOwnership");
+  });
+
   it("switches an agent in place and persists the pane launch plan", () => {
     const source = readFileSync(appPath, "utf8");
 

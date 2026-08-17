@@ -105,7 +105,7 @@ import {
   useAgentCompletedLeaves,
   useAgentResponseLeaves,
 } from "@/modules/terminal/lib/agentActivity";
-import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
+import { detectTrackedCliAgent } from "@/modules/terminal/lib/cliAgents";
 import { ThemeProvider } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
 import {
@@ -780,6 +780,13 @@ export default function App() {
           // Non-fatal — git panel will surface "not authorized" if needed.
         }
       }
+      setWorkspaces((current) =>
+        current.map((workspace) => ({
+          ...workspace,
+          tabId: null,
+          canvasTabId: null,
+        })),
+      );
       resetWorkspace(nextHome ?? undefined);
     },
     [workspaceEnv, setWorkspaceEnv, resetWorkspace],
@@ -863,9 +870,9 @@ export default function App() {
     activeTab?.kind === "terminal"
       ? leafIds(activeTab.paneTree).filter((leafId) =>
           Boolean(
-            detectCliAgent(
-              agentCommands.get(leafId) ??
-                findLeafLastCommand(activeTab.paneTree, leafId),
+            detectTrackedCliAgent(
+              agentCommands.get(leafId),
+              findLeafLastCommand(activeTab.paneTree, leafId),
             ),
           ),
         ).length
@@ -874,9 +881,10 @@ export default function App() {
     if (activeTab?.kind !== "terminal") return [];
     return leafIds(activeTab.paneTree)
       .map((leafId, index): WorkspaceTerminalItem => {
-        const command =
-          agentCommands.get(leafId) ?? findLeafLastCommand(activeTab.paneTree, leafId);
-        const agent = detectCliAgent(command);
+        const trackedCommand = agentCommands.get(leafId);
+        const savedCommand = findLeafLastCommand(activeTab.paneTree, leafId);
+        const command = trackedCommand ?? savedCommand;
+        const agent = detectTrackedCliAgent(trackedCommand, savedCommand);
         return {
           leafId,
           label: command ?? (agent ?? `Terminal ${index + 1}`),
@@ -916,24 +924,6 @@ export default function App() {
     activeTab?.kind === "git-diff" || activeTab?.kind === "git-commit-file";
   const isGitHistoryTab = activeTab?.kind === "git-history";
   const isArchitectureTab = activeTab?.kind === "architecture";
-
-  useEffect(() => {
-    const tabIds = new Set(tabs.map((tab) => tab.id));
-    setWorkspaces((current) =>
-      current.map((workspace) => {
-        const tabId = workspace.tabId !== null && !tabIds.has(workspace.tabId)
-          ? null
-          : workspace.tabId;
-        const canvasTabId =
-          workspace.canvasTabId !== null && !tabIds.has(workspace.canvasTabId)
-            ? null
-            : workspace.canvasTabId;
-        return tabId === workspace.tabId && canvasTabId === workspace.canvasTabId
-          ? workspace
-          : { ...workspace, tabId, canvasTabId };
-      }),
-    );
-  }, [tabs]);
 
   // When an AI diff is approved (write_file applied to disk), reload any
   // open editor tabs for that path so the user sees the new content. We
@@ -1000,6 +990,20 @@ export default function App() {
     [activeLeafId],
   );
 
+  const clearWorkspaceTabOwnership = useCallback((tabId: number) => {
+    setWorkspaces((current) =>
+      current.map((workspace) => {
+        if (workspace.tabId === tabId) {
+          return { ...workspace, tabId: null };
+        }
+        if (workspace.canvasTabId === tabId) {
+          return { ...workspace, canvasTabId: null };
+        }
+        return workspace;
+      }),
+    );
+  }, []);
+
   const disposeTab = useCallback(
     (id: number) => {
       // Terminal-leaf-keyed maps (terminalRefs/searchAddons) are pruned by
@@ -1007,9 +1011,10 @@ export default function App() {
       // handles need explicit cleanup here.
       editorRefs.current.delete(id);
       previewRefs.current.delete(id);
+      clearWorkspaceTabOwnership(id);
       closeTab(id);
     },
-    [closeTab],
+    [clearWorkspaceTabOwnership, closeTab],
   );
 
   // Drives session disposal off the pane tree, not React lifecycles —
@@ -2227,10 +2232,13 @@ export default function App() {
       if (isLast) {
         void respawnSession(leafId, tab.cwd);
       } else {
+        if (leafIds(tab.paneTree).length === 1) {
+          clearWorkspaceTabOwnership(tab.id);
+        }
         closePaneByLeaf(leafId);
       }
     },
-    [closePaneByLeaf],
+    [clearWorkspaceTabOwnership, closePaneByLeaf],
   );
 
   const handleEditorDirty = useCallback(
@@ -2567,7 +2575,6 @@ export default function App() {
                 <div className="h-full" style={{ width: workspacesPanelWidth }}>
                   <WorkspacesPanel
                     activeWorkspaceId={activeWorkspaceId}
-                    activeWorkspaceCodingAgentCount={activeWorkspaceCodingAgentCount}
                     activeWorkspaceTerminals={activeWorkspaceTerminals}
                     onSelectTerminal={handleSelectWorkspaceTerminal}
                     onCreateTerminal={handleCreateWorkspaceTerminal}

@@ -4,6 +4,7 @@ import {
   CLI_AGENT_DEFINITIONS,
   DEFAULT_CONFIGURED_CLI_AGENT_IDS,
   detectCliAgent,
+  detectTrackedCliAgent,
   filterCliAgentCatalog,
   getEnabledCliAgentDefinitions,
   isInteractiveCodingAgentCommand,
@@ -55,6 +56,14 @@ describe("CLI agent registry", () => {
     expect(detectCliAgent("cmd.exe /c dir")).toBeNull();
     expect(detectCliAgent("cmd --dangerously-skip-permissions")).toBe("cmd");
     expect(detectCliAgent("cd ~; cmd --dangerously-skip-permissions")).toBe(
+      "cmd",
+    );
+  });
+
+  it("accepts a trusted runtime agent id without treating shell history as an agent", () => {
+    expect(detectTrackedCliAgent("cmd", undefined)).toBe("cmd");
+    expect(detectTrackedCliAgent(undefined, "cmd")).toBeNull();
+    expect(detectTrackedCliAgent(undefined, "cmd --dangerously-skip-permissions")).toBe(
       "cmd",
     );
   });

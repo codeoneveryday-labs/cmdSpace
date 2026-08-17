@@ -347,7 +347,6 @@ describe("WorkspacesPanel", () => {
     const dbSource = readFileSync(dbPath, "utf8");
 
     expect(appSource).not.toContain("setLeafLastCommand(leafId, command)");
-    expect(appSource).not.toContain("lastCommand: command");
     expect(appSource).toContain(
       "const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);",
     );
@@ -361,11 +360,11 @@ describe("WorkspacesPanel", () => {
     expect(dbSource).toContain("auto_launch: row.get(4)?");
   });
 
-  it("shows a terminal section with the active workspace coding-agent count", () => {
+  it("shows terminal navigation without a redundant coding-agent footer", () => {
     const source = readFileSync(panelPath, "utf8");
 
-    expect(source).toContain("activeWorkspaceCodingAgentCount: number");
     expect(source).toContain("TERMINALS");
-    expect(source).toContain("Coding agents");
+    expect(source).not.toContain("activeWorkspaceCodingAgentCount: number");
+    expect(source).not.toContain("Coding agents");
   });
 });
