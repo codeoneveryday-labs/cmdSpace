@@ -647,7 +647,8 @@ export default function App() {
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
   const workspaceOpenGateRef = useRef(createWorkspaceOpenGate());
-  const initialWorkspaceActivationRef = useRef(false);
+  const initialWorkspaceActivationHandledRef = useRef(false);
+  const pendingBootstrapCloseRef = useRef(false);
   useEffect(() => {
     workspacesRef.current = workspaces;
   }, [workspaces]);
@@ -1299,21 +1300,22 @@ export default function App() {
 
   useEffect(() => {
     if (
-      initialWorkspaceActivationRef.current ||
+      initialWorkspaceActivationHandledRef.current ||
       !workspacesHydrated ||
-      workspaces.length === 0 ||
-      activeWorkspaceId !== null
+      workspaces.length === 0
     ) {
       return;
     }
+    initialWorkspaceActivationHandledRef.current = true;
+    if (activeWorkspaceId !== null) return;
     const firstWorkspace = workspaces[0];
     if (!firstWorkspace) return;
-    initialWorkspaceActivationRef.current = true;
+    pendingBootstrapCloseRef.current = true;
     handleSelectWorkspace(firstWorkspace.id);
   }, [activeWorkspaceId, handleSelectWorkspace, workspaces, workspacesHydrated]);
 
   useEffect(() => {
-    if (!initialWorkspaceActivationRef.current || activeWorkspaceId === null) {
+    if (!pendingBootstrapCloseRef.current || activeWorkspaceId === null) {
       return;
     }
     const bootstrapTab = tabs.find(
@@ -1322,7 +1324,7 @@ export default function App() {
     if (bootstrapTab && tabs.length > 1) {
       closeTab(bootstrapTab.id);
     }
-    initialWorkspaceActivationRef.current = false;
+    pendingBootstrapCloseRef.current = false;
   }, [activeWorkspaceId, closeTab, tabs]);
 
   useEffect(() => {
