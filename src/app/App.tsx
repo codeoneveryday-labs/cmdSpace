@@ -2170,14 +2170,8 @@ export default function App() {
   );
 
   const handleCreateWorkspaceTerminal = useCallback(() => {
-    if (activeTerminalTab) {
-      appendTerminalPane(
-        activeTerminalTab.id,
-        activeWorkspaceFolder ?? activeTerminalTab.cwd,
-        "",
-      );
-    }
-  }, [activeTerminalTab, activeWorkspaceFolder, appendTerminalPane]);
+    openNewTab();
+  }, [openNewTab]);
 
   const handleLeafExit = useCallback(
     (leafId: number, _code: number) => {
