@@ -647,6 +647,7 @@ export default function App() {
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
   const workspaceOpenGateRef = useRef(createWorkspaceOpenGate());
+  const initialWorkspaceActivationRef = useRef(false);
   useEffect(() => {
     workspacesRef.current = workspaces;
   }, [workspaces]);
@@ -1288,6 +1289,21 @@ export default function App() {
 
   const handleSelectWorkspaceRef = useRef(handleSelectWorkspace);
   handleSelectWorkspaceRef.current = handleSelectWorkspace;
+
+  useEffect(() => {
+    if (
+      initialWorkspaceActivationRef.current ||
+      !workspacesHydrated ||
+      workspaces.length === 0 ||
+      activeWorkspaceId !== null
+    ) {
+      return;
+    }
+    const firstWorkspace = workspaces[0];
+    if (!firstWorkspace) return;
+    initialWorkspaceActivationRef.current = true;
+    handleSelectWorkspace(firstWorkspace.id);
+  }, [activeWorkspaceId, handleSelectWorkspace, workspaces, workspacesHydrated]);
 
   useEffect(() => {
     const unlisten = listen<string>("cmdspace:open-workspace", (event) => {
