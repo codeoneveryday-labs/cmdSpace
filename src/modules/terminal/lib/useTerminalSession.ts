@@ -75,6 +75,7 @@ type Session = {
   agentLaunchBuffer: string;
   agentOutputTail: string;
   interactiveCodingAgent: boolean;
+  agentResponseRequested: boolean;
   shellState: ShellIntegrationState | null;
   initialCommandFallbackTimer: number | null;
   agentActivityTimer: number | null;
@@ -101,6 +102,7 @@ function markAgentResponding(
   s.agentActivityTimer = window.setTimeout(() => {
     s.agentActivityTimer = null;
     setAgentResponseActivity(leafId, false, markCompleted);
+    if (markCompleted) s.agentResponseRequested = false;
     s.callbacks.onAgentActivity?.(false);
   }, OUTPUT_ACTIVITY_QUIET_MS);
 }
@@ -123,6 +125,7 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
       s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);
       if (s.interactiveCodingAgent) {
         s.launchCommand = command;
+        s.agentResponseRequested = true;
         setAgentCliCommand(leafId, command);
         markAgentResponding(leafId, s, false);
       }
@@ -280,6 +283,7 @@ function ensureSession(
     agentLaunchBuffer: "",
     agentOutputTail: "",
     interactiveCodingAgent: isInteractiveCodingAgentCommand(initialCommand),
+    agentResponseRequested: false,
     shellState: null,
     initialCommandFallbackTimer: null,
     agentActivityTimer: null,
@@ -333,7 +337,7 @@ function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   }
   const outputIsUserEcho = Date.now() - s.lastLocalInputAt < LOCAL_INPUT_ECHO_GRACE_MS;
   if (s.interactiveCodingAgent && !outputIsUserEcho) {
-    markAgentResponding(leafId, s, s.lastLocalInputAt > 0);
+    markAgentResponding(leafId, s, s.agentResponseRequested);
   }
   const slot = getSlotForLeaf(leafId);
   if (slot) slot.term.write(bytes);
