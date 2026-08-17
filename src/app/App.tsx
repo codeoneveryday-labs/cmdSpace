@@ -651,6 +651,12 @@ export default function App() {
     workspacesRef.current = workspaces;
   }, [workspaces]);
 
+  useEffect(() => {
+    if (workspacesHydrated && workspaces.length === 0) {
+      setWorkspaceSetupOpen(true);
+    }
+  }, [workspacesHydrated, workspaces.length]);
+
   const saveRecentWorkspace = useCallback((workspace: WorkspaceItem) => {
     if (!workspace.workingFolder) return;
     const recent = {
@@ -1295,6 +1301,7 @@ export default function App() {
 
   const deleteWorkspace = useCallback(
     (workspaceId: string) => {
+      if (workspacesRef.current.length <= 1) return;
       const workspace = workspacesRef.current.find(
         (item) => item.id === workspaceId,
       );
@@ -1332,6 +1339,7 @@ export default function App() {
 
   const handleCloseWorkspace = useCallback(
     (workspaceId: string) => {
+      if (workspacesRef.current.length <= 1) return;
       const workspace = workspacesRef.current.find(
         (item) => item.id === workspaceId,
       );
@@ -1350,6 +1358,10 @@ export default function App() {
 
   const confirmDeleteWorkspace = useCallback(() => {
     if (pendingDeleteWorkspaceId === null) return;
+    if (workspacesRef.current.length <= 1) {
+      setPendingDeleteWorkspaceId(null);
+      return;
+    }
 
     if (workspaceDeleteDoNotAskAgain) {
       setSkipWorkspaceDeleteConfirm(true);

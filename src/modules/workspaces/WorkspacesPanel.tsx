@@ -419,6 +419,7 @@ export function WorkspacesPanel({
                     workspace={workspace}
                     active={workspace.id === activeWorkspaceId}
                     compact={compact}
+                    canClose={workspaces.length > 1}
                     onSelect={() => onSelectWorkspace(workspace.id)}
                     onClose={() => onCloseWorkspace(workspace.id)}
                     onRename={(name) => onRenameWorkspace(workspace.id, name)}
@@ -492,10 +493,11 @@ export function WorkspacesPanel({
           }}
         >
           <WorkspaceRow
-            workspace={draggedWorkspace}
-            active={draggedWorkspace.id === activeWorkspaceId}
-            compact={compact}
-            onSelect={() => {}}
+          workspace={draggedWorkspace}
+          active={draggedWorkspace.id === activeWorkspaceId}
+          compact={compact}
+          canClose={false}
+          onSelect={() => {}}
             onClose={() => {}}
             onRename={() => {}}
             onColorChange={() => {}}
@@ -511,6 +513,7 @@ function WorkspaceRow({
   workspace,
   active,
   compact = false,
+  canClose,
   onSelect,
   onClose,
   onRename,
@@ -521,6 +524,7 @@ function WorkspaceRow({
   workspace: WorkspaceItem;
   active: boolean;
   compact?: boolean;
+  canClose: boolean;
   onSelect: () => void;
   onClose: () => void;
   onRename: (name: string) => void;
@@ -620,6 +624,7 @@ function WorkspaceRow({
         {workspace.responding ? <WorkspaceResponseLoader /> : null}
         <button
           type="button"
+          disabled={!canClose}
           onClick={onSelect}
           aria-current={active ? "page" : undefined}
           aria-label={workspace.name}
@@ -723,23 +728,24 @@ function WorkspaceRow({
             e.stopPropagation();
             onClose();
           }}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md transition-colors group-hover:bg-foreground/[0.06]"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md transition-colors group-hover:bg-foreground/[0.06] disabled:pointer-events-none disabled:opacity-30"
           style={{ color: accentColor }}
           aria-label={`Delete ${workspace.name}`}
-          title={`Delete ${workspace.name}`}
+          title={canClose ? `Delete ${workspace.name}` : "At least one workspace is required"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={2} />
         </button>
       ) : (
         <button
           type="button"
+          disabled={!canClose}
           onClick={(e) => {
             e.stopPropagation();
             onClose();
           }}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-30"
           aria-label={`Delete ${workspace.name}`}
-          title={`Delete ${workspace.name}`}
+          title={canClose ? `Delete ${workspace.name}` : "At least one workspace is required"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={2} />
         </button>
