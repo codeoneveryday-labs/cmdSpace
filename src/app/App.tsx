@@ -1233,10 +1233,17 @@ export default function App() {
       }
       setWorkspaces((current) => [...current, newWs]);
       setWorkspaceSetupOpen(false);
+      const bootstrapTab = tabsRef.current.find(
+        (tab) => tab.id === 1 && tab.title === "shell",
+      );
+      if (bootstrapTab && tabsRef.current.length > 1) {
+        closeTab(bootstrapTab.id);
+      }
       return newWs;
     },
     [
       inheritedCwdForNewTab,
+      closeTab,
       newArchitectureTab,
       newWorkspaceTab,
       saveRecentWorkspace,
@@ -1304,6 +1311,19 @@ export default function App() {
     initialWorkspaceActivationRef.current = true;
     handleSelectWorkspace(firstWorkspace.id);
   }, [activeWorkspaceId, handleSelectWorkspace, workspaces, workspacesHydrated]);
+
+  useEffect(() => {
+    if (!initialWorkspaceActivationRef.current || activeWorkspaceId === null) {
+      return;
+    }
+    const bootstrapTab = tabs.find(
+      (tab) => tab.id === 1 && tab.title === "shell",
+    );
+    if (bootstrapTab && tabs.length > 1) {
+      closeTab(bootstrapTab.id);
+    }
+    initialWorkspaceActivationRef.current = false;
+  }, [activeWorkspaceId, closeTab, tabs]);
 
   useEffect(() => {
     const unlisten = listen<string>("cmdspace:open-workspace", (event) => {
