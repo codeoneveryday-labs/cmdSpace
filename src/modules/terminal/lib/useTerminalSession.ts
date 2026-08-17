@@ -127,7 +127,7 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
         s.launchCommand = command;
         s.agentResponseRequested = true;
         setAgentCliCommand(leafId, command);
-        markAgentResponding(leafId, s, false);
+        markAgentResponding(leafId, s);
       }
       if (!s.interactiveCodingAgent) {
         setAgentResponseActivity(leafId, false);
