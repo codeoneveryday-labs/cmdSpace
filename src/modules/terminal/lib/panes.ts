@@ -91,6 +91,33 @@ export function setLeafLastCommand(
   return changed ? { ...n, children: next } : n;
 }
 
+export function setLeafLaunchCommand(
+  node: PaneNode,
+  id: PaneId,
+  command: string | null,
+): PaneNode {
+  if (isLeaf(node)) {
+    if (node.id !== id) return node;
+    if (!command) {
+      const {
+        lastCommand: _lastCommand,
+        autoLaunch: _autoLaunch,
+        ...rest
+      } = node;
+      return rest;
+    }
+    if (node.lastCommand === command && node.autoLaunch === true) return node;
+    return { ...node, lastCommand: command, autoLaunch: true };
+  }
+  let changed = false;
+  const children = node.children.map((child) => {
+    const next = setLeafLaunchCommand(child, id, command);
+    if (next !== child) changed = true;
+    return next;
+  });
+  return changed ? { ...node, children } : node;
+}
+
 /**
  * Insert a new leaf next to `targetId` in direction `dir`.
  *

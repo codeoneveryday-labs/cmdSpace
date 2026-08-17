@@ -6,6 +6,7 @@ import {
   nextLeafId,
   removeLeaf,
   setLeafCwd as setLeafCwdInTree,
+  setLeafLaunchCommand as setLeafLaunchCommandInTree,
   setLeafLastCommand as setLeafLastCommandInTree,
   siblingLeafOf,
   splitLeaf,
@@ -960,6 +961,29 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     });
   }, []);
 
+  const setLeafLaunchCommand = useCallback(
+    (leafId: number, command: string | null) => {
+      setTabs((current) => {
+        let changed = false;
+        const next = current.map((tab) => {
+          if (tab.kind !== "terminal" || !hasLeaf(tab.paneTree, leafId)) {
+            return tab;
+          }
+          const paneTree = setLeafLaunchCommandInTree(
+            tab.paneTree,
+            leafId,
+            command,
+          );
+          if (paneTree === tab.paneTree) return tab;
+          changed = true;
+          return { ...tab, paneTree };
+        });
+        return changed ? next : current;
+      });
+    },
+    [],
+  );
+
   const setTerminalPaneTree = useCallback((tabId: number, paneTree: PaneNode) => {
     setTabs((curr) =>
       curr.map((t) => {
@@ -1213,6 +1237,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     selectByIndex,
     reorderTab,
     setLeafCwd,
+    setLeafLaunchCommand,
     setLeafLastCommand,
     setTerminalPaneTree,
     focusPane,
