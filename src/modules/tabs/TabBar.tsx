@@ -214,6 +214,8 @@ export function TabBar({
             drag.previewIndex >= siblings.length ? "after" : "before",
           );
         }
+      } else {
+        onSelect(drag.id);
       }
       pointerDragRef.current = null;
       setDragVisual(null);
