@@ -151,6 +151,7 @@ type Props = {
   activeWorkspaceCodingAgentCount: number;
   activeWorkspaceTerminals: WorkspaceTerminalItem[];
   onSelectTerminal: (leafId: number) => void;
+  onCreateTerminal: () => void;
   compact?: boolean;
   workspaces: WorkspaceItem[];
   onSelectWorkspace: (workspaceId: string) => void;
@@ -171,6 +172,7 @@ export function WorkspacesPanel({
   activeWorkspaceCodingAgentCount,
   activeWorkspaceTerminals,
   onSelectTerminal,
+  onCreateTerminal,
   compact = false,
   workspaces,
   onSelectWorkspace,
@@ -446,8 +448,19 @@ export function WorkspacesPanel({
           )}
         </nav>
         <section className="min-h-0 flex-1 overflow-y-auto border-t border-border/60 px-2 py-2">
-          <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            TERMINALS
+          <div className="flex items-center justify-between px-2 pb-1">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              TERMINALS
+            </div>
+            <button
+              type="button"
+              onClick={onCreateTerminal}
+              className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Create terminal in workspace"
+              title="Create terminal in workspace"
+            >
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
+            </button>
           </div>
           <div className="space-y-1">
             {activeWorkspaceTerminals.map((terminal) => (

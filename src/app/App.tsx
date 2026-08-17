@@ -2169,6 +2169,16 @@ export default function App() {
     [activeTerminalTab, focusPane],
   );
 
+  const handleCreateWorkspaceTerminal = useCallback(() => {
+    if (activeTerminalTab) {
+      appendTerminalPane(
+        activeTerminalTab.id,
+        activeWorkspaceFolder ?? activeTerminalTab.cwd,
+        "",
+      );
+    }
+  }, [activeTerminalTab, activeWorkspaceFolder, appendTerminalPane]);
+
   const handleLeafExit = useCallback(
     (leafId: number, _code: number) => {
       const all = tabsRef.current;
@@ -2524,6 +2534,7 @@ export default function App() {
                     activeWorkspaceCodingAgentCount={activeWorkspaceCodingAgentCount}
                     activeWorkspaceTerminals={activeWorkspaceTerminals}
                     onSelectTerminal={handleSelectWorkspaceTerminal}
+                    onCreateTerminal={handleCreateWorkspaceTerminal}
                     compact={workspacesPanelCompact}
                     workspaces={workspaceItems}
                     onSelectWorkspace={handleSelectWorkspace}
