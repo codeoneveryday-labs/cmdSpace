@@ -179,4 +179,26 @@ describe("usePaneHydration", () => {
     expect(controller.isLeafHydrated(2)).toBe(true);
     expect(controller.isLeafHydrated(3)).toBe(true);
   });
+
+  it("preserves hydrated terminals when pane drag only reorders the same leaves", () => {
+    const scheduler = createManualScheduler();
+    const controller = createPaneHydrationController({
+      activeLeafId: 1,
+      renderLeafIds: [1, 2, 3],
+      scopeKey: "tab-1",
+      schedule: scheduler.schedule,
+    });
+
+    controller.hydrateLeaf(2);
+    controller.hydrateLeaf(3);
+    controller.update({
+      activeLeafId: 1,
+      renderLeafIds: [3, 2, 1],
+      scopeKey: "tab-1",
+    });
+
+    expect(controller.isLeafHydrated(1)).toBe(true);
+    expect(controller.isLeafHydrated(2)).toBe(true);
+    expect(controller.isLeafHydrated(3)).toBe(true);
+  });
 });
