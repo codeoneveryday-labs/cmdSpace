@@ -275,6 +275,7 @@ export function TabBar({
                   key={t.id}
                   value={String(t.id)}
                   data-tab-id={t.id}
+                  onClick={() => onSelect(t.id)}
                   onPointerDown={(e) => {
                     if (e.button !== 0) return;
                     const target = e.target as HTMLElement | null;
