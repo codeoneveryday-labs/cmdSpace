@@ -15,6 +15,7 @@ export {
   findLeafAutoLaunch,
   findLeafLastCommand,
   setLeafLastCommand,
+  swapLeafNodes,
   hasLeaf,
   isLeaf,
   leafIds,

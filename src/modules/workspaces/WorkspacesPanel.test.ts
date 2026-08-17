@@ -367,4 +367,15 @@ describe("WorkspacesPanel", () => {
     expect(source).not.toContain("activeWorkspaceCodingAgentCount: number");
     expect(source).not.toContain("Coding agents");
   });
+
+  it("supports swapping terminal positions from the sidebar", () => {
+    const panelSource = readFileSync(panelPath, "utf8");
+    const appSource = readFileSync(appPath, "utf8");
+
+    expect(panelSource).toContain("onSwapTerminals");
+    expect(panelSource).toContain("data-terminal-leaf-id");
+    expect(appSource).toContain("handleSwapWorkspaceTerminals");
+    expect(appSource).toContain("swapLeafNodes(");
+    expect(appSource).toContain("handleTerminalPaneTreeChange(tab.id, paneTree)");
+  });
 });

@@ -94,6 +94,7 @@ import {
   replaceSessionCommand,
   respawnSession,
   setTerminalResizePaused,
+  swapLeafNodes,
   BottomTerminalDrawer,
   TerminalStack,
   type BottomTerminalDrawerHandle,
@@ -2202,6 +2203,23 @@ export default function App() {
       persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace }),
     });
 
+  const handleSwapWorkspaceTerminals = useCallback(
+    (sourceId: number, targetId: number) => {
+      const tab = tabsRef.current.find(
+        (item) =>
+          item.kind === "terminal" &&
+          hasLeaf(item.paneTree, sourceId) &&
+          hasLeaf(item.paneTree, targetId),
+      );
+      if (!tab || tab.kind !== "terminal") return;
+      const paneTree = swapLeafNodes(tab.paneTree, sourceId, targetId);
+      if (paneTree === tab.paneTree) return;
+      handleTerminalPaneTreeChange(tab.id, paneTree);
+      focusPane(tab.id, sourceId);
+    },
+    [focusPane, handleTerminalPaneTreeChange],
+  );
+
   const handleFocusLeaf = useCallback(
     (tabId: number, leafId: number) => focusPane(tabId, leafId),
     [focusPane],
@@ -2577,6 +2595,7 @@ export default function App() {
                     activeWorkspaceId={activeWorkspaceId}
                     activeWorkspaceTerminals={activeWorkspaceTerminals}
                     onSelectTerminal={handleSelectWorkspaceTerminal}
+                    onSwapTerminals={handleSwapWorkspaceTerminals}
                     onCreateTerminal={handleCreateWorkspaceTerminal}
                     compact={workspacesPanelCompact}
                     workspaces={workspaceItems}

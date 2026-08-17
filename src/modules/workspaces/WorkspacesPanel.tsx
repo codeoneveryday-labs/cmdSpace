@@ -150,6 +150,7 @@ type Props = {
   activeWorkspaceId: string | null;
   activeWorkspaceTerminals: WorkspaceTerminalItem[];
   onSelectTerminal: (leafId: number) => void;
+  onSwapTerminals: (sourceId: number, targetId: number) => void;
   onCreateTerminal: () => void;
   compact?: boolean;
   workspaces: WorkspaceItem[];
@@ -170,6 +171,7 @@ export function WorkspacesPanel({
   activeWorkspaceId,
   activeWorkspaceTerminals,
   onSelectTerminal,
+  onSwapTerminals,
   onCreateTerminal,
   compact = false,
   workspaces,
@@ -182,6 +184,25 @@ export function WorkspacesPanel({
   onReorderWorkspaces,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const terminalListRef = useRef<HTMLDivElement>(null);
+  const terminalDragRef = useRef<{
+    sourceId: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+    height: number;
+    dragging: boolean;
+    targetId: number | null;
+  } | null>(null);
+  const [terminalDragVisual, setTerminalDragVisual] = useState<{
+    sourceId: number;
+    targetId: number | null;
+    x: number;
+    y: number;
+  } | null>(null);
   const pointerDragRef = useRef<{
     id: string;
     pointerId: number;
@@ -202,6 +223,98 @@ export function WorkspacesPanel({
     y: number;
     previewIndex: number;
   } | null>(null);
+
+  const startTerminalDrag = useCallback(
+    (terminal: WorkspaceTerminalItem, event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0 || activeWorkspaceTerminals.length < 2) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      terminalDragRef.current = {
+        sourceId: terminal.leafId,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        offsetX: event.clientX - bounds.left,
+        offsetY: event.clientY - bounds.top,
+        width: bounds.width,
+        height: bounds.height,
+        dragging: false,
+        targetId: null,
+      };
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    },
+    [activeWorkspaceTerminals.length],
+  );
+
+  useEffect(() => {
+    const clearTerminalDrag = () => {
+      terminalDragRef.current = null;
+      setTerminalDragVisual(null);
+    };
+
+    const targetAtPoint = (clientX: number, clientY: number) => {
+      const drag = terminalDragRef.current;
+      if (!drag) return null;
+      const row = document
+        .elementsFromPoint(clientX, clientY)
+        .map((element) =>
+          element.closest<HTMLElement>("[data-terminal-leaf-id]"),
+        )
+        .find((element): element is HTMLElement => element !== null);
+      const candidate = row ? Number(row.dataset.terminalLeafId) : null;
+      return candidate !== null &&
+        candidate !== drag.sourceId &&
+        activeWorkspaceTerminals.some((terminal) => terminal.leafId === candidate)
+        ? candidate
+        : null;
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const drag = terminalDragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const moved =
+        Math.abs(event.clientX - drag.startX) > 4 ||
+        Math.abs(event.clientY - drag.startY) > 4;
+      if (!drag.dragging && !moved) return;
+      event.preventDefault();
+      const targetId = targetAtPoint(event.clientX, event.clientY);
+      terminalDragRef.current = { ...drag, dragging: true, targetId };
+      setTerminalDragVisual({
+        sourceId: drag.sourceId,
+        targetId,
+        x: event.clientX,
+        y: event.clientY,
+      });
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const drag = terminalDragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const targetId = targetAtPoint(event.clientX, event.clientY);
+      if (drag.dragging && targetId !== null) {
+        onSwapTerminals(drag.sourceId, targetId);
+      }
+      clearTerminalDrag();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !terminalDragRef.current) return;
+      event.preventDefault();
+      clearTerminalDrag();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", clearTerminalDrag);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", clearTerminalDrag);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", clearTerminalDrag);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", clearTerminalDrag);
+    };
+  }, [activeWorkspaceTerminals, onSwapTerminals]);
 
   const onDragStart = useCallback(
     (id: string, e: React.PointerEvent<HTMLDivElement>) => {
@@ -460,17 +573,23 @@ export function WorkspacesPanel({
               <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
             </button>
           </div>
-          <div className="space-y-1 px-2">
+          <div ref={terminalListRef} className="space-y-1 px-2">
             {activeWorkspaceTerminals.map((terminal) => (
               <button
                 key={terminal.leafId}
+                data-terminal-leaf-id={terminal.leafId}
                 type="button"
+                onPointerDown={(event) => startTerminalDrag(terminal, event)}
                 onClick={() => onSelectTerminal(terminal.leafId)}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors",
                   terminal.active
                     ? "bg-muted text-foreground dark:bg-zinc-800"
                     : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                  terminalDragVisual?.sourceId === terminal.leafId &&
+                    "opacity-40",
+                  terminalDragVisual?.targetId === terminal.leafId &&
+                    "bg-primary/10 ring-1 ring-inset ring-primary/55",
                 )}
                 title={`Focus ${terminal.label}`}
               >
@@ -488,6 +607,33 @@ export function WorkspacesPanel({
           </div>
         </section>
       </aside>
+
+      {terminalDragVisual !== null ? (
+        <div
+          className="pointer-events-none fixed z-50 flex items-center gap-2 rounded-lg bg-popover px-2 py-2 text-sm text-popover-foreground opacity-90 shadow-xl ring-1 ring-border"
+          style={{
+            width: terminalDragRef.current?.width ?? 220,
+            height: terminalDragRef.current?.height,
+            left:
+              terminalDragVisual.x -
+              (terminalDragRef.current?.offsetX ?? 0),
+            top:
+              terminalDragVisual.y -
+              (terminalDragRef.current?.offsetY ?? 0),
+          }}
+        >
+          <HugeiconsIcon
+            icon={ComputerTerminal02Icon}
+            size={16}
+            strokeWidth={1.8}
+          />
+          <span className="min-w-0 flex-1 truncate">
+            {activeWorkspaceTerminals.find(
+              (terminal) => terminal.leafId === terminalDragVisual.sourceId,
+            )?.label ?? "Terminal"}
+          </span>
+        </div>
+      ) : null}
 
       {dragVisual !== null && draggedWorkspace && (
         <div
