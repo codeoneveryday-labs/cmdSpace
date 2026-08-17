@@ -100,10 +100,10 @@ function WorkspaceResponseLoader() {
   return (
     <span
       aria-label="Agent is responding"
-      className="grid size-3.5 shrink-0 grid-cols-2 grid-rows-2 gap-px text-foreground"
+      className="flex size-3.5 shrink-0 items-center gap-0.5 text-foreground"
       role="status"
     >
-      {[0, 1, 2, 3].map((index) => (
+      {[0, 1, 2].map((index) => (
         <span
           key={index}
           aria-hidden="true"
