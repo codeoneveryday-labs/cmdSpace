@@ -6,6 +6,7 @@ export {
   WorkspaceSetupView,
   type WorkspaceItem,
   type WorkspaceMode,
+  type WorkspaceTerminalItem,
 } from "./WorkspacesPanel";
 export { ImportSessionDialog } from "./ImportSessionDialog";
 export { buildSessionResumeCommand } from "./lib/importSessions";

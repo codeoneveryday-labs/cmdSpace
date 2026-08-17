@@ -21,6 +21,7 @@ import {
 } from "./lib/panes";
 import { usePaneBundles } from "./lib/usePaneBundles";
 import { usePaneHydration } from "./lib/usePaneHydration";
+import { useTerminalCollaboration } from "./lib/useTerminalCollaboration";
 
 type Props = {
   tabs: Tab[];
@@ -29,8 +30,10 @@ type Props = {
   registerHandle: (leafId: number, handle: TerminalPaneHandle | null) => void;
   onSearchReady: (leafId: number, addon: SearchAddon) => void;
   onCwd: (leafId: number, cwd: string) => void;
+  onChangeDirectory: (path: string) => void;
   onExit: (leafId: number, code: number) => void;
   onCommand?: (leafId: number, cmd: string) => void;
+  onSwitchAgent: (leafId: number, command: string | null) => void;
   onFocusLeaf: (tabId: number, leafId: number) => void;
   onCloseLeaf: (leafId: number) => void;
   onToggleMaximize: (leafId: number) => void;
@@ -45,8 +48,10 @@ export function TerminalStack({
   registerHandle,
   onSearchReady,
   onCwd,
+  onChangeDirectory,
   onExit,
   onCommand,
+  onSwitchAgent,
   onFocusLeaf,
   onCloseLeaf,
   onToggleMaximize,
@@ -100,6 +105,9 @@ export function TerminalStack({
     targetId: number | null;
     targetOffset: { x: number; y: number } | null;
   } | null>(null);
+  const { stateForTab, toggleBroadcast, toggleBroadcastTarget } =
+    useTerminalCollaboration(terminals);
+  const activeBroadcast = stateForTab(activeTerminal);
   const dragStateRef = useRef(dragState);
   dragStateRef.current = dragState;
   const dragCleanupRef = useRef<(() => void) | null>(null);
@@ -231,8 +239,10 @@ export function TerminalStack({
             tabVisible={true}
             activeLeafId={activeTerminal.activeLeafId}
             onFocusLeaf={(leafId) => onFocusLeaf(activeTerminal.id, leafId)}
+            onSwitchAgent={onSwitchAgent}
             getBundle={getBundle}
             onCloseLeaf={onCloseLeaf}
+            onChangeDirectory={onChangeDirectory}
             onToggleMaximize={onToggleMaximize}
             isMaximized={activeTerminal.maximizedLeafId !== undefined}
             canMaximize={leafIds(activeTerminal.paneTree).length > 1}
@@ -244,6 +254,13 @@ export function TerminalStack({
               onPaneTreeChange(activeTerminal.id, paneTree)
             }
             dragContext={paneDragContext}
+            broadcastEnabled={activeBroadcast.enabled}
+            broadcastTargetLeafIds={activeBroadcast.targetLeafIds}
+            canBroadcast={leafIds(activeTerminal.paneTree).length > 1}
+            onToggleBroadcast={() => toggleBroadcast(activeTerminal)}
+            onToggleBroadcastTarget={(leafId) =>
+              toggleBroadcastTarget(activeTerminal, leafId)
+            }
           />
         </div>
       ) : null}

@@ -91,6 +91,7 @@ import {
   findLeafLastCommand,
   hasLeaf,
   leafIds,
+  replaceSessionCommand,
   respawnSession,
   setTerminalResizePaused,
   BottomTerminalDrawer,
@@ -98,7 +99,13 @@ import {
   type BottomTerminalDrawerHandle,
   type TerminalPaneHandle,
 } from "@/modules/terminal";
-import { useAgentResponseLeaves } from "@/modules/terminal/lib/agentActivity";
+import {
+  clearAgentCompleted,
+  useAgentCliCommands,
+  useAgentCompletedLeaves,
+  useAgentResponseLeaves,
+} from "@/modules/terminal/lib/agentActivity";
+import { detectTrackedCliAgent } from "@/modules/terminal/lib/cliAgents";
 import { ThemeProvider } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
 import {
@@ -114,6 +121,7 @@ import {
   normalizeWorkspaceAccentColor,
   WORKSPACE_ACCENT_COLORS,
   WorkspacesPanel,
+  type WorkspaceTerminalItem,
   WorkspaceSetupView,
   type WorkspaceItem,
   type WorkspaceMode,
@@ -321,6 +329,7 @@ export default function App() {
     selectByIndex,
     reorderTab,
     setLeafCwd,
+    setLeafLaunchCommand,
     setTerminalPaneTree,
     focusPane,
     focusNextPaneInTab,
@@ -636,12 +645,21 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceItem[]>([]);
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
+  const [workspacesHydrated, setWorkspacesHydrated] = useState(false);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
   const workspaceOpenGateRef = useRef(createWorkspaceOpenGate());
+  const initialWorkspaceActivationHandledRef = useRef(false);
+  const pendingBootstrapCloseRef = useRef(false);
   useEffect(() => {
     workspacesRef.current = workspaces;
   }, [workspaces]);
+
+  useEffect(() => {
+    if (workspacesHydrated && workspaces.length === 0) {
+      setWorkspaceSetupOpen(true);
+    }
+  }, [workspacesHydrated, workspaces.length]);
 
   const saveRecentWorkspace = useCallback((workspace: WorkspaceItem) => {
     if (!workspace.workingFolder) return;
@@ -677,6 +695,8 @@ export default function App() {
           workspaceMode: w.workspaceMode === "canvas" ? "canvas" : "standard",
         }));
         setWorkspaces(hydrated);
+        setWorkspacesHydrated(true);
+        if (hydrated.length === 0) setWorkspaceSetupOpen(true);
       })
       .catch((err) => {
         console.error("Failed to load workspaces from SQLite:", err);
@@ -760,6 +780,13 @@ export default function App() {
           // Non-fatal — git panel will surface "not authorized" if needed.
         }
       }
+      setWorkspaces((current) =>
+        current.map((workspace) => ({
+          ...workspace,
+          tabId: null,
+          canvasTabId: null,
+        })),
+      );
       resetWorkspace(nextHome ?? undefined);
     },
     [workspaceEnv, setWorkspaceEnv, resetWorkspace],
@@ -836,8 +863,39 @@ export default function App() {
   );
   const activeWorkspaceId = activeWorkspace?.id ?? null;
   const activeWorkspaceFolder = activeWorkspace?.workingFolder ?? null;
-  const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
+  const agentCommands = useAgentCliCommands();
   const respondingLeaves = useAgentResponseLeaves();
+  const completedLeaves = useAgentCompletedLeaves();
+  const activeWorkspaceCodingAgentCount =
+    activeTab?.kind === "terminal"
+      ? leafIds(activeTab.paneTree).filter((leafId) =>
+          Boolean(
+            detectTrackedCliAgent(
+              agentCommands.get(leafId),
+              findLeafLastCommand(activeTab.paneTree, leafId),
+            ),
+          ),
+        ).length
+      : 0;
+  const activeWorkspaceTerminals = useMemo<WorkspaceTerminalItem[]>(() => {
+    if (activeTab?.kind !== "terminal") return [];
+    return leafIds(activeTab.paneTree)
+      .map((leafId, index): WorkspaceTerminalItem => {
+        const trackedCommand = agentCommands.get(leafId);
+        const savedCommand = findLeafLastCommand(activeTab.paneTree, leafId);
+        const command = trackedCommand ?? savedCommand;
+        const agent = detectTrackedCliAgent(trackedCommand, savedCommand);
+        return {
+          leafId,
+          label: command ?? (agent ?? `Terminal ${index + 1}`),
+          ...(agent ? { agent } : {}),
+          active: leafId === activeLeafId,
+          responding: respondingLeaves.has(leafId),
+          completed: completedLeaves.has(leafId),
+        };
+      });
+  }, [activeLeafId, activeTab, agentCommands, completedLeaves, respondingLeaves]);
+  const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
   const pendingDeleteWorkspace =
     pendingDeleteWorkspaceId === null
       ? null
@@ -866,24 +924,6 @@ export default function App() {
     activeTab?.kind === "git-diff" || activeTab?.kind === "git-commit-file";
   const isGitHistoryTab = activeTab?.kind === "git-history";
   const isArchitectureTab = activeTab?.kind === "architecture";
-
-  useEffect(() => {
-    const tabIds = new Set(tabs.map((tab) => tab.id));
-    setWorkspaces((current) =>
-      current.map((workspace) => {
-        const tabId = workspace.tabId !== null && !tabIds.has(workspace.tabId)
-          ? null
-          : workspace.tabId;
-        const canvasTabId =
-          workspace.canvasTabId !== null && !tabIds.has(workspace.canvasTabId)
-            ? null
-            : workspace.canvasTabId;
-        return tabId === workspace.tabId && canvasTabId === workspace.canvasTabId
-          ? workspace
-          : { ...workspace, tabId, canvasTabId };
-      }),
-    );
-  }, [tabs]);
 
   // When an AI diff is approved (write_file applied to disk), reload any
   // open editor tabs for that path so the user sees the new content. We
@@ -950,6 +990,20 @@ export default function App() {
     [activeLeafId],
   );
 
+  const clearWorkspaceTabOwnership = useCallback((tabId: number) => {
+    setWorkspaces((current) =>
+      current.map((workspace) => {
+        if (workspace.tabId === tabId) {
+          return { ...workspace, tabId: null };
+        }
+        if (workspace.canvasTabId === tabId) {
+          return { ...workspace, canvasTabId: null };
+        }
+        return workspace;
+      }),
+    );
+  }, []);
+
   const disposeTab = useCallback(
     (id: number) => {
       // Terminal-leaf-keyed maps (terminalRefs/searchAddons) are pruned by
@@ -957,9 +1011,10 @@ export default function App() {
       // handles need explicit cleanup here.
       editorRefs.current.delete(id);
       previewRefs.current.delete(id);
+      clearWorkspaceTabOwnership(id);
       closeTab(id);
     },
-    [closeTab],
+    [clearWorkspaceTabOwnership, closeTab],
   );
 
   // Drives session disposal off the pane tree, not React lifecycles —
@@ -1185,16 +1240,29 @@ export default function App() {
         console.error("Failed to save workspace to SQLite:", err);
       }
       setWorkspaces((current) => [...current, newWs]);
+      setWorkspaceSetupOpen(false);
+      const bootstrapTab = tabsRef.current.find(
+        (tab) => tab.id === 1 && tab.title === "shell",
+      );
+      if (bootstrapTab && tabsRef.current.length > 1) {
+        closeTab(bootstrapTab.id);
+      }
       return newWs;
     },
     [
       inheritedCwdForNewTab,
+      closeTab,
       newArchitectureTab,
       newWorkspaceTab,
       saveRecentWorkspace,
       workspaces,
     ],
   );
+
+  const handleWorkspaceSetupCancel = useCallback(() => {
+    if (workspacesHydrated && workspaces.length === 0) return;
+    setWorkspaceSetupOpen(false);
+  }, [workspaces, workspacesHydrated]);
 
   const selectWorkspace = useWorkspaceSelection({
     workspaces,
@@ -1238,6 +1306,35 @@ export default function App() {
   handleSelectWorkspaceRef.current = handleSelectWorkspace;
 
   useEffect(() => {
+    if (
+      initialWorkspaceActivationHandledRef.current ||
+      !workspacesHydrated ||
+      workspaces.length === 0
+    ) {
+      return;
+    }
+    initialWorkspaceActivationHandledRef.current = true;
+    if (activeWorkspaceId !== null) return;
+    const firstWorkspace = workspaces[0];
+    if (!firstWorkspace) return;
+    pendingBootstrapCloseRef.current = true;
+    handleSelectWorkspace(firstWorkspace.id);
+  }, [activeWorkspaceId, handleSelectWorkspace, workspaces, workspacesHydrated]);
+
+  useEffect(() => {
+    if (!pendingBootstrapCloseRef.current || activeWorkspaceId === null) {
+      return;
+    }
+    const bootstrapTab = tabs.find(
+      (tab) => tab.id === 1 && tab.title === "shell",
+    );
+    if (bootstrapTab && tabs.length > 1) {
+      closeTab(bootstrapTab.id);
+    }
+    pendingBootstrapCloseRef.current = false;
+  }, [activeWorkspaceId, closeTab, tabs]);
+
+  useEffect(() => {
     const unlisten = listen<string>("cmdspace:open-workspace", (event) => {
       handleSelectWorkspaceRef.current(event.payload);
     });
@@ -1249,16 +1346,29 @@ export default function App() {
 
   const deleteWorkspace = useCallback(
     (workspaceId: string) => {
+      if (workspacesRef.current.length <= 1) return;
       const workspace = workspacesRef.current.find(
         (item) => item.id === workspaceId,
       );
       if (!workspace) return;
 
-      if (workspace.tabId !== null) {
-        disposeTab(workspace.tabId);
-      }
-      if (workspace.canvasTabId !== null) {
-        disposeTab(workspace.canvasTabId);
+      const workspaceTabIds = new Set(
+        [workspace.tabId, workspace.canvasTabId].filter(
+          (tabId): tabId is number => tabId !== null,
+        ),
+      );
+      const wouldLeaveNoTabs =
+        workspaceTabIds.size > 0 &&
+        tabsRef.current.every((tab) => workspaceTabIds.has(tab.id));
+
+      if (wouldLeaveNoTabs) {
+        // closeTab preserves the final tab. Replace it here so the deleted
+        // workspace cannot leave a terminal tab without a workspace owner.
+        resetWorkspace(launchCwd ?? home ?? undefined);
+      } else {
+        for (const tabId of workspaceTabIds) {
+          disposeTab(tabId);
+        }
       }
 
       setWorkspaces((current) =>
@@ -1269,11 +1379,12 @@ export default function App() {
         console.error("Failed to delete workspace from SQLite:", err);
       });
     },
-    [disposeTab],
+    [disposeTab, home, launchCwd, resetWorkspace],
   );
 
   const handleCloseWorkspace = useCallback(
     (workspaceId: string) => {
+      if (workspacesRef.current.length <= 1) return;
       const workspace = workspacesRef.current.find(
         (item) => item.id === workspaceId,
       );
@@ -1292,6 +1403,10 @@ export default function App() {
 
   const confirmDeleteWorkspace = useCallback(() => {
     if (pendingDeleteWorkspaceId === null) return;
+    if (workspacesRef.current.length <= 1) {
+      setPendingDeleteWorkspaceId(null);
+      return;
+    }
 
     if (workspaceDeleteDoNotAskAgain) {
       setSkipWorkspaceDeleteConfirm(true);
@@ -1490,20 +1605,6 @@ export default function App() {
       focusPane(activeTab.id, candidates[0].id);
     },
     [activeLeafId, activeTab, focusPane],
-  );
-
-  const sendCd = useCallback(
-    (path: string) => {
-      if (activeLeafId === null) return;
-      const term = terminalRefs.current.get(activeLeafId);
-      if (!term) return;
-      const quoted = path.includes(" ")
-        ? `'${path.replace(/'/g, `'\\''`)}'`
-        : path;
-      term.write(`cd ${quoted}\r`);
-      term.focus();
-    },
-    [activeLeafId],
   );
 
   const cdInNewTab = useCallback(
@@ -2003,6 +2104,58 @@ export default function App() {
     [setLeafCwd],
   );
 
+  const changeTerminalDirectory = useCallback(
+    (path: string) => {
+      const nextPath = path.trim();
+      if (activeLeafId === null || !nextPath) return;
+
+      // A coding CLI owns stdin after launch, so typing `cd` into the PTY is
+      // treated as agent input. Persist the pane's cwd and respawn the PTY,
+      // which starts the shell/agent directly in the selected directory.
+      handleTerminalCwd(activeLeafId, nextPath);
+      void respawnSession(activeLeafId, nextPath, true);
+      terminalRefs.current.get(activeLeafId)?.focus();
+    },
+    [activeLeafId, handleTerminalCwd],
+  );
+
+  const handleSwitchTerminalAgent = useCallback(
+    (leafId: number, command: string | null) => {
+      const tab = tabsRef.current.find(
+        (item) => item.kind === "terminal" && hasLeaf(item.paneTree, leafId),
+      );
+      if (!tab || tab.kind !== "terminal") return;
+
+      const cwd = findLeafCwd(tab.paneTree, leafId) ?? tab.cwd;
+      setLeafLaunchCommand(leafId, command);
+
+      const workspace = workspacesRef.current.find(
+        (item) => item.tabId === tab.id,
+      );
+      if (workspace) {
+        const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
+        if (paneIndex !== -1) {
+          void invoke("db_save_pane", {
+            pane: {
+              workspaceId: workspace.id,
+              paneIndex,
+              workingFolder: cwd ?? null,
+              lastCommand: command,
+              autoLaunch: Boolean(command),
+            },
+          }).catch((error) => {
+            console.error("Failed to save switched terminal agent:", error);
+          });
+        }
+      }
+
+      void replaceSessionCommand(leafId, cwd, command).finally(() => {
+        terminalRefs.current.get(leafId)?.focus();
+      });
+    },
+    [setLeafLaunchCommand],
+  );
+
   const handleTerminalCommand = useCallback(
     (leafId: number, _command: string) => {
       pendingVoiceDraftsRef.current.delete(leafId);
@@ -2054,6 +2207,18 @@ export default function App() {
     [focusPane],
   );
 
+  const handleSelectWorkspaceTerminal = useCallback(
+    (leafId: number) => {
+      clearAgentCompleted(leafId);
+      if (activeTerminalTab) focusPane(activeTerminalTab.id, leafId);
+    },
+    [activeTerminalTab, focusPane],
+  );
+
+  const handleCreateWorkspaceTerminal = useCallback(() => {
+    openNewTab();
+  }, [openNewTab]);
+
   const handleLeafExit = useCallback(
     (leafId: number, _code: number) => {
       const all = tabsRef.current;
@@ -2067,10 +2232,13 @@ export default function App() {
       if (isLast) {
         void respawnSession(leafId, tab.cwd);
       } else {
+        if (leafIds(tab.paneTree).length === 1) {
+          clearWorkspaceTabOwnership(tab.id);
+        }
         closePaneByLeaf(leafId);
       }
     },
-    [closePaneByLeaf],
+    [clearWorkspaceTabOwnership, closePaneByLeaf],
   );
 
   const handleEditorDirty = useCallback(
@@ -2253,8 +2421,10 @@ export default function App() {
           registerHandle={registerTerminalHandle}
           onSearchReady={handleSearchReady}
           onCwd={handleTerminalCwd}
+          onChangeDirectory={changeTerminalDirectory}
           onExit={handleLeafExit}
           onCommand={handleTerminalCommand}
+          onSwitchAgent={handleSwitchTerminalAgent}
           onFocusLeaf={handleFocusLeaf}
           onCloseLeaf={closePaneByLeaf}
           onToggleMaximize={toggleMaximizePane}
@@ -2405,6 +2575,9 @@ export default function App() {
                 <div className="h-full" style={{ width: workspacesPanelWidth }}>
                   <WorkspacesPanel
                     activeWorkspaceId={activeWorkspaceId}
+                    activeWorkspaceTerminals={activeWorkspaceTerminals}
+                    onSelectTerminal={handleSelectWorkspaceTerminal}
+                    onCreateTerminal={handleCreateWorkspaceTerminal}
                     compact={workspacesPanelCompact}
                     workspaces={workspaceItems}
                     onSelectWorkspace={handleSelectWorkspace}
@@ -2437,7 +2610,7 @@ export default function App() {
                             workspaces.length,
                           )}
                           recentWorkspaces={recentWorkspaces}
-                          onCancel={() => setWorkspaceSetupOpen(false)}
+                          onCancel={handleWorkspaceSetupCancel}
                           onOpenWithoutAi={handleOpenWorkspaceWithoutAi}
                         />
                       ) : (
@@ -2449,6 +2622,7 @@ export default function App() {
                             <BottomTerminalDrawer
                               ref={bottomTerminalRef}
                               cwd={bottomTerminalCwd}
+                              codingAgentCount={activeWorkspaceCodingAgentCount}
                               onClose={() => setBottomTerminalOpen(false)}
                             />
                           </div>
@@ -2563,7 +2737,8 @@ export default function App() {
             cwd={activeCwd}
             filePath={activeFilePath}
             home={home}
-            onCd={sendCd}
+            workspaceFolder={activeWorkspaceFolder}
+            onCd={changeTerminalDirectory}
             onWorkspaceChange={switchWorkspace}
             onToggleTerminal={toggleBottomTerminal}
             privateActive={

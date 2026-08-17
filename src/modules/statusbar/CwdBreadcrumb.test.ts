@@ -20,4 +20,14 @@ describe("CwdBreadcrumb", () => {
     expect(source).not.toContain("Search branches...");
     expect(source).not.toContain("git switch");
   });
+
+  it("opens the native folder finder from the footer cwd trigger", () => {
+    const source = readFileSync(breadcrumbPath, "utf8");
+
+    expect(source).toContain('invoke<string | null>("select_folder")');
+    expect(source).toContain('title="Choose folder"');
+    expect(source).toContain("void chooseFolder()");
+    expect(source).toContain("Choose folder…");
+    expect(source).toContain("Use workspace folder");
+  });
 });

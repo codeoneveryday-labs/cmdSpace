@@ -79,6 +79,7 @@ export function CliAgentsSection() {
   };
 
   const setAgentEnabled = async (id: CliAgent, enabled: boolean) => {
+    if (!installedIds.has(id)) return;
     const nextDisabled = enabled
       ? disabledIds.filter((candidate) => candidate !== id)
       : normalizeCliAgentIds([...disabledIds, id]);
@@ -224,8 +225,14 @@ function ConfiguredAgentRow({
       <Switch
         size="sm"
         checked={enabled}
+        disabled={scanState !== "ready" || !installed}
         onCheckedChange={onEnabledChange}
-        aria-label={`${enabled ? "Disable" : "Enable"} ${entry.name}`}
+        aria-label={
+          installed
+            ? `${enabled ? "Disable" : "Enable"} ${entry.name}`
+            : `${entry.name} is not installed`
+        }
+        title={installed ? undefined : "Install this CLI before enabling it"}
       />
     </div>
   );

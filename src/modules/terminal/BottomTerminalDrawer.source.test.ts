@@ -56,4 +56,10 @@ describe("BottomTerminalDrawer", () => {
     expect(source).toContain("contentTopPadding={false}");
     expect(source).toContain('className="absolute inset-0"');
   });
+
+  it("shows the active workspace coding-agent count in the drawer header", () => {
+    expect(source).toContain("codingAgentCount: number");
+    expect(source).toContain("Coding agents");
+    expect(source).toContain("codingAgentCount");
+  });
 });

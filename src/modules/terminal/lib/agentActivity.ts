@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 type Listener = () => void;
 
 let respondingLeaves = new Set<number>();
+let completedLeaves = new Set<number>();
 let agentCommands = new Map<number, string>();
 // pty id -> leaf id. Rust `cmdspace:agent-signal` events carry the PTY id;
 // the app keys sessions by leaf id, so this registry bridges the two.
@@ -36,17 +37,33 @@ function getSnapshot(): ReadonlySet<number> {
   return respondingLeaves;
 }
 
+function getAgentCommandsSnapshot(): ReadonlyMap<number, string> {
+  return agentCommands;
+}
+
+function getCompletedSnapshot(): ReadonlySet<number> {
+  return completedLeaves;
+}
+
 export function setAgentResponseActivity(
   leafId: number,
   responding: boolean,
+  markCompleted = true,
 ): void {
   const hasLeaf = respondingLeaves.has(leafId);
   if (hasLeaf === responding) return;
 
   const next = new Set(respondingLeaves);
-  if (responding) next.add(leafId);
-  else next.delete(leafId);
+  const completed = new Set(completedLeaves);
+  if (responding) {
+    next.add(leafId);
+    completed.delete(leafId);
+  } else {
+    next.delete(leafId);
+    if (markCompleted) completed.add(leafId);
+  }
   respondingLeaves = next;
+  completedLeaves = completed;
   notify();
 }
 
@@ -88,10 +105,10 @@ export function applyAgentSignal(signal: AgentSignal): void {
       setAgentResponseActivity(leafId, true);
       break;
     case "finished":
-      setAgentResponseActivity(leafId, false);
+      setAgentResponseActivity(leafId, false, false);
       break;
     case "exited":
-      setAgentResponseActivity(leafId, false);
+      setAgentResponseActivity(leafId, false, false);
       setAgentCliCommand(leafId, undefined);
       clearPtyLeaf(signal.id);
       break;
@@ -114,10 +131,30 @@ export function useAgentResponseLeaves(): ReadonlySet<number> {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
+export function useAgentCompletedLeaves(): ReadonlySet<number> {
+  return useSyncExternalStore(subscribe, getCompletedSnapshot, getCompletedSnapshot);
+}
+
+export function clearAgentCompleted(leafId: number): void {
+  if (!completedLeaves.has(leafId)) return;
+  const next = new Set(completedLeaves);
+  next.delete(leafId);
+  completedLeaves = next;
+  notify();
+}
+
 export function useAgentCliCommand(leafId?: number): string | undefined {
   return useSyncExternalStore(
     subscribe,
     () => (leafId === undefined ? undefined : agentCommands.get(leafId)),
     () => undefined,
+  );
+}
+
+export function useAgentCliCommands(): ReadonlyMap<number, string> {
+  return useSyncExternalStore(
+    subscribe,
+    getAgentCommandsSnapshot,
+    getAgentCommandsSnapshot,
   );
 }

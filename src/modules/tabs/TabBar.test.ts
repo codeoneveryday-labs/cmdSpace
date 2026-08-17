@@ -24,6 +24,7 @@ describe("TabBar drag reorder", () => {
     expect(tabBarSource).toContain("drag-placeholder");
     expect(tabBarSource).toContain("pointer-events-none fixed z-50");
     expect(tabBarSource).toContain("onReorder(");
+    expect(tabBarSource).toContain("onSelect(drag.id)");
     expect(tabBarSource).toContain('drag.previewIndex >= siblings.length ? "after" : "before"');
     expect(tabBarSource).not.toContain("onDragStart");
     expect(tabBarSource).not.toContain("draggable");

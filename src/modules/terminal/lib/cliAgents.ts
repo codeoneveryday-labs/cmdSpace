@@ -264,6 +264,19 @@ export function detectCliAgent(command?: string): CliAgent | null {
   );
 }
 
+export function detectTrackedCliAgent(
+  trackedCommand?: string,
+  savedCommand?: string,
+): CliAgent | null {
+  if (trackedCommand) {
+    const detected = detectCliAgent(trackedCommand);
+    if (detected) return detected;
+    const trackedId = normalizeCliAgentIds([trackedCommand])[0];
+    if (trackedId) return trackedId;
+  }
+  return detectCliAgent(savedCommand);
+}
+
 export function isInteractiveCodingAgentCommand(command?: string): boolean {
   return detectCliAgent(command) !== null;
 }

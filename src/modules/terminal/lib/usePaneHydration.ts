@@ -51,6 +51,10 @@ function activeLeafSet(activeLeafId: number | null): Set<number> {
   return activeLeafId === null ? new Set<number>() : new Set([activeLeafId]);
 }
 
+function leafSetSignature(leafIds: readonly number[]): string {
+  return [...leafIds].sort((left, right) => left - right).join(",");
+}
+
 export function createPaneHydrationController({
   activeLeafId: initialActiveLeafId,
   renderLeafIds: initialRenderLeafIds,
@@ -61,7 +65,7 @@ export function createPaneHydrationController({
   let activeLeafId = initialActiveLeafId;
   let renderLeafIds = initialRenderLeafIds;
   let scopeKey = initialScopeKey;
-  let renderLeafSignature = initialRenderLeafIds.join(",");
+  let renderLeafSignature = leafSetSignature(initialRenderLeafIds);
   let hydratedLeafIds = activeLeafSet(initialActiveLeafId);
   let disposed = false;
   let cancelPendingRestore: (() => void) | null = null;
@@ -150,7 +154,7 @@ export function createPaneHydrationController({
       return hydratedLeafIds.has(leafId);
     },
     update(next: PaneHydrationArgs) {
-      const nextSignature = next.renderLeafIds.join(",");
+      const nextSignature = leafSetSignature(next.renderLeafIds);
       const scopeChanged =
         next.scopeKey !== scopeKey || nextSignature !== renderLeafSignature;
       const activeLeafChanged = next.activeLeafId !== activeLeafId;

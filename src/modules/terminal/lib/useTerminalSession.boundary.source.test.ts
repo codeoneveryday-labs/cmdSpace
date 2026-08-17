@@ -79,4 +79,54 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     expect(canvasSource).toContain("sessionRef.current = null;");
     expect(canvasSource).toContain("void sessionRef.current?.write(normalized);");
   });
+
+  it("broadcasts only xterm user input and leaves imperative writes direct", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("broadcastTargetsForInput(");
+    expect(source).toContain("[...sessions.keys()]");
+    expect(source).toContain("const write = useCallback((data: string) => {");
+    expect(source).toContain("if (s) writeToSessionPty(leafId, s, data);");
+  });
+
+  it("keeps the selected directory for later retries after a respawn", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("if (cwd !== undefined) s.initialCwd = cwd;");
+    expect(source).toContain("if (previousPty) await previousPty.close();");
+    expect(source).toContain("openPtyForSession(leafId, s, cwd ?? s.initialCwd)");
+  });
+
+  it("does not report a planned PTY replacement as a pane exit", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("respawning: boolean;");
+    expect(source).toContain("if (!s.respawning && s.callbacks.onExit)");
+  });
+
+  it("relaunches the original agent only for an explicit directory relocation", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("launchCommand: string | undefined;");
+    expect(source).toContain("launchCommand: initialCommand,");
+    expect(source).toContain(
+      "s.initialCommand = relaunchInitialCommand ? s.launchCommand : undefined;",
+    );
+  });
+
+  it("remembers agents launched interactively so directory relocation can reopen them", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("s.launchCommand = command;");
+    expect(source).toContain("s.launchCommand = detectedAgent;");
+  });
+
+  it("publishes output activity and clears its timer on exit and disposal", () => {
+    const source = readFileSync(useTerminalSessionPath, "utf8");
+
+    expect(source).toContain("noteTerminalOutput(Date.now(), OUTPUT_ACTIVITY_QUIET_MS)");
+    expect(source).toContain("s.callbacks.onOutputActivity?.(outputActivity.active)");
+    expect(source).toContain("window.clearTimeout(s.outputActivityTimer)");
+    expect(source).toContain("s.callbacks.onOutputActivity?.(false)");
+  });
 });

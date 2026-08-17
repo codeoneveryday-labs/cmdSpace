@@ -1,16 +1,15 @@
 import { cn } from "@/lib/utils";
 import { native } from "@/modules/ai/lib/native";
-import { currentWorkspaceEnv } from "@/modules/workspace";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { VirtualizedDropdownList } from "@/components/ui/virtualized-dropdown-list";
-import { usePreferencesStore } from "@/modules/settings/preferences";
 import { wouldCheckoutReloadDevApp } from "@/modules/git/devReloadGuard";
 import { emitGitRepoChanged } from "@/modules/git/events";
 
 type Props = {
   cwd?: string;
   onChangeDirectory: (path: string) => void;
+  showDirectoryPicker?: boolean;
   className?: string;
 };
 
@@ -31,13 +30,13 @@ function shellQuote(value: string): string {
 export function TerminalNavigationControls({
   cwd,
   onChangeDirectory,
+  showDirectoryPicker = true,
   className,
 }: Props) {
-  const showHidden = usePreferencesStore((state) => state.showHidden);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
-  const [directories, setDirectories] = useState<string[]>([]);
-  const [directoryError, setDirectoryError] = useState<string | null>(null);
+  const [directories] = useState<string[]>([]);
+  const [directoryError] = useState<string | null>(null);
   const [branchName, setBranchName] = useState<string | null>(null);
   const [branches, setBranches] = useState<string[]>([]);
   const [repoRoot, setRepoRoot] = useState<string | null>(null);
@@ -46,6 +45,15 @@ export function TerminalNavigationControls({
 
   const folderName = cwd?.replace(/\/$/, "").split("/").pop() || "terminal";
   const parentPath = cwd ? dirname(cwd) : null;
+
+  const chooseFolder = useCallback(async () => {
+    try {
+      const selected = await invoke<string | null>("select_folder");
+      if (selected) onChangeDirectory(selected);
+    } catch (error) {
+      console.warn("Failed to choose folder:", error);
+    }
+  }, [onChangeDirectory]);
 
   const refreshRepository = useCallback(async () => {
     if (!cwd) {
@@ -78,24 +86,6 @@ export function TerminalNavigationControls({
     document.addEventListener("mousedown", closeWhenOutside);
     return () => document.removeEventListener("mousedown", closeWhenOutside);
   }, [branchOpen, directoryOpen]);
-
-  const openDirectories = async () => {
-    if (!cwd) return;
-    setDirectoryError(null);
-    setBranchOpen(false);
-    setDirectoryOpen(true);
-    try {
-      const list = await invoke<string[]>("list_subdirs", {
-        path: cwd,
-        showHidden,
-        workspace: currentWorkspaceEnv(),
-      });
-      setDirectories(list);
-    } catch (error) {
-      setDirectoryError(String(error));
-      setDirectories([]);
-    }
-  };
 
   const openBranches = async () => {
     if (!repoRoot) return;
@@ -143,21 +133,23 @@ export function TerminalNavigationControls({
 
   return (
     <div ref={dropdownRef} className={cn("flex min-w-0 items-center gap-3", className)}>
-      <div className="relative min-w-0">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            if (directoryOpen) setDirectoryOpen(false);
-            else void openDirectories();
-          }}
-          className="max-w-40 truncate text-left font-semibold text-foreground transition-colors hover:text-foreground/80 dark:text-zinc-300 dark:hover:text-zinc-100"
-          aria-label="Choose terminal folder"
-          title={cwd}
-        >
-          {folderName}
-        </button>
-        {directoryOpen && cwd ? (
+      {showDirectoryPicker ? (
+        <div className="relative min-w-0">
+          <button
+            type="button"
+            data-directory-picker="inline"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              void chooseFolder();
+            }}
+            className="max-w-40 truncate text-left font-semibold text-foreground transition-colors hover:text-foreground/80 dark:text-zinc-300 dark:hover:text-zinc-100"
+            aria-label="Choose terminal folder"
+            title={cwd}
+          >
+            {folderName}
+          </button>
+          {directoryOpen && cwd ? (
           <div className="absolute left-0 top-full z-40 mt-2.5 w-56 rounded-lg border border-border bg-popover/95 p-0 text-left text-popover-foreground shadow-2xl backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95">
             {parentPath ? (
               <button
@@ -201,8 +193,13 @@ export function TerminalNavigationControls({
               />
             )}
           </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      ) : (
+        <span className="max-w-40 truncate font-semibold text-foreground dark:text-zinc-300" title={cwd}>
+          {folderName}
+        </span>
+      )}
       {branchName ? (
         <>
           <span className="font-bold text-muted-foreground/60 dark:text-zinc-600">•</span>

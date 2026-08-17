@@ -5,7 +5,12 @@ import { describe, expect, it } from "vitest";
 const here = path.dirname(new URL(import.meta.url).pathname);
 const paneTreePath = path.join(here, "PaneTreeView.tsx");
 const terminalStackPath = path.join(here, "TerminalStack.tsx");
+const collaborationHookPath = path.join(
+  here,
+  "lib/useTerminalCollaboration.ts",
+);
 const agentCliIconPath = path.join(here, "AgentCliIcon.tsx");
+const agentSwitcherPath = path.join(here, "TerminalAgentSwitcher.tsx");
 
 describe("FloatingTerminalOverlay", () => {
   it("keeps the terminal header flush without outer padding or rounding", () => {
@@ -29,9 +34,12 @@ describe("FloatingTerminalOverlay", () => {
   it("shows the coding CLI identity at the start of the pane header", () => {
     const source = readFileSync(paneTreePath, "utf8");
     const iconSource = readFileSync(agentCliIconPath, "utf8");
+    const switcherSource = readFileSync(agentSwitcherPath, "utf8");
 
     expect(source).toContain("detectCliAgent,");
-    expect(source).toContain("AgentCliIcon");
+    expect(source).toContain("TerminalAgentSwitcher");
+    expect(switcherSource).toContain("AgentCliIcon");
+    expect(switcherSource).toContain("getEnabledCliAgentDefinitions");
     expect(source).toContain(
       "agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}",
     );
@@ -45,7 +53,7 @@ describe("FloatingTerminalOverlay", () => {
   it("shows local coding-agent context and account-limit details without exposing credentials", () => {
     const source = readFileSync(paneTreePath, "utf8");
 
-    expect(source).toContain('invoke<AgentUsageStatus[]>("agent_usage_statuses"');
+    expect(source).toContain("getAgentUsageStatuses(cwd)");
     expect(source).toContain("AgentUsageBadge");
     expect(source).toContain("AgentUsageMenu");
     expect(source).toContain("Context window");
@@ -56,9 +64,28 @@ describe("FloatingTerminalOverlay", () => {
     const source = readFileSync(paneTreePath, "utf8");
 
     expect(source).toContain("onCd={(path) =>");
-    expect(source).toContain("write(`cd ${shellQuote(path)}\\r`)");
+    expect(source).toContain("onChangeDirectory(path)");
+    expect(source).not.toContain("write(`cd ${shellQuote(path)}\\r`)");
     expect(source).toContain("TerminalNavigationControls");
     expect(source).toContain("onChangeDirectory={onCd}");
+  });
+
+  it("exposes explicit broadcast membership and arming controls", () => {
+    const source = readFileSync(paneTreePath, "utf8");
+    const stack = readFileSync(terminalStackPath, "utf8");
+    const collaboration = readFileSync(collaborationHookPath, "utf8");
+
+    expect(source).toContain('title={broadcastEnabled ? "Disable input broadcast"');
+    expect(source).toContain('title={broadcastTargeted ? "Remove pane from broadcast"');
+    expect(stack).toContain("onToggleBroadcastTarget");
+    expect(collaboration).toContain("registerBroadcastTab(");
+    expect(collaboration).toContain("unregisterBroadcastLeaves");
+  });
+
+  it("shows output activity independently from agent detection", () => {
+    const source = readFileSync(paneTreePath, "utf8");
+    expect(source).toContain('aria-label="Terminal is producing output"');
+    expect(source).toContain("onOutputActivity");
   });
 
   it("refreshes all pane git labels in the same repo after a branch switch", () => {

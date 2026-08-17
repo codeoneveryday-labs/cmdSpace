@@ -14,7 +14,7 @@
     "harness:status": "pnpm harness status",
     "harness:update": "pnpm harness update",
     "harness:doctor": "pnpm harness doctor",
-    "test": "vitest run",
+    "test": "vitest run --exclude \"services/**\" && pnpm --dir services/cmdspace-relay test",
     "test:watch": "vitest"
   },
   "dependencies": {

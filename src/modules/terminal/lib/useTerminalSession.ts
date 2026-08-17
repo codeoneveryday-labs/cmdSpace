@@ -17,6 +17,8 @@ import {
   type ShellIntegrationState,
 } from "./osc-handlers";
 import { openPty, type PtySession } from "./pty-bridge";
+import { broadcastTargetsForInput } from "./terminalBroadcastRuntime";
+import { noteTerminalOutput } from "./terminalActivity";
 import {
   acquireSlot,
   applyBackgroundActive,
@@ -44,6 +46,7 @@ type Callbacks = {
   onCwd?: (cwd: string) => void;
   onCommand?: (cmd: string) => void;
   onAgentActivity?: (responding: boolean) => void;
+  onOutputActivity?: (active: boolean) => void;
 };
 
 type Session = {
@@ -51,6 +54,7 @@ type Session = {
   ptyOpening: boolean;
   initialCwd: string | undefined;
   initialCommand: string | undefined;
+  launchCommand: string | undefined;
   lastCwd: string | null;
   pendingExit: number | null;
   shellExited: boolean;
@@ -71,17 +75,37 @@ type Session = {
   agentLaunchBuffer: string;
   agentOutputTail: string;
   interactiveCodingAgent: boolean;
+  agentResponseRequested: boolean;
   shellState: ShellIntegrationState | null;
   initialCommandFallbackTimer: number | null;
   agentActivityTimer: number | null;
+  outputActivityTimer: number | null;
   lastLocalInputAt: number;
+  respawning: boolean;
 };
 
 const sessions = new Map<number, Session>();
 const LOCAL_INPUT_ECHO_GRACE_MS = 180;
 const FONT_READY_TIMEOUT_MS = 1500;
+const OUTPUT_ACTIVITY_QUIET_MS = 900;
 
 ensureAgentActivityListener();
+
+function markAgentResponding(
+  leafId: number,
+  s: Session,
+  markCompleted = true,
+): void {
+  setAgentResponseActivity(leafId, true);
+  s.callbacks.onAgentActivity?.(true);
+  if (s.agentActivityTimer !== null) window.clearTimeout(s.agentActivityTimer);
+  s.agentActivityTimer = window.setTimeout(() => {
+    s.agentActivityTimer = null;
+    setAgentResponseActivity(leafId, false, markCompleted);
+    if (markCompleted) s.agentResponseRequested = false;
+    s.callbacks.onAgentActivity?.(false);
+  }, OUTPUT_ACTIVITY_QUIET_MS);
+}
 
 /**
  * Keep the shell's editable prompt in sync regardless of whether input comes
@@ -99,7 +123,12 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
     const command = s.inputBuffer.trim();
     if (command.length > 0) {
       s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);
-      if (s.interactiveCodingAgent) setAgentCliCommand(leafId, command);
+      if (s.interactiveCodingAgent) {
+        s.launchCommand = command;
+        s.agentResponseRequested = true;
+        setAgentCliCommand(leafId, command);
+        markAgentResponding(leafId, s);
+      }
       if (!s.interactiveCodingAgent) {
         setAgentResponseActivity(leafId, false);
         s.callbacks.onAgentActivity?.(false);
@@ -134,6 +163,7 @@ function trackAgentLaunchInput(leafId: number, s: Session, data: string): void {
     const command = (s.agentLaunchBuffer + beforeEnter).trim();
     if (isInteractiveCodingAgentCommand(command)) {
       s.interactiveCodingAgent = true;
+      s.launchCommand = command;
       setAgentCliCommand(leafId, command);
       void s.pty?.setMetadata({ agent: command });
       s.callbacks.onCommand?.(command);
@@ -167,6 +197,7 @@ function observeTerminalInputLine(
 ): void {
   if (s.shellState?.inCommand || !isInteractiveCodingAgentCommand(line)) return;
   s.interactiveCodingAgent = true;
+  s.launchCommand = line;
   setAgentCliCommand(leafId, line);
   void s.pty?.setMetadata({ agent: line });
   s.callbacks.onCommand?.(line);
@@ -178,7 +209,13 @@ configureRendererPool({
     if (!s) return null;
     return {
       writeToPty: (data) => {
-        writeToSessionPty(leafId, s, data);
+        for (const targetLeafId of broadcastTargetsForInput(
+          leafId,
+          [...sessions.keys()],
+        )) {
+          const target = sessions.get(targetLeafId);
+          if (target) writeToSessionPty(targetLeafId, target, data);
+        }
       },
       observeInputLine: (line) => {
         observeTerminalInputLine(leafId, s, line);
@@ -225,6 +262,7 @@ function ensureSession(
     ptyOpening: false,
     initialCwd,
     initialCommand,
+    launchCommand: initialCommand,
     lastCwd: null,
     pendingExit: null,
     shellExited: false,
@@ -245,10 +283,13 @@ function ensureSession(
     agentLaunchBuffer: "",
     agentOutputTail: "",
     interactiveCodingAgent: isInteractiveCodingAgentCommand(initialCommand),
+    agentResponseRequested: false,
     shellState: null,
     initialCommandFallbackTimer: null,
     agentActivityTimer: null,
+    outputActivityTimer: null,
     lastLocalInputAt: 0,
+    respawning: false,
   };
   if (session.interactiveCodingAgent && initialCommand) {
     setAgentCliCommand(leafId, initialCommand);
@@ -274,12 +315,20 @@ function ensureSession(
 function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   const s = sessions.get(leafId);
   if (!s) return;
+  const outputActivity = noteTerminalOutput(Date.now(), OUTPUT_ACTIVITY_QUIET_MS);
+  s.callbacks.onOutputActivity?.(outputActivity.active);
+  if (s.outputActivityTimer !== null) window.clearTimeout(s.outputActivityTimer);
+  s.outputActivityTimer = window.setTimeout(() => {
+    s.outputActivityTimer = null;
+    s.callbacks.onOutputActivity?.(false);
+  }, Math.max(0, outputActivity.expiresAt - Date.now()));
   const output = s.agentOutputTail + new TextDecoder().decode(bytes);
   s.agentOutputTail = output.slice(-512);
   const detectedAgent = detectCodingAgentBanner(output);
   if (detectedAgent) {
     const wasInteractiveCodingAgent = s.interactiveCodingAgent;
     s.interactiveCodingAgent = true;
+    s.launchCommand = detectedAgent;
     setAgentCliCommand(leafId, detectedAgent);
     if (!wasInteractiveCodingAgent) {
       void s.pty?.setMetadata({ agent: detectedAgent });
@@ -288,14 +337,7 @@ function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   }
   const outputIsUserEcho = Date.now() - s.lastLocalInputAt < LOCAL_INPUT_ECHO_GRACE_MS;
   if (s.interactiveCodingAgent && !outputIsUserEcho) {
-    setAgentResponseActivity(leafId, true);
-    s.callbacks.onAgentActivity?.(true);
-    if (s.agentActivityTimer !== null) window.clearTimeout(s.agentActivityTimer);
-    s.agentActivityTimer = window.setTimeout(() => {
-      s.agentActivityTimer = null;
-      setAgentResponseActivity(leafId, false);
-      s.callbacks.onAgentActivity?.(false);
-    }, 900);
+    markAgentResponding(leafId, s, s.agentResponseRequested);
   }
   const slot = getSlotForLeaf(leafId);
   if (slot) slot.term.write(bytes);
@@ -315,13 +357,18 @@ async function openPtyForSession(
     {
       onData: (bytes) => deliverPtyBytes(leafId, bytes),
       onExit: (code) => {
+        if (s.outputActivityTimer !== null) {
+          window.clearTimeout(s.outputActivityTimer);
+          s.outputActivityTimer = null;
+        }
+        s.callbacks.onOutputActivity?.(false);
         s.shellExited = true;
         s.pty = null;
         clearPtyLeaf(pty.id);
         const slot = getSlotForLeaf(leafId);
         if (slot) slot.term.options.disableStdin = true;
-        if (s.callbacks.onExit) s.callbacks.onExit(code);
-        else s.pendingExit = code;
+        if (!s.respawning && s.callbacks.onExit) s.callbacks.onExit(code);
+        else if (!s.respawning) s.pendingExit = code;
       },
     },
     cwd,
@@ -467,13 +514,21 @@ function detachSession(leafId: number): void {
 export async function respawnSession(
   leafId: number,
   cwd?: string,
+  relaunchInitialCommand = false,
 ): Promise<void> {
   const s = sessions.get(leafId);
   if (!s || s.disposed) return;
+  if (cwd !== undefined) s.initialCwd = cwd;
+  s.initialCommand = relaunchInitialCommand ? s.launchCommand : undefined;
+  s.respawning = true;
   setAgentResponseActivity(leafId, false);
   if (s.pty) clearPtyLeaf(s.pty.id);
-  s.pty?.close();
+  const previousPty = s.pty;
   s.pty = null;
+  // Wait for the native process to release its PTY before re-opening. This
+  // matters on Windows, where an immediate reuse can race the old process
+  // and leave the new agent in the previous working directory.
+  if (previousPty) await previousPty.close();
   s.snapshot = null;
   s.dormantRing = new DormantRing();
   s.shellExited = false;
@@ -488,6 +543,11 @@ export async function respawnSession(
     window.clearTimeout(s.agentActivityTimer);
     s.agentActivityTimer = null;
   }
+  if (s.outputActivityTimer !== null) {
+    window.clearTimeout(s.outputActivityTimer);
+    s.outputActivityTimer = null;
+  }
+  s.callbacks.onOutputActivity?.(false);
   s.callbacks.onAgentActivity?.(false);
 
   const slot = getSlotForLeaf(leafId);
@@ -503,16 +563,35 @@ export async function respawnSession(
     pty = await openPtyForSession(leafId, s, cwd ?? s.initialCwd);
   } catch (e) {
     s.ptyOpening = false;
+    s.respawning = false;
     console.error("[cmdspace] respawn openPty failed:", e);
     return;
   }
   s.ptyOpening = false;
   if (s.disposed) {
+    s.respawning = false;
     pty.close();
     return;
   }
   s.pty = pty;
+  s.respawning = false;
   if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
+}
+
+export async function replaceSessionCommand(
+  leafId: number,
+  cwd: string | undefined,
+  command: string | null,
+): Promise<void> {
+  const session = sessions.get(leafId);
+  if (!session || session.disposed) return;
+  session.launchCommand = command ?? undefined;
+  session.interactiveCodingAgent = Boolean(
+    command && isInteractiveCodingAgentCommand(command),
+  );
+  session.agentResponseRequested = false;
+  setAgentCliCommand(leafId, command ?? undefined);
+  await respawnSession(leafId, cwd, Boolean(command));
 }
 
 export function disposeSession(leafId: number): void {
@@ -528,6 +607,11 @@ export function disposeSession(leafId: number): void {
     window.clearTimeout(s.agentActivityTimer);
     s.agentActivityTimer = null;
   }
+  if (s.outputActivityTimer !== null) {
+    window.clearTimeout(s.outputActivityTimer);
+    s.outputActivityTimer = null;
+  }
+  s.callbacks.onOutputActivity?.(false);
   s.callbacks.onAgentActivity?.(false);
   unbindLeafFromSlot(leafId, s);
   s.snapshot = null;
@@ -549,6 +633,7 @@ type Options = {
   onCwd?: (cwd: string) => void;
   onCommand?: (cmd: string) => void;
   onAgentActivity?: (responding: boolean) => void;
+  onOutputActivity?: (active: boolean) => void;
 };
 
 export function useTerminalSession({
@@ -563,9 +648,10 @@ export function useTerminalSession({
   onCwd,
   onCommand,
   onAgentActivity,
+  onOutputActivity,
 }: Options) {
-  const cbRef = useRef({ onSearchReady, onExit, onCwd, onCommand, onAgentActivity });
-  cbRef.current = { onSearchReady, onExit, onCwd, onCommand, onAgentActivity };
+  const cbRef = useRef({ onSearchReady, onExit, onCwd, onCommand, onAgentActivity, onOutputActivity });
+  cbRef.current = { onSearchReady, onExit, onCwd, onCommand, onAgentActivity, onOutputActivity };
 
   useEffect(() => {
     let cancelled = false;
@@ -580,6 +666,7 @@ export function useTerminalSession({
         onCwd: (c) => cbRef.current.onCwd?.(c),
         onCommand: (cmd) => cbRef.current.onCommand?.(cmd),
         onAgentActivity: (responding) => cbRef.current.onAgentActivity?.(responding),
+        onOutputActivity: (active) => cbRef.current.onOutputActivity?.(active),
       });
       if (s.visibleNow && s.focusedNow) focusSlot(leafId);
     });

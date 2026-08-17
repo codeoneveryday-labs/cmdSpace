@@ -31,10 +31,15 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   CLI_AGENT_DEFINITIONS,
   getEnabledCliAgentDefinitions,
+  type CliAgent,
 } from "@/modules/terminal/lib/cliAgents";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAgentLaunchCommands } from "@/modules/settings/store";
+import {
+  isolatedAgentCommand,
+  worktreeGroup,
+} from "@/modules/ai/lib/agentWorktree";
 import { ImportSessionDialog } from "./ImportSessionDialog";
 import {
   buildSessionResumeCommand,
@@ -54,6 +59,14 @@ export type WorkspaceItem = {
 };
 
 export type WorkspaceMode = "standard" | "canvas";
+export type WorkspaceTerminalItem = {
+  leafId: number;
+  label: string;
+  agent?: CliAgent;
+  active: boolean;
+  responding: boolean;
+  completed: boolean;
+};
 
 const TERMINAL_COUNTS = [1, 2, 4, 6, 8, 10, 12] as const;
 const WORKSPACE_SETUP_PRESETS: Array<{
@@ -135,6 +148,9 @@ export function normalizeWorkspaceAccentColor(
 
 type Props = {
   activeWorkspaceId: string | null;
+  activeWorkspaceTerminals: WorkspaceTerminalItem[];
+  onSelectTerminal: (leafId: number) => void;
+  onCreateTerminal: () => void;
   compact?: boolean;
   workspaces: WorkspaceItem[];
   onSelectWorkspace: (workspaceId: string) => void;
@@ -152,6 +168,9 @@ type Props = {
 
 export function WorkspacesPanel({
   activeWorkspaceId,
+  activeWorkspaceTerminals,
+  onSelectTerminal,
+  onCreateTerminal,
   compact = false,
   workspaces,
   onSelectWorkspace,
@@ -361,7 +380,7 @@ export function WorkspacesPanel({
         <nav
           ref={containerRef}
           className={cn(
-            "min-h-0 flex-1 space-y-1 overflow-y-auto py-2",
+            "min-h-0 basis-[48%] shrink-0 space-y-1 overflow-y-auto py-2",
             compact ? "px-1.5" : "px-2",
           )}
         >
@@ -400,6 +419,7 @@ export function WorkspacesPanel({
                     workspace={workspace}
                     active={workspace.id === activeWorkspaceId}
                     compact={compact}
+                    canClose={workspaces.length > 1}
                     onSelect={() => onSelectWorkspace(workspace.id)}
                     onClose={() => onCloseWorkspace(workspace.id)}
                     onRename={(name) => onRenameWorkspace(workspace.id, name)}
@@ -425,6 +445,48 @@ export function WorkspacesPanel({
             </>
           )}
         </nav>
+        <section className="min-h-0 flex-1 overflow-y-auto border-t border-border/60 px-2 py-2">
+          <div className="flex items-center justify-between px-2 pb-1">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              TERMINALS
+            </div>
+            <button
+              type="button"
+              onClick={onCreateTerminal}
+              className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Create terminal in workspace"
+              title="Create terminal in workspace"
+            >
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
+            </button>
+          </div>
+          <div className="space-y-1">
+            {activeWorkspaceTerminals.map((terminal) => (
+              <button
+                key={terminal.leafId}
+                type="button"
+                onClick={() => onSelectTerminal(terminal.leafId)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors",
+                  terminal.active
+                    ? "bg-muted text-foreground dark:bg-zinc-800"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                )}
+                title={`Focus ${terminal.label}`}
+              >
+                {terminal.agent ? <AgentCliIcon agent={terminal.agent} /> : <HugeiconsIcon icon={ComputerTerminal02Icon} size={16} strokeWidth={1.8} />}
+                {terminal.responding ? <WorkspaceResponseLoader /> : null}
+                {!terminal.responding && terminal.completed ? (
+                  <HugeiconsIcon icon={Tick02Icon} size={15} strokeWidth={2.2} className="text-emerald-500" />
+                ) : null}
+                <span className="min-w-0 flex-1 truncate">{terminal.label}</span>
+              </button>
+            ))}
+            {activeWorkspaceTerminals.length === 0 ? (
+              <div className="px-2 py-2 text-xs text-muted-foreground">No terminals open</div>
+            ) : null}
+          </div>
+        </section>
       </aside>
 
       {dragVisual !== null && draggedWorkspace && (
@@ -438,10 +500,11 @@ export function WorkspacesPanel({
           }}
         >
           <WorkspaceRow
-            workspace={draggedWorkspace}
-            active={draggedWorkspace.id === activeWorkspaceId}
-            compact={compact}
-            onSelect={() => {}}
+          workspace={draggedWorkspace}
+          active={draggedWorkspace.id === activeWorkspaceId}
+          compact={compact}
+          canClose={false}
+          onSelect={() => {}}
             onClose={() => {}}
             onRename={() => {}}
             onColorChange={() => {}}
@@ -457,6 +520,7 @@ function WorkspaceRow({
   workspace,
   active,
   compact = false,
+  canClose,
   onSelect,
   onClose,
   onRename,
@@ -467,6 +531,7 @@ function WorkspaceRow({
   workspace: WorkspaceItem;
   active: boolean;
   compact?: boolean;
+  canClose: boolean;
   onSelect: () => void;
   onClose: () => void;
   onRename: (name: string) => void;
@@ -566,6 +631,7 @@ function WorkspaceRow({
         {workspace.responding ? <WorkspaceResponseLoader /> : null}
         <button
           type="button"
+          disabled={!canClose}
           onClick={onSelect}
           aria-current={active ? "page" : undefined}
           aria-label={workspace.name}
@@ -669,23 +735,24 @@ function WorkspaceRow({
             e.stopPropagation();
             onClose();
           }}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md transition-colors group-hover:bg-foreground/[0.06]"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md transition-colors group-hover:bg-foreground/[0.06] disabled:pointer-events-none disabled:opacity-30"
           style={{ color: accentColor }}
           aria-label={`Delete ${workspace.name}`}
-          title={`Delete ${workspace.name}`}
+          title={canClose ? `Delete ${workspace.name}` : "At least one workspace is required"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={2} />
         </button>
       ) : (
         <button
           type="button"
+          disabled={!canClose}
           onClick={(e) => {
             e.stopPropagation();
             onClose();
           }}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-30"
           aria-label={`Delete ${workspace.name}`}
-          title={`Delete ${workspace.name}`}
+          title={canClose ? `Delete ${workspace.name}` : "At least one workspace is required"}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={2} />
         </button>
@@ -945,6 +1012,8 @@ export function WorkspaceSetupView({
     ImportableAgentSession[]
   >([]);
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>({});
+  const [isolateAgentWorktrees, setIsolateAgentWorktrees] = useState(false);
+  const [agentWorktreeGroup] = useState(worktreeGroup);
   const [customCommand, setCustomCommand] = useState("");
   const [customCommandLoaded, setCustomCommandLoaded] = useState(false);
   const customCommandEditedRef = useRef(false);
@@ -993,15 +1062,24 @@ export function WorkspaceSetupView({
         agent.command,
     ]),
   ) as Record<string, string>;
+  const plannedCliCommands = agentCommandPlan(
+    agentCounts,
+    customCommand,
+    effectiveAgentCommands,
+  ).slice(0, cliTerminalCapacity);
   const plannedAgentCommands = [
     ...selectedImportSessions.map((session) =>
       buildSessionResumeCommand(session.provider, session.sessionId),
     ),
-    ...agentCommandPlan(
-      agentCounts,
-      customCommand,
-      effectiveAgentCommands,
-    ).slice(0, cliTerminalCapacity),
+    ...plannedCliCommands.map((command, index) =>
+      isolateAgentWorktrees
+        ? isolatedAgentCommand(
+            command,
+            `agent-${index + 1}`,
+            agentWorktreeGroup,
+          )
+        : command,
+    ),
   ];
   const availableAgents = configuredAgentCliOptions;
 
@@ -1596,6 +1674,32 @@ export function WorkspaceSetupView({
                   </span>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setIsolateAgentWorktrees((current) => !current)}
+                className="flex w-full items-center gap-3 rounded-lg border border-border/50 bg-card/35 px-3 py-2.5 text-left transition-colors hover:bg-card/55"
+                aria-pressed={isolateAgentWorktrees}
+              >
+                <span
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded border transition-colors",
+                    isolateAgentWorktrees
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-transparent",
+                  )}
+                >
+                  <HugeiconsIcon icon={Tick02Icon} size={13} strokeWidth={2.4} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-foreground">
+                    Isolate agent changes in Git worktrees
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Each new agent gets a dedicated cmdspace branch; closing its pane preserves the worktree.
+                  </span>
+                </span>
+              </button>
 
               <div
                 className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/35 px-3 py-2.5"

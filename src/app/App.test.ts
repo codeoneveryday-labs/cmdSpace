@@ -8,6 +8,32 @@ const appConstantsPath = path.join(here, "constants.ts");
 const shortcutsPath = path.join(here, "../modules/shortcuts/shortcuts.ts");
 
 describe("App sidebar toggle", () => {
+  it("does not orphan a workspace when its tab is transiently absent during resume", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).not.toContain(
+      "workspace.tabId !== null && !tabIds.has(workspace.tabId)",
+    );
+    expect(source).toContain("clearWorkspaceTabOwnership");
+  });
+
+  it("switches an agent in place and persists the pane launch plan", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("handleSwitchTerminalAgent");
+    expect(source).toContain("setLeafLaunchCommand(leafId, command)");
+    expect(source).toContain("replaceSessionCommand(leafId, cwd, command)");
+    expect(source).toContain('invoke("db_save_pane"');
+  });
+
+  it("auto-activates the first workspace only once so standalone tabs remain selectable", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("initialWorkspaceActivationHandledRef.current = true");
+    expect(source).toContain("pendingBootstrapCloseRef.current = true");
+    expect(source).not.toContain("initialWorkspaceActivationHandledRef.current = false");
+  });
+
   it("replaces the bottom AI composer with a terminal drawer", () => {
     const source = readFileSync(appPath, "utf8");
 
@@ -235,7 +261,7 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("skipWorkspaceDeleteConfirm");
     expect(source).toContain("workspaceDeleteDoNotAskAgain");
     expect(source).toContain("const deleteWorkspace = useCallback");
-    expect(source).toContain("disposeTab(workspace.tabId);");
+    expect(source).toContain("for (const tabId of workspaceTabIds)");
     expect(source).toContain('invoke("db_delete_workspace", { id: workspaceId })');
     expect(source).toContain("setPendingDeleteWorkspaceId(workspaceId);");
     expect(source).not.toContain("handleClose(workspace.tabId);");
@@ -245,6 +271,15 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("Delete workspace?");
     expect(source).toContain("Do not ask again");
     expect(source).toContain("bg-destructive px-4 text-white");
+  });
+
+  it("replaces the final workspace tab with an unowned shell before deleting it", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("const workspaceTabIds = new Set(");
+    expect(source).toContain("const wouldLeaveNoTabs =");
+    expect(source).toContain("resetWorkspace(launchCwd ?? home ?? undefined);");
+    expect(source).toContain("cannot leave a terminal tab without a workspace owner");
   });
 
   it("persists workspace accent colors for the workspace list", () => {

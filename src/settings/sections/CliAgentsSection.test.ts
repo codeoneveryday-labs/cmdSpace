@@ -23,6 +23,10 @@ describe("CLI Agents settings", () => {
     expect(section).toContain("Install instructions");
     expect(section).toContain("setCliAgentIds");
     expect(section).toContain("setDisabledCliAgentIds");
+    expect(section).toContain("if (!installedIds.has(id)) return;");
+    expect(section).toContain(
+      'disabled={scanState !== "ready" || !installed}',
+    );
     expect(store).toContain('const KEY_CLI_AGENT_IDS = "cliAgentIds"');
     expect(store).toContain('const KEY_DISABLED_CLI_AGENT_IDS = "disabledCliAgentIds"');
   });

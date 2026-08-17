@@ -15,6 +15,7 @@ type Props = {
   cwd: string | null;
   filePath?: string | null;
   home: string | null;
+  workspaceFolder?: string | null;
   onCd: (path: string) => void;
   onWorkspaceChange: (env: WorkspaceEnv) => void;
   onToggleTerminal: () => void;
@@ -25,6 +26,7 @@ export function StatusBar({
   cwd,
   filePath,
   home,
+  workspaceFolder,
   onCd,
   onWorkspaceChange,
   onToggleTerminal,
@@ -34,7 +36,7 @@ export function StatusBar({
     <footer className="flex h-8 shrink-0 items-center justify-between gap-3 border-t border-border/60 bg-card/60 px-3 text-[11px]">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <WorkspaceEnvSelector onSelect={onWorkspaceChange} />
-        <CwdBreadcrumb cwd={cwd} filePath={filePath} home={home} onCd={onCd} />
+        <CwdBreadcrumb cwd={cwd} filePath={filePath} home={home} workspaceFolder={workspaceFolder} onCd={onCd} />
         {privateActive ? (
           <Tooltip>
             <TooltipTrigger asChild>

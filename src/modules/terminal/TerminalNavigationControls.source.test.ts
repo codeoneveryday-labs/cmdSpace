@@ -10,12 +10,19 @@ describe("TerminalNavigationControls", () => {
     expect(existsSync(sourcePath)).toBe(true);
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain('invoke<string[]>("list_subdirs"');
-    expect(source).toContain(".. (Parent Directory)");
-    expect(source).toContain("onChangeDirectory(parentPath)");
+    expect(source).toContain('invoke<string | null>("select_folder")');
     expect(source).toContain("native.gitResolveRepo(cwd)");
     expect(source).toContain("wouldCheckoutReloadDevApp");
     expect(source).toContain("`git checkout ${shellQuote(branch)}`");
     expect(source).toContain("emitGitRepoChanged(repoRoot)");
+  });
+
+  it("opens the inline directory browser without starting terminal drag", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("showDirectoryPicker?: boolean;");
+    expect(source).toContain("showDirectoryPicker = true");
+    expect(source).toContain('data-directory-picker="inline"');
+    expect(source).toContain("onPointerDown={(event) => event.stopPropagation()}");
   });
 });

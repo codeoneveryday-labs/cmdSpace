@@ -214,6 +214,8 @@ export function TabBar({
             drag.previewIndex >= siblings.length ? "after" : "before",
           );
         }
+      } else {
+        onSelect(drag.id);
       }
       pointerDragRef.current = null;
       setDragVisual(null);
@@ -275,6 +277,7 @@ export function TabBar({
                   key={t.id}
                   value={String(t.id)}
                   data-tab-id={t.id}
+                  onClick={() => onSelect(t.id)}
                   onPointerDown={(e) => {
                     if (e.button !== 0) return;
                     const target = e.target as HTMLElement | null;

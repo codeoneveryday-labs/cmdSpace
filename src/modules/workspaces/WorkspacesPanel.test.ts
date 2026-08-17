@@ -158,6 +158,8 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("function buildAgentCliCommand");
     expect(panelSource).toContain("function agentCommandPlan");
     expect(panelSource).toContain("plannedAgentCommands");
+    expect(panelSource).toContain("Isolate agent changes in Git worktrees");
+    expect(panelSource).toContain("isolatedAgentCommand");
     expect(panelSource).toContain("initialCommands?: string[]");
     expect(panelSource).toContain('setSetupStep("agents")');
     expect(panelSource).toContain("Skip - no agents");
@@ -302,10 +304,10 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("db_save_pane");
     expect(appSource).toContain("workspaceSetupOpen");
     expect(appSource).toContain("setWorkspaceSetupOpen(true)");
+    expect(appSource).toContain("if (hydrated.length === 0) setWorkspaceSetupOpen(true);");
+    expect(appSource).toContain("const handleWorkspaceSetupCancel");
     expect(appSource).toContain("<WorkspaceSetupView");
-    expect(appSource).toContain(
-      "onCancel={() => setWorkspaceSetupOpen(false)}",
-    );
+    expect(appSource).toContain("onCancel={handleWorkspaceSetupCancel}");
     expect(appSource).toContain("handleSelectWorkspace");
     expect(appSource).toContain("handleCloseWorkspace");
     expect(appSource).toContain("handleRenameWorkspace");
@@ -345,7 +347,6 @@ describe("WorkspacesPanel", () => {
     const dbSource = readFileSync(dbPath, "utf8");
 
     expect(appSource).not.toContain("setLeafLastCommand(leafId, command)");
-    expect(appSource).not.toContain("lastCommand: command");
     expect(appSource).toContain(
       "const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);",
     );
@@ -357,5 +358,13 @@ describe("WorkspacesPanel", () => {
       "ALTER TABLE workspace_panes ADD COLUMN auto_launch INTEGER NOT NULL DEFAULT 0",
     );
     expect(dbSource).toContain("auto_launch: row.get(4)?");
+  });
+
+  it("shows terminal navigation without a redundant coding-agent footer", () => {
+    const source = readFileSync(panelPath, "utf8");
+
+    expect(source).toContain("TERMINALS");
+    expect(source).not.toContain("activeWorkspaceCodingAgentCount: number");
+    expect(source).not.toContain("Coding agents");
   });
 });

@@ -31,6 +31,7 @@ type Props = {
   cwd: string | null;
   filePath?: string | null;
   home: string | null;
+  workspaceFolder?: string | null;
   onCd: (path: string) => void;
 };
 
@@ -45,7 +46,7 @@ function basename(path: string): string {
   return i === -1 ? path : path.slice(i + 1);
 }
 
-export function CwdBreadcrumb({ cwd, filePath, home, onCd }: Props) {
+export function CwdBreadcrumb({ cwd, filePath, home, workspaceFolder, onCd }: Props) {
   // File mode: dir segments navigate; filename is the terminal leaf.
   if (filePath) {
     const dir = dirname(filePath);
@@ -122,9 +123,10 @@ export function CwdBreadcrumb({ cwd, filePath, home, onCd }: Props) {
         ))}
         <BreadcrumbItem>
           <CurrentSegmentDropdown
-            label={current.label}
-            path={current.fullPath}
-            onCd={onCd}
+             label={current.label}
+             path={current.fullPath}
+             workspaceFolder={workspaceFolder}
+             onCd={onCd}
           />
         </BreadcrumbItem>
       </BreadcrumbList>
@@ -174,10 +176,12 @@ function BreadcrumbSegment({
 function CurrentSegmentDropdown({
   label,
   path,
+  workspaceFolder,
   onCd,
 }: {
   label: string;
   path: string;
+  workspaceFolder?: string | null;
   onCd: (p: string) => void;
 }) {
   const showHidden = usePreferencesStore((s) => s.showHidden);
@@ -185,6 +189,15 @@ function CurrentSegmentDropdown({
   const [children, setChildren] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const parentPath = dirname(path);
+
+  const chooseFolder = useCallback(async () => {
+    try {
+      const selected = await invoke<string | null>("select_folder");
+      if (selected) onCd(selected);
+    } catch (error) {
+      console.warn("Failed to choose folder:", error);
+    }
+  }, [onCd]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -208,7 +221,10 @@ function CurrentSegmentDropdown({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <BreadcrumbPage className="flex cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-foreground hover:bg-accent">
+        <BreadcrumbPage
+          className="flex cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-foreground hover:bg-accent"
+          title="Choose folder"
+        >
           {label === "~" ? (
             <>
               <HugeiconsIcon
@@ -229,6 +245,14 @@ function CurrentSegmentDropdown({
         </BreadcrumbPage>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56 p-0">
+        <DropdownMenuItem className="rounded-none" onSelect={() => void chooseFolder()}>
+          Choose folder…
+        </DropdownMenuItem>
+        {workspaceFolder ? (
+          <DropdownMenuItem className="rounded-none" onSelect={() => onCd(workspaceFolder)}>
+            Use workspace folder
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           className="rounded-none"
           onSelect={() => onCd(parentPath)}
