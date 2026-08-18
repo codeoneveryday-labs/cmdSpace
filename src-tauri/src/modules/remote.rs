@@ -6,8 +6,13 @@ use super::remote_auth::{now_unix_seconds, RemoteAuth, RemoteAuthError};
 use super::remote_devices::{DeviceRegistry, PairingGrant};
 use super::remote_protocol::{
     ClientMessage, DeviceClientMessage, DeviceServerMessage, RemoteClientEnvelope,
-    RemoteDeviceClientEnvelope, RemoteDeviceServerEnvelope, RemoteProtocolSession,
+    RemoteDeviceClientEnvelope, RemoteDeviceServerEnvelope, RemoteProtocolDirectoryEntry,
+    RemoteProtocolImportableSession, RemoteProtocolSession, RemoteProtocolWorkspace,
     RemoteServerEnvelope, ServerMessage, Utf8StreamDecoder,
+};
+use super::remote_relay::{
+    identity_path as remote_relay_identity_path, RemoteRelay, RemoteRelayIdentity,
+    RELAY_PUBLIC_ORIGIN,
 };
 use super::remote_tunnel::{LocalhostRunTunnel, TunnelSnapshot, TunnelState};
 use super::workspace;
@@ -46,6 +51,8 @@ struct RemoteServer {
     auth: Arc<Mutex<RemoteAuth>>,
     bootstrap_secret: Option<String>,
     devices: Arc<Mutex<DeviceRegistry>>,
+    relay: Option<RemoteRelay>,
+    relay_identity: RemoteRelayIdentity,
 }
 
 const REMOTE_OUTPUT_LIMIT: usize = 512;
@@ -60,6 +67,10 @@ struct RemoteRuntime {
 
 struct RemoteTerminal {
     cwd: Option<String>,
+    workspace_id: Option<String>,
+    /// Native mobile terminals are private to the paired device which created
+    /// them. Browser-only remote terminals leave this unset.
+    owner_device_id: Option<String>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     killer: Mutex<Box<dyn portable_pty::ChildKiller + Send + Sync>>,
@@ -121,6 +132,8 @@ pub struct RemoteDevicePairingStatus {
     pub secret: String,
     pub expires_at: u64,
     pub url: String,
+    pub relay: String,
+    pub relay_id: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -187,6 +200,8 @@ pub fn remote_access_start(
         DeviceRegistry::load_or_create(&device_store_path, remote_device_registry_key())
             .map_err(|error| format!("load paired devices failed: {error:?}"))?,
     ));
+    let relay_identity = RemoteRelayIdentity::load_or_create(&remote_relay_identity_path())
+        .map_err(|error| format!("load stable mobile relay identity failed: {error}"))?;
     let thread_shutdown = Arc::clone(&shutdown);
     let thread_runtime = Arc::clone(&runtime);
     let thread_pty_state = pty_state.inner().clone();
@@ -217,6 +232,13 @@ pub fn remote_access_start(
             (None, Some(error))
         }
     };
+    let relay = match RemoteRelay::start(listen_addr.port(), relay_identity.clone()) {
+        Ok(relay) => Some(relay),
+        Err(error) => {
+            log::warn!("stable native relay unavailable; temporary tunnel fallback remains active: {error}");
+            None
+        }
+    };
     let mut server = RemoteServer {
         shutdown,
         handle: Some(handle),
@@ -226,6 +248,8 @@ pub fn remote_access_start(
         auth,
         bootstrap_secret: stored_password.is_none().then_some(bootstrap_secret),
         devices,
+        relay,
+        relay_identity,
     };
     let next_status = server.status();
     log::info!(
@@ -266,6 +290,12 @@ pub fn remote_device_pairing_start(
     let server = guard
         .as_mut()
         .ok_or_else(|| "enable remote access before pairing a device".to_string())?;
+    if !server.relay.as_ref().is_some_and(RemoteRelay::is_ready) {
+        return Err(
+            "the stable relay is still connecting; wait a moment before creating a device QR code"
+                .to_string(),
+        );
+    }
     let now = now_unix_seconds();
     let PairingGrant { secret, expires_at } = server
         .devices
@@ -282,7 +312,9 @@ pub fn remote_device_pairing_start(
             10 * 60,
         );
     Ok(RemoteDevicePairingStatus {
-        url: server.status().url,
+        url: RELAY_PUBLIC_ORIGIN.to_string(),
+        relay: RELAY_PUBLIC_ORIGIN.to_string(),
+        relay_id: server.relay_identity.relay_id.clone(),
         secret,
         expires_at,
     })
@@ -373,6 +405,9 @@ pub fn remote_access_reset_password(
 }
 
 fn stop_server(mut server: RemoteServer) {
+    if let Some(mut relay) = server.relay.take() {
+        relay.stop();
+    }
     if let Some(mut tunnel) = server.tunnel.take() {
         tunnel.stop();
     }
@@ -1315,9 +1350,58 @@ fn handle_remote_device_command(
             {
                 return Err("device cannot view sessions".to_string());
             }
-            send_remote_device_sessions(socket, runtime)
+            send_remote_device_sessions(socket, runtime, device_id)
         }
-        ClientMessage::CreateSession { cwd } => {
+        ClientMessage::ListWorkspaces => send_remote_device_workspaces(socket, devices, device_id),
+        ClientMessage::ListFolderPickerDirectory { path } => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .device(device_id)
+                .is_some_and(|device| device.revoked_at.is_none() && device.capability.can_view)
+            {
+                return Err("device cannot browse desktop folders".to_string());
+            }
+            send_remote_device_folder_picker_directory(socket, path.as_deref())
+        }
+        ClientMessage::ListDirectory { workspace_id, path } => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .device(device_id)
+                .is_some_and(|device| device.revoked_at.is_none() && device.capability.can_view)
+            {
+                return Err("device cannot view directories".to_string());
+            }
+            send_remote_device_directory(socket, device_id, &workspace_id, path.as_deref())
+        }
+        ClientMessage::ReadFile { workspace_id, path } => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .device(device_id)
+                .is_some_and(|device| device.revoked_at.is_none() && device.capability.can_view)
+            {
+                return Err("device cannot view files".to_string());
+            }
+            send_remote_device_file(socket, device_id, &workspace_id, &path)
+        }
+        ClientMessage::CreateDirectory {
+            workspace_id,
+            path,
+            name,
+        } => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .can_create_terminal(device_id, WORKSPACE_ID)
+            {
+                return Err("device cannot create folders".to_string());
+            }
+            create_remote_directory(device_id, &workspace_id, &path, &name)?;
+            send_remote_device_directory(socket, device_id, &workspace_id, Some(&path))
+        }
+        ClientMessage::CreateSession { cwd, workspace_id } => {
             if !devices
                 .lock()
                 .map_err(|_| "remote device registry poisoned".to_string())?
@@ -1325,23 +1409,77 @@ fn handle_remote_device_command(
             {
                 return Err("device cannot create terminals".to_string());
             }
-            let cwd = authorize_remote_cwd(cwd.as_deref())?;
+            let cwd =
+                resolve_mobile_session_cwd(device_id, cwd.as_deref(), workspace_id.as_deref())?;
             let mut guard = runtime
                 .lock()
                 .map_err(|_| "remote runtime poisoned".to_string())?;
-            let session = spawn_remote_terminal(cwd)?;
+            let session = spawn_remote_terminal(cwd, workspace_id, Some(device_id.to_string()))?;
             let id = guard.next_id;
             guard.next_id = guard.next_id.saturating_add(1);
             guard.sessions.insert(id, session);
             drop(guard);
-            send_remote_device_sessions(socket, runtime)
+            send_remote_device_sessions(socket, runtime, device_id)
+        }
+        ClientMessage::CreateWorkspace {
+            workspace_id,
+            name,
+            working_folder,
+            terminal_count,
+        } => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .can_create_terminal(device_id, WORKSPACE_ID)
+            {
+                return Err("device cannot create workspaces".to_string());
+            }
+            create_mobile_workspace(
+                runtime,
+                device_id,
+                workspace_id,
+                name,
+                working_folder,
+                terminal_count,
+            )?;
+            send_remote_device_workspaces(socket, devices, device_id)?;
+            send_remote_device_sessions(socket, runtime, device_id)
+        }
+        ClientMessage::ListImportableSessions {
+            workspace_id,
+            workspace_only,
+        } => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .device(device_id)
+                .is_some_and(|device| device.revoked_at.is_none() && device.capability.can_view)
+            {
+                return Err("device cannot view importable sessions".to_string());
+            }
+            send_remote_device_importable_sessions(socket, device_id, &workspace_id, workspace_only)
+        }
+        ClientMessage::ImportSession {
+            workspace_id,
+            provider,
+            session_id,
+        } => {
+            if !devices
+                .lock()
+                .map_err(|_| "remote device registry poisoned".to_string())?
+                .can_create_terminal(device_id, WORKSPACE_ID)
+            {
+                return Err("device cannot import sessions".to_string());
+            }
+            import_remote_agent_session(runtime, device_id, &workspace_id, &provider, &session_id)?;
+            send_remote_device_sessions(socket, runtime, device_id)
         }
         ClientMessage::Attach { session_id, after } => {
             if !session_allowed(session_id, DeviceRegistry::can_view)? {
                 return Err("device cannot view this terminal".to_string());
             }
             release_native_attachment(attachment, Some(device_id));
-            let session = session_from_runtime(runtime, session_id)?;
+            let session = session_from_owned_mobile_runtime(runtime, session_id, device_id)?;
             if session_allowed(session_id, DeviceRegistry::can_input)? {
                 let mut controller = session
                     .native_controller
@@ -1364,10 +1502,20 @@ fn handle_remote_device_command(
                 .filter(|(sequence, _)| *sequence > after)
                 .cloned()
                 .collect::<Vec<_>>();
-            let mut cursor = after;
-            let mut decoder = Utf8StreamDecoder::default();
+            *attachment = Some(RemoteDeviceAttachment::Runtime {
+                id: session_id,
+                session,
+                cursor: after,
+                decoder: Utf8StreamDecoder::default(),
+            });
+            send_remote_device_event(socket, ServerMessage::Attached { session_id })?;
+            let RemoteDeviceAttachment::Runtime {
+                cursor, decoder, ..
+            } = attachment
+                .as_mut()
+                .expect("native attachment was just assigned");
             for (sequence, bytes) in chunks {
-                cursor = sequence;
+                *cursor = sequence;
                 let data = decoder.push(&bytes);
                 if !data.is_empty() {
                     send_remote_device_event(
@@ -1380,12 +1528,6 @@ fn handle_remote_device_command(
                     )?;
                 }
             }
-            *attachment = Some(RemoteDeviceAttachment::Runtime {
-                id: session_id,
-                session,
-                cursor,
-                decoder,
-            });
             Ok(())
         }
         ClientMessage::Detach { session_id } => {
@@ -1401,7 +1543,7 @@ fn handle_remote_device_command(
             if !session_allowed(session_id, DeviceRegistry::can_input)? {
                 return Err("device cannot input to this terminal".to_string());
             }
-            let session = session_from_runtime(runtime, session_id)?;
+            let session = session_from_owned_mobile_runtime(runtime, session_id, device_id)?;
             if session
                 .native_controller
                 .lock()
@@ -1431,7 +1573,7 @@ fn handle_remote_device_command(
             if !session_allowed(session_id, DeviceRegistry::can_input)? {
                 return Err("device cannot resize this terminal".to_string());
             }
-            let session = session_from_runtime(runtime, session_id)?;
+            let session = session_from_owned_mobile_runtime(runtime, session_id, device_id)?;
             if session
                 .native_controller
                 .lock()
@@ -1458,6 +1600,7 @@ fn handle_remote_device_command(
             if !session_allowed(session_id, DeviceRegistry::can_close_terminal)? {
                 return Err("device cannot close this terminal".to_string());
             }
+            session_from_owned_mobile_runtime(runtime, session_id, device_id)?;
             close_remote_session(runtime, session_id);
             release_native_attachment(attachment, Some(device_id));
             Ok(())
@@ -1471,21 +1614,274 @@ fn handle_remote_device_command(
 fn send_remote_device_sessions(
     socket: &mut WebSocket<TcpStream>,
     runtime: &Arc<Mutex<RemoteRuntime>>,
+    device_id: &str,
 ) -> Result<(), String> {
-    let sessions = runtime
+    let sessions = remote_protocol_sessions_for_device(runtime, device_id)?;
+    send_remote_device_event(socket, ServerMessage::Sessions { sessions })
+}
+
+fn remote_protocol_sessions_for_device(
+    runtime: &Arc<Mutex<RemoteRuntime>>,
+    device_id: &str,
+) -> Result<Vec<RemoteProtocolSession>, String> {
+    Ok(runtime
         .lock()
         .map_err(|_| "remote runtime poisoned".to_string())?
         .sessions
         .iter()
+        .filter(|(_, session)| session.owner_device_id.as_deref() == Some(device_id))
         .map(|(id, session)| RemoteProtocolSession {
             id: *id,
-            title: "Remote terminal".to_string(),
+            title: "Mobile terminal".to_string(),
             cwd: session.cwd.clone(),
+            workspace_id: session.workspace_id.clone(),
             agent: None,
             attached: false,
         })
+        .collect())
+}
+
+fn send_remote_device_workspaces(
+    socket: &mut WebSocket<TcpStream>,
+    devices: &Arc<Mutex<DeviceRegistry>>,
+    device_id: &str,
+) -> Result<(), String> {
+    if !devices
+        .lock()
+        .map_err(|_| "remote device registry poisoned".to_string())?
+        .device(device_id)
+        .is_some_and(|device| device.revoked_at.is_none() && device.capability.can_view)
+    {
+        return Err("device cannot view workspaces".to_string());
+    }
+    let workspaces = db::list_mobile_workspaces_inner(&db::init_db()?, device_id)?
+        .into_iter()
+        .map(|workspace| RemoteProtocolWorkspace {
+            id: workspace.id,
+            name: workspace.name,
+            working_folder: workspace.working_folder,
+        })
         .collect();
-    send_remote_device_event(socket, ServerMessage::Sessions { sessions })
+    send_remote_device_event(socket, ServerMessage::Workspaces { workspaces })
+}
+
+fn send_remote_device_importable_sessions(
+    socket: &mut WebSocket<TcpStream>,
+    device_id: &str,
+    workspace_id: &str,
+    workspace_only: bool,
+) -> Result<(), String> {
+    let workspace_cwd = workspace_only
+        .then(|| resolve_mobile_workspace_cwd(device_id, workspace_id))
+        .transpose()?;
+    let sessions = super::pty::session_import::list_agent_sessions(Some(100), workspace_cwd)?
+        .into_iter()
+        .map(remote_protocol_importable_session)
+        .collect();
+    send_remote_device_event(socket, ServerMessage::ImportableSessions { sessions })
+}
+
+fn remote_protocol_importable_session(
+    session: super::pty::session_import::ImportableAgentSession,
+) -> RemoteProtocolImportableSession {
+    RemoteProtocolImportableSession {
+        provider: session.provider.to_string(),
+        session_id: session.session_id,
+        cwd: session.cwd,
+        title: session.title,
+        preview: session.preview,
+        last_activity_at: session.last_activity_at,
+        active: session.active,
+    }
+}
+
+fn import_remote_agent_session(
+    runtime: &Arc<Mutex<RemoteRuntime>>,
+    device_id: &str,
+    workspace_id: &str,
+    provider: &str,
+    session_id: &str,
+) -> Result<(), String> {
+    let cwd = resolve_mobile_workspace_cwd(device_id, workspace_id)?;
+    let session = super::pty::session_import::list_agent_sessions(Some(500), None)?
+        .into_iter()
+        .find(|candidate| candidate.provider == provider && candidate.session_id == session_id)
+        .ok_or_else(|| "session is no longer available on this desktop".to_string())?;
+    if session.active {
+        return Err("this session is already active on the desktop".to_string());
+    }
+    let command = build_agent_resume_command(provider, session_id)?;
+    let terminal = spawn_remote_terminal(
+        Some(cwd),
+        Some(workspace_id.to_string()),
+        Some(device_id.to_string()),
+    )?;
+    terminal
+        .writer
+        .lock()
+        .map_err(|_| "writer poisoned".to_string())?
+        .write_all(format!("{command}\r").as_bytes())
+        .map_err(|error| error.to_string())?;
+    let mut guard = runtime
+        .lock()
+        .map_err(|_| "remote runtime poisoned".to_string())?;
+    let id = guard.next_id;
+    guard.next_id = guard.next_id.saturating_add(1);
+    guard.sessions.insert(id, terminal);
+    Ok(())
+}
+
+fn build_agent_resume_command(provider: &str, session_id: &str) -> Result<String, String> {
+    let id = format!("'{}'", session_id.replace('\'', "'\"'\"'"));
+    let command = match provider {
+        "claude" => format!("claude --resume {id}"),
+        "codex" => format!("codex resume {id}"),
+        "gemini" => format!("gemini --resume {id}"),
+        "opencode" => format!("opencode --session {id}"),
+        "copilot" => format!("copilot --resume={id}"),
+        "cursor" => format!("cursor-agent --resume {id}"),
+        "aider" => format!("aider --restore-chat-history --chat-history-file {id}"),
+        "pi" => format!("pi --session {id}"),
+        "amp" => format!("amp threads continue {id}"),
+        "cline" => format!("cline --taskId {id}"),
+        "goose" => format!("goose session --resume --session-id {id}"),
+        "qwen" => format!("qwen --resume {id}"),
+        "kimi" => format!("kimi --session {id}"),
+        "openhands" => format!("openhands --resume {id}"),
+        "kiro" => format!("kiro-cli chat --resume-id {id}"),
+        "grok" => format!("grok --resume {id}"),
+        "herdr" => format!("herdr session attach {id}"),
+        "cmd" => format!("cmd --session {id}"),
+        _ => return Err("unsupported CLI provider".to_string()),
+    };
+    Ok(command)
+}
+
+fn send_remote_device_directory(
+    socket: &mut WebSocket<TcpStream>,
+    device_id: &str,
+    workspace_id: &str,
+    requested: Option<&str>,
+) -> Result<(), String> {
+    let root = resolve_mobile_workspace_cwd(device_id, workspace_id)?;
+    let root_path = PathBuf::from(&root);
+    let path = requested.unwrap_or(&root);
+    let current =
+        std::fs::canonicalize(path).map_err(|error| format!("cannot read folder: {error}"))?;
+    if !current.starts_with(&root_path) {
+        return Err("directory must remain inside the workspace".to_string());
+    }
+    let mut entries = std::fs::read_dir(&current)
+        .map_err(|error| format!("cannot read folder: {error}"))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let kind = entry.file_type().ok()?;
+            (kind.is_dir() || kind.is_file()).then(|| RemoteProtocolDirectoryEntry {
+                name: entry.file_name().to_string_lossy().into_owned(),
+                path: entry.path().to_string_lossy().into_owned(),
+                is_directory: kind.is_dir(),
+            })
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|entry| (!entry.is_directory, entry.name.to_lowercase()));
+    send_remote_device_event(
+        socket,
+        ServerMessage::Directory {
+            path: current.to_string_lossy().into_owned(),
+            entries,
+        },
+    )
+}
+
+/// Mirrors the desktop remote folder picker while exposing only directories
+/// that `authorize_remote_cwd` already permits to native paired devices.
+fn send_remote_device_folder_picker_directory(
+    socket: &mut WebSocket<TcpStream>,
+    requested: Option<&str>,
+) -> Result<(), String> {
+    let requested = requested
+        .filter(|path| !path.trim().is_empty())
+        .map(str::to_owned)
+        .or_else(|| dirs::home_dir().map(|path| path.to_string_lossy().into_owned()))
+        .ok_or_else(|| "home directory is unavailable".to_string())?;
+    let current = authorize_remote_cwd(Some(&requested))?
+        .ok_or_else(|| "folder is unavailable".to_string())?;
+    let current_path = PathBuf::from(&current);
+    let mut entries = std::fs::read_dir(&current_path)
+        .map_err(|error| format!("cannot read folder: {error}"))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| entry.file_type().ok()?.is_dir().then(|| entry))
+        .filter_map(|entry| {
+            let path = authorize_remote_cwd(entry.path().to_str()).ok().flatten()?;
+            Some(RemoteProtocolDirectoryEntry {
+                name: entry.file_name().to_string_lossy().into_owned(),
+                path,
+                is_directory: true,
+            })
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|entry| entry.name.to_lowercase());
+    let parent = current_path
+        .parent()
+        .and_then(|parent| authorize_remote_cwd(parent.to_str()).ok().flatten());
+    send_remote_device_event(
+        socket,
+        ServerMessage::FolderPickerDirectory {
+            path: current,
+            parent,
+            entries,
+        },
+    )
+}
+
+fn send_remote_device_file(
+    socket: &mut WebSocket<TcpStream>,
+    device_id: &str,
+    workspace_id: &str,
+    requested: &str,
+) -> Result<(), String> {
+    const MAX_FILE_BYTES: u64 = 1_048_576;
+    let root = resolve_mobile_workspace_cwd(device_id, workspace_id)?;
+    let path =
+        std::fs::canonicalize(requested).map_err(|error| format!("cannot read file: {error}"))?;
+    if !path.starts_with(PathBuf::from(root)) {
+        return Err("file must remain inside the workspace".to_string());
+    }
+    let metadata =
+        std::fs::metadata(&path).map_err(|error| format!("cannot read file: {error}"))?;
+    if !metadata.is_file() {
+        return Err("path is not a file".to_string());
+    }
+    if metadata.len() > MAX_FILE_BYTES {
+        return Err("file is too large to preview on mobile".to_string());
+    }
+    let content =
+        std::fs::read_to_string(&path).map_err(|_| "file is not valid UTF-8 text".to_string())?;
+    send_remote_device_event(
+        socket,
+        ServerMessage::FileContent {
+            path: path.to_string_lossy().into_owned(),
+            content,
+        },
+    )
+}
+
+fn create_remote_directory(
+    device_id: &str,
+    workspace_id: &str,
+    parent: &str,
+    name: &str,
+) -> Result<(), String> {
+    if name.is_empty() || name == "." || name == ".." || name.contains('/') || name.contains('\\') {
+        return Err("folder name is invalid".to_string());
+    }
+    let root = resolve_mobile_workspace_cwd(device_id, workspace_id)?;
+    let parent =
+        std::fs::canonicalize(parent).map_err(|error| format!("cannot read folder: {error}"))?;
+    if !parent.starts_with(PathBuf::from(root)) {
+        return Err("directory must remain inside the workspace".to_string());
+    }
+    std::fs::create_dir(parent.join(name)).map_err(|error| format!("cannot create folder: {error}"))
 }
 
 fn send_remote_device_event(
@@ -1764,8 +2160,17 @@ fn handle_remote_websocket_message(
     match message {
         ClientMessage::Auth { .. } => Err("WebSocket session is already authenticated".to_string()),
         ClientMessage::ListSessions => send_remote_sessions(socket, runtime),
-        ClientMessage::CreateSession { cwd } => {
-            let cwd = authorize_remote_cwd(cwd.as_deref())?;
+        ClientMessage::ListWorkspaces => send_remote_workspaces(socket),
+        ClientMessage::ListFolderPickerDirectory { .. }
+        | ClientMessage::ListDirectory { .. }
+        | ClientMessage::ReadFile { .. }
+        | ClientMessage::CreateDirectory { .. }
+        | ClientMessage::ListImportableSessions { .. }
+        | ClientMessage::ImportSession { .. } => {
+            Err("this action is available to paired native devices only".to_string())
+        }
+        ClientMessage::CreateSession { cwd, workspace_id } => {
+            let cwd = resolve_remote_session_cwd(cwd.as_deref(), workspace_id.as_deref())?;
             let mut guard = runtime
                 .lock()
                 .map_err(|_| "remote runtime poisoned".to_string())?;
@@ -1775,15 +2180,25 @@ fn handle_remote_websocket_message(
                     .lock()
                     .map(|output| runtime_output_is_live(&output))
                     .unwrap_or(false);
-                (session.cwd == cwd && live).then_some(*id)
+                (session.cwd == cwd && session.workspace_id == workspace_id && live).then_some(*id)
             });
             if existing.is_none() {
-                let session = spawn_remote_terminal(cwd.clone())?;
+                let session = spawn_remote_terminal(cwd.clone(), workspace_id, None)?;
                 let id = guard.next_id;
                 guard.next_id = guard.next_id.saturating_add(1);
                 guard.sessions.insert(id, session);
             }
             drop(guard);
+            send_remote_sessions(socket, runtime)
+        }
+        ClientMessage::CreateWorkspace {
+            workspace_id,
+            name,
+            working_folder,
+            terminal_count,
+        } => {
+            create_remote_workspace(runtime, workspace_id, name, working_folder, terminal_count)?;
+            send_remote_workspaces(socket)?;
             send_remote_sessions(socket, runtime)
         }
         ClientMessage::Attach { session_id, after } => {
@@ -1876,6 +2291,24 @@ fn handle_remote_websocket_message(
     }
 }
 
+fn send_remote_workspaces(socket: &mut WebSocket<TcpStream>) -> Result<(), String> {
+    let workspaces = db::list_workspaces_inner(&db::init_db()?)?
+        .into_iter()
+        .filter_map(|workspace| {
+            (workspace.workspace_mode.as_deref() != Some("canvas"))
+                .then_some((workspace.id, workspace.name, workspace.working_folder))
+                .and_then(|(id, name, working_folder)| {
+                    working_folder.map(|working_folder| RemoteProtocolWorkspace {
+                        id,
+                        name,
+                        working_folder,
+                    })
+                })
+        })
+        .collect();
+    send_remote_websocket_message(socket, ServerMessage::Workspaces { workspaces })
+}
+
 fn send_remote_sessions(
     socket: &mut WebSocket<TcpStream>,
     runtime: &Arc<Mutex<RemoteRuntime>>,
@@ -1899,6 +2332,7 @@ fn send_remote_sessions(
                 id: *id,
                 title: "Remote terminal".to_string(),
                 cwd: session.cwd.clone(),
+                workspace_id: session.workspace_id.clone(),
                 agent: None,
                 attached: false,
             });
@@ -2166,7 +2600,7 @@ fn create_remote_session(
     let input: Input = serde_json::from_str(request_body(request)).map_err(|e| e.to_string())?;
     let cwd = input.cwd.filter(|value| !value.trim().is_empty());
     let cwd = authorize_remote_cwd(cwd.as_deref())?;
-    let session = spawn_remote_terminal(cwd)?;
+    let session = spawn_remote_terminal(cwd, None, None)?;
     let mut guard = runtime
         .lock()
         .map_err(|_| "remote runtime poisoned".to_string())?;
@@ -2206,7 +2640,173 @@ fn authorize_remote_cwd(cwd: Option<&str>) -> Result<Option<String>, String> {
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-fn spawn_remote_terminal(cwd: Option<String>) -> Result<Arc<RemoteTerminal>, String> {
+fn resolve_remote_session_cwd(
+    cwd: Option<&str>,
+    workspace_id: Option<&str>,
+) -> Result<Option<String>, String> {
+    let Some(workspace_id) = workspace_id else {
+        return authorize_remote_cwd(cwd);
+    };
+    let conn = db::init_db()?;
+    let workspace = db::list_workspaces_inner(&conn)?
+        .into_iter()
+        .find(|workspace| workspace.id == workspace_id)
+        .ok_or_else(|| "workspace does not exist".to_string())?;
+    if workspace.workspace_mode.as_deref() == Some("canvas") {
+        return Err("remote terminals require a standard workspace".to_string());
+    }
+    let working_folder = workspace
+        .working_folder
+        .ok_or_else(|| "workspace has no working directory".to_string())?;
+    authorize_remote_cwd(Some(&working_folder))
+}
+
+fn resolve_mobile_session_cwd(
+    device_id: &str,
+    cwd: Option<&str>,
+    workspace_id: Option<&str>,
+) -> Result<Option<String>, String> {
+    match workspace_id {
+        Some(workspace_id) => resolve_mobile_workspace_cwd(device_id, workspace_id).map(Some),
+        None => authorize_remote_cwd(cwd),
+    }
+}
+
+fn resolve_mobile_workspace_cwd(device_id: &str, workspace_id: &str) -> Result<String, String> {
+    let conn = db::init_db()?;
+    let workspace = db::mobile_workspace_inner(&conn, device_id, workspace_id)?
+        .ok_or_else(|| "mobile workspace does not exist for this device".to_string())?;
+    authorize_remote_cwd(Some(&workspace.working_folder))?
+        .ok_or_else(|| "mobile workspace has no working directory".to_string())
+}
+
+fn create_mobile_workspace(
+    runtime: &Arc<Mutex<RemoteRuntime>>,
+    device_id: &str,
+    workspace_id: String,
+    name: String,
+    working_folder: String,
+    terminal_count: u8,
+) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 80 {
+        return Err("workspace name must be between 1 and 80 characters".to_string());
+    }
+    if workspace_id.is_empty() || workspace_id.len() > 96 {
+        return Err("workspace id is invalid".to_string());
+    }
+    if !(1..=12).contains(&terminal_count) {
+        return Err("terminal count must be between 1 and 12".to_string());
+    }
+    let working_folder = resolve_remote_session_cwd(Some(&working_folder), None)?
+        .ok_or_else(|| "workspace requires a working directory".to_string())?;
+    let conn = db::init_db()?;
+    if db::mobile_workspace_id_exists_inner(&conn, &workspace_id)? {
+        return Err("mobile workspace already exists".to_string());
+    }
+    let now = now_unix_seconds() as i64;
+    let workspace = db::MobileWorkspaceRow {
+        id: workspace_id.clone(),
+        owner_device_id: device_id.to_string(),
+        name: name.to_string(),
+        working_folder: working_folder.clone(),
+        created_at: now,
+        updated_at: now,
+    };
+    db::save_mobile_workspace_inner(&conn, &workspace)?;
+
+    let mut guard = runtime
+        .lock()
+        .map_err(|_| "remote runtime poisoned".to_string())?;
+    for _ in 0..terminal_count {
+        let session = spawn_remote_terminal(
+            Some(working_folder.clone()),
+            Some(workspace_id.clone()),
+            Some(device_id.to_string()),
+        )?;
+        let id = guard.next_id;
+        guard.next_id = guard.next_id.saturating_add(1);
+        guard.sessions.insert(id, session);
+    }
+    Ok(())
+}
+
+/// Browser remote access keeps its pre-existing desktop-workspace behaviour.
+/// Native iOS calls `create_mobile_workspace` instead, so the two workspace
+/// namespaces never meet.
+fn create_remote_workspace(
+    runtime: &Arc<Mutex<RemoteRuntime>>,
+    workspace_id: String,
+    name: String,
+    working_folder: String,
+    terminal_count: u8,
+) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 80 {
+        return Err("workspace name must be between 1 and 80 characters".to_string());
+    }
+    if workspace_id.is_empty() || workspace_id.len() > 96 {
+        return Err("workspace id is invalid".to_string());
+    }
+    if !(1..=12).contains(&terminal_count) {
+        return Err("terminal count must be between 1 and 12".to_string());
+    }
+    let working_folder = resolve_remote_session_cwd(Some(&working_folder), None)?
+        .ok_or_else(|| "workspace requires a working directory".to_string())?;
+    let conn = db::init_db()?;
+    if db::list_workspaces_inner(&conn)?
+        .iter()
+        .any(|workspace| workspace.id == workspace_id)
+    {
+        return Err("workspace already exists".to_string());
+    }
+    let now = now_unix_seconds() as i64;
+    let workspace = db::WorkspaceRow {
+        id: workspace_id.clone(),
+        name: name.to_string(),
+        count: i32::from(terminal_count),
+        accent_color: None,
+        working_folder: Some(working_folder.clone()),
+        created_at: now,
+        updated_at: now,
+        display_order: db::list_workspaces_inner(&conn)?.len() as i32,
+        pane_layout: None,
+        workspace_mode: Some("terminal".to_string()),
+    };
+    db::save_workspace_inner(&conn, &workspace)?;
+    for pane_index in 0..terminal_count {
+        db::save_pane_inner(
+            &conn,
+            &db::WorkspacePaneRow {
+                workspace_id: workspace_id.clone(),
+                pane_index: i32::from(pane_index),
+                working_folder: Some(working_folder.clone()),
+                last_command: None,
+                auto_launch: false,
+            },
+        )?;
+    }
+    let mut guard = runtime
+        .lock()
+        .map_err(|_| "remote runtime poisoned".to_string())?;
+    for _ in 0..terminal_count {
+        let session = spawn_remote_terminal(
+            Some(working_folder.clone()),
+            Some(workspace_id.clone()),
+            None,
+        )?;
+        let id = guard.next_id;
+        guard.next_id = guard.next_id.saturating_add(1);
+        guard.sessions.insert(id, session);
+    }
+    Ok(())
+}
+
+fn spawn_remote_terminal(
+    cwd: Option<String>,
+    workspace_id: Option<String>,
+    owner_device_id: Option<String>,
+) -> Result<Arc<RemoteTerminal>, String> {
     let size = portable_pty::PtySize {
         rows: 40,
         cols: 120,
@@ -2227,6 +2827,8 @@ fn spawn_remote_terminal(cwd: Option<String>) -> Result<Arc<RemoteTerminal>, Str
     ));
     let session = Arc::new(RemoteTerminal {
         cwd: cwd.clone(),
+        workspace_id,
+        owner_device_id,
         writer: Arc::clone(&writer),
         master: Mutex::new(pair.master),
         killer: Mutex::new(child.clone_killer()),
@@ -2296,7 +2898,7 @@ fn build_remote_shell_command(cwd: Option<String>) -> Result<portable_pty::Comma
     }
     #[cfg(windows)]
     {
-        shell_init::build_command(cwd, WorkspaceEnv::default())
+        shell_init::build_command(cwd, WorkspaceEnv::default(), None)
     }
 }
 
@@ -2548,6 +3150,18 @@ fn session_from_runtime(
         .get(&id)
         .cloned()
         .ok_or_else(|| "session not found".to_string())
+}
+
+fn session_from_owned_mobile_runtime(
+    runtime: &Arc<Mutex<RemoteRuntime>>,
+    id: u64,
+    device_id: &str,
+) -> Result<Arc<RemoteTerminal>, String> {
+    let session = session_from_runtime(runtime, id)?;
+    if session.owner_device_id.as_deref() != Some(device_id) {
+        return Err("terminal does not belong to this paired device".to_string());
+    }
+    Ok(session)
 }
 
 fn remote_session_input(
@@ -2969,7 +3583,8 @@ mod tests {
         fs::write(stale_resources.join("remote.html"), "stale remote ui").unwrap();
         fs::write(workspace_dist.join("remote.html"), "fresh remote ui").unwrap();
 
-        let resolved = development_remote_ui_dir(Some(dir.path().join("resources").as_path()), dir.path());
+        let resolved =
+            development_remote_ui_dir(Some(dir.path().join("resources").as_path()), dir.path());
 
         assert_eq!(resolved, workspace_dist);
     }
@@ -3218,6 +3833,23 @@ mod tests {
     }
 
     #[test]
+    fn native_device_session_list_never_hydrates_desktop_workspace_panes() {
+        let source = include_str!("remote.rs");
+        let start = source
+            .find("fn send_remote_device_sessions(")
+            .expect("native session list function");
+        let end = source[start..]
+            .find("fn remote_protocol_sessions_for_device(")
+            .map(|offset| start + offset)
+            .expect("native device session projection");
+        let projection = &source[start..end];
+
+        assert!(!projection.contains("hydrate_workspace_panes"));
+        assert!(!projection.contains("workspace_panes"));
+        assert!(!projection.contains("last_command"));
+    }
+
+    #[test]
     fn remote_websocket_commands_only_target_remote_runtime_sessions() {
         let source = include_str!("remote.rs");
         let start = source
@@ -3245,7 +3877,8 @@ mod tests {
             .expect("home directory")
             .to_string_lossy()
             .into_owned();
-        let terminal = spawn_remote_terminal(Some(cwd)).expect("remote terminal should spawn");
+        let terminal =
+            spawn_remote_terminal(Some(cwd), None, None).expect("remote terminal should spawn");
 
         let deadline = std::time::Instant::now() + Duration::from_secs(3);
         let mut output = terminal.output.lock().expect("remote terminal output");
@@ -3298,7 +3931,8 @@ mod tests {
             .expect("home directory")
             .to_string_lossy()
             .into_owned();
-        let terminal = spawn_remote_terminal(Some(cwd)).expect("remote terminal should spawn");
+        let terminal =
+            spawn_remote_terminal(Some(cwd), None, None).expect("remote terminal should spawn");
 
         terminal
             .writer
@@ -3404,7 +4038,13 @@ mod tests {
             .expect("home directory")
             .to_string_lossy()
             .into_owned();
-        send_message(&mut socket, ClientMessage::CreateSession { cwd: Some(cwd) });
+        send_message(
+            &mut socket,
+            ClientMessage::CreateSession {
+                cwd: Some(cwd),
+                workspace_id: None,
+            },
+        );
         let ServerMessage::Sessions { sessions } = read_message(&mut socket).message else {
             panic!("expected the created remote session");
         };
@@ -3417,6 +4057,7 @@ mod tests {
             &mut socket,
             ClientMessage::CreateSession {
                 cwd: dirs::home_dir().map(|path| path.to_string_lossy().into_owned()),
+                workspace_id: None,
             },
         );
         let ServerMessage::Sessions { sessions } = read_message(&mut socket).message else {
@@ -3707,6 +4348,11 @@ mod tests {
             auth: Arc::clone(&auth),
             bootstrap_secret: Some("auto-start-secret".to_string()),
             devices: Arc::new(Mutex::new(DeviceRegistry::new_for_test([1_u8; 32]))),
+            relay: None,
+            relay_identity: RemoteRelayIdentity {
+                relay_id: "test-relay".to_string(),
+                credential: "test-credential".to_string(),
+            },
         };
 
         assert_eq!(
@@ -3741,6 +4387,11 @@ mod tests {
             auth: Arc::clone(&auth),
             bootstrap_secret: Some("expired-secret".to_string()),
             devices: Arc::new(Mutex::new(DeviceRegistry::new_for_test([2_u8; 32]))),
+            relay: None,
+            relay_identity: RemoteRelayIdentity {
+                relay_id: "test-relay".to_string(),
+                credential: "test-credential".to_string(),
+            },
         };
 
         let refreshed = server

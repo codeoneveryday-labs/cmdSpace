@@ -80,6 +80,7 @@ fn session_metadata_uses_stable_wire_shape() {
         id: 3,
         title: "Claude Code".to_string(),
         cwd: Some("/Users/test/project".to_string()),
+        workspace_id: None,
         agent: Some("claude".to_string()),
         attached: true,
     };

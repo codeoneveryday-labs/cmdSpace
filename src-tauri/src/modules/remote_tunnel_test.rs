@@ -1,5 +1,6 @@
 use super::remote_tunnel::{
-    cloudflared_quick_tunnel_args, extract_public_https_url, localhost_run_ssh_args, TunnelState,
+    cloudflared_origin_registered, cloudflared_quick_tunnel_args, extract_public_https_url,
+    cloudflared_origin_unregistered, localhost_run_ssh_args, public_tunnel_host, TunnelState,
 };
 
 #[cfg(unix)]
@@ -50,6 +51,16 @@ fn rejects_untrusted_or_insecure_provider_urls() {
         extract_public_https_url("https://localhost.run.attacker.example"),
         None
     );
+}
+
+#[test]
+fn extracts_the_host_that_the_supervisor_health_checks() {
+    assert_eq!(
+        public_tunnel_host("https://quick-tunnel.trycloudflare.com/path"),
+        Some("quick-tunnel.trycloudflare.com")
+    );
+    assert_eq!(public_tunnel_host("https://localhost.run"), Some("localhost.run"));
+    assert_eq!(public_tunnel_host("http://quick-tunnel.trycloudflare.com"), None);
 }
 
 #[test]
@@ -110,6 +121,22 @@ fn builds_a_cloudflare_quick_tunnel_for_the_local_remote_server() {
             "--no-autoupdate",
         ]
     );
+}
+
+#[test]
+fn cloudflare_url_is_not_treated_as_ready_until_its_origin_registers() {
+    assert!(!cloudflared_origin_registered(
+        "Your quick Tunnel has been created! Visit it at https://example.trycloudflare.com"
+    ));
+    assert!(cloudflared_origin_registered(
+        "INF Registered tunnel connection connIndex=0 connection=abc"
+    ));
+    assert!(cloudflared_origin_unregistered(
+        "INF Unregistered tunnel connection connIndex=0 connection=abc"
+    ));
+    assert!(!cloudflared_origin_registered(
+        "INF Unregistered tunnel connection connIndex=0 connection=abc"
+    ));
 }
 
 #[cfg(unix)]

@@ -3,7 +3,7 @@ mod da_filter;
 #[cfg(windows)]
 mod job;
 mod session;
-mod session_import;
+pub(crate) mod session_import;
 pub(crate) mod shell_init;
 
 use std::collections::{hash_map::DefaultHasher, HashMap};
@@ -47,6 +47,11 @@ pub struct PtySessionInfo {
     pub agent: Option<String>,
 }
 
+#[tauri::command]
+pub fn pty_available_shells() -> Vec<String> {
+    shell_init::available_shells()
+}
+
 impl Default for PtyState {
     fn default() -> Self {
         Self {
@@ -68,6 +73,7 @@ pub async fn pty_open(
     rows: u16,
     cwd: Option<String>,
     initial_command: Option<String>,
+    shell: Option<String>,
     workspace: Option<WorkspaceEnv>,
     on_data: Channel<Response>,
     on_exit: Channel<i32>,
@@ -88,6 +94,7 @@ pub async fn pty_open(
             rows,
             cwd,
             initial_command,
+            shell,
             workspace,
             on_data,
             on_exit,

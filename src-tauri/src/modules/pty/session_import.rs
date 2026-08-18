@@ -13,13 +13,13 @@ const PROVIDER_LIMIT: usize = 50;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportableAgentSession {
-    provider: &'static str,
-    session_id: String,
-    cwd: String,
-    title: String,
-    preview: Option<String>,
-    last_activity_at: u64,
-    active: bool,
+    pub(crate) provider: &'static str,
+    pub(crate) session_id: String,
+    pub(crate) cwd: String,
+    pub(crate) title: String,
+    pub(crate) preview: Option<String>,
+    pub(crate) last_activity_at: u64,
+    pub(crate) active: bool,
 }
 
 pub fn list_agent_sessions(

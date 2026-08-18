@@ -100,6 +100,7 @@ macro_rules! cmdspace_commands {
             pty::pty_close,
             pty::pty_register_metadata,
             pty::pty_list,
+            pty::pty_available_shells,
             pty::check_agent_clis,
             pty::list_agent_sessions,
             // Filesystem

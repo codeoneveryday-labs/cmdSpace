@@ -50,6 +50,53 @@ pub struct RecentWorkspaceRow {
     pub updated_at: i64,
 }
 
+/// A workspace created from a paired native device. It deliberately has no
+/// relation to the desktop workspace/pane tables: it is a device-owned folder
+/// binding, not a second view of a desktop workspace.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct MobileWorkspaceRow {
+    pub id: String,
+    #[serde(rename = "ownerDeviceId")]
+    pub owner_device_id: String,
+    pub name: String,
+    #[serde(rename = "workingFolder")]
+    pub working_folder: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: i64,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: i64,
+}
+
+#[cfg(test)]
+mod mobile_workspace_contract_tests {
+    use super::*;
+
+    #[test]
+    fn mobile_workspaces_are_scoped_to_the_paired_device_and_do_not_use_desktop_workspaces() {
+        let conn = Connection::open_in_memory().expect("open database");
+        init_mobile_workspace_schema(&conn).expect("migrate mobile workspace schema");
+        save_mobile_workspace_inner(&conn, &MobileWorkspaceRow {
+            id: "ios-one".to_string(),
+            owner_device_id: "iphone-a".to_string(),
+            name: "Cate".to_string(),
+            working_folder: "/Users/test/dev/app/cate".to_string(),
+            created_at: 10,
+            updated_at: 10,
+        }).expect("save first mobile workspace");
+        save_mobile_workspace_inner(&conn, &MobileWorkspaceRow {
+            id: "ios-two".to_string(),
+            owner_device_id: "iphone-b".to_string(),
+            name: "Other".to_string(),
+            working_folder: "/Users/test/dev/app/other".to_string(),
+            created_at: 11,
+            updated_at: 11,
+        }).expect("save second mobile workspace");
+
+        assert_eq!(list_mobile_workspaces_inner(&conn, "iphone-a").unwrap().len(), 1);
+        assert!(mobile_workspace_inner(&conn, "iphone-a", "ios-two").unwrap().is_none());
+    }
+}
+
 fn get_db_path() -> std::path::PathBuf {
     #[cfg(test)]
     {
@@ -151,6 +198,28 @@ fn migrate_workspace_setup_preferences(conn: &Connection) -> Result<(), String> 
     Ok(())
 }
 
+pub fn init_mobile_workspace_schema(conn: &Connection) -> Result<(), String> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS mobile_workspaces (
+            id TEXT PRIMARY KEY,
+            owner_device_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            working_folder TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );",
+        [],
+    )
+    .map_err(|e| format!("Failed to create mobile_workspaces table: {e}"))?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS mobile_workspaces_owner_updated
+         ON mobile_workspaces(owner_device_id, updated_at DESC);",
+        [],
+    )
+    .map_err(|e| format!("Failed to index mobile_workspaces table: {e}"))?;
+    Ok(())
+}
+
 pub fn init_db() -> Result<Connection, String> {
     let db_path = get_db_path();
     let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open DB: {e}"))?;
@@ -211,6 +280,7 @@ pub fn init_db() -> Result<Connection, String> {
 
     migrate_workspace_panes(&conn)?;
     migrate_workspace_setup_preferences(&conn)?;
+    init_mobile_workspace_schema(&conn)?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS recent_workspaces (
@@ -398,6 +468,90 @@ pub fn save_recent_workspace_inner(
         ],
     )
     .map_err(|e| format!("Failed to save recent workspace: {e}"))?;
+    Ok(())
+}
+
+pub fn list_mobile_workspaces_inner(
+    conn: &Connection,
+    owner_device_id: &str,
+) -> Result<Vec<MobileWorkspaceRow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, owner_device_id, name, working_folder, created_at, updated_at
+             FROM mobile_workspaces WHERE owner_device_id = ?1
+             ORDER BY updated_at DESC, created_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![owner_device_id], |row| {
+            Ok(MobileWorkspaceRow {
+                id: row.get(0)?,
+                owner_device_id: row.get(1)?,
+                name: row.get(2)?,
+                working_folder: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+pub fn mobile_workspace_inner(
+    conn: &Connection,
+    owner_device_id: &str,
+    id: &str,
+) -> Result<Option<MobileWorkspaceRow>, String> {
+    conn.query_row(
+        "SELECT id, owner_device_id, name, working_folder, created_at, updated_at
+         FROM mobile_workspaces WHERE id = ?1 AND owner_device_id = ?2",
+        params![id, owner_device_id],
+        |row| {
+            Ok(MobileWorkspaceRow {
+                id: row.get(0)?,
+                owner_device_id: row.get(1)?,
+                name: row.get(2)?,
+                working_folder: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+pub fn mobile_workspace_id_exists_inner(conn: &Connection, id: &str) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM mobile_workspaces WHERE id = ?1)",
+        params![id],
+        |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+pub fn save_mobile_workspace_inner(
+    conn: &Connection,
+    workspace: &MobileWorkspaceRow,
+) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO mobile_workspaces (id, owner_device_id, name, working_folder, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET
+            owner_device_id = excluded.owner_device_id,
+            name = excluded.name,
+            working_folder = excluded.working_folder,
+            updated_at = excluded.updated_at",
+        params![
+            workspace.id,
+            workspace.owner_device_id,
+            workspace.name,
+            workspace.working_folder,
+            workspace.created_at,
+            workspace.updated_at,
+        ],
+    )
+    .map_err(|e| format!("Failed to save mobile workspace: {e}"))?;
     Ok(())
 }
 
