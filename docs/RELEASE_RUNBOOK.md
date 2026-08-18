@@ -12,7 +12,8 @@ release flow; follow it in order. Every step below was executed for v0.7.55.
 
 ## Version numbers
 
-A release bumps exactly **4 files**, all to the same version:
+A release bumps exactly **4 version files**, all to the same version — plus the
+root [`CHANGELOG.md`](../CHANGELOG.md) (see Step 3):
 
 | File | Key |
 |---|---|
@@ -47,7 +48,19 @@ git checkout main && git pull origin main
 git checkout -b chore/<N>-release-v0-7-XX
 ```
 
-## Step 3 — Bump the 4 version files
+## Step 3 — Update the changelog
+
+Update the root [`CHANGELOG.md`](../CHANGELOG.md) with an entry for the new
+version, following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
+the existing format (Added / Changed / Known limitations). Base it on the merged
+PRs since the previous release. Keep entries factual and do not describe staged
+or fallback-only integrations as fully supported.
+
+The changelog entry MUST land in the same release commit as the version bump —
+never stage a release that bumps version files without a matching
+`CHANGELOG.md` entry.
+
+## Step 4 — Bump the 4 version files
 
 Edit each of the 4 files above from the current version to the next. Keep every
 other line untouched. Verify:
@@ -60,12 +73,12 @@ grep -A1 'name = "cmdspace"' src-tauri/Cargo.lock
 
 All four must report the new version.
 
-## Step 4 — Stage only the 4 files and commit
+## Step 5 — Stage the 5 files and commit
 
 Never `git add -A` — the worktree may contain unrelated changes.
 
 ```bash
-git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
+git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json CHANGELOG.md
 git commit -F - <<'EOF'
 chore(release): publish vX.Y.Z
 
@@ -81,7 +94,7 @@ Co-authored-by: CommandCodeBot <noreply@commandcode.ai>
 EOF
 ```
 
-## Step 5 — Verify before pushing
+## Step 6 — Verify before pushing
 
 ```bash
 pnpm vitest run src-tauri/tauri.conf.test.ts   # version sync + signing key
@@ -89,7 +102,7 @@ pnpm build
 cd src-tauri && cargo check --all-targets --locked
 ```
 
-## Step 6 — Push, open PR, merge
+## Step 7 — Push, open PR, merge
 
 ```bash
 git push -u origin chore/<N>-release-v0-7-XX
@@ -98,6 +111,7 @@ gh pr create --title "chore(release): publish vX.Y.Z" \
 
 ## Summary
 - bump cmdSpace release metadata to vX.Y.Z
+- update CHANGELOG.md for vX.Y.Z
 - ship <PR(s) it contains>
 
 ## Verification
@@ -108,7 +122,7 @@ gh pr merge <PR-number> --merge
 
 Merge auto-closes the release issue via `Closes #`.
 
-## Step 7 — Tag and trigger the release workflow
+## Step 8 — Tag and trigger the release workflow
 
 ```bash
 git checkout main && git pull origin main
@@ -120,7 +134,7 @@ The `v*` tag triggers `.github/workflows/release.yml`, which builds and uploads
 installers for macOS (arm64 + x64, signed/notarized), Windows (NSIS + MSI), and
 Linux (deb/rpm/AppImage), plus `latest.json` for auto-update.
 
-## Step 8 — Confirm the release
+## Step 9 — Confirm the release
 
 ```bash
 gh run list --workflow release.yml --limit 3        # expect in_progress then success

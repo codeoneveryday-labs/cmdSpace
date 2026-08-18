@@ -276,6 +276,63 @@ fn path_entries() -> Vec<std::path::PathBuf> {
         .unwrap_or_default()
 }
 
+/// Extra directories that GUI-launched apps usually miss: macOS apps launched
+/// from Finder/Dock inherit a minimal PATH that excludes Homebrew, and npm
+/// global installs live under the user's home. PTY shells get these via
+/// login/profile scripts, so this keeps detection in sync with the terminal.
+#[cfg(unix)]
+fn user_bin_dirs() -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        dirs.push(home.join(".local").join("bin"));
+        dirs.push(home.join(".npm-global").join("bin"));
+        dirs.push(home.join(".cargo").join("bin"));
+        dirs.push(home.join(".codex").join("bin"));
+        dirs.push(home.join(".claude").join("local").join("bin"));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        dirs.push(std::path::PathBuf::from("/opt/homebrew/bin"));
+        dirs.push(std::path::PathBuf::from("/usr/local/bin"));
+    }
+    dirs
+}
+
+/// Ask a login shell what PATH the user would actually have in the terminal.
+/// `sh -lc` runs path_helper on macOS (restores Homebrew); `$SHELL -lic` then
+/// picks up `.zshrc`/`.bashrc` exports. Output is a colon-separated path list.
+#[cfg(unix)]
+fn login_shell_path_entries() -> Vec<std::path::PathBuf> {
+    use std::process::Command;
+    let probe = || -> Option<Vec<std::path::PathBuf>> {
+        let sh = std::env::var("SHELL").ok().filter(|s| !s.is_empty())?;
+        let login_out = Command::new("sh")
+            .arg("-lc")
+            .arg("printf '%s' \"$PATH\"")
+            .output()
+            .ok()?;
+        if !login_out.status.success() {
+            return None;
+        }
+        let login_path = String::from_utf8(login_out.stdout).ok()?;
+        let mut entries: Vec<std::path::PathBuf> = std::env::split_paths(&login_path).collect();
+        if sh.contains("zsh") || sh.contains("bash") {
+            let interactive_out = Command::new(&sh)
+                .arg("-lic")
+                .arg("printf '%s' \"$PATH\"")
+                .output()
+                .ok()?;
+            if interactive_out.status.success() {
+                let interactive_path = String::from_utf8(interactive_out.stdout).ok()?;
+                entries = std::env::split_paths(&interactive_path).collect();
+            }
+        }
+        Some(entries)
+    };
+    probe().unwrap_or_default()
+}
+
+#[cfg(unix)]
 fn is_executable_file(path: &std::path::Path) -> bool {
     #[cfg(unix)]
     {
@@ -358,7 +415,15 @@ pub fn check_agent_clis(
     #[cfg(not(windows))]
     let path_exts: Vec<String> = vec![String::new()];
 
-    let entries = path_entries();
+    let mut entries = path_entries();
+    #[cfg(unix)]
+    {
+        // GUI-launched apps on macOS get a minimal PATH (missing Homebrew);
+        // fall back to the login shell's PATH and common user bin dirs so an
+        // agent the user can run in a terminal isn't reported as "not installed".
+        entries.extend(user_bin_dirs());
+        entries.extend(login_shell_path_entries());
+    }
     Ok(names
         .iter()
         .map(|name| resolvable_in_dirs(name, &entries, &path_exts))
@@ -503,6 +568,15 @@ mod cli_probe_tests {
 
     fn cleanup(dir: &std::path::Path) {
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn user_bin_dirs_contains_home_local_bin() {
+        let dirs = user_bin_dirs();
+        let home = dirs::home_dir().expect("home dir");
+        assert!(dirs.contains(&home.join(".local").join("bin")));
+        assert!(dirs.contains(&home.join(".npm-global").join("bin")));
     }
 
     #[test]

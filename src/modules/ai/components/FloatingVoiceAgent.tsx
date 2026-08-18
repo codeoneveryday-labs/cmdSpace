@@ -160,10 +160,16 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
       >
         <span className="size-5 shrink-0 overflow-hidden rounded-full" aria-hidden="true">
           <img
+            src="/logo-light.png"
+            alt=""
+            draggable={false}
+            className="size-full rounded-full object-cover dark:hidden"
+          />
+          <img
             src="/logo.png"
             alt=""
             draggable={false}
-            className="size-full rounded-full object-cover"
+            className="hidden size-full rounded-full object-cover invert dark:block"
           />
         </span>
         <span className="flex h-4 shrink-0 items-center gap-0.5" aria-hidden="true">
