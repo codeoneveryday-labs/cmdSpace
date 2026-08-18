@@ -35,7 +35,6 @@ export type EntryRowProps = {
   onOpenFile: (path: string, pin?: boolean) => void;
   onSelectPath: (path: string, extend: boolean) => void;
   onRevealInTerminal?: (path: string) => void;
-  onAttachToAgent?: (path: string) => void;
   onOpenMarkdownPreview?: (path: string) => void;
   dragPaths: string[];
   isDropTarget: boolean;
@@ -62,7 +61,6 @@ function EntryRowImpl(props: EntryRowProps) {
     onOpenFile,
     onSelectPath,
     onRevealInTerminal,
-    onAttachToAgent,
     onOpenMarkdownPreview,
     dragPaths,
     isDropTarget,
@@ -270,6 +268,12 @@ function EntryRowImpl(props: EntryRowProps) {
         >
           New Folder
         </ContextMenuItem>
+        <ContextMenuItem
+          className={COMPACT_ITEM}
+          onSelect={() => tree.beginRename(path)}
+        >
+          Rename
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
           className={COMPACT_ITEM}
@@ -282,13 +286,6 @@ function EntryRowImpl(props: EntryRowProps) {
           onSelect={() => void copyToClipboard(relativePath(rootPath, path))}
         >
           Copy Relative Path
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          className={COMPACT_ITEM}
-          onSelect={() => onAttachToAgent?.(path)}
-        >
-          Attach to Agent
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem

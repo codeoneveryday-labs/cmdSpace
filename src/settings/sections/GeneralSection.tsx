@@ -41,7 +41,7 @@ import type {
   RemotePairedDeviceStatus,
   RemoteTunnelState,
 } from "@/modules/settings/remoteAccess";
-import type { ThemePref } from "@/modules/settings/store";
+import type { TerminalShell, ThemePref } from "@/modules/settings/store";
 import {
   TERMINAL_FONT_SIZES,
   TERMINAL_SCROLLBACK_PRESETS,
@@ -54,6 +54,7 @@ import {
   setTerminalCopyOnSelection,
   setTerminalFontFamily,
   setTerminalLetterSpacing,
+  setTerminalShell,
   setTerminalFontSize,
   setTerminalScrollback,
   setTerminalWebglEnabled,
@@ -62,19 +63,18 @@ import {
 } from "@/modules/settings/store";
 import { useTheme } from "@/modules/theme";
 import {
-  CheckmarkCircle01Icon,
   ComputerIcon,
-  Copy01Icon,
   Moon02Icon,
   Sun03Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { invoke } from "@tauri-apps/api/core";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState } from "react";
-import QRCode from "react-qr-code";
 import { SectionHeader } from "../components/SectionHeader";
 import { SettingRow } from "../components/SettingRow";
+import { RemoteAccessHub } from "./RemoteAccessHub";
 
 const APPEARANCE: {
   id: ThemePref;
@@ -87,14 +87,12 @@ const APPEARANCE: {
 ];
 
 const LETTER_SPACINGS = [-4, -3, -2, -1, 0, 1, 2, 3, 4] as const;
-const REMOTE_TUNNEL_LABELS: Record<RemoteTunnelState, string> = {
-  starting: "Connecting",
-  ready: "Public",
-  degraded: "Reconnecting",
-  error: "LAN only",
-  stopped: "Off",
-};
-
+const TERMINAL_SHELLS: { id: TerminalShell; label: string }[] = [
+  { id: "system", label: "System default" },
+  { id: "zsh", label: "zsh" },
+  { id: "bash", label: "bash" },
+  { id: "fish", label: "fish" },
+];
 function formatRemoteError(error: string) {
   const lower = error.toLowerCase();
   if (lower.includes("command")) {
@@ -138,6 +136,7 @@ export function GeneralSection() {
   );
   const terminalFontSize = usePreferencesStore((s) => s.terminalFontSize);
   const terminalScrollback = usePreferencesStore((s) => s.terminalScrollback);
+  const terminalShell = usePreferencesStore((s) => s.terminalShell);
   const zoomLevel = usePreferencesStore((s) => s.zoomLevel);
   const [excludedFolderNamesDraft, setExcludedFolderNamesDraft] = useState(
     explorerExcludedFolderNames.join(", "),
@@ -154,12 +153,15 @@ export function GeneralSection() {
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const [remoteResetDialogOpen, setRemoteResetDialogOpen] = useState(false);
   const [remoteResetNotice, setRemoteResetNotice] = useState("");
+  const [availableTerminalShells, setAvailableTerminalShells] = useState<
+    TerminalShell[]
+  >(TERMINAL_SHELLS.map((shell) => shell.id));
   const [devicePairing, setDevicePairing] =
     useState<RemoteDevicePairingStatus | null>(null);
   const [pairedDevices, setPairedDevices] = useState<RemotePairedDeviceStatus[]>([]);
   const [devicePairingBusy, setDevicePairingBusy] = useState(false);
   const [copiedRemoteLink, setCopiedRemoteLink] = useState<
-    "public" | "lan" | null
+    "public" | "lan" | "device" | null
   >(null);
   const remoteCopyTimeoutRef = useRef<number>(0);
 
@@ -167,6 +169,12 @@ export function GeneralSection() {
     () => () => window.clearTimeout(remoteCopyTimeoutRef.current),
     [],
   );
+
+  useEffect(() => {
+    void invoke<TerminalShell[]>("pty_available_shells")
+      .then(setAvailableTerminalShells)
+      .catch(() => setAvailableTerminalShells(["system"]));
+  }, []);
 
   useEffect(() => {
     setExcludedFolderNamesDraft(explorerExcludedFolderNames.join(", "));
@@ -197,6 +205,12 @@ export function GeneralSection() {
       console.error("paired device list failed", error);
     });
   }, [remoteEnabledDraft]);
+
+  // A quick tunnel receives a new hostname after a desktop restart. Never leave
+  // a previously rendered native-device QR pointing to that expired hostname.
+  useEffect(() => {
+    setDevicePairing(null);
+  }, [remotePublicUrl]);
 
   const onToggleAutostart = async (next: boolean) => {
     try {
@@ -344,6 +358,9 @@ export function GeneralSection() {
     remotePublicUrl,
     remoteBootstrapSecret,
   );
+  const nativeDevicePairingUrl = devicePairing
+    ? `cmdspace://device-pair?url=${encodeURIComponent(devicePairing.url)}&relay=${encodeURIComponent(devicePairing.relay)}&relayId=${encodeURIComponent(devicePairing.relayId)}&grant=${encodeURIComponent(devicePairing.secret)}`
+    : "";
 
   const refreshPairedDevices = async () => {
     if (!remoteEnabledDraft) return;
@@ -377,7 +394,7 @@ export function GeneralSection() {
     }
   };
 
-  const copyRemoteLink = async (kind: "public" | "lan", value: string) => {
+  const copyRemoteLink = async (kind: "public" | "lan" | "device", value: string) => {
     if (!navigator.clipboard?.writeText) return;
     try {
       await navigator.clipboard.writeText(value);
@@ -502,6 +519,34 @@ export function GeneralSection() {
 
       <div className="flex flex-col gap-2">
         <Label>Terminal</Label>
+        <SettingRow
+          title="Default shell"
+          description="Which shell each new terminal starts with. Running terminals keep their current shell."
+        >
+          <Select
+            value={terminalShell}
+            onValueChange={(value) => void setTerminalShell(value as TerminalShell)}
+          >
+            <SelectTrigger size="sm" className="h-8 w-40 text-[12px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TERMINAL_SHELLS.map((shell) => (
+                <SelectItem
+                  key={shell.id}
+                  value={shell.id}
+                  disabled={!availableTerminalShells.includes(shell.id)}
+                  className="text-[12px]"
+                >
+                  {shell.label}
+                  {!availableTerminalShells.includes(shell.id)
+                    ? " (not installed)"
+                    : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SettingRow>
         <SettingRow
           title={
             <span className="inline-flex items-center gap-1.5">
@@ -631,221 +676,32 @@ export function GeneralSection() {
 
       <div className="flex flex-col gap-2">
         <Label>Network</Label>
-        <SettingRow
-          title="Allow remote access"
-          description="Start cmdSpace's authenticated LAN UI and public tunnel."
-        >
-          <Switch
-            checked={remoteEnabledDraft}
-            disabled={remoteBusy}
-            onCheckedChange={(v) => void onToggleRemoteAccess(v)}
-          />
-        </SettingRow>
         {remoteError ? (
           <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] leading-5 text-destructive">
             {formatRemoteError(remoteError)}
           </p>
         ) : null}
-        <div className="rounded-xl border border-border/60 bg-card/35 p-3 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[12px] font-semibold">Remote access</div>
-              <p className="mt-0.5 text-[10.5px] text-muted-foreground">
-                Scan the QR or open the public link.
-              </p>
-            </div>
-            <span
-              className={cn(
-                "shrink-0 rounded-full border px-2 py-1 text-[10px] font-medium",
-                remoteTunnelState === "ready"
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
-                  : remoteTunnelState === "error"
-                    ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
-                    : "border-border/60 bg-muted/50 text-muted-foreground",
-              )}
-            >
-              {REMOTE_TUNNEL_LABELS[remoteTunnelState]}
-            </span>
-          </div>
-
-          {remoteEnabledDraft ? (
-            remotePublicUrl ? (
-              <div className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] gap-3 rounded-lg border border-border/50 bg-background/70 p-2.5">
-                <div
-                  className="grid size-[112px] place-items-center rounded-lg bg-white p-2 shadow-sm"
-                  aria-label="Scan to connect"
-                >
-                  <QRCode
-                    value={remoteQrUrl}
-                    size={88}
-                    bgColor="#ffffff"
-                    fgColor="#111827"
-                    level="M"
-                  />
-                </div>
-                <div className="min-w-0 py-0.5">
-                  <div className="text-[12px] font-medium text-foreground">
-                    Scan to connect
-                  </div>
-                  <p className="mt-1 text-[10.5px] leading-4 text-muted-foreground">
-                    Set your password on the first connection.
-                  </p>
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void copyRemoteLink("public", remotePublicUrl)}
-                      className="flex h-9 min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-border/50 bg-background px-2.5 text-left font-mono text-[10.5px] text-foreground transition-colors hover:bg-muted/70"
-                      title={copiedRemoteLink === "public" ? "Copied" : "Copy public link"}
-                      aria-label={copiedRemoteLink === "public" ? "Public link copied" : "Copy public link"}
-                    >
-                      <span className="truncate">{remotePublicUrl}</span>
-                      <HugeiconsIcon
-                        icon={copiedRemoteLink === "public" ? CheckmarkCircle01Icon : Copy01Icon}
-                        size={14}
-                        strokeWidth={1.75}
-                        className={cn(
-                          "shrink-0 transition-colors duration-200",
-                          copiedRemoteLink === "public" && "text-emerald-600",
-                        )}
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void openUrl(remotePublicUrl)}
-                      className="h-9 shrink-0 rounded-md border border-border/50 bg-muted/40 px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
-                    >
-                      Open
-                    </button>
-                  </div>
-                  {remoteLanUrl ? (
-                    <button
-                      type="button"
-                      onClick={() => void copyRemoteLink("lan", remoteLanUrl)}
-                      className="mt-2 flex w-full items-center justify-between gap-2 rounded-md px-1 text-left transition-colors hover:text-foreground"
-                      title={copiedRemoteLink === "lan" ? "Copied" : "Copy LAN fallback link"}
-                      aria-label={copiedRemoteLink === "lan" ? "LAN fallback link copied" : "Copy LAN fallback link"}
-                    >
-                      <span className="min-w-0">
-                        <span className="mr-1.5 text-[10px] font-medium text-muted-foreground">
-                          LAN fallback
-                        </span>
-                        <span className="font-mono text-[10px] text-muted-foreground">
-                          {remoteLanUrl}
-                        </span>
-                      </span>
-                      <HugeiconsIcon
-                        icon={copiedRemoteLink === "lan" ? CheckmarkCircle01Icon : Copy01Icon}
-                        size={13}
-                        strokeWidth={1.75}
-                        className={cn(
-                          "shrink-0 text-muted-foreground transition-colors duration-200",
-                          copiedRemoteLink === "lan" && "text-emerald-600",
-                        )}
-                      />
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 rounded-lg border border-border/50 bg-background/55 px-3 py-2.5">
-                <div className="text-[10px] font-medium text-muted-foreground">
-                  Public tunnel
-                </div>
-                <div className="mt-0.5 font-mono text-[11px] text-foreground">
-                  {remoteTunnelState === "starting" ||
-                  remoteTunnelState === "degraded"
-                    ? "Connecting to localhost.run…"
-                    : "Waiting for a public link…"}
-                </div>
-              </div>
-            )
-          ) : (
-            <div className="mt-3 rounded-lg border border-dashed border-border/60 bg-background/45 px-3 py-2.5 text-[10.5px] text-muted-foreground">
-              Enable remote access to generate a QR and public link.
-            </div>
-          )}
-
-          {remoteTunnelError ? (
-            <p className="mt-2 rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-2 text-[10.5px] leading-5 text-amber-700">
-              Public tunnel unavailable. LAN access still works. {remoteTunnelError}
-            </p>
-          ) : null}
-
-          <div className="mt-3 border-t border-border/50 pt-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[12px] font-semibold">Native iPhone / iPad</div>
-                <p className="mt-0.5 text-[10.5px] text-muted-foreground">
-                  Create a one-time pairing QR for the native remote app.
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={!remoteEnabledDraft || devicePairingBusy}
-                onClick={() => void onStartDevicePairing()}
-                className="h-9 rounded-md border border-border/50 bg-background px-3 text-[11px] font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {devicePairingBusy ? "Preparing…" : "Pair device"}
-              </button>
-            </div>
-            {devicePairing ? (
-              <div className="mt-3 grid grid-cols-[112px_minmax(0,1fr)] gap-3 rounded-lg border border-border/50 bg-background/70 p-2.5">
-                <div className="grid size-[112px] place-items-center rounded-lg bg-white p-2 shadow-sm" aria-label="Scan to pair native device">
-                  <QRCode
-                    value={`cmdspace://device-pair?url=${encodeURIComponent(devicePairing.url)}&grant=${encodeURIComponent(devicePairing.secret)}`}
-                    size={88}
-                    bgColor="#ffffff"
-                    fgColor="#111827"
-                    level="M"
-                  />
-                </div>
-                <p className="self-center text-[10.5px] leading-5 text-muted-foreground">
-                  This QR expires in 10 minutes and can be used once. Pairing grants terminal access only to this remote runtime.
-                </p>
-              </div>
-            ) : null}
-            {pairedDevices.length > 0 ? (
-              <ul className="mt-3 divide-y divide-border/50 rounded-lg border border-border/50 bg-background/45">
-                {pairedDevices.map((device) => (
-                  <li key={device.id} className="flex items-center gap-3 px-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] font-medium text-foreground">{device.displayName}</p>
-                      <p className="font-mono text-[10px] text-muted-foreground">{device.id}</p>
-                    </div>
-                    {device.revoked ? (
-                      <span className="text-[10px] text-muted-foreground">Revoked</span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={devicePairingBusy}
-                        onClick={() => void onRevokeDevice(device.id)}
-                        className="h-8 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 text-[10.5px] font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                      >
-                        Revoke
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              disabled={!remoteEnabledDraft || remoteBusy}
-              onClick={() => setRemoteResetDialogOpen(true)}
-              className="h-8 rounded-md border border-destructive/30 bg-destructive/5 px-3 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Reset remote password
-            </button>
-          </div>
-          {remoteResetNotice ? (
-            <p className="mt-2 rounded-md bg-emerald-500/10 px-2.5 py-1.5 text-[10.5px] leading-5 text-emerald-700">
-              {remoteResetNotice}
-            </p>
-          ) : null}
-        </div>
+        <RemoteAccessHub
+          enabled={remoteEnabledDraft}
+          busy={remoteBusy}
+          tunnelState={remoteTunnelState}
+          tunnelError={remoteTunnelError}
+          publicUrl={remotePublicUrl}
+          lanUrl={remoteLanUrl}
+          setupQrUrl={remoteQrUrl}
+          copiedLink={copiedRemoteLink}
+          resetNotice={remoteResetNotice}
+          pairing={devicePairing}
+          pairingUrl={nativeDevicePairingUrl}
+          pairingBusy={devicePairingBusy}
+          devices={pairedDevices}
+          onToggle={(enabled) => void onToggleRemoteAccess(enabled)}
+          onCopy={(kind, value) => void copyRemoteLink(kind, value)}
+          onOpenPublic={() => void openUrl(remotePublicUrl)}
+          onStartPairing={() => void onStartDevicePairing()}
+          onRevokeDevice={(deviceId) => void onRevokeDevice(deviceId)}
+          onResetPassword={() => setRemoteResetDialogOpen(true)}
+        />
       </div>
 
       <AlertDialog open={remoteResetDialogOpen} onOpenChange={setRemoteResetDialogOpen}>

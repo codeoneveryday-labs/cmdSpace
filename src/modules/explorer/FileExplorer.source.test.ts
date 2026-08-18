@@ -10,6 +10,10 @@ const rowSource = readFileSync(
   resolve(process.cwd(), "src/modules/explorer/TreeRow.tsx"),
   "utf8",
 );
+const searchSource = readFileSync(
+  resolve(process.cwd(), "src/modules/explorer/ExplorerSearch.tsx"),
+  "utf8",
+);
 const tauriSource = readFileSync(
   resolve(process.cwd(), "src-tauri/src/lib.rs"),
   "utf8",
@@ -55,6 +59,14 @@ describe("Explorer file transfer integration", () => {
     expect(rowSource).not.toContain("draggable");
     expect(rowSource).toContain("onInternalDragEnd(dragPaths");
     expect(explorerSource).toContain("tree.movePaths(sources, destination)");
+  });
+
+  it("exposes inline rename and removes agent attachment from context menus", () => {
+    expect(rowSource).toContain('onSelect={() => tree.beginRename(path)}');
+    expect(rowSource).toContain(">\n          Rename\n        </ContextMenuItem>");
+    expect(rowSource).not.toContain("Attach to Agent");
+    expect(searchSource).not.toContain("Attach to Agent");
+    expect(explorerSource).not.toContain("onAttachToAgent");
   });
 
   it("copies and pastes the selected Explorer paths with platform shortcuts", () => {

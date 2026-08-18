@@ -22,6 +22,8 @@ export type RemoteDevicePairingStatus = {
   secret: string;
   expiresAt: number;
   url: string;
+  relay: string;
+  relayId: string;
 };
 
 export type RemotePairedDeviceStatus = {

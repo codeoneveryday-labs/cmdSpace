@@ -22,6 +22,9 @@ export type ThemePref = "system" | "light" | "dark";
 
 export type BackgroundKind = "none" | "image";
 
+/** Shell used only when cmdSpace creates a new local terminal. */
+export type TerminalShell = "system" | "zsh" | "bash" | "fish";
+
 export const EDITOR_THEMES = [
   "atomone",
   "aura",
@@ -75,6 +78,7 @@ export type Preferences = {
   terminalLetterSpacing: number;
   terminalFontSize: number;
   terminalScrollback: number;
+  terminalShell: TerminalShell;
   lastWslDistro: string | null;
   zoomLevel: number;
   shortcuts: Record<ShortcutId, KeyBinding[]>;
@@ -110,6 +114,7 @@ const KEY_TERMINAL_FONT_FAMILY = "terminalFontFamily";
 const KEY_TERMINAL_LETTER_SPACING = "terminalLetterSpacing";
 const KEY_TERMINAL_FONT_SIZE = "terminalFontSize";
 const KEY_TERMINAL_SCROLLBACK = "terminalScrollback";
+const KEY_TERMINAL_SHELL = "terminalShell";
 const KEY_LAST_WSL_DISTRO = "lastWslDistro";
 const KEY_ZOOM_LEVEL = "zoomLevel";
 const KEY_SHORTCUTS = "shortcuts";
@@ -122,7 +127,7 @@ export const TERMINAL_FONT_SIZE_MIN = 8;
 export const TERMINAL_FONT_SIZE_MAX = 32;
 
 export const TERMINAL_FONT_SIZES = [
-  10, 12, 13, 14, 15, 16, 18, 20, 22, 24,
+  8, 10, 12, 13, 14, 15, 16, 18, 20, 22, 24,
 ] as const;
 
 export const TERMINAL_SCROLLBACK_DEFAULT = 2000;
@@ -157,6 +162,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   terminalLetterSpacing: 0,
   terminalFontSize: TERMINAL_FONT_SIZE_DEFAULT,
   terminalScrollback: TERMINAL_SCROLLBACK_DEFAULT,
+  terminalShell: "system",
   lastWslDistro: null,
   zoomLevel: 1.0,
   shortcuts: {} as Record<ShortcutId, KeyBinding[]>,
@@ -252,6 +258,9 @@ export async function loadPreferences(): Promise<Preferences> {
     terminalScrollback: clampScrollback(
       get<number>(KEY_TERMINAL_SCROLLBACK) ??
         DEFAULT_PREFERENCES.terminalScrollback,
+    ),
+    terminalShell: normalizeTerminalShell(
+      get<string>(KEY_TERMINAL_SHELL) ?? DEFAULT_PREFERENCES.terminalShell,
     ),
     lastWslDistro:
       get<string | null>(KEY_LAST_WSL_DISTRO) ??
@@ -419,6 +428,16 @@ export async function setTerminalScrollback(value: number): Promise<void> {
   await writePref(KEY_TERMINAL_SCROLLBACK, clampScrollback(value));
 }
 
+function normalizeTerminalShell(value: string): TerminalShell {
+  return value === "zsh" || value === "bash" || value === "fish"
+    ? value
+    : "system";
+}
+
+export async function setTerminalShell(value: TerminalShell): Promise<void> {
+  await writePref(KEY_TERMINAL_SHELL, normalizeTerminalShell(value));
+}
+
 export async function setLastWslDistro(value: string | null): Promise<void> {
   await writePref(KEY_LAST_WSL_DISTRO, value);
 }
@@ -485,6 +504,7 @@ export async function onPreferencesChange(
     [KEY_TERMINAL_LETTER_SPACING]: "terminalLetterSpacing",
     [KEY_TERMINAL_FONT_SIZE]: "terminalFontSize",
     [KEY_TERMINAL_SCROLLBACK]: "terminalScrollback",
+    [KEY_TERMINAL_SHELL]: "terminalShell",
     [KEY_LAST_WSL_DISTRO]: "lastWslDistro",
     [KEY_ZOOM_LEVEL]: "zoomLevel",
     [KEY_SHORTCUTS]: "shortcuts",

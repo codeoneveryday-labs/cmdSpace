@@ -212,7 +212,7 @@ export function WorkspaceSwitcher() {
       className="relative h-screen w-screen overflow-hidden bg-transparent p-3 text-foreground"
       onKeyDown={handleKeyDown}
     >
-      <section className="relative flex h-full flex-col overflow-hidden rounded-[18px] border border-border/80 bg-popover/98 shadow-[0_6px_16px_-8px_rgba(15,23,42,0.38)] supports-backdrop-filter:backdrop-blur-2xl">
+      <section className="tray-panel relative flex h-full flex-col overflow-hidden rounded-[18px] border border-border/80 bg-popover/98 shadow-[0_6px_16px_-8px_rgba(15,23,42,0.38)]">
         <header className="border-b border-border/70 px-4 pb-3 pt-4">
           <h1 className="text-[15px] font-semibold tracking-tight">Workspaces</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">

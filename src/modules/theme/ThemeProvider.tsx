@@ -33,6 +33,7 @@ export type ThemeModePref = ThemePref;
 type ThemeProviderProps = {
   children: React.ReactNode;
   defaultMode?: ThemePref;
+  surfaceLayer?: boolean;
 };
 
 type ThemeProviderState = {
@@ -72,7 +73,11 @@ function resolveTheme(id: string, custom: Theme[]): Theme {
   return custom.find((t) => t.id === id) ?? getBuiltinTheme(id) ?? getDefaultTheme();
 }
 
-export function ThemeProvider({ children, defaultMode = "system" }: ThemeProviderProps) {
+export function ThemeProvider({
+  children,
+  defaultMode = "system",
+  surfaceLayer = true,
+}: ThemeProviderProps) {
   const [mode, setModeState] = useState<ThemePref>(() => readFastMode(defaultMode));
   const [themeId, setThemeIdState] = useState<string>(() => readFastThemeId());
   const [customThemes, setCustomThemes] = useState<Theme[]>([]);
@@ -173,7 +178,7 @@ export function ThemeProvider({ children, defaultMode = "system" }: ThemeProvide
 
   return (
     <ThemeProviderContext.Provider value={value}>
-      <SurfaceLayer />
+      {surfaceLayer ? <SurfaceLayer /> : null}
       {children}
     </ThemeProviderContext.Provider>
   );

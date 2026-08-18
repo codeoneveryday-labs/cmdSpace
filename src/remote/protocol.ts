@@ -3,7 +3,9 @@ export const REMOTE_PROTOCOL_VERSION = 2;
 export type RemoteClientMessage =
   | { type: "auth"; token: string }
   | { type: "listSessions" }
-  | { type: "createSession"; cwd?: string | null }
+  | { type: "listWorkspaces" }
+  | { type: "createSession"; cwd?: string | null; workspaceId?: string | null }
+  | { type: "createWorkspace"; workspaceId: string; name: string; workingFolder: string; terminalCount: number }
   | { type: "attach"; sessionId: number; after: number }
   | { type: "detach"; sessionId: number }
   | { type: "input"; sessionId: number; data: string }
@@ -15,14 +17,23 @@ export type RemoteProtocolSession = {
   id: number;
   title: string;
   cwd: string | null;
+  workspaceId: string | null;
   agent: string | null;
   attached: boolean;
+};
+
+export type RemoteProtocolWorkspace = {
+  id: string;
+  name: string;
+  workingFolder: string;
 };
 
 export type RemoteServerMessage =
   | { type: "hello"; authenticated: boolean; runtimeId: number }
   | { type: "authenticated" }
   | { type: "sessions"; sessions: RemoteProtocolSession[] }
+  | { type: "workspaces"; workspaces: RemoteProtocolWorkspace[] }
+  | { type: "attached"; sessionId: number }
   | { type: "snapshot"; sessionId: number; sequence: number; data: string }
   | { type: "output"; sessionId: number; sequence: number; data: string }
   | { type: "exit"; sessionId: number; code: number | null }

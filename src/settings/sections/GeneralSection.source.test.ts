@@ -4,10 +4,43 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const generalSectionPath = path.join(here, "GeneralSection.tsx");
+const remoteHubPath = path.join(here, "RemoteAccessHub.tsx");
 const remoteAccessPath = path.join(here, "../../modules/settings/remoteAccess.ts");
 const settingsStorePath = path.join(here, "../../modules/settings/store.ts");
 
 describe("GeneralSection terminal settings", () => {
+  it("delegates Remote presentation to the compact access hub", () => {
+    const source = readFileSync(generalSectionPath, "utf8");
+    const hub = readFileSync(remoteHubPath, "utf8");
+
+    expect(source).toContain("<RemoteAccessHub");
+    expect(source).not.toContain("Scan to connect");
+    expect(source).not.toContain("Native iPhone / iPad");
+    expect(source).not.toContain('title="Allow remote access"');
+    expect(hub).toContain("Show QR");
+    expect(hub).toContain("Paired devices");
+    expect(hub).toContain("Advanced");
+  });
+
+  it("offers the supported 8 px terminal text size", () => {
+    const store = readFileSync(settingsStorePath, "utf8");
+
+    expect(store).toContain("export const TERMINAL_FONT_SIZES = [\n  8, 10,");
+  });
+
+  it("persists a shell choice for newly created terminals", () => {
+    const source = readFileSync(generalSectionPath, "utf8");
+    const store = readFileSync(settingsStorePath, "utf8");
+
+    expect(source).toContain('title="Default shell"');
+    expect(source).toContain("setTerminalShell");
+    expect(source).toContain('invoke<TerminalShell[]>("pty_available_shells")');
+    expect(source).toContain('" (not installed)"');
+    expect(source).toContain("Running terminals keep their current shell.");
+    expect(store).toContain('export type TerminalShell = "system" | "zsh" | "bash" | "fish"');
+    expect(store).toContain('const KEY_TERMINAL_SHELL = "terminalShell"');
+  });
+
   it("lets users persist exact folder names excluded from Explorer", () => {
     const source = readFileSync(generalSectionPath, "utf8");
     const store = readFileSync(settingsStorePath, "utf8");
@@ -75,12 +108,13 @@ describe("GeneralSection terminal settings", () => {
 
   it("uses cmdSpace's self-hosted remote UI instead of a project port", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const hub = readFileSync(remoteHubPath, "utf8");
     const remoteSource = readFileSync(remoteAccessPath, "utf8");
 
     expect(remoteSource).toContain("export function remoteAccessStart()");
     expect(source).toContain("remoteAccessStart()");
-    expect(source).toContain("authenticated LAN UI and public tunnel");
-    expect(source).toContain("Enable remote access to generate a QR and public link.");
+    expect(hub).toContain("Public connection");
+    expect(hub).toContain("Turn on Remote access");
     expect(source).not.toContain("Local app source");
     expect(source).not.toContain("frontend dev ports");
     expect(source).not.toContain("setRemoteAccessTargetPort");
@@ -89,9 +123,10 @@ describe("GeneralSection terminal settings", () => {
 
   it("offers a direct remote URL opener", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const hub = readFileSync(remoteHubPath, "utf8");
 
     expect(source).toContain('import { openUrl } from "@tauri-apps/plugin-opener"');
-    expect(source).toContain("Open");
+    expect(hub).toContain("Open");
     expect(source).toContain("openUrl(remotePublicUrl)");
   });
 
@@ -110,23 +145,31 @@ describe("GeneralSection terminal settings", () => {
 
   it("shows localhost.run lifecycle and preserves the LAN fallback URL", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const hub = readFileSync(remoteHubPath, "utf8");
     const remoteSource = readFileSync(remoteAccessPath, "utf8");
 
     expect(remoteSource).toContain("tunnelState: RemoteTunnelState");
     expect(remoteSource).toContain("lanUrl: string");
     expect(remoteSource).toContain("publicUrl?: string");
-    expect(source).toContain("Public tunnel");
-    expect(source).toContain("LAN fallback");
+    expect(hub).toContain("Public connection");
+    expect(hub).toContain("LAN fallback");
     expect(source).toContain("remoteTunnelState");
     expect(source).toContain("remoteTunnelError");
   });
 
-  it("renders an Android-safe setup path with the first-setup bootstrap secret", () => {
+  it("clears a native pairing QR when the public tunnel hostname changes", () => {
     const source = readFileSync(generalSectionPath, "utf8");
 
-    expect(source).toContain('import QRCode from "react-qr-code"');
-    expect(source).toContain("Scan to connect");
-    expect(source).toContain("value={remoteQrUrl}");
+    expect(source).toContain("setDevicePairing(null);\n  }, [remotePublicUrl]);");
+  });
+
+  it("renders an Android-safe setup path with the first-setup bootstrap secret", () => {
+    const source = readFileSync(generalSectionPath, "utf8");
+    const hub = readFileSync(remoteHubPath, "utf8");
+
+    expect(hub).toContain('import QRCode from "react-qr-code"');
+    expect(hub).toContain("Scan to connect");
+    expect(hub).toContain("value={setupQrUrl}");
     expect(source).toContain('url.pathname = `/setup/${encodeURIComponent(bootstrapSecret)}`');
     expect(source).not.toContain("value={remoteBootstrapSecret}");
   });
@@ -147,24 +190,29 @@ describe("GeneralSection terminal settings", () => {
 
   it("uses one compact connection card instead of duplicating public-link copy", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const hub = readFileSync(remoteHubPath, "utf8");
 
-    expect(source).toContain("Remote access");
-    expect(source).toContain("Scan to connect");
+    expect(source).toContain("RemoteAccessHub");
+    expect(hub).toContain("Show QR");
     expect(source).not.toContain("How to connect");
     expect(source).not.toContain("Open the remote URL below from another device.");
   });
 
   it("confirms copied remote links and keeps the reset action visually separate without a divider", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const hub = readFileSync(remoteHubPath, "utf8");
 
     expect(source).toContain('setCopiedRemoteLink] = useState<');
-    expect(source).toContain('"public" | "lan" | null');
+    expect(source).toContain('"public" | "lan" | "device" | null');
     expect(source).toContain("setCopiedRemoteLink(kind)");
-    expect(source).toContain('copiedRemoteLink === "public"');
-    expect(source).toContain('copiedRemoteLink === "lan"');
-    expect(source).toContain("CheckmarkCircle01Icon");
-    expect(source).toContain('title={copiedRemoteLink === "public" ? "Copied" : "Copy public link"}');
-    expect(source).toContain('title={copiedRemoteLink === "lan" ? "Copied" : "Copy LAN fallback link"}');
+    expect(hub).toContain('copiedLink === "public"');
+    expect(hub).toContain('copiedLink === "lan"');
+    expect(hub).toContain("CheckmarkCircle01Icon");
+    expect(hub).toContain('title={copiedLink === "public" ? "Copied" : "Copy public link"}');
+    expect(source).toContain('"public" | "lan" | "device" | null');
+    expect(hub).toContain("Copy pairing link");
+    expect(source).toContain("pairingUrl={nativeDevicePairingUrl}");
+    expect(hub).toContain('copiedLink === "device"');
     expect(source).not.toContain(
       'className="mt-3 flex justify-end border-t border-border/45 pt-3"',
     );

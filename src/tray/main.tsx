@@ -6,6 +6,8 @@ import {
   renderBrowserRuntimeNotice,
 } from "@/lib/tauriRuntime";
 
+document.documentElement.dataset.trayWindow = "true";
+
 if (!hasTauriRuntime()) {
   renderBrowserRuntimeNotice("tray-root");
 } else {
@@ -19,7 +21,7 @@ if (!hasTauriRuntime()) {
   ReactDOM.createRoot(
     document.getElementById("tray-root") as HTMLElement,
   ).render(
-    <ThemeProvider>
+    <ThemeProvider surfaceLayer={false}>
       <WorkspaceSwitcher />
     </ThemeProvider>,
   );
