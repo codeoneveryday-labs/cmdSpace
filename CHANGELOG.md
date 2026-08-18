@@ -3,6 +3,17 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.94] - 2026-08-18
+
+### Fixed
+
+- CLI agents (Claude Code, Codex, Gemini CLI, and others) installed via
+  Homebrew or user bin dirs are now detected as installed in Settings > CLI,
+  instead of being reported "Not installed" because the app process inherits a
+  minimal PATH on macOS.
+- The voice input agent now uses the transparent logo variant in light mode
+  and the inverted logo in dark mode, removing a stray black square.
+
 ## [0.7.91] - 2026-08-18
 
 ### Added
