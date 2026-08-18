@@ -460,7 +460,7 @@ export function WorkspacesPanel({
               <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
             </button>
           </div>
-          <div ref={terminalListRef} className="space-y-1 px-2">
+          <div className="space-y-1 px-2">
             {activeWorkspaceTerminals.map((terminal) => (
               <button
                 key={terminal.leafId}
