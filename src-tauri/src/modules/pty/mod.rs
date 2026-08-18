@@ -414,6 +414,7 @@ pub fn check_agent_clis(
     #[cfg(not(windows))]
     let path_exts: Vec<String> = vec![String::new()];
 
+    #[allow(unused_mut)]
     let mut entries = path_entries();
     #[cfg(unix)]
     {
@@ -423,8 +424,6 @@ pub fn check_agent_clis(
         entries.extend(user_bin_dirs());
         entries.extend(login_shell_path_entries());
     }
-    #[allow(unused_mut)]
-    let entries = entries;
     Ok(names
         .iter()
         .map(|name| resolvable_in_dirs(name, &entries, &path_exts))
