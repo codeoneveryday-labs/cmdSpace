@@ -423,6 +423,8 @@ pub fn check_agent_clis(
         entries.extend(user_bin_dirs());
         entries.extend(login_shell_path_entries());
     }
+    #[allow(unused_mut)]
+    let entries = entries;
     Ok(names
         .iter()
         .map(|name| resolvable_in_dirs(name, &entries, &path_exts))
