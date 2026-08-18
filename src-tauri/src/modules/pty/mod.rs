@@ -332,7 +332,6 @@ fn login_shell_path_entries() -> Vec<std::path::PathBuf> {
     probe().unwrap_or_default()
 }
 
-#[cfg(unix)]
 fn is_executable_file(path: &std::path::Path) -> bool {
     #[cfg(unix)]
     {
