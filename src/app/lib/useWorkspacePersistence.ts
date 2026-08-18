@@ -1,5 +1,5 @@
 import type { ArchitectureDiagram } from "@/modules/tabs";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { PaneNode } from "@/modules/terminal/lib/panes";
 
 import {
@@ -116,18 +116,24 @@ export function createWorkspacePersistence<
 export function useWorkspacePersistence<
   TWorkspace extends WorkspacePersistenceRecord,
 >(dependencies: WorkspacePersistenceDependencies<TWorkspace>) {
-  const handleTerminalPaneTreeChange = useCallback(
-    (tabId: number, paneTree: PaneNode) => {
-      handleTerminalPaneTreeChangeImpl(dependencies, tabId, paneTree);
-    },
-    [dependencies],
-  );
+  // Keep the latest dependencies in a ref so the returned callbacks stay
+  // referentially stable. The caller passes an object literal that is recreated
+  // every render; using it directly in useCallback deps would make the callbacks
+  // new every render, which in turn re-triggers ArchitectureCanvas' diagram
+  // change effect and causes an infinite update loop (Maximum update depth
+  // exceeded) while a canvas workspace is open.
+  const dependenciesRef = useRef(dependencies);
+  dependenciesRef.current = dependencies;
+
+  const handleTerminalPaneTreeChange = useCallback((tabId: number, paneTree: PaneNode) => {
+    handleTerminalPaneTreeChangeImpl(dependenciesRef.current, tabId, paneTree);
+  }, []);
 
   const handleArchitectureDiagramChange = useCallback(
     (tabId: number, diagram: ArchitectureDiagram) => {
-      handleArchitectureDiagramChangeImpl(dependencies, tabId, diagram);
+      handleArchitectureDiagramChangeImpl(dependenciesRef.current, tabId, diagram);
     },
-    [dependencies],
+    [],
   );
 
   return {
