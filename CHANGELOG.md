@@ -3,6 +3,44 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.91] - 2026-08-18
+
+### Added
+
+- Stable cross-network remote terminal access via a Cloudflare Workers relay
+  (`services/cmdspace-relay`): the desktop connects outbound and the iOS device
+  reaches it through the same relay, with per-connection multiplexing.
+- iOS relay pairing, device-scoped mobile workspaces, terminal input modes, and
+  display-text normalization in the native app.
+- A compact Remote Access Hub in settings for tunnel, relay, and device status.
+- A 1024px light-mode logo asset.
+
+### Changed
+
+- Hardened the remote tunnel reconnect/backoff and added device-scoped mobile
+  workspace rows to the desktop SQLite store.
+- Polished the workspace sidebar: the terminals section now renders full-width
+  borders, and explorer tree rows and search were trimmed.
+- Removed stale repository artifacts (`paseo.json`, `.cate/`).
+
+### Known limitations
+
+- The iOS relay path still needs a manual physical-device pass and Apple
+  signing/archive setup before TestFlight upload; terminal rendering on iOS is
+  output-plus-input, not a full ANSI cell-grid emulator.
+
+## [0.7.90] - 2026-08-18
+
+### Added
+
+- Compact remote access hub in the settings window.
+- Terminal collaboration capabilities: drag terminal rows to swap panes and
+  agent-logos preserved in the drag preview.
+
+### Changed
+
+- Restored the compact response loader for agent activity.
+
 ## [0.7.89] - 2026-08-12
 
 ### Added
