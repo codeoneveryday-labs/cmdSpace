@@ -34,6 +34,11 @@ the release version, date, user-visible changes, and known limitations before
 creating the release PR. Keep entries factual and do not describe staged or
 fallback-only integrations as fully supported.
 
+The changelog entry MUST land in the same release commit as the version bump —
+never ship a release that bumps version files without a matching `CHANGELOG.md`
+entry. Follow the `docs/RELEASE_RUNBOOK.md` step that updates the changelog
+before staging and committing.
+
 ## Orientation
 
 - [`COMPREHENSIVE_PLAN.md`](COMPREHENSIVE_PLAN.md) — the map: what the product
