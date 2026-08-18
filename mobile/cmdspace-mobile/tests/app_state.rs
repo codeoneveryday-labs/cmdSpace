@@ -82,6 +82,7 @@ fn remote_screen_keeps_session_metadata_and_terminal_output() {
             id: 7,
             title: "Project terminal".to_owned(),
             cwd: Some("/project".to_owned()),
+            workspace_id: None,
             agent: None,
             attached: true,
         }],

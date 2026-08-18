@@ -6,6 +6,7 @@ fn session(id: u64) -> RemoteProtocolSession {
         id,
         title: format!("Session {id}"),
         cwd: Some("/project".to_owned()),
+        workspace_id: None,
         agent: None,
         attached: id == 7,
     }
