@@ -1810,7 +1810,7 @@ fn send_remote_device_folder_picker_directory(
     let mut entries = std::fs::read_dir(&current_path)
         .map_err(|error| format!("cannot read folder: {error}"))?
         .filter_map(Result::ok)
-        .filter_map(|entry| entry.file_type().ok()?.is_dir().then(|| entry))
+        .filter_map(|entry| entry.file_type().ok()?.is_dir().then_some(entry))
         .filter_map(|entry| {
             let path = authorize_remote_cwd(entry.path().to_str()).ok().flatten()?;
             Some(RemoteProtocolDirectoryEntry {
