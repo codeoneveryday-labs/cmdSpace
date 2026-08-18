@@ -1,0 +1,18 @@
+{
+  "name": "cmdspace-relay",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-14",
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      { "name": "DESKTOP_RELAY", "class_name": "DesktopRelay" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["DesktopRelay"] }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

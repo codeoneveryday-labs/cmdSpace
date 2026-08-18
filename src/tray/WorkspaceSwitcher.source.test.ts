@@ -72,6 +72,27 @@ describe("menu bar workspace switcher wiring", () => {
     expect(source).not.toContain("shadow-2xl shadow-black/25");
   });
 
+  it("isolates the transparent tray window from app background layers", () => {
+    const source = readFileSync(
+      path.join(root, "src/tray/WorkspaceSwitcher.tsx"),
+      "utf8",
+    );
+    const entry = readFileSync(path.join(root, "src/tray/main.tsx"), "utf8");
+    const theme = readFileSync(
+      path.join(root, "src/modules/theme/ThemeProvider.tsx"),
+      "utf8",
+    );
+    const styles = readFileSync(path.join(root, "src/styles/globals.css"), "utf8");
+
+    expect(entry).toContain("document.documentElement.dataset.trayWindow = \"true\"");
+    expect(entry).toContain("<ThemeProvider surfaceLayer={false}>");
+    expect(theme).toContain("surfaceLayer?: boolean");
+    expect(theme).toContain("surfaceLayer = true");
+    expect(source).toContain("tray-panel");
+    expect(styles).toContain('html[data-tray-window] body');
+    expect(styles).toContain(".tray-panel");
+  });
+
   it("hands selection to the existing main-window workspace callback", () => {
     const app = readFileSync(path.join(root, "src/app/App.tsx"), "utf8");
     const tauri = readFileSync(path.join(root, "src-tauri/src/lib.rs"), "utf8");

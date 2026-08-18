@@ -239,6 +239,29 @@ html[data-theme-id="liquid-glass"] [role="button"]:hover {
     transparent 58%
   );
 }
+
+/* The menu-bar switcher is a transparent native window. It must paint only its
+ * floating panel: app backgrounds and Liquid Glass effects would otherwise
+ * become a second rectangular surface behind that panel after a theme change. */
+html[data-tray-window],
+html[data-tray-window] body,
+html[data-tray-window] #tray-root {
+  background: transparent !important;
+}
+html[data-tray-window] #tray-root {
+  display: block;
+  height: 100%;
+}
+html[data-tray-window][data-theme-id="liquid-glass"] .tray-panel {
+  background-color: #f8fdff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 6px 16px -8px rgb(15 23 42 / 0.38);
+}
+html[data-tray-window][data-theme-id="liquid-glass"].dark .tray-panel {
+  background-color: #11233e;
+  box-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.48);
+}
 @media (prefers-reduced-motion: reduce) {
   html[data-theme-id="liquid-glass"] * {
     scroll-behavior: auto !important;

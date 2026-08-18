@@ -164,6 +164,32 @@ fn revoked_device_cannot_complete_a_signed_reconnect_challenge() {
     ));
 }
 
+#[test]
+fn a_revoked_device_can_pair_again_with_a_new_grant() {
+    let mut registry = DeviceRegistry::new_for_test([6_u8; 32]);
+    let (first_grant, first_proof, public_key) =
+        issue_signed_grant(&mut registry, "Boji iPhone", [8_u8; 32]);
+    let device = registry
+        .consume_grant_with_proof(&first_grant, public_key, first_proof, 1_030)
+        .unwrap();
+    registry.revoke(&device.id, 1_040).unwrap();
+
+    let (second_grant, second_proof, _) =
+        issue_signed_grant(&mut registry, "Boji iPhone", [8_u8; 32]);
+    let re_paired = registry
+        .consume_grant_with_proof(&second_grant, public_key, second_proof, 1_050)
+        .unwrap();
+    let signing_key = SigningKey::from_bytes(&[8_u8; 32]);
+
+    assert_eq!(registry.devices().len(), 1);
+    assert!(re_paired.revoked_at.is_none());
+    assert!(registry.verify_device_proof(
+        &re_paired.id,
+        b"fresh-host-challenge",
+        signing_key.sign(b"fresh-host-challenge").to_bytes(),
+    ));
+}
+
 fn issue_signed_grant(
     registry: &mut DeviceRegistry,
     name: &str,

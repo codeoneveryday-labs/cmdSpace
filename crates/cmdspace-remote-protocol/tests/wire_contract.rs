@@ -1,7 +1,9 @@
 use cmdspace_remote_protocol::{
     ClientMessage, DeviceClientMessage, DeviceServerMessage, RemoteClientEnvelope,
-    RemoteDeviceClientEnvelope, RemoteDeviceServerEnvelope, RemoteServerEnvelope, ServerMessage,
+    RemoteDeviceClientEnvelope, RemoteDeviceServerEnvelope, RemoteProtocolWorkspace,
+    RemoteRelayAdmission, RemoteRelayControlMessage, RemoteRelayRole, RemoteServerEnvelope, ServerMessage,
     Utf8StreamDecoder, REMOTE_DEVICE_PROTOCOL_VERSION, REMOTE_PROTOCOL_VERSION,
+    REMOTE_RELAY_PROTOCOL_VERSION,
 };
 
 #[test]
@@ -66,6 +68,42 @@ fn device_pairing_uses_an_independent_v3_envelope() {
 }
 
 #[test]
+fn relay_admission_uses_a_separate_versioned_envelope() {
+    let admission = RemoteRelayAdmission {
+        version: REMOTE_RELAY_PROTOCOL_VERSION,
+        role: RemoteRelayRole::Device,
+        relay_id: "desktop-relay-01".to_owned(),
+        credential: "one-time-admission-token".to_owned(),
+    };
+
+    let json = serde_json::to_value(admission).unwrap();
+
+    assert_eq!(json["version"], REMOTE_RELAY_PROTOCOL_VERSION);
+    assert_eq!(json["role"], "device");
+    assert_eq!(json["relayId"], "desktop-relay-01");
+    assert_eq!(json["credential"], "one-time-admission-token");
+}
+
+#[test]
+fn relay_control_messages_keep_device_frames_multiplexed() {
+    let value = RemoteRelayControlMessage::DeviceFrame {
+        connection_id: "device-1".to_string(),
+        payload: "{\"version\":3}".to_string(),
+    };
+    let json = serde_json::to_value(value).unwrap();
+    assert_eq!(json["type"], "deviceFrame");
+    assert_eq!(json["connectionId"], "device-1");
+    assert_eq!(json["payload"], "{\"version\":3}");
+}
+
+#[test]
+fn relay_heartbeat_uses_a_versioned_control_envelope() {
+    let heartbeat = serde_json::to_value(RemoteRelayControlMessage::Heartbeat).unwrap();
+
+    assert_eq!(heartbeat["type"], "heartbeat");
+}
+
+#[test]
 fn device_protocol_reports_capability_and_ownership_errors_explicitly() {
     let denied = RemoteDeviceServerEnvelope::new(DeviceServerMessage::Error {
         code: "capability_denied".to_owned(),
@@ -109,4 +147,57 @@ fn device_protocol_carries_remote_commands_and_events_inside_v3() {
         serde_json::to_value(event).unwrap()["message"]["event"]["type"],
         "output"
     );
+}
+
+#[test]
+fn device_protocol_acknowledges_terminal_attachment_before_input() {
+    let event = RemoteDeviceServerEnvelope::new(DeviceServerMessage::Event {
+        event: ServerMessage::Attached { session_id: 7 },
+    });
+
+    let json = serde_json::to_value(event).unwrap();
+    assert_eq!(json["message"]["event"]["type"], "attached");
+    assert_eq!(json["message"]["event"]["sessionId"], 7);
+}
+
+#[test]
+fn device_protocol_carries_recent_standard_workspaces() {
+    let command = RemoteDeviceClientEnvelope::new(DeviceClientMessage::Command {
+        command: ClientMessage::ListWorkspaces,
+    });
+    let event = RemoteDeviceServerEnvelope::new(DeviceServerMessage::Event {
+        event: ServerMessage::Workspaces {
+            workspaces: vec![RemoteProtocolWorkspace {
+                id: "zedra".to_owned(),
+                name: "zedra".to_owned(),
+                working_folder: "/Users/boji/projects/zedra".to_owned(),
+            }],
+        },
+    });
+
+    assert_eq!(
+        serde_json::to_value(command).unwrap()["message"]["command"]["type"],
+        "listWorkspaces"
+    );
+    assert_eq!(
+        serde_json::to_value(event).unwrap()["message"]["event"]["workspaces"][0]["workingFolder"],
+        "/Users/boji/projects/zedra"
+    );
+}
+
+#[test]
+fn device_protocol_creates_a_workspace_with_owned_terminals() {
+    let command = RemoteDeviceClientEnvelope::new(DeviceClientMessage::Command {
+        command: ClientMessage::CreateWorkspace {
+            workspace_id: "workspace-mobile-1".to_owned(),
+            name: "snake-game".to_owned(),
+            working_folder: "/Users/boji/dev/app/snake-game".to_owned(),
+            terminal_count: 2,
+        },
+    });
+
+    let json = serde_json::to_value(command).unwrap();
+    assert_eq!(json["message"]["command"]["type"], "createWorkspace");
+    assert_eq!(json["message"]["command"]["workspaceId"], "workspace-mobile-1");
+    assert_eq!(json["message"]["command"]["terminalCount"], 2);
 }

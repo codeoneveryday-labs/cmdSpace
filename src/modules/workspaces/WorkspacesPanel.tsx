@@ -445,8 +445,8 @@ export function WorkspacesPanel({
             </>
           )}
         </nav>
-        <section className="min-h-0 flex-1 overflow-y-auto border-t border-border/60 px-2 py-2">
-          <div className="flex items-center justify-between px-2 pb-1">
+        <section className="min-h-0 flex-1 overflow-y-auto border-t border-b border-border/60 py-2">
+          <div className="flex items-center justify-between border-b border-border/60 px-2 pb-1.5">
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               TERMINALS
             </div>
@@ -460,7 +460,7 @@ export function WorkspacesPanel({
               <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
             </button>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 px-2">
             {activeWorkspaceTerminals.map((terminal) => (
               <button
                 key={terminal.leafId}

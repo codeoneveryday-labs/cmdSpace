@@ -50,15 +50,28 @@ fn fish_init_script() -> &'static str {
 pub fn build_command(
     cwd: Option<String>,
     workspace: WorkspaceEnv,
+    selected_shell: Option<&str>,
 ) -> Result<CommandBuilder, String> {
     #[cfg(unix)]
     {
         let _ = workspace;
-        unix::build(cwd)
+        unix::build(cwd, selected_shell)
     }
     #[cfg(windows)]
     {
+        let _ = selected_shell;
         windows::build(cwd, workspace)
+    }
+}
+
+pub fn available_shells() -> Vec<String> {
+    #[cfg(unix)]
+    {
+        unix::available_shells()
+    }
+    #[cfg(windows)]
+    {
+        vec!["system".to_string()]
     }
 }
 
@@ -126,7 +139,25 @@ mod unix {
     }
 
     impl Shell {
-        pub fn detect() -> (Shell, String) {
+        pub fn detect(selected_shell: Option<&str>) -> Result<(Shell, String), String> {
+            let selected_shell = selected_shell.unwrap_or("system");
+            if selected_shell != "system" {
+                let path = match selected_shell {
+                    "zsh" | "bash" | "fish" => {
+                        resolve_shell_path(selected_shell).ok_or_else(|| {
+                            format!("{selected_shell} is not installed or is not on PATH")
+                        })?
+                    }
+                    _ => return Err(format!("unsupported terminal shell: {selected_shell}")),
+                };
+                let shell = match selected_shell {
+                    "zsh" => Shell::Zsh,
+                    "bash" => Shell::Bash,
+                    "fish" => Shell::Fish,
+                    _ => unreachable!(),
+                };
+                return Ok((shell, path));
+            }
             let path = login_shell()
                 .or_else(|| std::env::var("SHELL").ok())
                 .filter(|s| !s.is_empty())
@@ -138,8 +169,37 @@ mod unix {
                 "fish" => Shell::Fish,
                 _ => Shell::Other,
             };
-            (shell, path)
+            Ok((shell, path))
         }
+    }
+
+    fn find_in_path(name: &str) -> Option<String> {
+        let path = std::env::var_os("PATH")?;
+        std::env::split_paths(&path)
+            .map(|dir| dir.join(name))
+            .find(|candidate| candidate.is_file())
+            .map(|candidate| candidate.to_string_lossy().into_owned())
+    }
+
+    fn resolve_shell_path(name: &str) -> Option<String> {
+        let system_path = match name {
+            "zsh" => Some("/bin/zsh"),
+            "bash" => Some("/bin/bash"),
+            "fish" => None,
+            _ => return None,
+        };
+        system_path
+            .filter(|path| Path::new(path).is_file())
+            .map(str::to_string)
+            .or_else(|| find_in_path(name))
+    }
+
+    pub fn available_shells() -> Vec<String> {
+        ["system", "zsh", "bash", "fish"]
+            .into_iter()
+            .filter(|shell| *shell == "system" || resolve_shell_path(shell).is_some())
+            .map(str::to_string)
+            .collect()
     }
 
     fn login_shell() -> Option<String> {
@@ -158,8 +218,11 @@ mod unix {
         }
     }
 
-    pub fn build(cwd: Option<String>) -> Result<CommandBuilder, String> {
-        let (shell, shell_path) = Shell::detect();
+    pub fn build(
+        cwd: Option<String>,
+        selected_shell: Option<&str>,
+    ) -> Result<CommandBuilder, String> {
+        let (shell, shell_path) = Shell::detect(selected_shell)?;
         let mut cmd = CommandBuilder::new(&shell_path);
         super::apply_common(&mut cmd, cwd);
 

@@ -10,14 +10,18 @@ targets:
       - path: CmdSpaceMobileApp
       - path: ../../public/logo.png
         buildPhase: resources
+      - path: ../../public/logo-light.png
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.tranhoangpich.cmdspace.mobile
         PRODUCT_NAME: cmdSpace
         SWIFT_VERSION: "5.10"
+        TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: cmdSpace
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSCameraUsageDescription: Scan a cmdSpace desktop pairing QR code.
     dependencies:
       - target: CmdSpaceMobileCore

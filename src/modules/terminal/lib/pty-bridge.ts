@@ -1,5 +1,6 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { currentWorkspaceEnv } from "@/modules/workspace";
+import { usePreferencesStore } from "@/modules/settings/preferences";
 
 export type PtyHandlers = {
   onData: (bytes: Uint8Array) => void;
@@ -49,6 +50,7 @@ export async function openPty(
     rows,
     cwd: cwd ?? null,
     initialCommand: initialCommand ?? null,
+    shell: usePreferencesStore.getState().terminalShell,
     workspace: currentWorkspaceEnv(),
     onData,
     onExit,

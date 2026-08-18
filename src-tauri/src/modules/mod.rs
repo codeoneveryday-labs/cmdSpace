@@ -10,6 +10,7 @@ pub mod remote;
 pub mod remote_auth;
 pub mod remote_devices;
 pub mod remote_protocol;
+pub mod remote_relay;
 pub mod remote_tunnel;
 pub mod secrets;
 pub mod shell;
@@ -24,6 +25,9 @@ mod remote_auth_test;
 
 #[cfg(test)]
 mod remote_tunnel_test;
+
+#[cfg(test)]
+mod remote_relay_test;
 
 #[cfg(test)]
 mod agent_usage_test;

@@ -201,7 +201,15 @@ impl DeviceRegistry {
             capability: grant.capability.clone(),
             revoked_at: None,
         };
-        self.devices.push(device.clone());
+        if let Some(existing) = self
+            .devices
+            .iter_mut()
+            .find(|existing| existing.id == device.id)
+        {
+            *existing = device.clone();
+        } else {
+            self.devices.push(device.clone());
+        }
         Ok(device)
     }
 

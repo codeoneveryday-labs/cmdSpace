@@ -3,10 +3,10 @@
 //! The shared remote client handles protocol lifecycle. A future mobile UI
 //! adapter will render this state and own the platform-specific transport.
 
-use std::collections::BTreeMap;
 use cmdspace_remote_client::{ConnectionState, RemoteClient, RemoteClientAction};
+use std::collections::BTreeMap;
 
-use cmdspace_remote_protocol::{RemoteProtocolSession, ServerMessage};
+use cmdspace_remote_protocol::{RemoteProtocolSession, RemoteProtocolWorkspace, ServerMessage};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MobileScreen {
@@ -28,6 +28,7 @@ pub struct CmdSpaceMobileApp {
     endpoint: Option<String>,
     screen: MobileScreen,
     sessions: Vec<RemoteProtocolSession>,
+    workspaces: Vec<RemoteProtocolWorkspace>,
     terminal_output: BTreeMap<u64, String>,
 }
 
@@ -38,6 +39,7 @@ impl CmdSpaceMobileApp {
             endpoint: None,
             screen: MobileScreen::PairDevice,
             sessions: Vec::new(),
+            workspaces: Vec::new(),
             terminal_output: BTreeMap::new(),
         }
     }
@@ -52,6 +54,10 @@ impl CmdSpaceMobileApp {
 
     pub fn sessions(&self) -> &[RemoteProtocolSession] {
         &self.sessions
+    }
+
+    pub fn workspaces(&self) -> &[RemoteProtocolWorkspace] {
+        &self.workspaces
     }
 
     pub fn terminal_text(&self, session_id: u64) -> Option<&str> {
@@ -89,6 +95,10 @@ impl CmdSpaceMobileApp {
         self.with_client(RemoteClient::request_sessions)
     }
 
+    pub fn request_workspaces(&mut self) -> Vec<RemoteClientAction> {
+        self.with_client(RemoteClient::request_workspaces)
+    }
+
     pub fn select_session(&mut self, session_id: Option<u64>) -> Vec<RemoteClientAction> {
         self.with_client(|client| client.select_session(session_id))
     }
@@ -115,6 +125,12 @@ impl CmdSpaceMobileApp {
             .any(|action| matches!(action, RemoteClientAction::SessionsChanged))
         {
             self.sessions = client.sessions().to_vec();
+        }
+        if actions
+            .iter()
+            .any(|action| matches!(action, RemoteClientAction::WorkspacesChanged))
+        {
+            self.workspaces = client.workspaces().to_vec();
         }
         for action in &actions {
             if let RemoteClientAction::TerminalData {

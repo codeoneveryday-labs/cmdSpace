@@ -6,7 +6,9 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use cmdspace_remote_protocol::{ClientMessage, RemoteProtocolSession, ServerMessage};
+use cmdspace_remote_protocol::{
+    ClientMessage, RemoteProtocolSession, RemoteProtocolWorkspace, ServerMessage,
+};
 
 const MAX_PENDING_MESSAGES: usize = 256;
 
@@ -23,6 +25,7 @@ pub enum ConnectionState {
 pub enum RemoteClientAction {
     Send(ClientMessage),
     SessionsChanged,
+    WorkspacesChanged,
     TerminalData {
         session_id: u64,
         sequence: u64,
@@ -48,6 +51,7 @@ pub struct RemoteClient {
     runtime_id: Option<u64>,
     active_session_id: Option<u64>,
     sessions: Vec<RemoteProtocolSession>,
+    workspaces: Vec<RemoteProtocolWorkspace>,
     last_sequences: BTreeMap<u64, u64>,
     pending_messages: VecDeque<ClientMessage>,
     list_requested: bool,
@@ -61,6 +65,7 @@ impl RemoteClient {
             runtime_id: None,
             active_session_id: None,
             sessions: Vec::new(),
+            workspaces: Vec::new(),
             last_sequences: BTreeMap::new(),
             pending_messages: VecDeque::new(),
             list_requested: false,
@@ -73,6 +78,10 @@ impl RemoteClient {
 
     pub fn sessions(&self) -> &[RemoteProtocolSession] {
         &self.sessions
+    }
+
+    pub fn workspaces(&self) -> &[RemoteProtocolWorkspace] {
+        &self.workspaces
     }
 
     pub fn active_session_id(&self) -> Option<u64> {
@@ -119,8 +128,16 @@ impl RemoteClient {
         }
     }
 
-    pub fn create_session(&mut self, cwd: Option<String>) -> Vec<RemoteClientAction> {
-        self.send_or_queue(ClientMessage::CreateSession { cwd })
+    pub fn request_workspaces(&mut self) -> Vec<RemoteClientAction> {
+        self.send_or_queue(ClientMessage::ListWorkspaces)
+    }
+
+    pub fn create_session(
+        &mut self,
+        cwd: Option<String>,
+        workspace_id: Option<String>,
+    ) -> Vec<RemoteClientAction> {
+        self.send_or_queue(ClientMessage::CreateSession { cwd, workspace_id })
     }
 
     pub fn send_input(&mut self, session_id: u64, data: String) -> Vec<RemoteClientAction> {
@@ -148,6 +165,11 @@ impl RemoteClient {
                 self.sessions = sessions;
                 vec![RemoteClientAction::SessionsChanged]
             }
+            ServerMessage::Workspaces { workspaces } => {
+                self.workspaces = workspaces;
+                vec![RemoteClientAction::WorkspacesChanged]
+            }
+            ServerMessage::Attached { .. } => Vec::new(),
             ServerMessage::Snapshot {
                 session_id,
                 sequence,

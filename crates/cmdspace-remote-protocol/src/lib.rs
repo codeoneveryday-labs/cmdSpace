@@ -6,6 +6,39 @@ use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializ
 
 pub const REMOTE_PROTOCOL_VERSION: u16 = 2;
 pub const REMOTE_DEVICE_PROTOCOL_VERSION: u16 = 3;
+pub const REMOTE_RELAY_PROTOCOL_VERSION: u16 = 1;
+
+/// The relay only needs to know which socket role it is admitting. Native
+/// device frames keep their existing v3 envelope once admission succeeds.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RemoteRelayRole {
+    Desktop,
+    Device,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteRelayAdmission {
+    pub version: u16,
+    pub role: RemoteRelayRole,
+    pub relay_id: String,
+    pub credential: String,
+}
+
+/// Control messages used only between the durable relay and its two peers.
+/// Device payloads themselves remain the existing native v3 envelopes.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum RemoteRelayControlMessage {
+    RelayReady { connection_id: Option<String> },
+    Heartbeat,
+    HeartbeatAck,
+    DesktopOffline,
+    DeviceOpen { connection_id: String },
+    DeviceFrame { connection_id: String, payload: String },
+    DeviceClose { connection_id: String },
+}
 
 #[derive(Default)]
 pub struct Utf8StreamDecoder {
@@ -54,8 +87,53 @@ pub enum ClientMessage {
         token: String,
     },
     ListSessions,
+    ListWorkspaces,
+    /// Lists desktop folders eligible to become a mobile workspace directory.
+    ListFolderPickerDirectory {
+        path: Option<String>,
+    },
+    ListDirectory {
+        #[serde(rename = "workspaceId")]
+        workspace_id: String,
+        path: Option<String>,
+    },
+    ReadFile {
+        #[serde(rename = "workspaceId")]
+        workspace_id: String,
+        path: String,
+    },
+    CreateDirectory {
+        #[serde(rename = "workspaceId")]
+        workspace_id: String,
+        path: String,
+        name: String,
+    },
     CreateSession {
         cwd: Option<String>,
+        #[serde(rename = "workspaceId", default)]
+        workspace_id: Option<String>,
+    },
+    CreateWorkspace {
+        #[serde(rename = "workspaceId")]
+        workspace_id: String,
+        name: String,
+        #[serde(rename = "workingFolder")]
+        working_folder: String,
+        #[serde(rename = "terminalCount")]
+        terminal_count: u8,
+    },
+    ListImportableSessions {
+        #[serde(rename = "workspaceId")]
+        workspace_id: String,
+        #[serde(rename = "workspaceOnly")]
+        workspace_only: bool,
+    },
+    ImportSession {
+        #[serde(rename = "workspaceId")]
+        workspace_id: String,
+        provider: String,
+        #[serde(rename = "sessionId")]
+        session_id: String,
     },
     Attach {
         #[serde(rename = "sessionId")]
@@ -95,6 +173,30 @@ pub enum ServerMessage {
     Authenticated,
     Sessions {
         sessions: Vec<RemoteProtocolSession>,
+    },
+    Workspaces {
+        workspaces: Vec<RemoteProtocolWorkspace>,
+    },
+    /// A directory-only projection for the mobile workspace folder picker.
+    FolderPickerDirectory {
+        path: String,
+        parent: Option<String>,
+        entries: Vec<RemoteProtocolDirectoryEntry>,
+    },
+    Directory {
+        path: String,
+        entries: Vec<RemoteProtocolDirectoryEntry>,
+    },
+    FileContent {
+        path: String,
+        content: String,
+    },
+    ImportableSessions {
+        sessions: Vec<RemoteProtocolImportableSession>,
+    },
+    Attached {
+        #[serde(rename = "sessionId")]
+        session_id: u64,
     },
     Snapshot {
         #[serde(rename = "sessionId")]
@@ -177,8 +279,38 @@ pub struct RemoteProtocolSession {
     pub id: u64,
     pub title: String,
     pub cwd: Option<String>,
+    #[serde(rename = "workspaceId")]
+    pub workspace_id: Option<String>,
     pub agent: Option<String>,
     pub attached: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteProtocolWorkspace {
+    pub id: String,
+    pub name: String,
+    pub working_folder: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteProtocolDirectoryEntry {
+    pub name: String,
+    pub path: String,
+    pub is_directory: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteProtocolImportableSession {
+    pub provider: String,
+    pub session_id: String,
+    pub cwd: String,
+    pub title: String,
+    pub preview: Option<String>,
+    pub last_activity_at: u64,
+    pub active: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
