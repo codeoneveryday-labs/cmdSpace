@@ -3,6 +3,13 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.95] - 2026-08-18
+
+### Fixed
+
+- Restored the Windows build broken in v0.7.94: `is_executable_file` is now
+  compiled on every platform again.
+
 ## [0.7.94] - 2026-08-18
 
 ### Fixed
