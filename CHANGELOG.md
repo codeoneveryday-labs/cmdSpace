@@ -3,6 +3,14 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.96] - 2026-08-18
+
+### Fixed
+
+- Windows clippy failure in CI: `#[allow(unused_mut)]` now sits on the
+  `let mut entries` binding in `check_agent_clis`, so the Windows check job
+  passes again.
+
 ## [0.7.95] - 2026-08-18
 
 ### Fixed
