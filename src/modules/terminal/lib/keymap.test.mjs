@@ -66,3 +66,56 @@ describe("terminalWordNavigationSequence", () => {
     ).toBe(null);
   });
 });
+
+describe("terminalLineBoundarySequence", () => {
+  it("maps Cmd+Shift+Left to readline beginning-of-line", () => {
+    const terminalLineBoundarySequence = loadKeymapFunction(
+      "terminalLineBoundarySequence",
+    );
+
+    expect(
+      terminalLineBoundarySequence({
+        altKey: false,
+        ctrlKey: false,
+        metaKey: true,
+        shiftKey: true,
+        key: "ArrowLeft",
+        code: "ArrowLeft",
+      }),
+    ).toBe("\x01");
+  });
+
+  it("maps Cmd+Shift+Right to readline end-of-line", () => {
+    const terminalLineBoundarySequence = loadKeymapFunction(
+      "terminalLineBoundarySequence",
+    );
+
+    expect(
+      terminalLineBoundarySequence({
+        altKey: false,
+        ctrlKey: false,
+        metaKey: true,
+        shiftKey: true,
+        key: "ArrowRight",
+        code: "ArrowRight",
+      }),
+    ).toBe("\x05");
+  });
+
+  it("leaves Cmd+Arrow without Shift for pane navigation", () => {
+    const terminalLineBoundarySequence = loadKeymapFunction(
+      "terminalLineBoundarySequence",
+    );
+
+    expect(
+      terminalLineBoundarySequence({
+        altKey: false,
+        ctrlKey: false,
+        metaKey: true,
+        shiftKey: false,
+        key: "ArrowLeft",
+        code: "ArrowLeft",
+      }),
+    ).toBe(null);
+  });
+});
