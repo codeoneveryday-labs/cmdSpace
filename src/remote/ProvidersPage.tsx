@@ -6,6 +6,9 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useState } from "react";
 
+import { BrandIcon } from "@/components/BrandIcon";
+import { getAgentBrandIcon } from "@/components/brandIcons";
+import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import { remoteApiPath } from "./lib/remoteUtils";
 
 type ProviderEntry = {
@@ -21,27 +24,6 @@ type ProviderEntry = {
 type ProvidersPageProps = {
   authToken: string;
   onBack: () => void;
-};
-
-const PROVIDER_ICONS: Record<string, string> = {
-  claude: "#d97757",
-  codex: "#10a37f",
-  gemini: "#4285f4",
-  opencode: "#58a6ff",
-  copilot: "#8b5cf6",
-  cursor: "#000000",
-  aider: "#f59e0b",
-  pi: "#e11d48",
-  amp: "#16a34a",
-  cline: "#7c3aed",
-  goose: "#22c55e",
-  qwen: "#64748b",
-  kimi: "#0ea5e9",
-  openhands: "#ef4444",
-  kiro: "#f97316",
-  grok: "#facc15",
-  herdr: "#06b6d4",
-  cmd: "#888888",
 };
 
 export function ProvidersPage({ authToken, onBack }: ProvidersPageProps) {
@@ -118,9 +100,8 @@ export function ProvidersPage({ authToken, onBack }: ProvidersPageProps) {
                   <span className="remote-provider-chevron">›</span>
                   <span
                     className="remote-provider-icon"
-                    style={{ color: PROVIDER_ICONS[provider.id] ?? "#ff8a00" }}
                   >
-                    <HugeiconsIcon icon={TerminalIcon} size={18} />
+                    <ProviderLogo id={provider.id} />
                   </span>
                   <span className="remote-provider-info">
                     <span className="remote-provider-name-row">
@@ -166,9 +147,8 @@ export function ProvidersPage({ authToken, onBack }: ProvidersPageProps) {
                   <span className="remote-provider-chevron">›</span>
                   <span
                     className="remote-provider-icon"
-                    style={{ color: PROVIDER_ICONS[provider.id] ?? "#ff8a00" }}
                   >
-                    <HugeiconsIcon icon={TerminalIcon} size={18} />
+                    <ProviderLogo id={provider.id} />
                   </span>
                   <span className="remote-provider-info">
                     <strong>{provider.name}</strong>
@@ -199,6 +179,19 @@ export function ProvidersPage({ authToken, onBack }: ProvidersPageProps) {
         </>
       )}
     </main>
+  );
+}
+
+function ProviderLogo({ id }: { id: string }) {
+  const icon = getAgentBrandIcon(id as CliAgent);
+  return icon ? (
+    <BrandIcon
+      name={icon}
+      size={20}
+      className="remote-provider-brand-icon"
+    />
+  ) : (
+    <HugeiconsIcon icon={TerminalIcon} size={18} />
   );
 }
 
