@@ -3547,7 +3547,7 @@ fn remote_state_response() -> Result<RemoteResponse, String> {
 fn machine_hostname() -> String {
     #[cfg(target_os = "windows")]
     {
-        return std::env::var("COMPUTERNAME").unwrap_or_default();
+        std::env::var("COMPUTERNAME").unwrap_or_default()
     }
 
     #[cfg(not(target_os = "windows"))]
