@@ -40,6 +40,8 @@ describe("FloatingTerminalOverlay", () => {
     expect(source).toContain("TerminalAgentSwitcher");
     expect(switcherSource).toContain("AgentCliIcon");
     expect(switcherSource).toContain("getEnabledCliAgentDefinitions");
+    expect(switcherSource).toContain("max-h-[min(70vh,28rem)]");
+    expect(switcherSource).toContain("overflow-y-auto");
     expect(source).toContain(
       "agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}",
     );

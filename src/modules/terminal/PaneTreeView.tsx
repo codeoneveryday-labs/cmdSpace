@@ -686,7 +686,7 @@ export function FloatingTerminalOverlay({
       } catch (error) {
         // Usage telemetry is strictly optional; a terminal must never fail because
         // a local transcript is unavailable or mid-write.
-        console.debug("Agent usage snapshot unavailable:", error);
+        void error;
       }
     };
 
