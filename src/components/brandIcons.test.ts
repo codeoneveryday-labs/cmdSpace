@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { BrandIcon } from "./BrandIcon";
 import {
   BRAND_ICON_ASSETS,
-  BRAND_ICON_IMAGE_ASSETS,
   BRAND_ICON_SOURCE_URLS,
   getAgentBrandIcon,
   getProviderBrandIcon,
@@ -35,10 +34,6 @@ describe("brand icon catalog", () => {
     expect(getAgentBrandIcon("grok")).toBe("grok");
     expect(getAgentBrandIcon("herdr")).toBe("herdr");
     expect(getAgentBrandIcon("cmd")).toBe("cmd");
-    expect(getAgentBrandIcon("openhands")).toBe("openhands");
-    expect(getAgentBrandIcon("hermes")).toBe("hermes");
-    expect(getAgentBrandIcon("kiro")).toBe("kiro");
-    expect(getAgentBrandIcon("devin")).toBe("devin");
     expect(getAgentBrandIcon("aider")).toBeNull();
   });
 
@@ -61,49 +56,6 @@ describe("brand icon catalog", () => {
     expect(BRAND_ICON_ASSETS.opencode).toContain('viewBox="96 64 288 384"');
     expect(BRAND_ICON_ASSETS.pi).toContain('viewBox="100 100 600 600"');
     expect(BRAND_ICON_ASSETS.pi).toContain('d="M165.29 165.29');
-  });
-
-  it("bundles Paseo artwork for the expanded marketplace agents", () => {
-    const marketplaceAgents = [
-      "agoragentic",
-      "auggie",
-      "autohand",
-      "codebuddy",
-      "codewhale",
-      "cortex",
-      "corust",
-      "crow",
-      "deepagents",
-      "dimcode",
-      "dirac",
-      "factory-droid",
-      "fast-agent",
-      "glm",
-      "junie",
-      "kilo",
-      "minion",
-      "mistral-vibe",
-      "nova",
-      "poolside",
-      "qoder",
-      "sigit",
-      "stakpak",
-      "trae",
-      "vt-code",
-    ] as const;
-
-    for (const agent of marketplaceAgents) {
-      const icon = getAgentBrandIcon(agent);
-      expect(icon).not.toBeNull();
-      expect(BRAND_ICON_ASSETS[icon as keyof typeof BRAND_ICON_ASSETS]).toContain(
-        "<svg",
-      );
-    }
-  });
-
-  it("uses official image assets where the source publishes raster artwork", () => {
-    expect(BRAND_ICON_IMAGE_ASSETS.hermes).toContain("hermes");
-    expect(BRAND_ICON_IMAGE_ASSETS.devin).toContain("devin");
   });
 
   it("uses Command Code's official upstream symbol", () => {

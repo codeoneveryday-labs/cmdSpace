@@ -4,8 +4,6 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const sourcePath = path.join(here, "RemoteApp.tsx");
-const passwordScreenPath = path.join(here, "RemotePasswordScreen.tsx");
-const folderPickerPath = path.join(here, "RemoteFolderPicker.tsx");
 const stylesPath = path.join(here, "remote.css");
 const remoteHtmlPath = path.join(here, "../../remote.html");
 
@@ -50,15 +48,6 @@ describe("RemoteApp transport", () => {
     expect(source).not.toContain("onPointerDown={trigger}");
   });
 
-  it("allows fast repeats of distinct shortcuts while blocking duplicate spam", () => {
-    const source = readFileSync(sourcePath, "utf8");
-
-    expect(source).toContain("lastSentRef");
-    expect(source).toContain("lastSent.value === value");
-    expect(source).toContain("now - lastSent.at < 150");
-    expect(source).not.toContain("lastPressedRef");
-  });
-
   it("uses the system keyboard without redundant remote controls", () => {
     const source = readFileSync(sourcePath, "utf8");
 
@@ -78,25 +67,24 @@ describe("RemoteApp transport", () => {
 
   it("offers password setup or login without a temporary-code screen", () => {
     const source = readFileSync(sourcePath, "utf8");
-    const passwordScreen = readFileSync(passwordScreenPath, "utf8");
 
     expect(source).toContain("RemotePasswordScreen");
     expect(source).toContain("cmdspace.remote.token");
-    expect(passwordScreen).toContain("/api/remote/auth/status");
-    expect(passwordScreen).toContain("/api/remote/auth/setup");
-    expect(passwordScreen).toContain("/api/remote/auth/login");
-    expect(passwordScreen).toContain("Confirm password");
+    expect(source).toContain("/api/remote/auth/status");
+    expect(source).toContain("/api/remote/auth/setup");
+    expect(source).toContain("/api/remote/auth/login");
+    expect(source).toContain("Confirm password");
     expect(source).not.toContain("RemotePairingScreen");
-    expect(passwordScreen).not.toContain("Pairing code");
+    expect(source).not.toContain("Pairing code");
   });
 
   it("uses the cmdSpace mark and keeps password forms inside a mobile viewport", () => {
-    const passwordScreen = readFileSync(passwordScreenPath, "utf8");
+    const source = readFileSync(sourcePath, "utf8");
     const styles = readFileSync(stylesPath, "utf8");
 
-    expect(passwordScreen).toContain('src="/logo.png"');
-    expect(passwordScreen).toContain('alt="cmdSpace"');
-    expect(passwordScreen).not.toContain("AiNetworkIcon");
+    expect(source).toContain('src="/logo.png"');
+    expect(source).toContain('alt="cmdSpace"');
+    expect(source).not.toContain("AiNetworkIcon");
     expect(styles).toContain(".remote-auth-card {");
     expect(styles).toContain("box-sizing: border-box;");
     expect(styles).toContain(".remote-auth-logo");
@@ -106,88 +94,62 @@ describe("RemoteApp transport", () => {
 
   it("does not add a browser voice-input control when the system keyboard provides dictation", () => {
     const source = readFileSync(sourcePath, "utf8");
-    const passwordScreen = readFileSync(passwordScreenPath, "utf8");
-    const combined = `${source}\n${passwordScreen}`;
 
-    expect(combined).not.toContain("webkitSpeechRecognition");
-    expect(combined).not.toContain("SpeechRecognition");
-    expect(combined).not.toContain("Mic01Icon");
-    expect(combined).not.toContain("toggleVoiceInput");
-    expect(combined).not.toContain("remote-voice-error");
+    expect(source).not.toContain("webkitSpeechRecognition");
+    expect(source).not.toContain("SpeechRecognition");
+    expect(source).not.toContain("Mic01Icon");
+    expect(source).not.toContain("toggleVoiceInput");
+    expect(source).not.toContain("remote-voice-error");
   });
 
   it("accepts Android-safe setup paths and scrubs the one-time secret", () => {
-    const passwordScreen = readFileSync(passwordScreenPath, "utf8");
-
-    expect(passwordScreen).toContain('url.pathname.match(/^\\/setup\\/([^/]+)');
-    expect(passwordScreen).toContain("decodeURIComponent");
-    expect(passwordScreen).toContain('url.searchParams.get("bootstrap")');
-    expect(passwordScreen).toContain('hashParams.get("bootstrap")');
-    expect(passwordScreen).toContain('url.searchParams.delete("bootstrap")');
-    expect(passwordScreen).toContain('url.pathname = "/"');
-    expect(passwordScreen).toContain("window.history.replaceState");
-  });
-
-  it("shows a launcher home before folder selection", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("RemoteHomeScreen");
-    expect(source).toContain("onAddProject");
-    expect(source).toContain("onImportSession");
-    expect(source).toContain("onSetupProviders");
-    expect(source).toContain("setShowAddProject(true)");
-    expect(source).toContain("setShowImportSession(true)");
-    expect(source).toContain("setShowProviders(true)");
-  });
-
-  it("opens an add-project dialog with machine hostname before folder browsing", () => {
-    const source = readFileSync(sourcePath, "utf8");
-
-    expect(source).toContain("AddProjectDialog");
-    expect(source).toContain('fetch("/api/remote/state"');
-    expect(source).toContain("state.hostname");
-    expect(source).toContain("onSearchDirectory");
+    expect(source).toContain('url.pathname.match(/^\\/setup\\/([^/]+)');
+    expect(source).toContain("decodeURIComponent");
+    expect(source).toContain('url.searchParams.get("bootstrap")');
+    expect(source).toContain('hashParams.get("bootstrap")');
+    expect(source).toContain('url.searchParams.delete("bootstrap")');
+    expect(source).toContain('url.pathname = "/"');
+    expect(source).toContain("window.history.replaceState");
   });
 
   it("requires file or folder selection after authentication and before terminal creation", () => {
     const source = readFileSync(sourcePath, "utf8");
-    const folderPicker = readFileSync(folderPickerPath, "utf8");
 
     expect(source).toContain("RemoteFolderPicker");
-    expect(folderPicker).toContain("files: RemoteFile[]");
-    expect(folderPicker).toContain('className="remote-folder-picker"');
-    expect(folderPicker).toContain('className="remote-folder-picker-scroll"');
-    expect(folderPicker).toContain("Open current folder");
-    expect(folderPicker).not.toContain("Choose a file or folder");
-    expect(folderPicker).not.toContain("mx-auto mb-5 grid size-20");
-    expect(folderPicker).toContain("load(folder.path)");
-    expect(folderPicker).toContain("onSelect(file.parent)");
+    expect(source).toContain("files: RemoteFile[]");
+    expect(source).toContain('className="remote-folder-picker"');
+    expect(source).toContain('className="remote-folder-picker-scroll"');
+    expect(source).toContain("Open current folder");
+    expect(source).not.toContain("Choose a file or folder");
+    expect(source).not.toContain("mx-auto mb-5 grid size-20");
+    expect(source).toContain("load(folder.path)");
+    expect(source).toContain("onSelect(file.parent)");
     expect(source).toContain(
       'window.localStorage.removeItem("cmdspace.remote.cwd")',
     );
-    expect(folderPicker).toContain("new AbortController()");
-    expect(folderPicker).toContain("signal: request.signal");
+    expect(source).toContain("new AbortController()");
+    expect(source).toContain("signal: request.signal");
     expect(source.indexOf("RemoteFolderPicker")).toBeLessThan(
       source.indexOf("RemoteSessionGrid"),
     );
   });
 
   it("filters locally and caches folder responses for low-latency navigation", () => {
-    const folderPicker = readFileSync(folderPickerPath, "utf8");
-
-    expect(folderPicker).toContain("remote-folder-search");
-    expect(folderPicker).toContain("folderCacheRef");
-    expect(folderPicker).toContain("folderCacheRef.current.get(path)");
-    expect(folderPicker).toContain("filteredFolders");
-    expect(folderPicker).toContain("filteredFiles");
-  });
-
-  it("retries a dropped terminal-create request a bounded number of times", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("REMOTE_CREATE_RETRY_MAX_ATTEMPTS");
-    expect(source).toContain("REMOTE_CREATE_RETRY_INTERVAL_MS");
-    expect(source).toContain("window.clearInterval(retry)");
+    expect(source).toContain("remote-folder-search");
+    expect(source).toContain("folderCacheRef");
+    expect(source).toContain("folderCacheRef.current.get(path)");
+    expect(source).toContain("filteredFolders");
+    expect(source).toContain("filteredFiles");
+  });
+
+  it("retries a dropped terminal-create request without creating duplicate sessions", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("window.setInterval(() => client.createSession(remoteCwd), 1_500)");
     expect(source).not.toContain("createRequestedFor");
   });
 

@@ -1,8 +1,8 @@
-const DEFAULT_BYTE_CAP = 8 * 1024 * 1024;
-const DEFAULT_CHUNK_CAP = 4096;
+const DEFAULT_BYTE_CAP = 256 * 1024;
+const DEFAULT_CHUNK_CAP = 256;
 
 const OVERFLOW_NOTICE = new TextEncoder().encode(
-  "\x1bc\x1b[2m[cmdspace: terminal output exceeded the retained buffer while this tab was inactive; earlier output was dropped]\x1b[0m\r\n",
+  "\x1bc\x1b[2m[cmdspace: dropped output during hibernation]\x1b[0m\r\n",
 );
 
 export class DormantRing {

@@ -63,17 +63,6 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     expect(terminalPaneSource).toContain('pointerEvents: visible ? "auto" : "none"');
   });
 
-  it("rebinds visible leaves when the window returns from hibernation", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
-
-    expect(source).toContain("function ensureWakeRebindListener(): void");
-    expect(source).toContain('document.addEventListener("visibilitychange"');
-    expect(source).toContain('document.visibilityState === "visible"');
-    expect(source).toContain('window.addEventListener("focus", rebindVisibleLeaves)');
-    expect(source).toContain("!s.visibleNow || s.hasSlot || !s.container");
-    expect(source).toContain("bindLeafToSlot(leafId, s)");
-  });
-
   it("keeps canvas terminals on their direct PTY path instead of the pane session lifecycle", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
     const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");

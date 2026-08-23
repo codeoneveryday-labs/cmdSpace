@@ -91,30 +91,6 @@ const OUTPUT_ACTIVITY_QUIET_MS = 900;
 
 ensureAgentActivityListener();
 
-/**
- * Rebind visible leaves after the window comes back from sleep/hibernation.
- * macOS freezes the webview while the machine sleeps; when timers resume, a
- * leaf that lost its slot (pool eviction, hydration reset, or a layout pass
- * that never ran) would otherwise keep streaming into the dormant ring and
- * overflow it. Re-acquiring the slot on visibility restore keeps output
- * flowing into xterm instead of the ring.
- */
-function ensureWakeRebindListener(): void {
-  if (typeof document === "undefined" || typeof window === "undefined") return;
-  const rebindVisibleLeaves = () => {
-    for (const [leafId, s] of sessions) {
-      if (s.disposed || !s.visibleNow || s.hasSlot || !s.container) continue;
-      bindLeafToSlot(leafId, s);
-    }
-  };
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") rebindVisibleLeaves();
-  });
-  window.addEventListener("focus", rebindVisibleLeaves);
-}
-
-ensureWakeRebindListener();
-
 function markAgentResponding(
   leafId: number,
   s: Session,

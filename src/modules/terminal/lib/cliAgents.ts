@@ -17,33 +17,6 @@ export const CLI_AGENT_IDS = [
   "grok",
   "herdr",
   "cmd",
-  "agoragentic",
-  "auggie",
-  "autohand",
-  "codebuddy",
-  "codewhale",
-  "cortex",
-  "corust",
-  "crow",
-  "deepagents",
-  "devin",
-  "dimcode",
-  "dirac",
-  "factory-droid",
-  "fast-agent",
-  "glm",
-  "hermes",
-  "junie",
-  "kilo",
-  "minion",
-  "mistral-vibe",
-  "nova",
-  "poolside",
-  "qoder",
-  "sigit",
-  "stakpak",
-  "trae",
-  "vt-code",
 ] as const;
 
 export type CliAgent = (typeof CLI_AGENT_IDS)[number];
@@ -150,106 +123,6 @@ const CLI_AGENT_CATALOG_META: Record<
     description: "Command Code agent running directly in the terminal.",
     installUrl: "https://github.com/CommandCodeAI/command-code",
   },
-  agoragentic: {
-    description: "Marketplace for AI capabilities and agent services.",
-    installUrl: "https://agoragentic.ai",
-  },
-  auggie: {
-    description: "Augment Code's context-aware software engineering agent.",
-    installUrl: "https://docs.augmentcode.com/cli",
-  },
-  autohand: {
-    description: "AI coding agent powered by Autohand AI.",
-    installUrl: "https://autohand.ai",
-  },
-  codebuddy: {
-    description: "Tencent Cloud's intelligent coding assistant.",
-    installUrl: "https://www.codebuddy.ai",
-  },
-  codewhale: {
-    description: "Terminal coding agent for DeepSeek and open models.",
-  },
-  cortex: {
-    description: "Snowflake Cortex Code agent for software development.",
-    installUrl: "https://docs.snowflake.com/en/user-guide/cortex-code",
-  },
-  corust: {
-    description: "Rust-focused co-building agent for terminal workflows.",
-  },
-  crow: {
-    description: "Minimal ACP-native coding agent for terminal development.",
-  },
-  deepagents: {
-    description: "General-purpose coding agent powered by LangChain.",
-    installUrl: "https://docs.langchain.com/oss/python/deepagents/overview",
-  },
-  devin: {
-    description: "Devin's terminal coding agent via Agent Client Protocol.",
-    installUrl: "https://devin.ai",
-  },
-  dimcode: {
-    description: "Coding agent that puts leading models at your command.",
-  },
-  dirac: {
-    description: "Open-source coding agent optimized for fast parallel edits.",
-  },
-  "factory-droid": {
-    description: "Factory Droid software engineering agent.",
-    installUrl: "https://docs.factory.ai/cli",
-  },
-  "fast-agent": {
-    description: "Multi-provider framework for building and running agents.",
-    installUrl: "https://github.com/evalstate/fast-agent",
-  },
-  glm: {
-    description: "Zhipu GLM coding agent with streaming and tool calls.",
-    installUrl: "https://docs.z.ai/guides/coding-plan/overview",
-  },
-  hermes: {
-    description: "Nous Research self-improving AI agent.",
-    installUrl: "https://github.com/NousResearch/hermes-agent",
-  },
-  junie: {
-    description: "JetBrains AI coding agent for software projects.",
-    installUrl: "https://www.jetbrains.com/junie/",
-  },
-  kilo: {
-    description: "Open-source coding agent for terminal development.",
-    installUrl: "https://kilo.ai/docs",
-  },
-  minion: {
-    description: "AI code assistant with rich development tools.",
-  },
-  "mistral-vibe": {
-    description: "Mistral's open-source coding assistant.",
-    installUrl: "https://github.com/mistralai/mistral-vibe",
-  },
-  nova: {
-    description: "Compass AI software engineering agent.",
-  },
-  poolside: {
-    description: "Poolside's coding agent for software development.",
-    installUrl: "https://poolside.ai",
-  },
-  qoder: {
-    description: "AI coding assistant with agentic development capabilities.",
-    installUrl: "https://qoder.com",
-  },
-  sigit: {
-    description: "Local-first coding agent with optional on-device inference.",
-  },
-  stakpak: {
-    description: "Open-source DevOps agent written in Rust.",
-    installUrl: "https://stakpak.dev",
-  },
-  trae: {
-    description: "ByteDance TRAE coding agent with native ACP support.",
-    installUrl: "https://www.trae.ai",
-  },
-  "vt-code": {
-    description: "Open-source coding agent with LLM-native code understanding.",
-    installUrl: "https://github.com/vinhnx/vtcode",
-  },
 };
 
 const kimiLaunch =
@@ -294,33 +167,6 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: grokLaunch, launchPolicy: "standard", bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
   { id: "herdr", name: "Herdr", executable: "herdr", command: "herdr", launch: "herdr", launchPolicy: "standard", bannerPatterns: [/\bherdr\b/i] },
   { id: "cmd", name: "Command Code", executable: "cmd", command: commandCodeLaunch, launch: commandCodeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bcommand code\b/i] },
-  { id: "agoragentic", name: "Agoragentic", executable: "agoragentic", command: "agoragentic", launch: "agoragentic", launchPolicy: "standard", bannerPatterns: [/\bagoragentic\b/i] },
-  { id: "auggie", name: "Auggie CLI", executable: "auggie", command: "auggie", launch: "auggie", launchPolicy: "standard", bannerPatterns: [/\bauggie(?: cli)?\b/i] },
-  { id: "autohand", name: "Autohand Code", executable: "autohand", command: "autohand", launch: "autohand", launchPolicy: "standard", bannerPatterns: [/\bautohand(?: code)?\b/i] },
-  { id: "codebuddy", name: "Codebuddy Code", executable: "codebuddy", command: "codebuddy", launch: "codebuddy", launchPolicy: "standard", bannerPatterns: [/\bcodebuddy(?: code)?\b/i] },
-  { id: "codewhale", name: "CodeWhale", executable: "codewhale", command: "codewhale", launch: "codewhale", launchPolicy: "standard", bannerPatterns: [/\bcodewhale\b/i] },
-  { id: "cortex", name: "Cortex Code", executable: "cortex", command: "cortex", launch: "cortex", launchPolicy: "standard", bannerPatterns: [/\bcortex code\b/i] },
-  { id: "corust", name: "Corust Agent", executable: "corust", command: "corust", launch: "corust", launchPolicy: "standard", bannerPatterns: [/\bcorust(?: agent)?\b/i] },
-  { id: "crow", name: "crow-cli", executable: "crow", command: "crow", launch: "crow", launchPolicy: "standard", bannerPatterns: [/\bcrow(?:-cli)?\b/i] },
-  { id: "deepagents", name: "DeepAgents", executable: "deepagents", command: "deepagents", launch: "deepagents", launchPolicy: "standard", bannerPatterns: [/\bdeepagents\b/i] },
-  { id: "devin", name: "Devin CLI", executable: "devin", command: "devin", launch: "devin", launchPolicy: "standard", bannerPatterns: [/\bdevin(?: cli)?\b/i] },
-  { id: "dimcode", name: "DimCode", executable: "dimcode", command: "dimcode", launch: "dimcode", launchPolicy: "standard", bannerPatterns: [/\bdimcode\b/i] },
-  { id: "dirac", name: "Dirac", executable: "dirac", command: "dirac", launch: "dirac", launchPolicy: "standard", bannerPatterns: [/\bdirac\b/i] },
-  { id: "factory-droid", name: "Factory Droid", executable: "droid", command: "droid", launch: "droid", launchPolicy: "standard", bannerPatterns: [/\bfactory droid\b/i] },
-  { id: "fast-agent", name: "fast-agent", executable: "fast-agent", command: "fast-agent", launch: "fast-agent", launchPolicy: "standard", bannerPatterns: [/\bfast-agent\b/i] },
-  { id: "glm", name: "GLM Agent", executable: "glm", command: "glm", launch: "glm", launchPolicy: "standard", bannerPatterns: [/\bglm agent\b/i] },
-  { id: "hermes", name: "Hermes", executable: "hermes", command: "hermes", launch: "hermes", launchPolicy: "standard", bannerPatterns: [/\bhermes\b/i] },
-  { id: "junie", name: "Junie", executable: "junie", command: "junie", launch: "junie", launchPolicy: "standard", bannerPatterns: [/\bjunie\b/i] },
-  { id: "kilo", name: "Kilo", executable: "kilo", command: "kilo", launch: "kilo", launchPolicy: "standard", bannerPatterns: [/\bkilo\b/i] },
-  { id: "minion", name: "Minion Code", executable: "minion", command: "minion", launch: "minion", launchPolicy: "standard", bannerPatterns: [/\bminion(?: code)?\b/i] },
-  { id: "mistral-vibe", name: "Mistral Vibe", executable: "vibe", command: "vibe", launch: "vibe", launchPolicy: "standard", bannerPatterns: [/\bmistral vibe\b/i] },
-  { id: "nova", name: "Nova", executable: "nova", command: "nova", launch: "nova", launchPolicy: "standard", bannerPatterns: [/\bnova\b/i] },
-  { id: "poolside", name: "Poolside", executable: "poolside", command: "poolside", launch: "poolside", launchPolicy: "standard", bannerPatterns: [/\bpoolside\b/i] },
-  { id: "qoder", name: "Qoder CLI", executable: "qoder", command: "qoder", launch: "qoder", launchPolicy: "standard", bannerPatterns: [/\bqoder(?: cli)?\b/i] },
-  { id: "sigit", name: "siGit Code", executable: "sigit", command: "sigit", launch: "sigit", launchPolicy: "standard", bannerPatterns: [/\bsigit code\b/i] },
-  { id: "stakpak", name: "Stakpak", executable: "stakpak", command: "stakpak", launch: "stakpak", launchPolicy: "standard", bannerPatterns: [/\bstakpak\b/i] },
-  { id: "trae", name: "TRAE CLI", executable: "trae", command: "trae", launch: "trae", launchPolicy: "standard", bannerPatterns: [/\btrae(?: cli)?\b/i] },
-  { id: "vt-code", name: "VT Code", executable: "vt", command: "vt", launch: "vt", launchPolicy: "standard", bannerPatterns: [/\bvt code\b/i] },
 ];
 
 export const CLI_AGENT_BY_ID = Object.fromEntries(

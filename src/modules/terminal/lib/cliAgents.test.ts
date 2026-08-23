@@ -32,33 +32,6 @@ describe("CLI agent registry", () => {
       grok: "grok",
       herdr: "herdr",
       cmd: "cmd --dangerously-skip-permissions",
-      agoragentic: "agoragentic",
-      auggie: "auggie",
-      autohand: "autohand",
-      codebuddy: "codebuddy",
-      codewhale: "codewhale",
-      cortex: "cortex",
-      corust: "corust",
-      crow: "crow",
-      deepagents: "deepagents",
-      devin: "devin",
-      dimcode: "dimcode",
-      dirac: "dirac",
-      "factory-droid": "droid",
-      "fast-agent": "fast-agent",
-      glm: "glm",
-      hermes: "hermes",
-      junie: "junie",
-      kilo: "kilo",
-      minion: "minion",
-      "mistral-vibe": "vibe",
-      nova: "nova",
-      poolside: "poolside",
-      qoder: "qoder",
-      sigit: "sigit",
-      stakpak: "stakpak",
-      trae: "trae",
-      "vt-code": "vt",
     } as const;
 
     expect(CLI_AGENT_DEFINITIONS.map(({ id }) => id)).toEqual(
@@ -111,16 +84,6 @@ describe("CLI agent registry", () => {
       "opencode",
       "pi",
     ]);
-  });
-
-  it("keeps newly added marketplace agents opt-in", () => {
-    expect(CLI_AGENT_DEFINITIONS).toHaveLength(45);
-    expect(DEFAULT_CONFIGURED_CLI_AGENT_IDS).toHaveLength(6);
-    expect(
-      CLI_AGENT_DEFINITIONS.filter(
-        ({ id }) => !DEFAULT_CONFIGURED_CLI_AGENT_IDS.includes(id),
-      ),
-    ).toHaveLength(39);
   });
 
   it("makes unattended launch behavior an explicit catalog policy", () => {

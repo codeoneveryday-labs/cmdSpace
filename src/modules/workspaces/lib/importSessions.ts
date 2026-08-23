@@ -1,7 +1,4 @@
-import {
-  CLI_AGENT_BY_ID,
-  type CliAgent,
-} from "@/modules/terminal/lib/cliAgents";
+import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 
 export type AgentSessionProvider = CliAgent;
 
@@ -61,11 +58,6 @@ export function buildSessionResumeCommand(
       return `herdr session attach ${id}`;
     case "cmd":
       return `cmd --session ${id}`;
-    default:
-      // Marketplace agents do not share one resume API. Keep imported
-      // sessions usable with a conservative conventional fallback until an
-      // agent-specific resume command is known.
-      return `${CLI_AGENT_BY_ID[provider].executable} --resume ${id}`;
   }
 }
 

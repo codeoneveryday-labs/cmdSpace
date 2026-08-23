@@ -9,10 +9,7 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
-import {
-  terminalLineBoundarySequence,
-  terminalWordNavigationSequence,
-} from "./keymap";
+import { terminalWordNavigationSequence } from "./keymap";
 import {
   createMacCompositionCommitFilter,
   IS_MAC_TEXT_INPUT_PLATFORM,
@@ -212,18 +209,7 @@ function createSlot(): Slot {
       return true;
     }
 
-    const lineBoundary = terminalLineBoundarySequence(event);
-    if (lineBoundary) {
-      const leafId = slot.currentLeafId;
-      if (leafId === null) return false;
-      const bridge = adapter?.resolveLeaf(leafId);
-      if (!bridge) return true;
-      event.preventDefault();
-      if (event.type === "keydown") bridge.writeToPty(lineBoundary);
-      return false;
-    }
-
-    // Keep Command + Arrows without Shift available for global pane navigation.
+    // Let Command + Arrows and Option + Command + Arrows bubble up to the global shortcut listener
     if (event.metaKey && event.key.startsWith("Arrow")) {
       return false;
     }
@@ -236,11 +222,6 @@ function createSlot(): Slot {
     if (wordNavigation) {
       event.preventDefault();
       if (event.type === "keydown") bridge.writeToPty(wordNavigation);
-      return false;
-    }
-    if (isClearTerminalInput(event)) {
-      event.preventDefault();
-      if (event.type === "keydown") bridge.writeToPty("\x15\x0b");
       return false;
     }
     if (isCtrlBackspace(event)) {
@@ -958,22 +939,6 @@ function isTerminalCopy(e: KeyboardEvent): boolean {
     !e.altKey &&
     !e.metaKey &&
     (e.code === "KeyC" || e.key === "c" || e.key === "C")
-  );
-}
-
-/** Cmd+Shift+Delete clears both sides of the terminal cursor. Ctrl+U removes
- * the prefix and Ctrl+K removes the suffix, so the whole draft is cleared. */
-function isClearTerminalInput(event: KeyboardEvent): boolean {
-  return (
-    IS_MAC &&
-    event.metaKey &&
-    event.shiftKey &&
-    !event.ctrlKey &&
-    !event.altKey &&
-    (event.key === "Backspace" ||
-      event.code === "Backspace" ||
-      event.key === "Delete" ||
-      event.code === "Delete")
   );
 }
 
