@@ -40,6 +40,9 @@ describe("WorkspacesPanel", () => {
     const agentCliIconSource = readFileSync(agentCliIconPath, "utf8");
 
     expect(panelSource).toContain("WORKSPACES");
+    expect(panelSource).toContain("TerminalAgentSwitcher");
+    expect(panelSource).toContain("handleCreateTerminal(command ?? undefined)");
+    expect(appSource).toContain("Failed to persist created workspace terminal");
     expect(panelSource).toContain("Set up your workspace");
     expect(panelSource).toContain("Workspace mode");
     expect(panelSource).toContain("Standard workspace");
