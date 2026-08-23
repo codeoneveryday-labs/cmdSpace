@@ -20,6 +20,7 @@ export type ShortcutId =
   | "pane.focusNext"
   | "pane.focusPrev"
   | "pane.maximize"
+  | "pane.close"
   | "pane.source"
   | "search.focus"
   | "explorer.search"
@@ -157,6 +158,12 @@ export const SHORTCUTS: Shortcut[] = [
     label: "Maximize active pane",
     group: "Panes",
     defaultBindings: [{ [MOD_PROP]: true, shift: true, key: ">" }],
+  },
+  {
+    id: "pane.close",
+    label: "Close active terminal",
+    group: "Panes",
+    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "w" }],
   },
   {
     id: "pane.source",

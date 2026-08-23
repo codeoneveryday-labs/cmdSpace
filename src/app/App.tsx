@@ -1963,6 +1963,9 @@ export default function App() {
       "pane.focusNext": () => focusNextPaneInTab(activeId, 1),
       "pane.focusPrev": () => focusNextPaneInTab(activeId, -1),
       "pane.maximize": maximizeActivePane,
+      "pane.close": () => {
+        if (activeTab?.kind === "terminal") closeActivePane(activeId);
+      },
       "pane.source": toggleSourceControl,
       "search.focus": () => searchInlineRef.current?.focus(),
       "terminal.bottom": toggleBottomTerminal,
@@ -1998,6 +2001,7 @@ export default function App() {
       splitActivePaneInActiveTab,
       focusNextPaneInTab,
       maximizeActivePane,
+      closeActivePane,
       toggleMaximizePane,
       toggleSourceControl,
       toggleBottomTerminal,
@@ -2019,6 +2023,7 @@ export default function App() {
         if (explorerRef.current?.isFocused()) return true;
         return activeTab?.kind !== "editor";
       }
+      if (id === "pane.close") return activeTab?.kind !== "terminal";
       if (id === "tab.newGitGraph") {
         return !sourceControl.hasRepo;
       }
@@ -2233,9 +2238,60 @@ export default function App() {
     [activeTerminalTab, focusPane],
   );
 
-  const handleCreateWorkspaceTerminal = useCallback(() => {
-    openNewTab();
-  }, [openNewTab]);
+  const handleCreateWorkspaceTerminal = useCallback(
+    (initialCommand = "") => {
+      const workspace = workspacesRef.current.find(
+        (item) => item.id === activeWorkspaceId,
+      );
+      if (!workspace || workspace.tabId === null) return false;
+
+      const workspaceTab = tabsRef.current.find(
+        (item) => item.id === workspace.tabId,
+      );
+      if (workspaceTab?.kind !== "terminal") return false;
+
+      const appended = appendTerminalPane(
+        workspace.tabId,
+        workspace.workingFolder ?? workspaceTab.cwd,
+        initialCommand,
+      );
+      if (!appended) {
+        return false;
+      }
+
+      const updated: WorkspaceRecord = {
+        ...workspace,
+        count: leafIds(appended.paneTree).length,
+        paneLayout: JSON.stringify(appended.paneTree),
+        updatedAt: Date.now(),
+      };
+      setWorkspaces((current) =>
+        current.map((item) => (item.id === workspace.id ? updated : item)),
+      );
+      saveRecentWorkspace(updated);
+
+      const leafOrder = leafIds(appended.paneTree);
+      void Promise.all([
+        invoke("db_save_workspace", { workspace: updated }),
+        ...leafOrder.map((leafId, paneIndex) =>
+          invoke("db_save_pane", {
+            pane: {
+              workspaceId: workspace.id,
+              paneIndex,
+              workingFolder:
+                findLeafCwd(appended.paneTree, leafId) ?? workspace.workingFolder,
+              lastCommand: findLeafLastCommand(appended.paneTree, leafId) ?? null,
+              autoLaunch: findLeafAutoLaunch(appended.paneTree, leafId),
+            },
+          }),
+        ),
+      ]).catch((error) => {
+        console.error("Failed to persist created workspace terminal:", error);
+      });
+      return true;
+    },
+    [activeWorkspaceId, appendTerminalPane, saveRecentWorkspace],
+  );
 
   const handleLeafExit = useCallback(
     (leafId: number, _code: number) => {

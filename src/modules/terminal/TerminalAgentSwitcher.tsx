@@ -9,6 +9,7 @@ import {
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { ComputerTerminal02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import type { ReactNode } from "react";
 import { AgentCliIcon } from "./AgentCliIcon";
 import {
   CLI_AGENT_BY_ID,
@@ -19,6 +20,8 @@ import {
 type Props = {
   currentAgent: CliAgent | null;
   onSelect: (agent: CliAgent | null, command: string | null) => void;
+  trigger?: ReactNode;
+  allowSameSelection?: boolean;
 };
 
 export function resolveAgentSwitchCommand(
@@ -30,7 +33,12 @@ export function resolveAgentSwitchCommand(
   return overrides[agent]?.trim() || definition.launch || definition.command;
 }
 
-export function TerminalAgentSwitcher({ currentAgent, onSelect }: Props) {
+export function TerminalAgentSwitcher({
+  currentAgent,
+  onSelect,
+  trigger,
+  allowSameSelection = false,
+}: Props) {
   const configuredIds = usePreferencesStore((state) => state.cliAgentIds);
   const disabledIds = usePreferencesStore(
     (state) => state.disabledCliAgentIds,
@@ -49,31 +57,33 @@ export function TerminalAgentSwitcher({ currentAgent, onSelect }: Props) {
 
   const selectAgent = (value: string) => {
     const agent = value === "terminal" ? null : (value as CliAgent);
-    if (agent === currentAgent) return;
+    if (agent === currentAgent && !allowSameSelection) return;
     onSelect(agent, resolveAgentSwitchCommand(agent, commandOverrides));
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-          className="grid size-6 shrink-0 place-items-center rounded-md text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:hover:bg-zinc-800"
-          aria-label={`Switch coding agent. Current: ${currentLabel}`}
-          title={`Switch coding agent · ${currentLabel}`}
-        >
-          {currentAgent ? (
-            <AgentCliIcon agent={currentAgent} />
-          ) : (
-            <HugeiconsIcon
-              icon={ComputerTerminal02Icon}
-              size={14}
-              strokeWidth={1.8}
-            />
-          )}
-        </button>
+        {trigger ?? (
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            className="grid size-6 shrink-0 place-items-center rounded-md text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 dark:hover:bg-zinc-800"
+            aria-label={`Switch coding agent. Current: ${currentLabel}`}
+            title={`Switch coding agent · ${currentLabel}`}
+          >
+            {currentAgent ? (
+              <AgentCliIcon agent={currentAgent} />
+            ) : (
+              <HugeiconsIcon
+                icon={ComputerTerminal02Icon}
+                size={14}
+                strokeWidth={1.8}
+              />
+            )}
+          </button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"

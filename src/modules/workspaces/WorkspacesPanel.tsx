@@ -35,6 +35,7 @@ import {
   type CliAgent,
 } from "@/modules/terminal/lib/cliAgents";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
+import { TerminalAgentSwitcher } from "@/modules/terminal/TerminalAgentSwitcher";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAgentLaunchCommands } from "@/modules/settings/store";
 import {
@@ -152,7 +153,7 @@ type Props = {
   activeWorkspaceTerminals: WorkspaceTerminalItem[];
   onSelectTerminal: (leafId: number) => void;
   onSwapTerminals: (sourceId: number, targetId: number) => void;
-  onCreateTerminal: () => void;
+  onCreateTerminal: (initialCommand?: string) => boolean;
   compact?: boolean;
   workspaces: WorkspaceItem[];
   onSelectWorkspace: (workspaceId: string) => void;
@@ -185,6 +186,7 @@ export function WorkspacesPanel({
   onReorderWorkspaces,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [createNotice, setCreateNotice] = useState<string | null>(null);
   const terminalListRef = useRef<HTMLDivElement>(null);
   const terminalDragRef = useRef<{
     sourceId: number;
@@ -198,6 +200,18 @@ export function WorkspacesPanel({
     dragging: boolean;
     targetId: number | null;
   } | null>(null);
+  const handleCreateTerminal = useCallback(
+    (initialCommand?: string) => {
+      const created = onCreateTerminal(initialCommand);
+      setCreateNotice(
+        created
+          ? null
+          : "Workspace terminal limit reached. Close a terminal before adding another.",
+      );
+      return created;
+    },
+    [onCreateTerminal],
+  );
   const [terminalDragVisual, setTerminalDragVisual] = useState<{
     sourceId: number;
     targetId: number | null;
@@ -571,16 +585,34 @@ export function WorkspacesPanel({
             <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               TERMINALS
             </div>
-            <button
-              type="button"
-              onClick={onCreateTerminal}
-              className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Create terminal in workspace"
-              title="Create terminal in workspace"
-            >
-              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
-            </button>
+            <TerminalAgentSwitcher
+              currentAgent={null}
+              allowSameSelection
+              onSelect={(_agent, command) =>
+                handleCreateTerminal(command ?? undefined)
+              }
+              trigger={
+                <button
+                  type="button"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Create terminal in workspace"
+                  title="Create terminal in workspace"
+                >
+                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
+                </button>
+              }
+            />
           </div>
+          {createNotice ? (
+            <div
+              role="alert"
+              className="border-b border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300"
+            >
+              {createNotice}
+            </div>
+          ) : null}
           <div ref={terminalListRef} className="space-y-1 px-2">
             {activeWorkspaceTerminals.map((terminal) => (
               <button
