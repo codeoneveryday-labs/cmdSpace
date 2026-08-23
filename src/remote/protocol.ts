@@ -40,11 +40,22 @@ export type RemoteProtocolWorkspace = {
   workingFolder: string;
 };
 
+export type RemoteProtocolProvider = {
+  id: string;
+  name: string;
+  executable: string;
+  description: string;
+  installUrl: string | null;
+  configured: boolean;
+  enabled: boolean;
+};
+
 export type RemoteServerMessage =
   | { type: "hello"; authenticated: boolean; runtimeId: number }
   | { type: "authenticated" }
   | { type: "sessions"; sessions: RemoteProtocolSession[] }
   | { type: "workspaces"; workspaces: RemoteProtocolWorkspace[] }
+  | { type: "providersSnapshot"; providers: RemoteProtocolProvider[] }
   | { type: "importableSessions"; sessions: RemoteProtocolImportableSession[] }
   | { type: "attached"; sessionId: number }
   | { type: "snapshot"; sessionId: number; sequence: number; data: string }

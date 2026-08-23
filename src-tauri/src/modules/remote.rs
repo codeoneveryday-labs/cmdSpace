@@ -9,6 +9,7 @@ use super::remote_protocol::{
     RemoteDeviceClientEnvelope, RemoteDeviceServerEnvelope, RemoteProtocolDirectoryEntry,
     RemoteProtocolImportableSession, RemoteProtocolSession, RemoteProtocolWorkspace,
     RemoteServerEnvelope, ServerMessage, Utf8StreamDecoder,
+    RemoteProtocolProvider,
 };
 use super::remote_relay::{
     identity_path as remote_relay_identity_path, RemoteRelay, RemoteRelayIdentity,
@@ -214,8 +215,19 @@ fn remote_configured_agent_ids() -> (Vec<String>, Vec<String>) {
 }
 
 fn remote_providers_response() -> Result<RemoteResponse, String> {
+    let providers = remote_provider_entries();
+    let body = serde_json::to_vec(&RemoteProvidersPayload { providers })
+        .map_err(|e| format!("remote providers serialization failed: {e}"))?;
+    Ok(RemoteResponse {
+        status: "200 OK",
+        content_type: "application/json; charset=utf-8",
+        body,
+    })
+}
+
+fn remote_provider_entries() -> Vec<RemoteProviderEntry> {
     let (configured, disabled) = remote_configured_agent_ids();
-    let providers = REMOTE_CLI_AGENT_CATALOG
+    REMOTE_CLI_AGENT_CATALOG
         .iter()
         .map(|(id, name, executable, description, install_url)| RemoteProviderEntry {
             id: id.to_string(),
@@ -227,14 +239,23 @@ fn remote_providers_response() -> Result<RemoteResponse, String> {
             enabled: configured.iter().any(|candidate| candidate == id)
                 && !disabled.iter().any(|candidate| candidate == id),
         })
-        .collect::<Vec<_>>();
-    let body = serde_json::to_vec(&RemoteProvidersPayload { providers })
-        .map_err(|e| format!("remote providers serialization failed: {e}"))?;
-    Ok(RemoteResponse {
-        status: "200 OK",
-        content_type: "application/json; charset=utf-8",
-        body,
-    })
+        .collect()
+}
+
+fn send_remote_providers(socket: &mut WebSocket<TcpStream>) -> Result<(), String> {
+    let providers = remote_provider_entries()
+        .into_iter()
+        .map(|provider| RemoteProtocolProvider {
+            id: provider.id,
+            name: provider.name,
+            executable: provider.executable,
+            description: provider.description,
+            install_url: provider.install_url,
+            configured: provider.configured,
+            enabled: provider.enabled,
+        })
+        .collect();
+    send_remote_websocket_message(socket, ServerMessage::ProvidersSnapshot { providers })
 }
 
 #[derive(Clone, Serialize)]
@@ -1227,10 +1248,11 @@ fn handle_remote_websocket(
                             };
                             authenticated_generation =
                                 Some(authenticate_remote_websocket(&auth, client_ip, &token)?);
-                            return send_remote_websocket_message(
+                            send_remote_websocket_message(
                                 &mut socket,
                                 ServerMessage::Authenticated,
-                            );
+                            )?;
+                            return send_remote_providers(&mut socket);
                         }
                         handle_remote_websocket_message(
                             &mut socket,
@@ -2497,7 +2519,10 @@ fn handle_remote_websocket_message(
             }
             Ok(())
         }
-        ClientMessage::Ping => send_remote_websocket_message(socket, ServerMessage::Pong),
+        ClientMessage::Ping => {
+            send_remote_websocket_message(socket, ServerMessage::Pong)?;
+            send_remote_providers(socket)
+        }
     }
 }
 

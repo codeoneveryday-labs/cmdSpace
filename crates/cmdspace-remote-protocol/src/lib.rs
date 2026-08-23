@@ -177,6 +177,9 @@ pub enum ServerMessage {
     Workspaces {
         workspaces: Vec<RemoteProtocolWorkspace>,
     },
+    ProvidersSnapshot {
+        providers: Vec<RemoteProtocolProvider>,
+    },
     /// A directory-only projection for the mobile workspace folder picker.
     FolderPickerDirectory {
         path: String,
@@ -291,6 +294,18 @@ pub struct RemoteProtocolWorkspace {
     pub id: String,
     pub name: String,
     pub working_folder: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteProtocolProvider {
+    pub id: String,
+    pub name: String,
+    pub executable: String,
+    pub description: String,
+    pub install_url: Option<String>,
+    pub configured: bool,
+    pub enabled: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]

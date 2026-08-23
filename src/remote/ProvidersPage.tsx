@@ -10,6 +10,7 @@ import { BrandIcon } from "@/components/BrandIcon";
 import { getAgentBrandIcon } from "@/components/brandIcons";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import { remoteApiPath } from "./lib/remoteUtils";
+import type { RemoteTerminalClient } from "./remoteClient";
 
 type ProviderEntry = {
   id: string;
@@ -23,10 +24,11 @@ type ProviderEntry = {
 
 type ProvidersPageProps = {
   authToken: string;
+  client: RemoteTerminalClient | null;
   onBack: () => void;
 };
 
-export function ProvidersPage({ authToken, onBack }: ProvidersPageProps) {
+export function ProvidersPage({ authToken, client, onBack }: ProvidersPageProps) {
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,16 @@ export function ProvidersPage({ authToken, onBack }: ProvidersPageProps) {
       cancelled = true;
     };
   }, [authToken]);
+
+  useEffect(() => {
+    if (!client) return;
+    const unsubscribe = client.subscribeMessages((message) => {
+      if (message.type === "providersSnapshot") setProviders(message.providers);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [client]);
 
   const configured = useMemo(
     () => providers.filter((provider) => provider.configured),
