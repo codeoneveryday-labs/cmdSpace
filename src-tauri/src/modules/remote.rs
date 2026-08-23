@@ -3545,15 +3545,23 @@ fn remote_state_response() -> Result<RemoteResponse, String> {
 }
 
 fn machine_hostname() -> String {
-    let mut buf = [0u8; 256];
-    // SAFETY: buf is a valid writable buffer of 256 bytes; gethostname never
-    // writes past it and returns a NUL-terminated name on success.
-    let result = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
-    if result != 0 {
-        return String::new();
+    #[cfg(target_os = "windows")]
+    {
+        return std::env::var("COMPUTERNAME").unwrap_or_default();
     }
-    let end = buf.iter().position(|&byte| byte == 0).unwrap_or(buf.len());
-    String::from_utf8_lossy(&buf[..end]).trim_end_matches('.').to_string()
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut buf = [0u8; 256];
+        // SAFETY: buf is a valid writable buffer of 256 bytes; gethostname never
+        // writes past it and returns a NUL-terminated name on success.
+        let result = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
+        if result != 0 {
+            return String::new();
+        }
+        let end = buf.iter().position(|&byte| byte == 0).unwrap_or(buf.len());
+        String::from_utf8_lossy(&buf[..end]).trim_end_matches('.').to_string()
+    }
 }
 
 fn remote_json_error_response(error: &str) -> RemoteResponse {
