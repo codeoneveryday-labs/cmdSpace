@@ -174,6 +174,29 @@ describe("rendererPool WebGL stability", () => {
     expect(canvasSource).toContain("sessionRef.current?.write(normalized)");
   });
 
+  it("clears the entire prompt with Cmd+Shift+Delete", () => {
+    const source = readFileSync(rendererPoolPath, "utf8");
+
+    expect(source).toContain("function isClearTerminalInput");
+    expect(source).toContain("event.metaKey");
+    expect(source).toContain("event.shiftKey");
+    expect(source).toContain('bridge.writeToPty("\\x15\\x0b")');
+    expect(source.indexOf("isClearTerminalInput(event)")).toBeLessThan(
+      source.indexOf("isCtrlBackspace(event)"),
+    );
+  });
+
+  it("moves to line boundaries before Cmd+Arrow pane navigation", () => {
+    const source = readFileSync(rendererPoolPath, "utf8");
+
+    expect(source).toContain("terminalLineBoundarySequence");
+    expect(source).toContain("const lineBoundary = terminalLineBoundarySequence(event)");
+    expect(source).toContain("bridge.writeToPty(lineBoundary)");
+    expect(source.indexOf("terminalLineBoundarySequence(event)")).toBeLessThan(
+      source.indexOf('event.metaKey && event.key.startsWith("Arrow")'),
+    );
+  });
+
   it("filters a duplicate xterm commit only during composition finalization", () => {
     const rendererSource = readFileSync(rendererPoolPath, "utf8");
     const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");

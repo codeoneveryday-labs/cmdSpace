@@ -1,79 +1,23 @@
-import {
-  ArrowRight01Icon,
-  File01Icon,
-  Folder01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AddProjectDialog } from "./AddProjectDialog";
+import { ImportSessionSheet } from "./ImportSessionSheet";
+import { ProvidersPage } from "./ProvidersPage";
+import { RemoteFolderPicker } from "./RemoteFolderPicker";
+import { RemoteHomeScreen } from "./RemoteHomeScreen";
+import { RemotePasswordScreen } from "./RemotePasswordScreen";
+import { RemoteSessionGrid } from "./RemoteSessionGrid";
 import { RemoteTerminal } from "./RemoteTerminal";
 import {
   RemoteTerminalClient,
   type RemoteProtocolSession,
 } from "./remoteClient";
+import { remoteFolderName } from "./lib/remoteUtils";
 
 const REMOTE_TOKEN_STORAGE_KEY = "cmdspace.remote.token";
 const REMOTE_CWD_STORAGE_KEY = "cmdspace.remote.cwd";
-
-type RemoteFolder = {
-  name: string;
-  path: string;
-};
-
-type RemoteFile = {
-  name: string;
-  path: string;
-  parent: string;
-};
-
-type RemoteFolderState = {
-  current: string;
-  parent?: string | null;
-  folders: RemoteFolder[];
-  files: RemoteFile[];
-};
-
-function remoteApiPath(path: string): string {
-  return path;
-}
-
-function remoteAuthorizationHeaders(token: string): HeadersInit {
-  return { Authorization: `Bearer ${token}` };
-}
-
-function remoteFolderName(path: string): string {
-  const normalized = path.replace(/\/+$/, "");
-  const segments = normalized.split("/").filter(Boolean);
-  return segments[segments.length - 1] ?? path;
-}
-
-function readRemoteBootstrapSecret(): string {
-  if (typeof window === "undefined") return "";
-  const url = new URL(window.location.href);
-  const hashParams = new URLSearchParams(url.hash.slice(1));
-  const pathMatch = url.pathname.match(/^\/setup\/([^/]+)\/?$/);
-  let pathSecret = "";
-  if (pathMatch?.[1]) {
-    try {
-      pathSecret = decodeURIComponent(pathMatch[1]);
-    } catch {
-      pathSecret = "";
-    }
-  }
-  return (
-    pathSecret ||
-    url.searchParams.get("bootstrap") ||
-    hashParams.get("bootstrap") ||
-    ""
-  );
-}
+const REMOTE_CREATE_RETRY_MAX_ATTEMPTS = 10;
+const REMOTE_CREATE_RETRY_INTERVAL_MS = 1_500;
 
 export function RemoteApp() {
   const [authToken, setAuthToken] = useState<string | null>(() =>
@@ -105,163 +49,6 @@ export function RemoteApp() {
   );
 }
 
-function RemotePasswordScreen({
-  onAuthenticated,
-}: {
-  onAuthenticated: (token: string) => void;
-}) {
-  const [passwordConfigured, setPasswordConfigured] = useState<boolean | null>(null);
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [bootstrapSecret] = useState(readRemoteBootstrapSecret);
-
-  useEffect(() => {
-    if (!bootstrapSecret || typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    url.pathname = "/";
-    url.searchParams.delete("bootstrap");
-    url.hash = "";
-    window.history.replaceState(
-      null,
-      "",
-      `${url.pathname}${url.search}${url.hash}`,
-    );
-  }, [bootstrapSecret]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch(remoteApiPath("/api/remote/auth/status"), { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Authentication status is unavailable");
-        return response.json() as Promise<{ passwordConfigured: boolean }>;
-      })
-      .then((status) => {
-        if (!cancelled) setPasswordConfigured(status.passwordConfigured);
-      })
-      .catch((reason) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!password || busy || passwordConfigured === null) return;
-    const settingUp = !passwordConfigured;
-    if (settingUp && password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-    if (settingUp && !bootstrapSecret) {
-      setError("Scan the QR shown in cmdSpace to create the first password");
-      return;
-    }
-
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        remoteApiPath(settingUp ? "/api/remote/auth/setup" : "/api/remote/auth/login"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...(settingUp ? { secret: bootstrapSecret } : {}),
-            password,
-            device: navigator.userAgent.slice(0, 80),
-          }),
-        },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | { token?: string; error?: string }
-        | null;
-      if (!response.ok || !payload?.token) {
-        throw new Error(payload?.error || "Password authentication failed");
-      }
-      if (settingUp) {
-        window.history.replaceState(
-          null,
-          "",
-          `${window.location.pathname}${window.location.search}`,
-        );
-      }
-      onAuthenticated(payload.token);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Authentication failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const settingUp = passwordConfigured === false;
-  const missingSetupLink = settingUp && !bootstrapSecret;
-
-  return (
-    <main className="remote-auth-screen">
-      <form onSubmit={submit} className="remote-auth-card">
-        <div className="remote-auth-mark">
-          <img src="/logo.png" alt="cmdSpace" className="remote-auth-logo" />
-        </div>
-        <h1>{settingUp ? "Secure your session" : "Welcome back"}</h1>
-        <p>
-          {settingUp
-            ? "Create one password for cmdSpace Remote on every device."
-            : "Enter your cmdSpace Remote password."}
-        </p>
-
-        {missingSetupLink ? (
-          <div className="remote-auth-notice">
-            Open Settings → General on your Mac and scan the public QR to set the first password.
-          </div>
-        ) : null}
-
-        <label htmlFor="remote-password">Password</label>
-        <input
-          id="remote-password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete={settingUp ? "new-password" : "current-password"}
-          minLength={8}
-          placeholder="At least 8 characters"
-          disabled={busy}
-        />
-        {settingUp ? (
-          <>
-            <label htmlFor="remote-confirm-password">Confirm password</label>
-            <input
-              id="remote-confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              autoComplete="new-password"
-              minLength={8}
-              placeholder="Re-enter password"
-              disabled={busy}
-            />
-          </>
-        ) : null}
-        {error ? <p role="alert" className="remote-auth-error">{error}</p> : null}
-        <button
-          type="submit"
-          disabled={
-            passwordConfigured === null ||
-            password.length < 8 ||
-            (settingUp && (password !== confirmPassword || !bootstrapSecret)) ||
-            busy
-          }
-        >
-          {busy ? "Securing..." : settingUp ? "Set password" : "Unlock terminal"}
-        </button>
-      </form>
-    </main>
-  );
-}
-
 function AuthenticatedRemoteApp({
   authToken,
   onUnauthorized,
@@ -274,6 +61,11 @@ function AuthenticatedRemoteApp({
       ? null
       : window.localStorage.getItem(REMOTE_CWD_STORAGE_KEY),
   );
+  const [choosingFolder, setChoosingFolder] = useState(false);
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [showImportSession, setShowImportSession] = useState(false);
+  const [showProviders, setShowProviders] = useState(false);
+  const [hostname, setHostname] = useState("");
   const [client, setClient] = useState<RemoteTerminalClient | null>(null);
   const [sessions, setSessions] = useState<RemoteProtocolSession[]>([]);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
@@ -301,11 +93,10 @@ function AuthenticatedRemoteApp({
   }, []);
 
   useEffect(() => {
-    if (!remoteCwd) return;
     const next = new RemoteTerminalClient({ token: authToken, onUnauthorized });
     const unsubscribe = next.subscribeMessages((message) => {
       if (message.type === "authenticated") {
-        next.listSessions();
+        if (remoteCwd) next.listSessions();
       } else if (message.type === "sessions") {
         setSessions(message.sessions);
         setSessionsLoaded(true);
@@ -315,15 +106,19 @@ function AuthenticatedRemoteApp({
     });
     setClient(next);
     next.connect();
-    const poll = window.setInterval(() => next.listSessions(), 3_000);
     return () => {
-      window.clearInterval(poll);
       unsubscribe();
       next.dispose();
       setClient(null);
       setSessionsLoaded(false);
     };
   }, [authToken, onUnauthorized, remoteCwd]);
+
+  useEffect(() => {
+    if (!remoteCwd) return;
+    const poll = window.setInterval(() => client?.listSessions(), 3_000);
+    return () => window.clearInterval(poll);
+  }, [client, remoteCwd]);
 
   const cwdSessions = useMemo(
     () =>
@@ -340,7 +135,15 @@ function AuthenticatedRemoteApp({
     if (!client || !remoteCwd || !sessionsLoaded) return;
     if (cwdSessions.length === 0) {
       client.createSession(remoteCwd);
-      const retry = window.setInterval(() => client.createSession(remoteCwd), 1_500);
+      let attempts = 0;
+      const retry = window.setInterval(() => {
+        attempts += 1;
+        if (attempts >= REMOTE_CREATE_RETRY_MAX_ATTEMPTS) {
+          window.clearInterval(retry);
+          return;
+        }
+        client.createSession(remoteCwd);
+      }, REMOTE_CREATE_RETRY_INTERVAL_MS);
       return () => window.clearInterval(retry);
     }
     setActiveSessionId((current) =>
@@ -354,7 +157,59 @@ function AuthenticatedRemoteApp({
     if (client && activeSessionId !== null) client.sendInput(activeSessionId, value);
   }, [activeSessionId, client]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/remote/state", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const state = (await response.json()) as { hostname?: string };
+        if (!cancelled && state.hostname) setHostname(state.hostname);
+      })
+      .catch(() => {
+        // The hostname is cosmetic; fall back to an empty title.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!remoteCwd) {
+    if (!choosingFolder) {
+      if (showProviders) {
+        return (
+          <ProvidersPage
+            authToken={authToken}
+            onBack={() => setShowProviders(false)}
+          />
+        );
+      }
+      return (
+        <>
+          <RemoteHomeScreen
+            onAddProject={() => setShowAddProject(true)}
+            onImportSession={() => setShowImportSession(true)}
+            onSetupProviders={() => setShowProviders(true)}
+          />
+          {showAddProject ? (
+            <AddProjectDialog
+              hostname={hostname}
+              onClose={() => setShowAddProject(false)}
+              onSearchDirectory={() => {
+                setShowAddProject(false);
+                setChoosingFolder(true);
+              }}
+            />
+          ) : null}
+          {showImportSession && client ? (
+            <ImportSessionSheet
+              client={client}
+              onClose={() => setShowImportSession(false)}
+              onImported={() => setShowImportSession(false)}
+            />
+          ) : null}
+        </>
+      );
+    }
     return (
       <RemoteFolderPicker
         authToken={authToken}
@@ -363,6 +218,7 @@ function AuthenticatedRemoteApp({
           window.localStorage.setItem(REMOTE_CWD_STORAGE_KEY, path);
           setRemoteCwd(path);
         }}
+        onBack={() => setChoosingFolder(false)}
       />
     );
   }
@@ -449,197 +305,6 @@ function AuthenticatedRemoteApp({
   );
 }
 
-function RemoteFolderPicker({
-  authToken,
-  onUnauthorized,
-  onSelect,
-}: {
-  authToken: string;
-  onUnauthorized: () => void;
-  onSelect: (path: string) => void;
-}) {
-  const [folderState, setFolderState] = useState<RemoteFolderState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const requestRef = useRef<AbortController | null>(null);
-  const folderCacheRef = useRef(new Map<string, RemoteFolderState>());
-
-  const load = useCallback((path?: string) => {
-    requestRef.current?.abort();
-    setSearchQuery("");
-    if (path) {
-      const cached = folderCacheRef.current.get(path);
-      if (cached) {
-        setFolderState(cached);
-        setLoading(false);
-        setError(null);
-        return;
-      }
-      setFolderState((current) =>
-        current ? { ...current, current: path, folders: [], files: [] } : current,
-      );
-    }
-    const request = new AbortController();
-    requestRef.current = request;
-    setLoading(true);
-    setError(null);
-    const query = path ? `?path=${encodeURIComponent(path)}` : "";
-    void fetch(remoteApiPath(`/api/remote/folders${query}`), {
-      cache: "no-store",
-      headers: remoteAuthorizationHeaders(authToken),
-      signal: request.signal,
-    })
-      .then(async (response) => {
-        if (response.status === 401) {
-          onUnauthorized();
-          throw new Error("Remote access expired");
-        }
-        if (!response.ok) throw new Error((await response.text()) || "Folder load failed");
-        return response.json() as Promise<RemoteFolderState>;
-      })
-      .then((state) => {
-        folderCacheRef.current.set(state.current, state);
-        if (requestRef.current === request) setFolderState(state);
-      })
-      .catch((reason) => {
-        if (
-          requestRef.current === request &&
-          !(reason instanceof DOMException && reason.name === "AbortError")
-        ) {
-          setError(String(reason));
-        }
-      })
-      .finally(() => {
-        if (requestRef.current === request) setLoading(false);
-      });
-  }, [authToken, onUnauthorized]);
-
-  useEffect(() => {
-    load();
-    return () => requestRef.current?.abort();
-  }, [load]);
-
-  const normalizedSearch = searchQuery.trim().toLowerCase();
-  const filteredFolders = useMemo(
-    () => folderState?.folders.filter((folder) => folder.name.toLowerCase().includes(normalizedSearch)) ?? [],
-    [folderState, normalizedSearch],
-  );
-  const filteredFiles = useMemo(
-    () => folderState?.files.filter((file) => file.name.toLowerCase().includes(normalizedSearch)) ?? [],
-    [folderState, normalizedSearch],
-  );
-
-  return (
-    <main className="remote-folder-picker">
-      <header className="remote-folder-header">
-        <div>
-          <button type="button" disabled={!folderState?.parent || loading} onClick={() => load(folderState?.parent ?? undefined)}>←</button>
-          <span>
-            <strong>{folderState ? remoteFolderName(folderState.current) : "Browse this Mac"}</strong>
-            <small>{folderState?.current ?? "Loading folders…"}</small>
-          </span>
-        </div>
-        <label className="remote-folder-search">
-          <span>⌕</span>
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search this folder"
-            aria-label="Search folders and files"
-          />
-        </label>
-      </header>
-
-      <section className="remote-folder-picker-scroll">
-        <div className="remote-folder-list">
-          {loading ? <div className="remote-folder-message">Loading folders from desktop…</div> : null}
-          {error ? (
-            <div className="remote-folder-message remote-folder-error">
-              <p>{error}</p>
-              <button type="button" onClick={() => load(folderState?.current)}>Try again</button>
-            </div>
-          ) : null}
-          {!error && folderState && !loading ? (
-            <>
-              {filteredFolders.map((folder) => (
-                <button key={folder.path} type="button" onClick={() => load(folder.path)}>
-                  <span className="remote-folder-icon"><HugeiconsIcon icon={Folder01Icon} size={20} /></span>
-                  <strong>{folder.name}</strong>
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={17} />
-                </button>
-              ))}
-              {filteredFiles.map((file) => (
-                <button key={file.path} type="button" onClick={() => onSelect(file.parent)}>
-                  <span className="remote-folder-icon"><HugeiconsIcon icon={File01Icon} size={19} /></span>
-                  <strong>{file.name}</strong>
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={17} />
-                </button>
-              ))}
-              {filteredFolders.length === 0 && filteredFiles.length === 0 ? (
-                <div className="remote-folder-message">
-                  {normalizedSearch ? "No matching folders or files." : "This folder is empty."}
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </div>
-      </section>
-
-      <footer className="remote-folder-footer">
-        <span>
-          <small>Terminal location</small>
-          <strong>{folderState?.current ?? "No folder selected"}</strong>
-        </span>
-        <button type="button" disabled={!folderState || loading} onClick={() => folderState && onSelect(folderState.current)}>
-          Open current folder
-        </button>
-      </footer>
-    </main>
-  );
-}
-
-function RemoteSessionGrid({
-  cwd,
-  sessions,
-  activeSessionId,
-  onOpen,
-  onCreate,
-  onClose,
-}: {
-  cwd: string;
-  sessions: RemoteProtocolSession[];
-  activeSessionId: number | null;
-  onOpen: (sessionId: number) => void;
-  onCreate: () => void;
-  onClose: (sessionId: number) => void;
-}) {
-  return (
-    <section className="remote-session-screen">
-      <div className="remote-session-heading">
-        <div>
-          <p>cmdSpace sessions</p>
-          <h1>{remoteFolderName(cwd)}</h1>
-        </div>
-        <button type="button" onClick={onCreate}>+ New terminal</button>
-      </div>
-      <div className="remote-session-grid">
-        {sessions.map((session) => (
-          <article key={session.id} data-active={session.id === activeSessionId || undefined}>
-            <button type="button" className="remote-session-card" onClick={() => onOpen(session.id)}>
-              <span className="remote-session-prompt">~</span>
-              <strong>{session.title || `Terminal ${session.id}`}</strong>
-              <small>{session.agent || "zsh"} · session {session.id}</small>
-            </button>
-            <button type="button" className="remote-session-close" aria-label={`Close ${session.title}`} onClick={() => onClose(session.id)}>×</button>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function Shortcut({
   label,
   value,
@@ -651,14 +316,15 @@ function Shortcut({
   onSend: (value: string) => void;
   danger?: boolean;
 }) {
-  const lastPressedRef = useState(() => ({ current: 0 }))[0];
+  const lastSentRef = useRef<{ value: string; at: number } | null>(null);
 
   const trigger = (event: React.SyntheticEvent) => {
     event.preventDefault();
     event.stopPropagation();
     const now = Date.now();
-    if (now - lastPressedRef.current < 150) return;
-    lastPressedRef.current = now;
+    const lastSent = lastSentRef.current;
+    if (lastSent && lastSent.value === value && now - lastSent.at < 150) return;
+    lastSentRef.current = { value, at: now };
     onSend(value);
   };
 

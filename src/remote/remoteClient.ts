@@ -97,6 +97,18 @@ export class RemoteTerminalClient {
     if (this.authenticated) this.send({ type: "listSessions" });
   }
 
+  listImportableSessions(workspaceOnly = false) {
+    this.send({
+      type: "listImportableSessions",
+      workspaceId: null,
+      workspaceOnly,
+    });
+  }
+
+  importSession(provider: string, sessionId: string) {
+    this.send({ type: "importSession", provider, sessionId });
+  }
+
   createSession(cwd: string) {
     return this.send({ type: "createSession", cwd });
   }

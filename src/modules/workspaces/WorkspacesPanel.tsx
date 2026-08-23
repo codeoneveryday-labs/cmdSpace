@@ -27,6 +27,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import {
   CLI_AGENT_DEFINITIONS,
@@ -223,6 +224,13 @@ export function WorkspacesPanel({
     y: number;
     previewIndex: number;
   } | null>(null);
+
+  const draggedTerminal =
+    terminalDragVisual === null
+      ? null
+      : activeWorkspaceTerminals.find(
+          (terminal) => terminal.leafId === terminalDragVisual.sourceId,
+        ) ?? null;
 
   const startTerminalDrag = useCallback(
     (terminal: WorkspaceTerminalItem, event: React.PointerEvent<HTMLButtonElement>) => {
@@ -608,32 +616,37 @@ export function WorkspacesPanel({
         </section>
       </aside>
 
-      {terminalDragVisual !== null ? (
-        <div
-          className="pointer-events-none fixed z-50 flex items-center gap-2 rounded-lg bg-popover px-2 py-2 text-sm text-popover-foreground opacity-90 shadow-xl ring-1 ring-border"
-          style={{
-            width: terminalDragRef.current?.width ?? 220,
-            height: terminalDragRef.current?.height,
-            left:
-              terminalDragVisual.x -
-              (terminalDragRef.current?.offsetX ?? 0),
-            top:
-              terminalDragVisual.y -
-              (terminalDragRef.current?.offsetY ?? 0),
-          }}
-        >
-          <HugeiconsIcon
-            icon={ComputerTerminal02Icon}
-            size={16}
-            strokeWidth={1.8}
-          />
-          <span className="min-w-0 flex-1 truncate">
-            {activeWorkspaceTerminals.find(
-              (terminal) => terminal.leafId === terminalDragVisual.sourceId,
-            )?.label ?? "Terminal"}
-          </span>
-        </div>
-      ) : null}
+      {terminalDragVisual !== null
+        ? createPortal(
+            <div
+              className="pointer-events-none fixed z-50 flex items-center gap-2 rounded-lg bg-popover px-2 py-2 text-sm text-popover-foreground opacity-90 shadow-xl ring-1 ring-border"
+              style={{
+                width: terminalDragRef.current?.width ?? 220,
+                height: terminalDragRef.current?.height,
+                left:
+                  terminalDragVisual.x -
+                  (terminalDragRef.current?.offsetX ?? 0),
+                top:
+                  terminalDragVisual.y -
+                  (terminalDragRef.current?.offsetY ?? 0),
+              }}
+            >
+              {draggedTerminal?.agent ? (
+                <AgentCliIcon agent={draggedTerminal.agent} size="md" />
+              ) : (
+                <HugeiconsIcon
+                  icon={ComputerTerminal02Icon}
+                  size={16}
+                  strokeWidth={1.8}
+                />
+              )}
+              <span className="min-w-0 flex-1 truncate">
+                {draggedTerminal?.label ?? "Terminal"}
+              </span>
+            </div>,
+            document.body,
+          )
+        : null}
 
       {dragVisual !== null && draggedWorkspace && (
         <div

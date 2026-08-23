@@ -14,7 +14,7 @@ use std::{
 };
 #[cfg(target_os = "macos")]
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     PhysicalPosition,
 };
@@ -1055,6 +1055,28 @@ pub fn run() {
     let builder = builder
         .menu(|app| {
             let menu = Menu::default(app)?;
+            let app_menu_name = app.package_info().name.clone();
+            let app_menu = menu.items()?.into_iter().find_map(|item| {
+                let submenu = item.as_submenu()?.clone();
+                (submenu.text().ok()? == app_menu_name).then_some(submenu)
+            });
+            if let Some(app_menu) = app_menu {
+                // Replace Tauri's default About item so macOS uses cmdSpace's
+                // bundle artwork instead of the generic folder placeholder.
+                app_menu.remove_at(0)?;
+                let about = PredefinedMenuItem::about(
+                    app,
+                    None,
+                    Some(AboutMetadata {
+                        name: Some(app.package_info().name.clone()),
+                        version: Some(app.package_info().version.to_string()),
+                        copyright: app.config().bundle.copyright.clone(),
+                        icon: Some(tauri::include_image!("icons/about.png")),
+                        ..Default::default()
+                    }),
+                )?;
+                app_menu.prepend(&about)?;
+            }
             let new_tab = MenuItem::with_id(
                 app,
                 "cmdspace.new-tab",

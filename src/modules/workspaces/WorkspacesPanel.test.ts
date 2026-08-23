@@ -378,4 +378,21 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("swapLeafNodes(");
     expect(appSource).toContain("handleTerminalPaneTreeChange(tab.id, paneTree)");
   });
+
+  it("renders the terminal drag preview outside the transformed zoom container", () => {
+    const source = readFileSync(panelPath, "utf8");
+
+    expect(source).toContain('import { createPortal } from "react-dom";');
+    expect(source).toContain("createPortal(");
+    expect(source).toContain("document.body");
+  });
+
+  it("keeps the dragged terminal's agent logo in the preview", () => {
+    const source = readFileSync(panelPath, "utf8");
+
+    expect(source).toContain("draggedTerminal?.agent");
+    expect(source).toContain(
+      '<AgentCliIcon agent={draggedTerminal.agent} size="md" />',
+    );
+  });
 });

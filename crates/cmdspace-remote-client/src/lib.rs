@@ -169,6 +169,14 @@ impl RemoteClient {
                 self.workspaces = workspaces;
                 vec![RemoteClientAction::WorkspacesChanged]
             }
+            // Importable CLI sessions are only surfaced in the browser remote
+            // UI today; the native client ignores them.
+            ServerMessage::ImportableSessions { .. } => Vec::new(),
+            // Filesystem browsing is handled by platform UI, not the native
+            // client state machine.
+            ServerMessage::FolderPickerDirectory { .. }
+            | ServerMessage::Directory { .. }
+            | ServerMessage::FileContent { .. } => Vec::new(),
             ServerMessage::Attached { .. } => Vec::new(),
             ServerMessage::Snapshot {
                 session_id,

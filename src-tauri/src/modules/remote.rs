@@ -105,6 +105,109 @@ struct RemoteResponse {
 struct RemoteUiState {
     workspaces: Vec<db::WorkspaceRow>,
     recent_workspaces: Vec<db::RecentWorkspaceRow>,
+    hostname: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoteProviderEntry {
+    id: String,
+    name: String,
+    executable: String,
+    description: String,
+    install_url: Option<String>,
+    configured: bool,
+    enabled: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoteProvidersPayload {
+    providers: Vec<RemoteProviderEntry>,
+}
+
+const REMOTE_CLI_AGENT_CATALOG: &[(&str, &str, &str, &str, Option<&str>)] = &[
+    ("claude", "Claude Code", "claude", "Anthropic's agentic coding CLI for terminal workflows.", Some("https://docs.anthropic.com/en/docs/claude-code/setup")),
+    ("codex", "Codex", "codex", "OpenAI's coding agent for local terminal development.", Some("https://developers.openai.com/codex/cli")),
+    ("gemini", "Gemini CLI", "gemini", "Google's official open-source Gemini coding CLI.", Some("https://geminicli.com")),
+    ("opencode", "OpenCode", "opencode", "Open-source coding agent built for the terminal.", Some("https://opencode.ai/docs")),
+    ("copilot", "GitHub Copilot", "copilot", "GitHub Copilot's agentic command-line interface.", Some("https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli")),
+    ("cursor", "Cursor Agent", "cursor-agent", "Cursor's coding agent for terminal and automation workflows.", Some("https://docs.cursor.com/en/cli/overview")),
+    ("aider", "Aider", "aider", "AI pair programming in your terminal with repository context.", Some("https://aider.chat/docs/install.html")),
+    ("pi", "Pi Coding Agent", "pi", "Minimal, extensible terminal coding agent from the Pi project.", Some("https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent")),
+    ("amp", "Amp CLI", "amp", "Sourcegraph's frontier coding agent for terminal development.", Some("https://ampcode.com/manual")),
+    ("cline", "Cline CLI", "cline", "Autonomous coding agent CLI with file, shell, and browser tools.", Some("https://cline.bot/cli")),
+    ("goose", "Goose", "goose", "Local, extensible open-source agent for engineering tasks.", Some("https://block.github.io/goose/docs/getting-started/installation/")),
+    ("qwen", "Qwen Code", "qwen", "Alibaba's open-source Qwen coding assistant.", Some("https://qwenlm.github.io/qwen-code-docs/en/users/overview")),
+    ("kimi", "Kimi Code", "kimi", "Moonshot AI's open-source terminal coding agent.", Some("https://github.com/MoonshotAI/kimi-code")),
+    ("openhands", "OpenHands CLI", "openhands", "Open-source software development agent for local workflows.", Some("https://docs.openhands.dev/openhands/usage/run-openhands/local-setup")),
+    ("kiro", "Kiro CLI", "kiro-cli", "Kiro's terminal coding agent with spec-driven workflows.", Some("https://kiro.dev/cli/")),
+    ("grok", "Grok CLI", "grok", "xAI's Grok coding agent for terminal development.", Some("https://grok.com")),
+    ("herdr", "Herdr", "herdr", "Persistent terminal workspace for running coding agents.", Some("https://herdr.dev/docs/install/")),
+    ("cmd", "Command Code", "cmd", "Command Code agent running directly in the terminal.", Some("https://github.com/CommandCodeAI/command-code")),
+];
+
+fn remote_settings_store_path() -> PathBuf {
+    let mut path = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
+    path.push("app.tranhoangpich.cmdspace");
+    path.push("cmdspace-settings.json");
+    path
+}
+
+fn remote_configured_agent_ids() -> (Vec<String>, Vec<String>) {
+    let Ok(contents) = fs::read_to_string(remote_settings_store_path()) else {
+        return (Vec::new(), Vec::new());
+    };
+    let Ok(store) = serde_json::from_str::<serde_json::Value>(&contents) else {
+        return (Vec::new(), Vec::new());
+    };
+    let configured = store
+        .get("cliAgentIds")
+        .and_then(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let disabled = store
+        .get("disabledCliAgentIds")
+        .and_then(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    (configured, disabled)
+}
+
+fn remote_providers_response() -> Result<RemoteResponse, String> {
+    let (configured, disabled) = remote_configured_agent_ids();
+    let providers = REMOTE_CLI_AGENT_CATALOG
+        .iter()
+        .map(|(id, name, executable, description, install_url)| RemoteProviderEntry {
+            id: id.to_string(),
+            name: name.to_string(),
+            executable: executable.to_string(),
+            description: description.to_string(),
+            install_url: install_url.map(str::to_string),
+            configured: configured.iter().any(|candidate| candidate == id),
+            enabled: configured.iter().any(|candidate| candidate == id)
+                && !disabled.iter().any(|candidate| candidate == id),
+        })
+        .collect::<Vec<_>>();
+    let body = serde_json::to_vec(&RemoteProvidersPayload { providers })
+        .map_err(|e| format!("remote providers serialization failed: {e}"))?;
+    Ok(RemoteResponse {
+        status: "200 OK",
+        content_type: "application/json; charset=utf-8",
+        body,
+    })
 }
 
 #[derive(Clone, Serialize)]
@@ -884,6 +987,12 @@ fn handle_connection(
         write_binary_response(stream, &response);
         return;
     }
+    if clean_path == "/api/remote/providers" {
+        let response =
+            remote_providers_response().unwrap_or_else(|error| remote_json_error_response(&error));
+        write_binary_response(stream, &response);
+        return;
+    }
     if is_legacy_remote_terminal_path(clean_path) {
         write_text_response(
             stream,
@@ -1457,6 +1566,8 @@ fn handle_remote_device_command(
             {
                 return Err("device cannot view importable sessions".to_string());
             }
+            let workspace_id =
+                workspace_id.ok_or_else(|| "workspace is required for paired devices".to_string())?;
             send_remote_device_importable_sessions(socket, device_id, &workspace_id, workspace_only)
         }
         ClientMessage::ImportSession {
@@ -1471,6 +1582,8 @@ fn handle_remote_device_command(
             {
                 return Err("device cannot import sessions".to_string());
             }
+            let workspace_id =
+                workspace_id.ok_or_else(|| "workspace is required for paired devices".to_string())?;
             import_remote_agent_session(runtime, device_id, &workspace_id, &provider, &session_id)?;
             send_remote_device_sessions(socket, runtime, device_id)
         }
@@ -1663,6 +1776,63 @@ fn send_remote_device_workspaces(
         })
         .collect();
     send_remote_device_event(socket, ServerMessage::Workspaces { workspaces })
+}
+
+fn list_browser_importable_sessions(
+    workspace_id: Option<String>,
+    workspace_only: bool,
+) -> Result<Vec<RemoteProtocolImportableSession>, String> {
+    let workspace_cwd = match (workspace_only, workspace_id) {
+        (true, Some(id)) => Some(resolve_remote_session_cwd(None, Some(&id))?),
+        _ => None,
+    };
+    super::pty::session_import::list_agent_sessions(Some(100), workspace_cwd.flatten())
+        .map(|sessions| {
+            sessions
+                .into_iter()
+                .map(remote_protocol_importable_session)
+                .collect()
+        })
+        .map_err(|error| error.to_string())
+}
+
+fn import_browser_agent_session(
+    runtime: &Arc<Mutex<RemoteRuntime>>,
+    workspace_id: Option<String>,
+    provider: &str,
+    session_id: &str,
+) -> Result<(), String> {
+    let cwd = match workspace_id {
+        Some(ref id) => resolve_remote_session_cwd(None, Some(id))?,
+        None => Some(
+            dirs::home_dir()
+                .ok_or_else(|| "cannot resolve the home directory".to_string())?
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    };
+    let session = super::pty::session_import::list_agent_sessions(Some(500), None)?
+        .into_iter()
+        .find(|candidate| candidate.provider == provider && candidate.session_id == session_id)
+        .ok_or_else(|| "session is no longer available on this desktop".to_string())?;
+    if session.active {
+        return Err("this session is already active on the desktop".to_string());
+    }
+    let command = build_agent_resume_command(provider, session_id)?;
+    let terminal = spawn_remote_terminal(cwd, workspace_id, None)?;
+    terminal
+        .writer
+        .lock()
+        .map_err(|_| "writer poisoned".to_string())?
+        .write_all(format!("{command}\r").as_bytes())
+        .map_err(|error| error.to_string())?;
+    let mut guard = runtime
+        .lock()
+        .map_err(|_| "remote runtime poisoned".to_string())?;
+    let id = guard.next_id;
+    guard.next_id = guard.next_id.saturating_add(1);
+    guard.sessions.insert(id, terminal);
+    Ok(())
 }
 
 fn send_remote_device_importable_sessions(
@@ -2164,10 +2334,23 @@ fn handle_remote_websocket_message(
         ClientMessage::ListFolderPickerDirectory { .. }
         | ClientMessage::ListDirectory { .. }
         | ClientMessage::ReadFile { .. }
-        | ClientMessage::CreateDirectory { .. }
-        | ClientMessage::ListImportableSessions { .. }
-        | ClientMessage::ImportSession { .. } => {
+        | ClientMessage::CreateDirectory { .. } => {
             Err("this action is available to paired native devices only".to_string())
+        }
+        ClientMessage::ListImportableSessions {
+            workspace_id,
+            workspace_only,
+        } => {
+            let sessions = list_browser_importable_sessions(workspace_id, workspace_only)?;
+            send_remote_websocket_message(socket, ServerMessage::ImportableSessions { sessions })
+        }
+        ClientMessage::ImportSession {
+            workspace_id,
+            provider,
+            session_id,
+        } => {
+            import_browser_agent_session(runtime, workspace_id, &provider, &session_id)?;
+            send_remote_sessions(socket, runtime)
         }
         ClientMessage::CreateSession { cwd, workspace_id } => {
             let cwd = resolve_remote_session_cwd(cwd.as_deref(), workspace_id.as_deref())?;
@@ -3346,9 +3529,11 @@ fn remote_state_response() -> Result<RemoteResponse, String> {
     let conn = db::init_db()?;
     let workspaces = db::list_workspaces_inner(&conn)?;
     let recent_workspaces = db::list_recent_workspaces_inner(&conn)?;
+    let hostname = machine_hostname();
     let body = serde_json::to_vec(&RemoteUiState {
         workspaces,
         recent_workspaces,
+        hostname,
     })
     .map_err(|e| format!("remote UI state serialization failed: {e}"))?;
 
@@ -3357,6 +3542,26 @@ fn remote_state_response() -> Result<RemoteResponse, String> {
         content_type: "application/json; charset=utf-8",
         body,
     })
+}
+
+fn machine_hostname() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("COMPUTERNAME").unwrap_or_default()
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut buf = [0u8; 256];
+        // SAFETY: buf is a valid writable buffer of 256 bytes; gethostname never
+        // writes past it and returns a NUL-terminated name on success.
+        let result = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
+        if result != 0 {
+            return String::new();
+        }
+        let end = buf.iter().position(|&byte| byte == 0).unwrap_or(buf.len());
+        String::from_utf8_lossy(&buf[..end]).trim_end_matches('.').to_string()
+    }
 }
 
 fn remote_json_error_response(error: &str) -> RemoteResponse {
@@ -3731,6 +3936,7 @@ mod tests {
         assert_eq!(response.content_type, "application/json; charset=utf-8");
         assert!(body.contains("\"workspaces\""));
         assert!(body.contains("\"recentWorkspaces\""));
+        assert!(body.contains("\"hostname\""));
         assert!(body.contains("\"Remote Workspace\""));
         assert!(body.contains("\"accentColor\":\"#10B981\""));
     }
