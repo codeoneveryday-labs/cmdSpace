@@ -3,6 +3,21 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.98] - 2026-08-23
+
+### Added
+
+- Added a workspace terminal creation menu that reuses the header agent picker
+  for normal terminals and configured CLI agents.
+- Added a visible capacity notice when a workspace has reached its terminal
+  limit.
+- Added Cmd/Ctrl+Shift+W to close the active terminal pane.
+
+### Changed
+
+- New terminal choices now create panes directly in the active workspace rather
+  than opening a new tab.
+
 ## [0.7.97] - 2026-08-23
 
 ### Added
@@ -178,6 +193,7 @@ All notable changes to cmdSpace are documented in this file. The format follows
 
 [0.7.89]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.88...v0.7.89
 [0.7.97]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.96...v0.7.97
+[0.7.98]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.97...v0.7.98
 [0.7.87]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.86...v0.7.87
 [0.7.88]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.87...v0.7.88
 [0.7.85]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.84...v0.7.85
