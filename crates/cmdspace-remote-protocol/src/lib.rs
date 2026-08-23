@@ -124,13 +124,13 @@ pub enum ClientMessage {
     },
     ListImportableSessions {
         #[serde(rename = "workspaceId")]
-        workspace_id: String,
+        workspace_id: Option<String>,
         #[serde(rename = "workspaceOnly")]
         workspace_only: bool,
     },
     ImportSession {
         #[serde(rename = "workspaceId")]
-        workspace_id: String,
+        workspace_id: Option<String>,
         provider: String,
         #[serde(rename = "sessionId")]
         session_id: String,

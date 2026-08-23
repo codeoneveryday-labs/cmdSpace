@@ -4,6 +4,8 @@ export type RemoteClientMessage =
   | { type: "auth"; token: string }
   | { type: "listSessions" }
   | { type: "listWorkspaces" }
+  | { type: "listImportableSessions"; workspaceId?: string | null; workspaceOnly?: boolean }
+  | { type: "importSession"; workspaceId?: string | null; provider: string; sessionId: string }
   | { type: "createSession"; cwd?: string | null; workspaceId?: string | null }
   | { type: "createWorkspace"; workspaceId: string; name: string; workingFolder: string; terminalCount: number }
   | { type: "attach"; sessionId: number; after: number }
@@ -12,6 +14,16 @@ export type RemoteClientMessage =
   | { type: "resize"; sessionId: number; cols: number; rows: number }
   | { type: "close"; sessionId: number }
   | { type: "ping" };
+
+export type RemoteProtocolImportableSession = {
+  provider: string;
+  sessionId: string;
+  cwd: string;
+  title: string;
+  preview: string | null;
+  lastActivityAt: number;
+  active: boolean;
+};
 
 export type RemoteProtocolSession = {
   id: number;
@@ -33,6 +45,7 @@ export type RemoteServerMessage =
   | { type: "authenticated" }
   | { type: "sessions"; sessions: RemoteProtocolSession[] }
   | { type: "workspaces"; workspaces: RemoteProtocolWorkspace[] }
+  | { type: "importableSessions"; sessions: RemoteProtocolImportableSession[] }
   | { type: "attached"; sessionId: number }
   | { type: "snapshot"; sessionId: number; sequence: number; data: string }
   | { type: "output"; sessionId: number; sequence: number; data: string }

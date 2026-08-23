@@ -70,9 +70,16 @@ export function AboutSection() {
     <div className="flex flex-col gap-6">
       <SectionHeader title="About" description="" />
 
-      <div className="flex items-center gap-4 rounded-xl border border-border/60 bg-card/60 p-5">
-        <img src="/logo.png" alt="" className="size-12" draggable={false} />
-        <div className="flex min-w-0 flex-col">
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-border/60 bg-card/60 p-6 text-center">
+        <img
+          src="/logo.png"
+          alt={`${name} logo`}
+          width={64}
+          height={64}
+          className="size-16 rounded-2xl object-contain shadow-sm"
+          draggable={false}
+        />
+        <div className="flex min-w-0 flex-col items-center">
           <span className="text-[15px] font-semibold tracking-tight">
             {name}
           </span>
