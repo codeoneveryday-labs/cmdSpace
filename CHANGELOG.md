@@ -3,6 +3,26 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.97] - 2026-08-23
+
+### Added
+
+- Expanded the opt-in CLI-agent catalog with marketplace entries and copied
+  agent artwork, while keeping the six existing agents as the only defaults.
+- Added terminal line shortcuts, fast input clearing, workspace terminal drag
+  swapping, and the expanded remote-access workspace UI.
+- Added native macOS About-panel branding with a rounded cmdSpace icon.
+
+### Changed
+
+- Improved CLI-agent detection, session resume fallback, and cross-platform
+  remote hostname handling.
+
+### Known limitations
+
+- Some marketplace agents require their own CLI installation and credentials;
+  adding an entry does not install or authenticate the agent automatically.
+
 ## [0.7.96] - 2026-08-18
 
 ### Fixed
@@ -157,6 +177,7 @@ All notable changes to cmdSpace are documented in this file. The format follows
   and persisted canvas layout.
 
 [0.7.89]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.88...v0.7.89
+[0.7.97]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.96...v0.7.97
 [0.7.87]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.86...v0.7.87
 [0.7.88]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.87...v0.7.88
 [0.7.85]: https://github.com/codeoneveryday-labs/cmdSpace/compare/v0.7.84...v0.7.85
