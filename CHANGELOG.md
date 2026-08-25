@@ -3,6 +3,24 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.99] - 2026-08-25
+
+### Added
+
+- Added shared agent response activity indicators across standard terminal
+  headers, workspace rows, and tabs.
+- Added persisted terminal children to workspace and tray switcher views,
+  including expandable workspace rows.
+
+### Changed
+
+- Improved CLI response detection across configured terminal agents while
+  avoiding startup output being reported as a completed task.
+
+### Known limitations
+
+- Agent Chat and Remote Web changes are not included in this release.
+
 ## [0.7.98] - 2026-08-23
 
 ### Added
