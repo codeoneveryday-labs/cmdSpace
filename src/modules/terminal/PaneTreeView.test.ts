@@ -84,10 +84,10 @@ describe("FloatingTerminalOverlay", () => {
     expect(collaboration).toContain("unregisterBroadcastLeaves");
   });
 
-  it("shows output activity independently from agent detection", () => {
+  it("does not promote generic output into an agent loader", () => {
     const source = readFileSync(paneTreePath, "utf8");
-    expect(source).toContain('aria-label="Terminal is producing output"');
-    expect(source).toContain("onOutputActivity");
+    expect(source).toContain("AgentStateDot");
+    expect(source).not.toContain("setOutputActive");
   });
 
   it("refreshes all pane git labels in the same repo after a branch switch", () => {

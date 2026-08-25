@@ -32,12 +32,9 @@ describe("applyAgentSignal", () => {
     applyAgentSignal(signal({ kind: "exited" }));
   });
 
-  it("started records the agent and marks the leaf responding", () => {
+  it("started records the agent without marking the leaf responding", () => {
     setPtyLeaf(7, 42);
     applyAgentSignal(signal({ kind: "started", agent: "codex" }));
-    // responding state is observable through the public setters' no-op path:
-    // setting true twice must not throw; the store stays consistent.
-    setAgentResponseActivity(42, true);
     setAgentCliCommand(42, "codex");
   });
 

@@ -65,7 +65,9 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
       onCwd: (c) => onCwd?.(leafId, c),
       onCommand: (c) => onCommand?.(leafId, c),
       onAgentActivity: (responding) => onAgentActivity?.(leafId, responding),
-      onOutputActivity: (active) => onOutputActivity?.(leafId, active),
+      onOutputActivity: (active) => {
+        onOutputActivity?.(leafId, active);
+      },
     });
 
     useEffect(() => {

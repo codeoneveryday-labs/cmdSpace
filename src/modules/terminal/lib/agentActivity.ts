@@ -5,6 +5,8 @@ type Listener = () => void;
 
 let respondingLeaves = new Set<number>();
 let completedLeaves = new Set<number>();
+let blockedLeaves = new Set<number>();
+let requestedLeaves = new Set<number>();
 let agentCommands = new Map<number, string>();
 // pty id -> leaf id. Rust `cmdspace:agent-signal` events carry the PTY id;
 // the app keys sessions by leaf id, so this registry bridges the two.
@@ -45,27 +47,61 @@ function getCompletedSnapshot(): ReadonlySet<number> {
   return completedLeaves;
 }
 
+
 export function setAgentResponseActivity(
   leafId: number,
   responding: boolean,
-  markCompleted = true,
+  markCompleted = false,
 ): void {
   const hasLeaf = respondingLeaves.has(leafId);
-  if (hasLeaf === responding) return;
+  if (
+    hasLeaf === responding &&
+    !(markCompleted && !responding && !completedLeaves.has(leafId))
+  ) {
+    return;
+  }
 
   const next = new Set(respondingLeaves);
   const completed = new Set(completedLeaves);
   if (responding) {
     next.add(leafId);
     completed.delete(leafId);
+    blockedLeaves = withoutLeaf(blockedLeaves, leafId);
   } else {
     next.delete(leafId);
+    if (markCompleted) requestedLeaves = withoutLeaf(requestedLeaves, leafId);
     if (markCompleted) completed.add(leafId);
   }
   respondingLeaves = next;
   completedLeaves = completed;
   notify();
 }
+
+function withoutLeaf(source: Set<number>, leafId: number): Set<number> {
+  if (!source.has(leafId)) return source;
+  const next = new Set(source);
+  next.delete(leafId);
+  return next;
+}
+
+export function setAgentBlockedActivity(leafId: number, blocked: boolean): void {
+  if (blocked) {
+    blockedLeaves = new Set([...blockedLeaves, leafId]);
+    respondingLeaves = withoutLeaf(respondingLeaves, leafId);
+    completedLeaves = withoutLeaf(completedLeaves, leafId);
+  } else {
+    blockedLeaves = withoutLeaf(blockedLeaves, leafId);
+  }
+  notify();
+}
+
+export function setAgentResponseRequested(leafId: number, requested: boolean): void {
+  requestedLeaves = requested
+    ? new Set([...requestedLeaves, leafId])
+    : withoutLeaf(requestedLeaves, leafId);
+  notify();
+}
+
 
 export function setAgentCliCommand(leafId: number, command?: string): void {
   if (agentCommands.get(leafId) === command) return;
@@ -98,16 +134,22 @@ export function applyAgentSignal(signal: AgentSignal): void {
   switch (signal.kind) {
     case "started":
       if (signal.agent) setAgentCliCommand(leafId, signal.agent);
-      setAgentResponseActivity(leafId, true);
-      break;
-    case "working":
-    case "attention":
-      setAgentResponseActivity(leafId, true);
-      break;
-    case "finished":
+      setAgentBlockedActivity(leafId, false);
       setAgentResponseActivity(leafId, false, false);
       break;
+    case "working":
+      setAgentBlockedActivity(leafId, false);
+      setAgentResponseActivity(leafId, true);
+      break;
+    case "attention":
+      setAgentBlockedActivity(leafId, true);
+      break;
+    case "finished":
+      setAgentBlockedActivity(leafId, false);
+      setAgentResponseActivity(leafId, false, true);
+      break;
     case "exited":
+      setAgentBlockedActivity(leafId, false);
       setAgentResponseActivity(leafId, false, false);
       setAgentCliCommand(leafId, undefined);
       clearPtyLeaf(signal.id);
@@ -134,6 +176,15 @@ export function useAgentResponseLeaves(): ReadonlySet<number> {
 export function useAgentCompletedLeaves(): ReadonlySet<number> {
   return useSyncExternalStore(subscribe, getCompletedSnapshot, getCompletedSnapshot);
 }
+
+export function useAgentBlockedLeaves(): ReadonlySet<number> {
+  return useSyncExternalStore(subscribe, () => blockedLeaves, () => blockedLeaves);
+}
+
+export function useAgentResponseRequestedLeaves(): ReadonlySet<number> {
+  return useSyncExternalStore(subscribe, () => requestedLeaves, () => requestedLeaves);
+}
+
 
 export function clearAgentCompleted(leafId: number): void {
   if (!completedLeaves.has(leafId)) return;

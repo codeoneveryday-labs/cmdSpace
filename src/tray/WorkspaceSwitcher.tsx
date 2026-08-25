@@ -7,6 +7,7 @@ import {
 } from "@/modules/terminal/lib/cliAgents";
 import { loadPreferences } from "@/modules/settings/store";
 import {
+  ArrowDown01Icon,
   CanvasIcon,
   ComputerTerminal02Icon,
   Search01Icon,
@@ -19,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clampSelectionIndex,
   filterTrayWorkspaces,
+  type TrayTerminal,
   type TrayWorkspace,
 } from "./workspaces";
 
@@ -41,15 +43,67 @@ type ProviderLimitStatus = {
 
 function workspaceSubtitle(workspace: TrayWorkspace): string {
   if (workspace.workingFolder) return workspace.workingFolder;
+  if (workspace.workspaceMode === "agent") return "Agent chat workspace";
   return workspace.workspaceMode === "canvas"
     ? "Canvas workspace"
     : "Terminal workspace";
+}
+
+type TrayPane = {
+  paneIndex: number;
+  lastCommand?: string | null;
+  autoLaunch?: boolean;
+};
+
+async function loadTrayTerminals(workspace: TrayWorkspace): Promise<TrayTerminal[]> {
+  if (workspace.workspaceMode === "agent") {
+    return [{ label: "Agent chat" }];
+  }
+
+  if (workspace.workspaceMode === "canvas" && workspace.paneLayout) {
+    try {
+      const diagram = JSON.parse(workspace.paneLayout) as {
+        nodes?: Array<{ kind?: string; label?: string }>;
+      };
+      const terminals = (diagram.nodes ?? [])
+        .filter((node) => node.kind === "terminal")
+        .map((node, index) => ({ label: node.label?.trim() || `Terminal ${index + 1}` }));
+      if (terminals.length > 0) return terminals;
+    } catch {
+      // Fall through to persisted pane rows/count for older canvas layouts.
+    }
+  }
+
+  try {
+    const panes = await invoke<TrayPane[]>("db_list_panes", {
+      workspaceId: workspace.id,
+    });
+    if (panes.length > 0) {
+      return panes
+        .sort((left, right) => left.paneIndex - right.paneIndex)
+        .map((pane, index) => ({
+          label:
+            pane.autoLaunch && pane.lastCommand?.trim()
+              ? pane.lastCommand.trim()
+              : `Terminal ${index + 1}`,
+        }));
+    }
+  } catch {
+    // The popup can still show count-based placeholders when DB pane rows are absent.
+  }
+
+  return Array.from({ length: Math.max(0, workspace.count) }, (_, index) => ({
+    label: `Terminal ${index + 1}`,
+  }));
 }
 
 export function WorkspaceSwitcher() {
   const [workspaces, setWorkspaces] = useState<TrayWorkspace[]>([]);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [usageAgents, setUsageAgents] = useState<CliAgentDefinition[]>([]);
@@ -70,8 +124,15 @@ export function WorkspaceSwitcher() {
     setError(null);
     try {
       const next = await invoke<TrayWorkspace[]>("db_list_workspaces");
-      setWorkspaces(next);
-      setSelectedIndex(next.length > 0 ? 0 : -1);
+      const hydrated = await Promise.all(
+        next.map(async (workspace) => ({
+          ...workspace,
+          terminals: await loadTrayTerminals(workspace),
+        })),
+      );
+      setWorkspaces(hydrated);
+      setExpandedWorkspaceIds(new Set(hydrated.map((workspace) => workspace.id)));
+      setSelectedIndex(hydrated.length > 0 ? 0 : -1);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -175,6 +236,15 @@ export function WorkspaceSwitcher() {
       void unlistenFocus.then((unlisten) => unlisten());
     };
   }, [hide, refresh, refreshUsage]);
+
+  const toggleWorkspaceExpanded = (workspaceId: string) => {
+    setExpandedWorkspaceIds((current) => {
+      const next = new Set(current);
+      if (next.has(workspaceId)) next.delete(workspaceId);
+      else next.add(workspaceId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     setSelectedIndex((current) =>
@@ -305,6 +375,7 @@ export function WorkspaceSwitcher() {
               const canvas = workspace.workspaceMode === "canvas";
               const selected = index === selectedIndex;
               return (
+                <div key={workspace.id} className="space-y-0.5">
                 <button
                   key={workspace.id}
                   aria-selected={selected}
@@ -319,6 +390,21 @@ export function WorkspaceSwitcher() {
                   role="option"
                   type="button"
                 >
+                  <span
+                    className="flex size-5 shrink-0 items-center justify-center text-muted-foreground"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleWorkspaceExpanded(workspace.id);
+                    }}
+                    aria-hidden="true"
+                  >
+                    <HugeiconsIcon
+                      icon={ArrowDown01Icon}
+                      size={14}
+                      strokeWidth={2}
+                      className={cn("transition-transform", !expandedWorkspaceIds.has(workspace.id) && "-rotate-90")}
+                    />
+                  </span>
                   <span
                     className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background shadow-sm ring-1 ring-border/70"
                     style={{ color: workspace.accentColor ?? undefined }}
@@ -344,6 +430,27 @@ export function WorkspaceSwitcher() {
                     {workspace.count}
                   </span>
                 </button>
+                {expandedWorkspaceIds.has(workspace.id) ? (
+                  <div className="ml-5 space-y-0.5 border-l border-border/60 pl-2">
+                    {(workspace.terminals ?? []).map((terminal) => (
+                      <button
+                        key={terminal.label}
+                        type="button"
+                        onClick={() => openWorkspace(workspace.id)}
+                        className="flex min-h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                      >
+                        <HugeiconsIcon icon={ComputerTerminal02Icon} size={14} strokeWidth={1.8} />
+                        <span className="truncate">{terminal.label}</span>
+                      </button>
+                    ))}
+                    {(workspace.terminals ?? []).length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        No terminals open
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                </div>
               );
             })
           )}
