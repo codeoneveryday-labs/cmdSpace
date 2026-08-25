@@ -6,10 +6,13 @@ import { DormantRing } from "./dormantRing";
 import {
   clearPtyLeaf,
   ensureAgentActivityListener,
+  setAgentBlockedActivity,
   setAgentCliCommand,
+  setAgentResponseRequested,
   setAgentResponseActivity,
   setPtyLeaf,
 } from "./agentActivity";
+import { detectAgentSpinnerState } from "./agentSpinner";
 import {
   createShellIntegrationState,
   registerCwdHandler,
@@ -125,9 +128,11 @@ function markAgentResponding(
   if (s.agentActivityTimer !== null) window.clearTimeout(s.agentActivityTimer);
   s.agentActivityTimer = window.setTimeout(() => {
     s.agentActivityTimer = null;
-    setAgentResponseActivity(leafId, false, markCompleted);
-    if (markCompleted) s.agentResponseRequested = false;
-    s.callbacks.onAgentActivity?.(false);
+    if (markCompleted) {
+      setAgentResponseActivity(leafId, false, true);
+      s.agentResponseRequested = false;
+      s.callbacks.onAgentActivity?.(false);
+    }
   }, OUTPUT_ACTIVITY_QUIET_MS);
 }
 
@@ -141,6 +146,20 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
     return;
   }
 
+  // Once an interactive coding CLI owns the prompt, the text before Enter is
+  // an agent request, not another shell launch command. Do not re-run the
+  // shell command classifier against that prompt: doing so turns the agent
+  // off and clears the response loader exactly when a real turn starts.
+  if (s.interactiveCodingAgent) {
+    if (data.includes("\r") || data.includes("\n")) {
+      s.agentResponseRequested = true;
+      setAgentResponseRequested(leafId, true);
+      markAgentResponding(leafId, s, false);
+      s.inputBuffer = "";
+    }
+    return;
+  }
+
   if (data.includes("\r") || data.includes("\n")) {
     const [beforeEnter = ""] = data.split(/[\r\n]+/);
     s.inputBuffer += beforeEnter;
@@ -149,12 +168,10 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
       s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);
       if (s.interactiveCodingAgent) {
         s.launchCommand = command;
-        s.agentResponseRequested = true;
         setAgentCliCommand(leafId, command);
-        markAgentResponding(leafId, s);
       }
       if (!s.interactiveCodingAgent) {
-        setAgentResponseActivity(leafId, false);
+        setAgentResponseActivity(leafId, false, false);
         s.callbacks.onAgentActivity?.(false);
       }
       void s.pty?.setMetadata({ agent: command });
@@ -182,6 +199,16 @@ function trackPromptInput(leafId: number, s: Session, data: string): void {
  * command history.
  */
 function trackAgentLaunchInput(leafId: number, s: Session, data: string): void {
+  if (s.interactiveCodingAgent) {
+    if (data.includes("\r") || data.includes("\n")) {
+      s.agentResponseRequested = true;
+      setAgentResponseRequested(leafId, true);
+      markAgentResponding(leafId, s, false);
+      s.agentLaunchBuffer = "";
+    }
+    return;
+  }
+
   if (data.includes("\r") || data.includes("\n")) {
     const [beforeEnter = ""] = data.split(/[\r\n]+/);
     const command = (s.agentLaunchBuffer + beforeEnter).trim();
@@ -210,6 +237,11 @@ function trackAgentLaunchInput(leafId: number, s: Session, data: string): void {
 
 function writeToSessionPty(leafId: number, s: Session, data: string): void {
   s.lastLocalInputAt = Date.now();
+  if (s.interactiveCodingAgent && /[\r\n]/.test(data)) {
+    s.agentResponseRequested = true;
+    setAgentResponseRequested(leafId, true);
+    markAgentResponding(leafId, s, false);
+  }
   s.pty?.write(data);
   trackPromptInput(leafId, s, data);
 }
@@ -359,9 +391,22 @@ function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
       s.callbacks.onCommand?.(detectedAgent);
     }
   }
+  const spinnerState = s.interactiveCodingAgent
+    ? detectAgentSpinnerState(output)
+    : null;
   const outputIsUserEcho = Date.now() - s.lastLocalInputAt < LOCAL_INPUT_ECHO_GRACE_MS;
-  if (s.interactiveCodingAgent && !outputIsUserEcho) {
-    markAgentResponding(leafId, s, s.agentResponseRequested);
+  if (s.agentResponseRequested && spinnerState === "blocked" && !outputIsUserEcho) {
+    setAgentBlockedActivity(leafId, true);
+    setAgentResponseActivity(leafId, false, false);
+  } else if (
+    s.agentResponseRequested &&
+    !outputIsUserEcho
+  ) {
+    setAgentBlockedActivity(leafId, false);
+    // Keep the response request latched while the CLI is still emitting its
+    // own spinner. The quiet-output fallback may clear the visual state, but
+    // it must not lose the in-flight request before the next spinner frame.
+    markAgentResponding(leafId, s, spinnerState !== "working");
   }
   const slot = getSlotForLeaf(leafId);
   if (slot) slot.term.write(bytes);
@@ -455,6 +500,11 @@ function bindLeafToSlot(leafId: number, s: Session): void {
       s.shellState = shellState;
       const prompt = registerPromptTracker(term, shellState, () => {
         flushInitialCommand(leafId, s);
+        if (s.agentResponseRequested && !s.interactiveCodingAgent) {
+          s.agentResponseRequested = false;
+          setAgentResponseActivity(leafId, false, true);
+          s.callbacks.onAgentActivity?.(false);
+        }
       });
       const cwd = registerCwdHandler(
         term,
@@ -545,7 +595,7 @@ export async function respawnSession(
   if (cwd !== undefined) s.initialCwd = cwd;
   s.initialCommand = relaunchInitialCommand ? s.launchCommand : undefined;
   s.respawning = true;
-  setAgentResponseActivity(leafId, false);
+  setAgentResponseActivity(leafId, false, false);
   if (s.pty) clearPtyLeaf(s.pty.id);
   const previousPty = s.pty;
   s.pty = null;
@@ -622,7 +672,7 @@ export function disposeSession(leafId: number): void {
   const s = sessions.get(leafId);
   if (!s) return;
   s.disposed = true;
-  setAgentResponseActivity(leafId, false);
+  setAgentResponseActivity(leafId, false, false);
   if (s.initialCommandFallbackTimer !== null) {
     window.clearTimeout(s.initialCommandFallbackTimer);
     s.initialCommandFallbackTimer = null;

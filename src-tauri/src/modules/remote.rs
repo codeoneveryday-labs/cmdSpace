@@ -9,6 +9,7 @@ use super::remote_protocol::{
     RemoteDeviceClientEnvelope, RemoteDeviceServerEnvelope, RemoteProtocolDirectoryEntry,
     RemoteProtocolImportableSession, RemoteProtocolSession, RemoteProtocolWorkspace,
     RemoteServerEnvelope, ServerMessage, Utf8StreamDecoder,
+    RemoteProtocolProvider,
 };
 use super::remote_relay::{
     identity_path as remote_relay_identity_path, RemoteRelay, RemoteRelayIdentity,
@@ -145,6 +146,33 @@ const REMOTE_CLI_AGENT_CATALOG: &[(&str, &str, &str, &str, Option<&str>)] = &[
     ("grok", "Grok CLI", "grok", "xAI's Grok coding agent for terminal development.", Some("https://grok.com")),
     ("herdr", "Herdr", "herdr", "Persistent terminal workspace for running coding agents.", Some("https://herdr.dev/docs/install/")),
     ("cmd", "Command Code", "cmd", "Command Code agent running directly in the terminal.", Some("https://github.com/CommandCodeAI/command-code")),
+    ("agoragentic", "Agoragentic", "agoragentic", "Marketplace for AI capabilities and agent services.", Some("https://agoragentic.com")),
+    ("auggie", "Auggie CLI", "auggie", "Augment Code's context-aware software engineering agent.", Some("https://www.augmentcode.com/product/cli")),
+    ("autohand", "Autohand Code", "autohand", "AI coding agent powered by Autohand AI.", Some("https://www.autohand.ai/cli/")),
+    ("codebuddy", "Codebuddy Code", "codebuddy", "Tencent Cloud's intelligent coding assistant.", Some("https://www.codebuddy.cn/cli/")),
+    ("codewhale", "CodeWhale", "codewhale", "Terminal coding agent for DeepSeek and open models.", Some("https://codewhale.net/")),
+    ("cortex", "Cortex Code", "cortex", "Snowflake Cortex Code agent for software development.", Some("https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code-cli")),
+    ("corust", "Corust Agent", "corust", "Rust-focused co-building agent for terminal workflows.", Some("https://github.com/Corust-ai/corust-agent-release/releases")),
+    ("crow", "crow-cli", "crow", "Minimal ACP-native coding agent for terminal development.", Some("https://crow-ai.dev/")),
+    ("deepagents", "DeepAgents", "deepagents", "General-purpose coding agent powered by LangChain.", Some("https://docs.langchain.com/oss/javascript/deepagents/overview")),
+    ("devin", "Devin CLI", "devin", "Devin's terminal coding agent via Agent Client Protocol.", Some("https://cli.devin.ai/docs")),
+    ("dimcode", "DimCode", "dimcode", "Coding agent that puts leading models at your command.", Some("https://dimcode.dev/docs/acp.html")),
+    ("dirac", "Dirac", "dirac", "Open-source coding agent optimized for fast parallel edits.", Some("https://dirac.run")),
+    ("factory-droid", "Factory Droid", "droid", "Factory Droid software engineering agent.", Some("https://factory.ai/product/cli")),
+    ("fast-agent", "fast-agent", "fast-agent", "Multi-provider framework for building and running agents.", Some("https://fast-agent.ai/acp/")),
+    ("glm", "GLM Agent", "glm", "Zhipu GLM coding agent with streaming and tool calls.", Some("https://github.com/stefandevo/glm-acp-agent")),
+    ("hermes", "Hermes", "hermes", "Nous Research self-improving AI agent.", Some("https://hermes-agent.nousresearch.com/")),
+    ("junie", "Junie", "junie", "JetBrains AI coding agent for software projects.", Some("https://junie.jetbrains.com/docs/junie-cli-acp.html")),
+    ("kilo", "Kilo", "kilo", "Open-source coding agent for terminal development.", Some("https://kilo.ai/docs/code-with-ai/platforms/cli")),
+    ("minion", "Minion Code", "minion", "AI code assistant with rich development tools.", Some("https://github.com/femto/minion-code")),
+    ("mistral-vibe", "Mistral Vibe", "vibe", "Mistral's open-source coding assistant.", Some("https://github.com/mistralai/mistral-vibe")),
+    ("nova", "Nova", "nova", "Compass AI software engineering agent.", Some("https://www.compassap.ai/portfolio/nova.html")),
+    ("poolside", "Poolside", "pool", "Poolside's coding agent for software development.", Some("https://docs.poolside.ai/cli/pool")),
+    ("qoder", "Qoder CLI", "qoder", "AI coding assistant with agentic development capabilities.", Some("https://qoder.com")),
+    ("sigit", "siGit Code", "sigit", "Local-first coding agent with optional on-device inference.", Some("https://github.com/getsigit/sigit")),
+    ("stakpak", "Stakpak", "stakpak", "Open-source DevOps agent written in Rust.", Some("https://stakpak.dev/")),
+    ("trae", "TRAE CLI", "traecli", "ByteDance TRAE coding agent with native ACP support.", Some("https://docs.trae.cn/cli_get-started-with-trae-cli")),
+    ("vt-code", "VT Code", "vtcode", "Open-source coding agent with LLM-native code understanding.", Some("https://github.com/vinhnx/VTCode")),
 ];
 
 fn remote_settings_store_path() -> PathBuf {
@@ -187,8 +215,19 @@ fn remote_configured_agent_ids() -> (Vec<String>, Vec<String>) {
 }
 
 fn remote_providers_response() -> Result<RemoteResponse, String> {
+    let providers = remote_provider_entries();
+    let body = serde_json::to_vec(&RemoteProvidersPayload { providers })
+        .map_err(|e| format!("remote providers serialization failed: {e}"))?;
+    Ok(RemoteResponse {
+        status: "200 OK",
+        content_type: "application/json; charset=utf-8",
+        body,
+    })
+}
+
+fn remote_provider_entries() -> Vec<RemoteProviderEntry> {
     let (configured, disabled) = remote_configured_agent_ids();
-    let providers = REMOTE_CLI_AGENT_CATALOG
+    REMOTE_CLI_AGENT_CATALOG
         .iter()
         .map(|(id, name, executable, description, install_url)| RemoteProviderEntry {
             id: id.to_string(),
@@ -200,14 +239,23 @@ fn remote_providers_response() -> Result<RemoteResponse, String> {
             enabled: configured.iter().any(|candidate| candidate == id)
                 && !disabled.iter().any(|candidate| candidate == id),
         })
-        .collect::<Vec<_>>();
-    let body = serde_json::to_vec(&RemoteProvidersPayload { providers })
-        .map_err(|e| format!("remote providers serialization failed: {e}"))?;
-    Ok(RemoteResponse {
-        status: "200 OK",
-        content_type: "application/json; charset=utf-8",
-        body,
-    })
+        .collect()
+}
+
+fn send_remote_providers(socket: &mut WebSocket<TcpStream>) -> Result<(), String> {
+    let providers = remote_provider_entries()
+        .into_iter()
+        .map(|provider| RemoteProtocolProvider {
+            id: provider.id,
+            name: provider.name,
+            executable: provider.executable,
+            description: provider.description,
+            install_url: provider.install_url,
+            configured: provider.configured,
+            enabled: provider.enabled,
+        })
+        .collect();
+    send_remote_websocket_message(socket, ServerMessage::ProvidersSnapshot { providers })
 }
 
 #[derive(Clone, Serialize)]
@@ -1200,10 +1248,11 @@ fn handle_remote_websocket(
                             };
                             authenticated_generation =
                                 Some(authenticate_remote_websocket(&auth, client_ip, &token)?);
-                            return send_remote_websocket_message(
+                            send_remote_websocket_message(
                                 &mut socket,
                                 ServerMessage::Authenticated,
-                            );
+                            )?;
+                            return send_remote_providers(&mut socket);
                         }
                         handle_remote_websocket_message(
                             &mut socket,
@@ -2470,7 +2519,10 @@ fn handle_remote_websocket_message(
             }
             Ok(())
         }
-        ClientMessage::Ping => send_remote_websocket_message(socket, ServerMessage::Pong),
+        ClientMessage::Ping => {
+            send_remote_websocket_message(socket, ServerMessage::Pong)?;
+            send_remote_providers(socket)
+        }
     }
 }
 

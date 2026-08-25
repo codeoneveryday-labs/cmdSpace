@@ -88,7 +88,7 @@ export function TerminalAgentSwitcher({
       <DropdownMenuContent
         align="start"
         sideOffset={6}
-        className="min-w-56 rounded-xl p-1.5"
+        className="max-h-[min(70vh,28rem)] min-w-56 overflow-y-auto rounded-xl p-1.5"
         onPointerDown={(event) => event.stopPropagation()}
       >
         <DropdownMenuRadioGroup

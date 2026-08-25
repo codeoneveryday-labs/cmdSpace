@@ -179,6 +179,7 @@ function AuthenticatedRemoteApp({
         return (
           <ProvidersPage
             authToken={authToken}
+            client={client}
             onBack={() => setShowProviders(false)}
           />
         );

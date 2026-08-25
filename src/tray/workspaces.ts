@@ -5,7 +5,13 @@ export type TrayWorkspace = {
   accentColor?: string | null;
   workingFolder?: string | null;
   updatedAt?: number;
-  workspaceMode?: "standard" | "canvas" | null;
+  workspaceMode?: "standard" | "canvas" | "agent" | null;
+  paneLayout?: string | null;
+  terminals?: TrayTerminal[];
+};
+
+export type TrayTerminal = {
+  label: string;
 };
 
 export function filterTrayWorkspaces(

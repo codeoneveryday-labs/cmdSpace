@@ -25,9 +25,13 @@ import {
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setTerminalResizePaused } from "./lib/rendererPool";
 import {
+  useAgentBlockedLeaves,
+  useAgentCompletedLeaves,
   useAgentCliCommand,
   useAgentResponseLeaves,
+  useAgentResponseRequestedLeaves,
 } from "./lib/agentActivity";
+import { AgentStateDot, type AgentDisplayState } from "./AgentStateDot";
 import {
   GIT_REPO_CHANGED_EVENT,
   gitRepoRootFromChangedEvent,
@@ -116,8 +120,10 @@ export function PaneTreeView({
   const paneResizeResumeTimerRef = useRef<number | null>(null);
   const paneResizeDragCleanupRef = useRef<(() => void) | null>(null);
   const [agentResponding, setAgentResponding] = useState(false);
-  const [outputActive, setOutputActive] = useState(false);
   const respondingLeaves = useAgentResponseLeaves();
+  const requestedLeaves = useAgentResponseRequestedLeaves();
+  const blockedLeaves = useAgentBlockedLeaves();
+  const completedLeaves = useAgentCompletedLeaves();
   const storedAgentCommand = useAgentCliCommand(
     node.kind === "leaf" ? node.id : undefined,
   );
@@ -153,6 +159,13 @@ export function PaneTreeView({
     const b = getBundle(node.id);
     const isDragging = dragContext?.draggingId === node.id;
     const isDropTarget = dragContext?.targetId === node.id;
+    const agentState: AgentDisplayState | undefined = blockedLeaves.has(node.id)
+      ? "blocked"
+      : agentResponding || requestedLeaves.has(node.id) || respondingLeaves.has(node.id)
+        ? "working"
+        : completedLeaves.has(node.id)
+          ? "done"
+          : undefined;
     const targetStyle =
       isDropTarget && dragContext?.targetOffset
         ? {
@@ -207,7 +220,6 @@ export function PaneTreeView({
               b.onCommand?.(cmd);
             }}
             onAgentActivity={(_id, responding) => setAgentResponding(responding)}
-            onOutputActivity={(_id, active) => setOutputActive(active)}
           />
         ) : null}
 
@@ -234,7 +246,7 @@ export function PaneTreeView({
             onChangeDirectory(path);
           }}
           agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}
-          agentResponding={agentResponding || respondingLeaves.has(node.id)}
+          agentState={agentState}
           onSwitchAgent={(_agent, command) => {
             setDetectedAgentCommand(
               command && detectCliAgent(command) ? command : undefined,
@@ -249,7 +261,6 @@ export function PaneTreeView({
           canBroadcast={canBroadcast}
           onToggleBroadcast={onToggleBroadcast}
           onToggleBroadcastTarget={() => onToggleBroadcastTarget(node.id)}
-          outputActive={outputActive}
         />
       </div>
     );
@@ -518,7 +529,7 @@ function colorWithAlpha(hex: string, alpha: number): string {
 type FloatingTerminalOverlayProps = {
   cwd: string | undefined;
   agentCommand?: string;
-  agentResponding: boolean;
+  agentState?: AgentDisplayState;
   nodeId: number;
   focused: boolean;
   canMaximize: boolean;
@@ -535,28 +546,8 @@ type FloatingTerminalOverlayProps = {
   canBroadcast: boolean;
   onToggleBroadcast: () => void;
   onToggleBroadcastTarget: () => void;
-  outputActive: boolean;
   onSwitchAgent: (agent: CliAgent | null, command: string | null) => void;
 };
-
-function AgentResponseLoader() {
-  return (
-    <span
-      aria-label="Agent is responding"
-      className="grid size-3.5 shrink-0 grid-cols-2 grid-rows-2 gap-px text-foreground"
-      role="status"
-    >
-      {[0, 1, 2, 3].map((index) => (
-        <span
-          key={index}
-          aria-hidden="true"
-          className="cmdspace-agent-response-dot size-1 rounded-[1px] bg-current"
-          style={{ animationDelay: `${index * 120}ms` }}
-        />
-      ))}
-    </span>
-  );
-}
 
 function AgentUsageBadge({ status }: { status: AgentUsageStatus }) {
   const remaining = status.contextRemainingPercent;
@@ -637,7 +628,6 @@ function formatReset(timestamp?: number): string {
 export function FloatingTerminalOverlay({
   cwd,
   agentCommand,
-  agentResponding,
   nodeId,
   focused,
   canMaximize,
@@ -654,8 +644,8 @@ export function FloatingTerminalOverlay({
   canBroadcast,
   onToggleBroadcast,
   onToggleBroadcastTarget,
-  outputActive,
   onSwitchAgent,
+  agentState,
 }: FloatingTerminalOverlayProps) {
   const [additions, setAdditions] = useState<number>(0);
   const [deletions, setDeletions] = useState<number>(0);
@@ -686,7 +676,7 @@ export function FloatingTerminalOverlay({
       } catch (error) {
         // Usage telemetry is strictly optional; a terminal must never fail because
         // a local transcript is unavailable or mid-write.
-        console.debug("Agent usage snapshot unavailable:", error);
+        void error;
       }
     };
 
@@ -805,14 +795,7 @@ export function FloatingTerminalOverlay({
         currentAgent={cliAgent}
         onSelect={onSwitchAgent}
       />
-      {outputActive ? (
-        <span
-          role="status"
-          aria-label="Terminal is producing output"
-          className="size-1.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]"
-        />
-      ) : null}
-      {cliAgent && agentResponding ? <AgentResponseLoader /> : null}
+      {agentState ? <AgentStateDot state={agentState} /> : null}
       {activeAgentUsage ? <AgentUsageBadge status={activeAgentUsage} /> : null}
       {supportsUsage ? (
         <div className="relative" ref={usageMenuRef}>
