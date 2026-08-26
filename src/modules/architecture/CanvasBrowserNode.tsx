@@ -76,6 +76,7 @@ export function CanvasBrowserNode({
         <SidebarBrowserPane
           url={url}
           visible={active}
+          embedded
           resizing={interactionBlocked}
           boundsRevision={boundsRevision}
           onUrlChange={onUrlChange}

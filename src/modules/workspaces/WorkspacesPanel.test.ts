@@ -39,16 +39,22 @@ describe("WorkspacesPanel", () => {
     const cliAgentsSource = readFileSync(cliAgentsPath, "utf8");
     const agentCliIconSource = readFileSync(agentCliIconPath, "utf8");
 
+    expect(panelSource).toContain("onCloseTerminal");
+    expect(panelSource).toContain("aria-label={`Close ${terminal.label}`}");
+    expect(panelSource).toContain("event.stopPropagation()");
     expect(panelSource).toContain("WORKSPACES");
     expect(panelSource).toContain("TerminalAgentSwitcher");
-    expect(panelSource).toContain("handleCreateTerminal(command ?? undefined)");
+    expect(panelSource).toContain("onCreateTerminal(command ?? undefined)");
     expect(appSource).toContain("Failed to persist created workspace terminal");
     expect(panelSource).toContain("Set up your workspace");
     expect(panelSource).toContain("Workspace mode");
     expect(panelSource).toContain("Standard workspace");
     expect(panelSource).toContain("Canvas workspace");
+    expect(panelSource).toContain("Agent chat workspace");
+    expect(appSource).not.toContain("sendAgentWorkspacePrompt");
     expect(panelSource).toContain("WorkspaceModeIcon");
     expect(panelSource).toContain('workspace.workspaceMode === "canvas"');
+    expect(panelSource).toContain('workspace.workspaceMode === "agent"');
     expect(panelSource).toContain("CanvasIcon");
     expect(panelSource).toContain("ComputerTerminal02Icon");
     expect(panelSource).toContain("Canvas workspace");
@@ -103,7 +109,9 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain(
       "const availableAgents = configuredAgentCliOptions",
     );
-    expect(panelSource).not.toContain("check_agent_clis");
+    expect(panelSource).not.toContain("chatAgentOptions");
+    expect(panelSource).toContain("resolveAgentChatWorkspaceAgents");
+    expect(panelSource).not.toContain("chatTransport !== undefined");
     expect(panelSource).not.toContain("installedAgents");
     expect(panelSource).not.toContain("Scanning installed agents");
     expect(panelSource).toContain(
@@ -166,7 +174,7 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("initialCommands?: string[]");
     expect(panelSource).toContain('setSetupStep("agents")');
     expect(panelSource).toContain("Skip - no agents");
-    expect(panelSource).toContain("Launch {terminalCount} terminals");
+    expect(panelSource).toContain("Launch ${terminalCount} terminals");
     expect(panelSource).toContain("isEditableKeyboardTarget");
     expect(panelSource).toContain(
       'window.addEventListener("keydown", handleKeyboardShortcut)',
@@ -244,10 +252,13 @@ describe("WorkspacesPanel", () => {
     expect(appSource).not.toContain("WORKSPACES_PANEL_COLLAPSED_WIDTH = 42");
     expect(appSource).not.toContain('id="workspaces"');
     expect(appSource).not.toContain("panelRef={workspacesRef}");
-    expect(appSource).not.toContain("WORKSPACES_PANEL_MIN_WIDTH");
-    expect(appSource).not.toContain("WORKSPACES_PANEL_MAX_WIDTH");
+    expect(appSource).toContain("WORKSPACES_PANEL_MIN_WIDTH");
+    expect(appSource).toContain("WORKSPACES_PANEL_MAX_WIDTH");
     expect(appConstantsSource).toContain(
       "WORKSPACES_PANEL_COMPACT_WIDTH = 152",
+    );
+    expect(appConstantsSource).toContain(
+      'WORKSPACES_PANEL_WIDTH_STORAGE_KEY = "cmdspace.workspaces.width"',
     );
     expect(appConstantsSource).toContain(
       "WORKSPACES_PANEL_COMPACT_BREAKPOINT = 1180",
@@ -283,7 +294,7 @@ describe("WorkspacesPanel", () => {
     expect(workspaceSelectionSource).toContain(
       'filter((node) => node.kind === "terminal")',
     );
-    expect(appSource).toContain("count: terminalCount");
+    expect(appSource).toContain('count: workspaceMode === "agent" ? agentTabIds.length : terminalCount');
     expect(appSource).toContain("workspaceMode === \"canvas\"");
     expect(appSource).toContain("tabId: workspaceMode === \"canvas\" ? null : tabId");
     expect(appSource).toContain("initialCommands: string[] = []");
@@ -314,6 +325,7 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("handleSelectWorkspace");
     expect(appSource).toContain("handleCloseWorkspace");
     expect(appSource).toContain("handleRenameWorkspace");
+    expect(panelSource).not.toContain("border-r border-border/60");
     expect(appSource).toMatch(
       /<WorkspacesPanel[\s\S]*workspaces=\{workspaceItems\}[\s\S]*onRenameWorkspace=\{handleRenameWorkspace\}[\s\S]*onStartWorkspaceSetup=\{\(\) => setWorkspaceSetupOpen\(true\)\}/,
     );
@@ -353,8 +365,9 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain(
       "const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);",
     );
-    expect(appSource).toContain("const configuredCommand = autoLaunch");
-    expect(appSource).toContain("lastCommand: configuredCommand");
+    expect(appSource).toContain("const isCliAgent = detectCliAgent(command) !== null;");
+    expect(appSource).toContain("const configuredCommand = isCliAgent");
+    expect(appSource).toContain(": autoLaunch");
     expect(appSource).toContain("autoLaunch,");
     expect(dbSource).toContain("auto_launch INTEGER NOT NULL DEFAULT 0");
     expect(dbSource).toContain(
@@ -363,10 +376,15 @@ describe("WorkspacesPanel", () => {
     expect(dbSource).toContain("auto_launch: row.get(4)?");
   });
 
-  it("shows terminal navigation without a redundant coding-agent footer", () => {
+  it("nests terminal navigation under expandable workspace rows", () => {
     const source = readFileSync(panelPath, "utf8");
 
-    expect(source).toContain("TERMINALS");
+    expect(source).toContain("expandedWorkspaceIds");
+    expect(source).toContain("toggleWorkspaceExpanded");
+    expect(source).toContain("onToggleExpanded");
+    expect(source).toContain("Show terminals for");
+    expect(source).toContain("Hide terminals for");
+    expect(source).toContain("workspace.terminals");
     expect(source).not.toContain("activeWorkspaceCodingAgentCount: number");
     expect(source).not.toContain("Coding agents");
   });

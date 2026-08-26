@@ -1,4 +1,5 @@
 pub mod agent_usage;
+pub mod agent_chat;
 pub mod db;
 pub mod fs;
 pub mod git;
@@ -31,6 +32,9 @@ mod remote_relay_test;
 
 #[cfg(test)]
 mod agent_usage_test;
+
+#[cfg(test)]
+mod agent_chat_test;
 
 #[cfg(test)]
 mod remote_devices_test;

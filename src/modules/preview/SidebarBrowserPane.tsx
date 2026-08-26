@@ -17,11 +17,12 @@ import {
   type PreviewAddressBarHandle,
 } from "./PreviewAddressBar";
 import { intersectBrowserBounds } from "./browserBounds";
-import { normalizePreviewUrl } from "./normalizePreviewUrl";
+import { isLocalPreviewUrl, normalizePreviewUrl } from "./normalizePreviewUrl";
 
 type Props = {
   url: string;
   visible: boolean;
+  embedded?: boolean;
   resizing?: boolean;
   boundsRevision?: string | number;
   onUrlChange: (url: string) => void;
@@ -30,6 +31,7 @@ type Props = {
 export function SidebarBrowserPane({
   url,
   visible,
+  embedded = false,
   resizing = false,
   boundsRevision,
   onUrlChange,
@@ -44,7 +46,8 @@ export function SidebarBrowserPane({
   const normalizedUrl = useMemo(() => normalizePreviewUrl(url), [url]);
   const [error, setError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
-  const useNativeWebview = hasTauriWebviewRuntime();
+  const useNativeWebview =
+    hasTauriWebviewRuntime() && (!embedded || !isLocalPreviewUrl(normalizedUrl));
   const nativeLayerBlocked = useNativeLayerBlocker();
   const nativeInteractionBlocked = nativeLayerBlocked || resizing;
   const [history, setHistory] = useState<string[]>(() =>

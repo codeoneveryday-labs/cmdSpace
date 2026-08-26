@@ -22,6 +22,7 @@ export type WorkspacePersistenceDependencies<
   updateTab: (tabId: number, patch: { diagram: ArchitectureDiagram }) => void;
   setWorkspaces: WorkspaceStateSetter<TWorkspace>;
   persistWorkspace: (workspace: TWorkspace) => Promise<unknown> | unknown;
+  persistTerminalPanes?: (workspace: TWorkspace, paneTree: PaneNode) => void;
   now?: () => number;
 };
 
@@ -33,6 +34,10 @@ function handleTerminalPaneTreeChangeImpl<
   paneTree: PaneNode,
 ) {
   dependencies.setTerminalPaneTree(tabId, paneTree);
+  const workspace = dependencies.workspacesRef.current.find(
+    (item) => item.tabId === tabId,
+  );
+  if (workspace) dependencies.persistTerminalPanes?.(workspace, paneTree);
   persistTerminalWorkspaceLayout(
     {
       findByTerminalTabId: (currentTabId) =>

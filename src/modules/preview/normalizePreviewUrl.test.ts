@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizePreviewUrl } from "./normalizePreviewUrl";
+import {
+  isLocalPreviewUrl,
+  normalizePreviewUrl,
+} from "./normalizePreviewUrl";
 
 describe("normalizePreviewUrl", () => {
   it("preserves explicit HTTP URLs and trims surrounding whitespace", () => {
@@ -22,5 +25,11 @@ describe("normalizePreviewUrl", () => {
     expect(normalizePreviewUrl("example.com")).toBe("https://example.com");
     expect(normalizePreviewUrl("not a url")).toBe("not a url");
     expect(normalizePreviewUrl("  ")).toBe("");
+  });
+
+  it("distinguishes local previews from public pages", () => {
+    expect(isLocalPreviewUrl("http://localhost:5173")).toBe(true);
+    expect(isLocalPreviewUrl("http://127.0.0.1:3000/app")).toBe(true);
+    expect(isLocalPreviewUrl("https://facebook.com")).toBe(false);
   });
 });

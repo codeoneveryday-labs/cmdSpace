@@ -1,5 +1,6 @@
 import {
   CLI_AGENT_BY_ID,
+  detectCliAgent,
   type CliAgent,
 } from "@/modules/terminal/lib/cliAgents";
 
@@ -13,6 +14,15 @@ export type ImportableAgentSession = {
   preview?: string | null;
   lastActivityAt: number;
   active: boolean;
+};
+
+export type ResumableWorkspacePane = {
+  paneIndex: number;
+  workingFolder: string | null;
+  autoLaunch: boolean;
+  lastCommand: string | null;
+  agentProvider?: AgentSessionProvider | null;
+  nativeSessionId?: string | null;
 };
 
 function quoteShellArgument(value: string): string {
@@ -96,6 +106,18 @@ function normalizedPath(path: string): string {
   return normalized || path;
 }
 
+export function isResumeCommand(command?: string | null): boolean {
+  return command !== undefined && command !== null
+    ? /\b(?:resume|restore|continue|attach|session)\b/i.test(command)
+    : false;
+}
+
+export function sessionIdFromResumeCommand(command?: string | null): string | null {
+  if (!isResumeCommand(command)) return null;
+  const match = command?.match(/(?:resume|restore|continue|attach|session)(?:=|\s+)(?:[^\s]+\s+)?['"]?([^'"\s]+)['"]?\s*$/i);
+  return match?.[1] ?? null;
+}
+
 export function isSessionInWorkspace(
   session: ImportableAgentSession,
   workspaceCwd: string | null,
@@ -139,6 +161,85 @@ export function sessionsForEnabledProviders(
 ): ImportableAgentSession[] {
   const enabled = new Set(providers);
   return sessions.filter((session) => enabled.has(session.provider));
+}
+
+export function assignSessionsToPanes(
+  panes: readonly ResumableWorkspacePane[],
+  sessions: readonly ImportableAgentSession[],
+  workspaceCwd: string | null,
+  claimedSessionIds: readonly string[] = [],
+  minimumActivityAtByPane: ReadonlyMap<number, number> = new Map(),
+): ResumableWorkspacePane[] {
+  const normalizedWorkspaceCwd = workspaceCwd ? normalizedPath(workspaceCwd) : null;
+  const claimed = new Set(claimedSessionIds.filter(Boolean));
+  const next = panes.map((pane) => ({ ...pane }));
+  const groups = new Map<AgentSessionProvider, ResumableWorkspacePane[]>();
+  const sessionsById = new Map(sessions.map((session) => [session.sessionId, session]));
+
+  for (const pane of next) {
+    if (!pane.nativeSessionId && isResumeCommand(pane.lastCommand)) {
+      pane.nativeSessionId = sessionIdFromResumeCommand(pane.lastCommand);
+      pane.agentProvider = pane.agentProvider ?? detectCliAgent(pane.lastCommand ?? undefined);
+    }
+    if (pane.nativeSessionId) {
+      if (claimed.has(pane.nativeSessionId)) {
+        // A stale duplicate mapping must not survive a second workspace
+        // restore; clear it so this pane can claim an unclaimed session.
+        const provider = pane.agentProvider ?? detectCliAgent(pane.lastCommand ?? undefined);
+        pane.nativeSessionId = null;
+        pane.agentProvider = provider;
+        pane.lastCommand = provider ? CLI_AGENT_BY_ID[provider].launch : pane.lastCommand;
+      } else {
+      const persisted = sessionsById.get(pane.nativeSessionId);
+      if (persisted?.active) {
+        // A live native writer cannot be resumed. Leave this pane as a shell
+        // rather than launching a second process that Codex will reject.
+        pane.autoLaunch = false;
+        pane.lastCommand = null;
+        continue;
+      }
+      claimed.add(pane.nativeSessionId);
+      }
+    }
+    if (!pane.autoLaunch || !pane.lastCommand || pane.nativeSessionId) continue;
+    if (isResumeCommand(pane.lastCommand)) continue;
+    const provider = detectCliAgent(pane.lastCommand);
+    if (!provider) continue;
+    pane.agentProvider = provider;
+    const bucket = groups.get(provider) ?? [];
+    bucket.push(pane);
+    groups.set(provider, bucket);
+  }
+
+  for (const [provider, providerPanes] of groups) {
+    const matches = sessions
+      .filter((session) => {
+        if (session.active) return false;
+        if (session.provider !== provider) return false;
+        if (claimed.has(session.sessionId)) return false;
+        if (normalizedWorkspaceCwd === null) return true;
+        return normalizedPath(session.cwd) === normalizedWorkspaceCwd;
+      })
+      .sort((left, right) => right.lastActivityAt - left.lastActivityAt);
+    const panesByIndex = [...providerPanes].sort(
+      (left, right) => left.paneIndex - right.paneIndex,
+    );
+    for (let index = 0; index < panesByIndex.length; index += 1) {
+      const pane = panesByIndex[index];
+      const minimumActivityAt = minimumActivityAtByPane.get(pane?.paneIndex ?? -1);
+      const session = matches.find((candidate) =>
+        !claimed.has(candidate.sessionId) &&
+        (minimumActivityAt === undefined || candidate.lastActivityAt >= minimumActivityAt),
+      );
+      if (!pane || !session) continue;
+      pane.agentProvider = provider;
+      pane.nativeSessionId = session.sessionId;
+      pane.lastCommand = buildSessionResumeCommand(provider, session.sessionId);
+      claimed.add(session.sessionId);
+    }
+  }
+
+  return next;
 }
 
 export function filterImportableSessions(

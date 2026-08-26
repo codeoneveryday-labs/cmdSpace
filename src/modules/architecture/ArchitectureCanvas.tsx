@@ -68,6 +68,7 @@ import {
   resolveTerminalDropResult,
   useCanvasTerminalInteractions,
 } from "./lib/useCanvasTerminalInteractions";
+import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
 import {
   recommendTerminalPlacements,
   type TerminalPlacement,
@@ -1782,6 +1783,7 @@ export function ArchitectureCanvas({
     target: Pick<TerminalDockStackLayout, "groupId" | "stackId" | "rect">,
     kind: "tab" | "split",
     source: ArchitectureNode,
+    initialCommand?: string,
   ) {
     pushHistory();
     const surfaceKind = isLiveSurfaceKind(source.kind) ? source.kind : "terminal";
@@ -1797,6 +1799,9 @@ export function ArchitectureCanvas({
       {
         ...(surfaceKind === "terminal" ? { terminalChromeVersion: 2 as const } : {}),
         ...(surfaceKind === "terminal" && source.cwd ? { cwd: source.cwd } : {}),
+        ...(surfaceKind === "terminal" && initialCommand
+          ? { initialCommand }
+          : {}),
         ...(surfaceKind === "browser" ? { url: "" } : {}),
         ...(source.frameId ? { frameId: source.frameId } : {}),
       },
@@ -2329,6 +2334,10 @@ export function ArchitectureCanvas({
                   return {
                     id: terminalId,
                     kind: terminalNode.kind as LiveSurfaceKind,
+                    agent:
+                      terminalNode.kind === "terminal"
+                        ? detectCliAgent(terminalNode.initialCommand)
+                        : null,
                     label:
                       cwd?.split("/").pop() ||
                       terminalNode.label ||
@@ -2340,6 +2349,7 @@ export function ArchitectureCanvas({
                     id: string;
                     label: string;
                     kind: LiveSurfaceKind;
+                    agent: ReturnType<typeof detectCliAgent>;
                   } => tab !== null,
                 );
               return (
@@ -2362,6 +2372,7 @@ export function ArchitectureCanvas({
                   }}
                 >
                   <CanvasTerminalNode
+                    terminalId={node.id}
                     initialCwd={node.cwd}
                     initialCommand={node.initialCommand}
                     onHandleChange={(handle) => {
@@ -2441,9 +2452,9 @@ export function ArchitectureCanvas({
                       });
                       eraseNode(terminalId);
                     }}
-                    onAddTab={() => {
+                    onAddTab={(initialCommand) => {
                       if (!layout) return;
-                      createDockedSurface(layout, "tab", node);
+                      createDockedSurface(layout, "tab", node, initialCommand);
                     }}
                     onSplitRight={() => {
                       if (!layout) return;
@@ -2477,6 +2488,16 @@ export function ArchitectureCanvas({
                         ),
                       )
                     }
+                    onInitialCommandChange={(command) => {
+                      pushHistory();
+                      setNodes((current) =>
+                        current.map((item) =>
+                          item.id === node.id
+                            ? { ...item, initialCommand: command }
+                            : item,
+                        ),
+                      );
+                    }}
                   />
                   {selectedNodeIds.includes(node.id) && !node.locked ? (
                     <div

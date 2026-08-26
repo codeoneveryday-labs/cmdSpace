@@ -18,13 +18,15 @@ vi.mock("./CanvasTerminalNode", () => ({
   }: {
     initialCommand?: string;
     initialCwd?: string;
-    stackTabs?: Array<{ id: string; label: string }>;
+    stackTabs?: Array<{ id: string; label: string; agent?: string }>;
     visible?: boolean;
   }) => (
     <div
       data-initial-command={initialCommand}
       data-initial-cwd={initialCwd}
-      data-stack-tabs={stackTabs?.map((tab) => tab.id).join(",")}
+      data-stack-tabs={stackTabs
+        ?.map((tab) => `${tab.id}:${tab.agent ?? "none"}`)
+        .join(",")}
       data-visible={String(visible)}
     />
   ),
@@ -265,11 +267,54 @@ describe("ArchitectureCanvas", () => {
       </ThemeProvider>,
     );
 
-    expect(markup.match(/data-stack-tabs="terminal-1,terminal-2"/g)).toHaveLength(
-      2,
-    );
+    expect(
+      markup.match(/data-stack-tabs="terminal-1:none,terminal-2:none"/g),
+    ).toHaveLength(2);
     expect(markup.match(/data-visible="true"/g)).toHaveLength(1);
     expect(markup.match(/data-visible="false"/g)).toHaveLength(1);
+  });
+
+  it("derives each dock tab agent icon baseline from the owning terminal initial command", () => {
+    const seed: ArchitectureDiagram = {
+      nodes: [
+        {
+          ...terminalNode("terminal-1", "/tmp/codex"),
+          initialCommand: "codex --yolo",
+          x: 100,
+        },
+        {
+          ...terminalNode("terminal-2", "/tmp/claude"),
+          initialCommand: "claude --dangerously-skip-permissions",
+          x: 740,
+        },
+      ],
+      edges: [],
+      terminalDockGroups: [
+        {
+          id: "group-1",
+          x: 100,
+          y: 120,
+          width: 800,
+          height: 500,
+          root: {
+            id: "stack-1",
+            kind: "tabs",
+            terminalIds: ["terminal-1", "terminal-2"],
+            activeTerminalId: "terminal-1",
+          },
+        },
+      ],
+    };
+
+    const markup = renderToStaticMarkup(
+      <ThemeProvider>
+        <ArchitectureCanvas active tabId={1} title="Architecture" seed={seed} />
+      </ThemeProvider>,
+    );
+
+    expect(
+      markup.match(/data-stack-tabs="terminal-1:codex,terminal-2:claude"/g),
+    ).toHaveLength(2);
   });
 
   it("keeps canvas terminals hidden while another task is active", () => {

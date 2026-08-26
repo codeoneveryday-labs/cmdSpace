@@ -1,0 +1,60 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const here = path.dirname(new URL(import.meta.url).pathname);
+const componentPath = path.join(here, "AgentChatWorkspace.tsx");
+
+describe("AgentChatWorkspace", () => {
+  it("is a standalone agent-chat UI and never sends its draft to a terminal", () => {
+    expect(existsSync(componentPath)).toBe(true);
+    const source = readFileSync(componentPath, "utf8");
+
+    expect(source).toContain("Start a {agent.name} session");
+    expect(source).toContain("Message the agent");
+    expect(source).toContain("/commands and /skills");
+    expect(source).toContain("useAgentChatSession");
+    expect(source).toContain('<AgentStateDot state="working" />');
+    expect(source).toContain("provider");
+    expect(source).toContain("ChatOutlineRail");
+    expect(source).toContain("onMouseEnter");
+    expect(source).toContain("Chat outline");
+    expect(source).toContain("responseOutlineItems");
+    expect(source).not.toContain("length: 64");
+    expect(source).toContain("MAX_OUTLINE_LINES = 80");
+    expect(source).toContain("outlineWindow");
+    expect(source).toContain("const slotHeight");
+    expect(source.indexOf("<ChatOutlineRail")).toBeLessThan(source.indexOf("ref={scrollRef}"));
+    expect(source).not.toContain('z-10 hidden lg:block');
+    expect(source).not.toContain("<aside");
+    expect(source).not.toContain("Search history...");
+    expect(source).toContain("selectedModel");
+    expect(source).toContain("Upload file");
+    expect(source).toContain("Add attachment");
+    expect(source).toContain("Attach URL");
+    expect(source).toContain("file.text()");
+    expect(source).toContain("URL.createObjectURL");
+    expect(source).toContain("Image attachment selected");
+    expect(source).toContain("AiChat01Icon");
+    expect(source).toContain("Attached context:");
+    expect(source).toContain("Search models...");
+    expect(source).toContain("Discovered");
+    expect(source).toContain("Refresh models");
+    expect(source).not.toContain("Create profile");
+    expect(source).not.toContain("Diagnostic");
+    expect(source).not.toContain("MODEL_DESCRIPTIONS");
+    expect(source).not.toContain("FALLBACK_MODEL_IDS");
+    expect(source).toContain("listAgentChatModels");
+    expect(source).toContain("listAgentChatSlashOptions");
+    expect(source).toContain("/effort");
+    expect(source).toContain("/mode");
+    expect(source).toContain("Toggle fast mode");
+    expect(source).toContain("setSelectedModel(normalized[0]?.id ?? \"\")");
+    expect(source).toContain("Loading models from");
+    expect(source).not.toContain("AGENT_OPTIONS");
+    expect(source).not.toContain("readOnly");
+    expect(source).not.toContain("onSend");
+    expect(source).not.toContain("Sent to");
+    expect(source).not.toContain("Terminal");
+  });
+});

@@ -85,7 +85,7 @@ describe("TabBar drag reorder", () => {
     expect(tabBarSource).toContain("cmdspace-music-tab-icon");
     expect(tabBarSource).toContain("cmdspace-music-playing-tab");
     expect(tabBarSource).toContain("useAgentResponseLeaves");
-    expect(tabBarSource).toContain("cmdspace-agent-response-tab");
+    expect(tabBarSource).toContain("AgentStateDot");
     expect(headerSource).toContain("onNewMusic");
     expect(appSource).toContain("openTopMusicTab");
   });

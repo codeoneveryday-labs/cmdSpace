@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   Add01Icon,
+  AiChat01Icon,
   ArrowDown01Icon,
   ArrowLeft02Icon,
   ArrowRight01Icon,
@@ -35,6 +36,7 @@ import {
   type CliAgent,
 } from "@/modules/terminal/lib/cliAgents";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
+import { AgentStateDot, type AgentDisplayState } from "@/modules/terminal/AgentStateDot";
 import { TerminalAgentSwitcher } from "@/modules/terminal/TerminalAgentSwitcher";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAgentLaunchCommands } from "@/modules/settings/store";
@@ -42,6 +44,7 @@ import {
   isolatedAgentCommand,
   worktreeGroup,
 } from "@/modules/ai/lib/agentWorktree";
+import { resolveAgentChatWorkspaceAgents } from "@/modules/ai/lib/agentChatProviders";
 import { ImportSessionDialog } from "./ImportSessionDialog";
 import {
   buildSessionResumeCommand,
@@ -58,16 +61,21 @@ export type WorkspaceItem = {
   workingFolder?: string | null;
   updatedAt?: number;
   responding?: boolean;
+  state?: AgentDisplayState;
+  terminals?: WorkspaceTerminalItem[];
 };
 
-export type WorkspaceMode = "standard" | "canvas";
+export type WorkspaceMode = "standard" | "canvas" | "agent";
 export type WorkspaceTerminalItem = {
   leafId: number;
+  tabId?: number;
   label: string;
+  onClose?: () => void;
   agent?: CliAgent;
   active: boolean;
   responding: boolean;
   completed: boolean;
+  state?: AgentDisplayState;
 };
 
 const TERMINAL_COUNTS = [1, 2, 4, 6, 8, 10, 12] as const;
@@ -98,28 +106,14 @@ export const WORKSPACE_ACCENT_COLORS = [
 ] as const;
 export const DEFAULT_WORKSPACE_ACCENT_COLOR = WORKSPACE_ACCENT_COLORS[0];
 
-function WorkspaceResponseLoader() {
-  return (
-    <span
-      aria-label="Agent is responding"
-      className="grid size-3.5 shrink-0 grid-cols-2 grid-rows-2 gap-px text-foreground"
-      role="status"
-    >
-      {[0, 1, 2, 3].map((index) => (
-        <span
-          key={index}
-          aria-hidden="true"
-          className="cmdspace-agent-response-dot size-1 rounded-[1px] bg-current"
-          style={{ animationDelay: `${index * 120}ms` }}
-        />
-      ))}
-    </span>
-  );
-}
-
 function WorkspaceModeIcon({ workspace }: { workspace: WorkspaceItem }) {
   const canvas = workspace.workspaceMode === "canvas";
-  const label = canvas ? "Canvas workspace" : "Standard terminal workspace";
+  const agent = workspace.workspaceMode === "agent";
+  const label = canvas
+    ? "Canvas workspace"
+    : agent
+      ? "Agent chat workspace"
+      : "Standard terminal workspace";
 
   return (
     <span
@@ -129,7 +123,7 @@ function WorkspaceModeIcon({ workspace }: { workspace: WorkspaceItem }) {
       className="flex size-4 shrink-0 items-center justify-center text-muted-foreground/80"
     >
       <HugeiconsIcon
-        icon={canvas ? CanvasIcon : ComputerTerminal02Icon}
+        icon={canvas ? CanvasIcon : agent ? AiChat01Icon : ComputerTerminal02Icon}
         size={13}
         strokeWidth={1.9}
       />
@@ -151,7 +145,8 @@ export function normalizeWorkspaceAccentColor(
 type Props = {
   activeWorkspaceId: string | null;
   activeWorkspaceTerminals: WorkspaceTerminalItem[];
-  onSelectTerminal: (leafId: number) => void;
+  onSelectTerminal: (workspaceId: string, leafId: number) => void;
+  onSelectTab?: (tabId: number) => void;
   onSwapTerminals: (sourceId: number, targetId: number) => void;
   onCreateTerminal: (initialCommand?: string) => boolean;
   compact?: boolean;
@@ -173,6 +168,7 @@ export function WorkspacesPanel({
   activeWorkspaceId,
   activeWorkspaceTerminals,
   onSelectTerminal,
+  onSelectTab,
   onSwapTerminals,
   onCreateTerminal,
   compact = false,
@@ -187,7 +183,9 @@ export function WorkspacesPanel({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [createNotice, setCreateNotice] = useState<string | null>(null);
-  const terminalListRef = useRef<HTMLDivElement>(null);
+  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<Set<string>>(
+    () => new Set(activeWorkspaceId ? [activeWorkspaceId] : []),
+  );
   const terminalDragRef = useRef<{
     sourceId: number;
     pointerId: number;
@@ -212,6 +210,22 @@ export function WorkspacesPanel({
     },
     [onCreateTerminal],
   );
+  const toggleWorkspaceExpanded = useCallback((workspaceId: string) => {
+    setExpandedWorkspaceIds((current) => {
+      const next = new Set(current);
+      if (next.has(workspaceId)) next.delete(workspaceId);
+      else next.add(workspaceId);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (activeWorkspaceId === null) return;
+    setExpandedWorkspaceIds((current) => {
+      if (current.has(activeWorkspaceId)) return current;
+      return new Set([...current, activeWorkspaceId]);
+    });
+  }, [activeWorkspaceId]);
   const [terminalDragVisual, setTerminalDragVisual] = useState<{
     sourceId: number;
     targetId: number | null;
@@ -247,7 +261,7 @@ export function WorkspacesPanel({
         ) ?? null;
 
   const startTerminalDrag = useCallback(
-    (terminal: WorkspaceTerminalItem, event: React.PointerEvent<HTMLButtonElement>) => {
+    (terminal: WorkspaceTerminalItem, event: React.PointerEvent<HTMLDivElement>) => {
       if (event.button !== 0 || activeWorkspaceTerminals.length < 2) return;
       const bounds = event.currentTarget.getBoundingClientRect();
       terminalDragRef.current = {
@@ -460,7 +474,7 @@ export function WorkspacesPanel({
 
   return (
     <>
-      <aside className="flex h-full min-h-0 flex-col overflow-hidden border-r border-border/60 bg-card">
+      <aside className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
         <header
           className={cn(
             "flex h-10 shrink-0 items-center border-b border-border/60",
@@ -496,16 +510,17 @@ export function WorkspacesPanel({
                 <HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={2} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-52">
-              <DropdownMenuItem onSelect={onStartWorkspaceSetup}>
-                <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
+            <DropdownMenuContent align="end" className="min-w-44 rounded-xl p-1">
+              <DropdownMenuItem onSelect={onStartWorkspaceSetup} className="gap-2 rounded-md py-1.5 text-sm">
+                <HugeiconsIcon icon={Add01Icon} size={15} strokeWidth={1.8} />
                 New workspace
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={onImportSession}
                 disabled={activeWorkspaceId === null}
+                className="gap-2 rounded-md py-1.5 text-sm"
               >
-                <HugeiconsIcon icon={Download01Icon} size={14} strokeWidth={2} />
+                <HugeiconsIcon icon={Download01Icon} size={15} strokeWidth={1.8} />
                 Import agent session
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -515,7 +530,7 @@ export function WorkspacesPanel({
         <nav
           ref={containerRef}
           className={cn(
-            "min-h-0 basis-[48%] shrink-0 space-y-1 overflow-y-auto py-2",
+            "min-h-0 flex-1 space-y-1 overflow-y-auto py-2",
             compact ? "px-1.5" : "px-2",
           )}
         >
@@ -549,20 +564,49 @@ export function WorkspacesPanel({
 
                 return [
                   ...placeholder,
-                  <WorkspaceRow
-                    key={workspace.id}
-                    workspace={workspace}
-                    active={workspace.id === activeWorkspaceId}
-                    compact={compact}
-                    canClose={workspaces.length > 1}
-                    onSelect={() => onSelectWorkspace(workspace.id)}
-                    onClose={() => onCloseWorkspace(workspace.id)}
-                    onRename={(name) => onRenameWorkspace(workspace.id, name)}
-                    onColorChange={(color) =>
-                      onChangeWorkspaceColor(workspace.id, color)
-                    }
-                    onDragStart={onDragStart}
-                  />,
+                  <div key={workspace.id} className="space-y-0.5">
+                    <WorkspaceRow
+                      workspace={workspace}
+                      active={workspace.id === activeWorkspaceId}
+                      compact={compact}
+                      expanded={expandedWorkspaceIds.has(workspace.id)}
+                      canClose={workspaces.length > 1}
+                      onSelect={() => onSelectWorkspace(workspace.id)}
+                      onToggleExpanded={() => toggleWorkspaceExpanded(workspace.id)}
+                      onClose={() => onCloseWorkspace(workspace.id)}
+                      onRename={(name) => onRenameWorkspace(workspace.id, name)}
+                      onColorChange={(color) =>
+                        onChangeWorkspaceColor(workspace.id, color)
+                      }
+                      onDragStart={onDragStart}
+                    />
+                    {expandedWorkspaceIds.has(workspace.id) ? (
+                      <WorkspaceTerminalList
+                        workspace={workspace}
+                        terminals={workspace.terminals ?? []}
+                        canCreate={
+                          workspace.id === activeWorkspaceId &&
+                          workspace.workspaceMode !== "agent" &&
+                          workspace.workspaceMode !== "canvas"
+                        }
+                        createNotice={
+                          workspace.id === activeWorkspaceId ? createNotice : null
+                        }
+                        onCreateTerminal={handleCreateTerminal}
+                        onSelectTerminal={(leafId) =>
+                          onSelectTerminal(workspace.id, leafId)
+                        }
+                        onSelectTab={onSelectTab}
+                        onCloseTerminal={(terminal) => terminal.onClose?.()}
+                        onPointerDownTerminal={
+                          workspace.id === activeWorkspaceId
+                            ? startTerminalDrag
+                            : undefined
+                        }
+                        dragVisual={terminalDragVisual}
+                      />
+                    ) : null}
+                  </div>,
                 ];
               })}
 
@@ -580,72 +624,6 @@ export function WorkspacesPanel({
             </>
           )}
         </nav>
-        <section className="min-h-0 flex-1 overflow-y-auto border-t border-b border-border/60 py-2">
-          <div className="flex items-center justify-between border-b border-border/60 px-2 pb-1.5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              TERMINALS
-            </div>
-            <TerminalAgentSwitcher
-              currentAgent={null}
-              allowSameSelection
-              onSelect={(_agent, command) =>
-                handleCreateTerminal(command ?? undefined)
-              }
-              trigger={
-                <button
-                  type="button"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => event.stopPropagation()}
-                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  aria-label="Create terminal in workspace"
-                  title="Create terminal in workspace"
-                >
-                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
-                </button>
-              }
-            />
-          </div>
-          {createNotice ? (
-            <div
-              role="alert"
-              className="border-b border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300"
-            >
-              {createNotice}
-            </div>
-          ) : null}
-          <div ref={terminalListRef} className="space-y-1 px-2">
-            {activeWorkspaceTerminals.map((terminal) => (
-              <button
-                key={terminal.leafId}
-                data-terminal-leaf-id={terminal.leafId}
-                type="button"
-                onPointerDown={(event) => startTerminalDrag(terminal, event)}
-                onClick={() => onSelectTerminal(terminal.leafId)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors",
-                  terminal.active
-                    ? "bg-muted text-foreground dark:bg-zinc-800"
-                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                  terminalDragVisual?.sourceId === terminal.leafId &&
-                    "opacity-40",
-                  terminalDragVisual?.targetId === terminal.leafId &&
-                    "bg-primary/10 ring-1 ring-inset ring-primary/55",
-                )}
-                title={`Focus ${terminal.label}`}
-              >
-                {terminal.agent ? <AgentCliIcon agent={terminal.agent} /> : <HugeiconsIcon icon={ComputerTerminal02Icon} size={16} strokeWidth={1.8} />}
-                {terminal.responding ? <WorkspaceResponseLoader /> : null}
-                {!terminal.responding && terminal.completed ? (
-                  <HugeiconsIcon icon={Tick02Icon} size={15} strokeWidth={2.2} className="text-emerald-500" />
-                ) : null}
-                <span className="min-w-0 flex-1 truncate">{terminal.label}</span>
-              </button>
-            ))}
-            {activeWorkspaceTerminals.length === 0 ? (
-              <div className="px-2 py-2 text-xs text-muted-foreground">No terminals open</div>
-            ) : null}
-          </div>
-        </section>
       </aside>
 
       {terminalDragVisual !== null
@@ -689,13 +667,15 @@ export function WorkspacesPanel({
             left: dragVisual.x - (pointerDragRef.current?.offsetX ?? 0),
             top: dragVisual.y - (pointerDragRef.current?.offsetY ?? 0),
           }}
-        >
+      >
           <WorkspaceRow
           workspace={draggedWorkspace}
           active={draggedWorkspace.id === activeWorkspaceId}
           compact={compact}
+          expanded={false}
           canClose={false}
           onSelect={() => {}}
+          onToggleExpanded={() => {}}
             onClose={() => {}}
             onRename={() => {}}
             onColorChange={() => {}}
@@ -707,12 +687,138 @@ export function WorkspacesPanel({
   );
 }
 
+function WorkspaceTerminalList({
+  workspace,
+  terminals,
+  canCreate,
+  createNotice,
+  onCreateTerminal,
+  onSelectTerminal,
+  onSelectTab,
+  onCloseTerminal,
+  onPointerDownTerminal,
+  dragVisual,
+}: {
+  workspace: WorkspaceItem;
+  terminals: WorkspaceTerminalItem[];
+  canCreate: boolean;
+  createNotice: string | null;
+  onCreateTerminal: (initialCommand?: string) => boolean;
+  onSelectTerminal: (leafId: number) => void;
+  onSelectTab?: (tabId: number) => void;
+  onCloseTerminal: (terminal: WorkspaceTerminalItem) => void;
+  onPointerDownTerminal?: (
+    terminal: WorkspaceTerminalItem,
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => void;
+  dragVisual: { sourceId: number; targetId: number | null } | null;
+}) {
+  return (
+    <div
+      className="ml-3 space-y-0.5 border-l border-border/60 pl-2"
+      aria-label={`${workspace.name} terminals`}
+    >
+      {terminals.map((terminal) => (
+        <div
+          key={terminal.leafId}
+          data-terminal-leaf-id={terminal.leafId}
+          onPointerDown={(event) => onPointerDownTerminal?.(terminal, event)}
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest("button")) return;
+            if (terminal.tabId !== undefined) onSelectTab?.(terminal.tabId);
+            else onSelectTerminal(terminal.leafId);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            if (terminal.tabId !== undefined) onSelectTab?.(terminal.tabId);
+            else onSelectTerminal(terminal.leafId);
+          }}
+          role="button"
+          tabIndex={0}
+          className={cn(
+            "group flex min-h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+            terminal.active
+              ? "bg-muted text-foreground dark:bg-zinc-800"
+              : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+            dragVisual?.sourceId === terminal.leafId && "opacity-40",
+            dragVisual?.targetId === terminal.leafId &&
+              "bg-primary/10 ring-1 ring-inset ring-primary/55",
+          )}
+          title={`Focus ${terminal.label}`}
+        >
+          {terminal.agent ? (
+            <AgentCliIcon agent={terminal.agent} />
+          ) : (
+            <HugeiconsIcon
+              icon={ComputerTerminal02Icon}
+              size={15}
+              strokeWidth={1.8}
+            />
+          )}
+          {terminal.state ? <AgentStateDot state={terminal.state} /> : null}
+          <span className="min-w-0 flex-1 truncate">{terminal.label}</span>
+          {terminal.onClose ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCloseTerminal(terminal);
+              }}
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-[opacity,background-color,color] group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
+              aria-label={`Close ${terminal.label}`}
+              title={`Close ${terminal.label}`}
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={2} />
+            </button>
+          ) : null}
+        </div>
+      ))}
+      {terminals.length === 0 ? (
+        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+          No terminals open
+        </div>
+      ) : null}
+      {canCreate ? (
+        <TerminalAgentSwitcher
+          currentAgent={null}
+          allowSameSelection
+          onSelect={(_agent, command) => onCreateTerminal(command ?? undefined)}
+          trigger={
+            <button
+              type="button"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              className="flex min-h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label={`Create terminal in ${workspace.name}`}
+              title="Create terminal in workspace"
+            >
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
+              New terminal
+            </button>
+          }
+        />
+      ) : null}
+      {createNotice ? (
+        <div
+          role="alert"
+          className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-300"
+        >
+          {createNotice}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function WorkspaceRow({
   workspace,
   active,
   compact = false,
+  expanded,
   canClose,
   onSelect,
+  onToggleExpanded,
   onClose,
   onRename,
   onColorChange,
@@ -722,8 +828,10 @@ function WorkspaceRow({
   workspace: WorkspaceItem;
   active: boolean;
   compact?: boolean;
+  expanded: boolean;
   canClose: boolean;
   onSelect: () => void;
+  onToggleExpanded: () => void;
   onClose: () => void;
   onRename: (name: string) => void;
   onColorChange: (accentColor: string) => void;
@@ -737,6 +845,10 @@ function WorkspaceRow({
   const accentBg = colorWithAlpha(accentColor, 0.1);
   const accentBorder = colorWithAlpha(accentColor, 0.38);
   const accentGlow = colorWithAlpha(accentColor, 0.26);
+  const canExpand = true;
+  const toggleLabel = expanded
+    ? `Hide terminals for ${workspace.name}`
+    : `Show terminals for ${workspace.name}`;
   const activeRowStyle =
     active || isDragging
       ? {
@@ -817,9 +929,30 @@ function WorkspaceRow({
         )}
         title={workspace.name}
       >
+        {canExpand ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleExpanded();
+            }}
+            className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            aria-label={toggleLabel}
+            title={toggleLabel}
+          >
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              size={13}
+              strokeWidth={2}
+              className={cn("transition-transform duration-150", !expanded && "-rotate-90")}
+            />
+          </button>
+        ) : (
+          <span className="size-5 shrink-0" aria-hidden="true" />
+        )}
         {colorPicker}
         <WorkspaceModeIcon workspace={workspace} />
-        {workspace.responding ? <WorkspaceResponseLoader /> : null}
+        {workspace.state ? <AgentStateDot state={workspace.state} /> : null}
         <button
           type="button"
           disabled={!canClose}
@@ -872,9 +1005,30 @@ function WorkspaceRow({
         isDragging && "scale-[1.02] cursor-grabbing opacity-80 shadow-lg",
       )}
     >
+      {canExpand ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleExpanded();
+          }}
+          className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          aria-label={toggleLabel}
+          title={toggleLabel}
+        >
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            size={13}
+            strokeWidth={2}
+            className={cn("transition-transform duration-150", !expanded && "-rotate-90")}
+          />
+        </button>
+      ) : (
+        <span className="size-5 shrink-0" aria-hidden="true" />
+      )}
       {colorPicker}
       <WorkspaceModeIcon workspace={workspace} />
-      {workspace.responding ? <WorkspaceResponseLoader /> : null}
+      {workspace.state ? <AgentStateDot state={workspace.state} /> : null}
       {renaming ? (
         <Input
           ref={inputRef}
@@ -1185,6 +1339,8 @@ export function WorkspaceSetupView({
     workspaceName?: string,
     workspaceColor?: string,
     workspaceMode?: WorkspaceMode,
+    workspaceAgent?: CliAgent | null,
+    workspaceAgents?: CliAgent[],
   ) => void;
 }) {
   const [workspaceName, setWorkspaceName] = useState(suggestedWorkspaceName);
@@ -1197,6 +1353,7 @@ export function WorkspaceSetupView({
     useState<(typeof TERMINAL_COUNTS)[number]>(1);
   const [workspaceMode, setWorkspaceMode] =
     useState<WorkspaceMode>("standard");
+  const [selectedChatAgent, setSelectedChatAgent] = useState<CliAgent | null>(null);
   const [setupStep, setSetupStep] = useState<"layout" | "agents">("layout");
   const [importSessionPickerOpen, setImportSessionPickerOpen] = useState(false);
   const [selectedImportSessions, setSelectedImportSessions] = useState<
@@ -1273,6 +1430,11 @@ export function WorkspaceSetupView({
     ),
   ];
   const availableAgents = configuredAgentCliOptions;
+  const agentChatAgents = resolveAgentChatWorkspaceAgents({
+    configuredIds: configuredCliAgentIds,
+    disabledIds: disabledCliAgentIds,
+  });
+  const visibleAgents = workspaceMode === "agent" ? agentChatAgents : availableAgents;
 
   const persistCustomCommand = useCallback((command: string) => {
     void invoke("db_save_workspace_setup_custom_command", { command }).catch(
@@ -1359,6 +1521,13 @@ export function WorkspaceSetupView({
   }, [workingFolder]);
 
   useEffect(() => {
+    const selected = (workspaceMode === "agent" ? agentChatAgents : configuredAgentCliOptions).find(
+      (agent) => (agentCounts[agent.id] ?? 0) > 0,
+    );
+    setSelectedChatAgent(selected?.id ?? agentChatAgents[0]?.id ?? null);
+  }, [agentCounts, agentChatAgents, configuredAgentCliOptions, workspaceMode]);
+
+  useEffect(() => {
     setWorkspaceName(suggestedWorkspaceName);
   }, [suggestedWorkspaceName]);
 
@@ -1386,6 +1555,17 @@ export function WorkspaceSetupView({
 
   const openWorkspace = useCallback(
     (initialCommands?: string[]) => {
+      const selectedWorkspaceAgents = Object.entries(agentCounts).flatMap(
+        ([agentId, count]) =>
+          agentId === "custom"
+            ? []
+            : Array.from({ length: count }, () => agentId as CliAgent),
+      );
+      if (workspaceMode === "agent") {
+        selectedWorkspaceAgents.unshift(
+          ...selectedImportSessions.map((session) => session.provider),
+        );
+      }
       onOpenWithoutAi(
         terminalCount,
         selectedFolder || null,
@@ -1393,6 +1573,10 @@ export function WorkspaceSetupView({
         workspaceName,
         workspaceColor,
         workspaceMode,
+        workspaceMode === "agent" ? selectedChatAgent : null,
+        workspaceMode === "agent"
+          ? selectedWorkspaceAgents.slice(0, 12)
+          : undefined,
       );
       onCancel();
     },
@@ -1404,6 +1588,8 @@ export function WorkspaceSetupView({
       workspaceColor,
       workspaceMode,
       workspaceName,
+      selectedChatAgent,
+      agentCounts,
     ],
   );
 
@@ -1420,10 +1606,10 @@ export function WorkspaceSetupView({
       setSetupStep("agents");
       return;
     }
-    if (plannedAgentCommands.length > 0) {
+    if (plannedAgentCommands.length > 0 && selectedChatAgent) {
       openWorkspace(plannedAgentCommands);
     }
-  }, [openWorkspace, plannedAgentCommands, setupStep]);
+  }, [openWorkspace, plannedAgentCommands, selectedChatAgent, setupStep]);
 
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
@@ -1463,6 +1649,7 @@ export function WorkspaceSetupView({
       );
       const next = { ...current, [id]: clamped };
       if (clamped === 0) delete next[id];
+      if (workspaceMode === "agent" && clamped > 0) setSelectedChatAgent(id as CliAgent);
       return next;
     });
   };
@@ -1561,10 +1748,10 @@ export function WorkspaceSetupView({
                     Workspace mode
                   </h3>
                   <span className="text-[11px] text-muted-foreground/70">
-                    Canvas keeps the same terminals and agents, with an extra canvas tab
+                    Choose a terminal, canvas, or standalone chat surface
                   </span>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
                   {[
                     {
                       mode: "standard" as const,
@@ -1576,13 +1763,30 @@ export function WorkspaceSetupView({
                       name: "Canvas workspace",
                       description: "The same workspace, plus a canvas tab",
                     },
+                    {
+                      mode: "agent" as const,
+                      name: "Agent chat workspace",
+                      description: "A calm agent timeline over your terminals",
+                    },
                   ].map((option) => {
                     const selected = workspaceMode === option.mode;
                     return (
                       <button
                         key={option.mode}
                         type="button"
-                        onClick={() => setWorkspaceMode(option.mode)}
+                        onClick={() => {
+                          setWorkspaceMode(option.mode);
+                          if (option.mode === "agent") {
+                            setTerminalCount(12);
+                            setAgentCounts((current) =>
+                              Object.fromEntries(
+                                Object.entries(current).filter(([id]) =>
+                                  agentChatAgents.some((agent) => agent.id === id),
+                                ),
+                              ),
+                            );
+                          }
+                        }}
                         aria-pressed={selected}
                         className={cn(
                           "flex min-h-16 items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
@@ -1754,6 +1958,8 @@ export function WorkspaceSetupView({
                 ) : null}
               </section>
 
+              {workspaceMode !== "agent" ? (
+                <>
               <section className="space-y-3">
                 <div className="flex items-baseline gap-2">
                   <h3 className="text-sm font-semibold text-foreground">
@@ -1842,6 +2048,8 @@ export function WorkspaceSetupView({
                   })}
                 </div>
               </section>
+                </>
+              ) : null}
             </>
           ) : (
             <section className="space-y-4">
@@ -1988,7 +2196,7 @@ export function WorkspaceSetupView({
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
-                {availableAgents.map((agent) => {
+                {visibleAgents.map((agent) => {
                   const count = agentCounts[agent.id] ?? 0;
                   const selected = count > 0;
                   return (
@@ -2003,9 +2211,7 @@ export function WorkspaceSetupView({
                     >
                       <button
                         type="button"
-                        onClick={() =>
-                          setAgentCount(agent.id, selected ? 0 : 1)
-                        }
+                        onClick={() => setAgentCount(agent.id, selected ? 0 : 1)}
                         className={cn(
                           "flex size-5 shrink-0 items-center justify-center rounded border transition-colors",
                           selected
@@ -2177,20 +2383,22 @@ export function WorkspaceSetupView({
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
             {setupStep === "layout" ? (
               <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => openWorkspace()}
-                  className="w-full justify-center text-muted-foreground sm:w-auto"
-                >
-                  Open without AI
-                </Button>
+                {workspaceMode !== "agent" ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => openWorkspace()}
+                    className="w-full justify-center text-muted-foreground sm:w-auto"
+                  >
+                    Open without AI
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   onClick={handlePrimaryAction}
                   className="w-full justify-center sm:w-auto"
                 >
-                  Next: Add AI agents
+                   Next: Add AI agents
                   <HugeiconsIcon
                     icon={ArrowRight01Icon}
                     size={14}
@@ -2207,15 +2415,21 @@ export function WorkspaceSetupView({
                   onClick={() => openWorkspace()}
                   className="w-full justify-center text-muted-foreground sm:w-auto"
                 >
-                  Skip - no agents
+                  {workspaceMode === "agent" ? "Back to workspace" : "Skip - no agents"}
                 </Button>
                 <Button
                   type="button"
-                  disabled={plannedAgentCommands.length === 0}
+                  disabled={
+                    plannedAgentCommands.length === 0 ||
+                    (workspaceMode === "agent" &&
+                      (!selectedChatAgent || !selectedFolder))
+                  }
                   onClick={handlePrimaryAction}
                   className="w-full justify-center sm:w-auto"
                 >
-                  Launch {terminalCount} terminals
+                  {workspaceMode === "agent"
+                    ? "Open agent chat"
+                    : `Launch ${terminalCount} terminals`}
                   <HugeiconsIcon
                     icon={ArrowRight01Icon}
                     size={14}
