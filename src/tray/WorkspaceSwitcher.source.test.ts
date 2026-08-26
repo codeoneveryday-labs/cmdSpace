@@ -97,9 +97,9 @@ describe("menu bar workspace switcher wiring", () => {
     const app = readFileSync(path.join(root, "src/app/App.tsx"), "utf8");
     const tauri = readFileSync(path.join(root, "src-tauri/src/lib.rs"), "utf8");
 
-    expect(app).toContain('listen<string>("cmdspace:open-workspace"');
+    expect(app).toContain("workspaceSelectionRequestRef");
     expect(app).toContain("handleSelectWorkspaceRef.current(event.payload)");
-    expect(app).toContain("workspaceOpenGateRef.current.open(workspaceId");
+    expect(app).toContain('listen<string>("cmdspace:open-workspace"');
     expect(tauri).toContain("TrayIconBuilder::with_id(WORKSPACE_TRAY_ID)");
     expect(tauri).toContain('WebviewUrl::App("tray.html".into())');
     expect(tauri).toContain('"cmdspace:tray-opened"');
