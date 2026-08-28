@@ -3,6 +3,25 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.100] - 2026-08-28
+
+### Added
+
+- Added per-provider agent-chat runtime modules for Claude, Codex, Gemini,
+  OpenCode, omp, and Command Code.
+- Exposed configured agent workspace options through the workspace selection
+  flow.
+
+### Changed
+
+- Split agent-chat provider launch logic out of the monolithic backend path and
+  threaded configured workspace options through the frontend.
+
+### Known limitations
+
+- Remote Web provider snapshot changes are included, but Agent Chat still
+  requires each provider's own CLI installation and credentials.
+
 ## [0.7.99] - 2026-08-25
 
 ### Added
