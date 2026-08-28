@@ -3007,6 +3007,11 @@ fn create_remote_workspace(
         display_order: db::list_workspaces_inner(&conn)?.len() as i32,
         pane_layout: None,
         workspace_mode: Some("terminal".to_string()),
+        agent_provider: None,
+        agent_session_id: None,
+        agent_providers: None,
+        agent_session_ids: None,
+        agent_chat_ids: None,
     };
     db::save_workspace_inner(&conn, &workspace)?;
     for pane_index in 0..terminal_count {
@@ -3018,6 +3023,8 @@ fn create_remote_workspace(
                 working_folder: Some(working_folder.clone()),
                 last_command: None,
                 auto_launch: false,
+                agent_provider: None,
+                native_session_id: None,
             },
         )?;
     }
@@ -3965,6 +3972,11 @@ mod tests {
                 display_order: 0,
                 pane_layout: None,
                 workspace_mode: Some("canvas".to_string()),
+                agent_provider: None,
+                agent_session_id: None,
+                agent_providers: None,
+                agent_session_ids: None,
+                agent_chat_ids: None,
             },
         )
         .unwrap();

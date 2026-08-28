@@ -7,6 +7,7 @@ export const CLI_AGENT_IDS = [
   "cursor",
   "aider",
   "pi",
+  "omp",
   "amp",
   "cline",
   "goose",
@@ -49,6 +50,11 @@ export const CLI_AGENT_IDS = [
 export type CliAgent = (typeof CLI_AGENT_IDS)[number];
 
 export type CliAgentLaunchPolicy = "standard" | "unattended";
+export type CliAgentChatTransport =
+  | "codex-app-server"
+  | "claude-json"
+  | "omp-rpc"
+  | "command-code-json";
 
 export type CliAgentDefinition = {
   id: CliAgent;
@@ -57,6 +63,7 @@ export type CliAgentDefinition = {
   command: string;
   launch: string;
   launchPolicy: CliAgentLaunchPolicy;
+  chatTransport?: CliAgentChatTransport;
   bannerPatterns: RegExp[];
 };
 
@@ -109,6 +116,10 @@ const CLI_AGENT_CATALOG_META: Record<
   pi: {
     description: "Minimal, extensible terminal coding agent from the Pi project.",
     installUrl: "https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent",
+  },
+  omp: {
+    description: "Open, provider-rich coding agent with IDE-aware workflows.",
+    installUrl: "https://omp.sh/",
   },
   amp: {
     description: "Sourcegraph's frontier coding agent for terminal development.",
@@ -276,14 +287,15 @@ const opencodeLaunch = unattendedLaunch("opencode", "opencode");
 const commandCodeLaunch = unattendedLaunch("cmd", "cmd");
 
 export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
-  { id: "claude", name: "Claude Code", executable: "claude", command: claudeLaunch, launch: claudeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bclaude code\b/i] },
-  { id: "codex", name: "Codex", executable: "codex", command: codexLaunch, launch: codexLaunch, launchPolicy: "unattended", bannerPatterns: [/\bopenai codex\b/i] },
+  { id: "claude", name: "Claude Code", executable: "claude", command: claudeLaunch, launch: claudeLaunch, launchPolicy: "unattended", chatTransport: "claude-json", bannerPatterns: [/\bclaude code\b/i] },
+  { id: "codex", name: "Codex", executable: "codex", command: codexLaunch, launch: codexLaunch, launchPolicy: "unattended", chatTransport: "codex-app-server", bannerPatterns: [/\bopenai codex\b/i] },
   { id: "gemini", name: "Gemini CLI", executable: "gemini", command: "gemini", launch: "gemini", launchPolicy: "standard", bannerPatterns: [/\bgemini cli\b/i] },
   { id: "opencode", name: "OpenCode", executable: "opencode", command: opencodeLaunch, launch: opencodeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bopencode\b/i] },
   { id: "copilot", name: "GitHub Copilot", executable: "copilot", command: "copilot", launch: "copilot", launchPolicy: "standard", bannerPatterns: [/\bgithub copilot\b/i, /\bcopilot cli\b/i] },
   { id: "cursor", name: "Cursor Agent", executable: "cursor-agent", command: "cursor-agent", launch: "cursor-agent", launchPolicy: "standard", bannerPatterns: [/\bcursor agent\b/i] },
   { id: "aider", name: "Aider", executable: "aider", command: "aider", launch: "aider", launchPolicy: "standard", bannerPatterns: [/\baider\b/i] },
   { id: "pi", name: "Pi Coding Agent", executable: "pi", command: "pi", launch: "pi", launchPolicy: "standard", bannerPatterns: [/\bpi coding agent\b/i] },
+  { id: "omp", name: "omp", executable: "omp", command: "omp", launch: "omp", launchPolicy: "standard", chatTransport: "omp-rpc", bannerPatterns: [/\bomp(?:\.sh)?\b/i] },
   { id: "amp", name: "Amp CLI", executable: "amp", command: "amp", launch: "amp", launchPolicy: "standard", bannerPatterns: [/\bamp cli\b/i, /\bsourcegraph amp\b/i] },
   { id: "cline", name: "Cline CLI", executable: "cline", command: "cline", launch: "cline", launchPolicy: "standard", bannerPatterns: [/\bcline cli\b/i] },
   { id: "goose", name: "Goose", executable: "goose", command: "goose", launch: "goose", launchPolicy: "standard", bannerPatterns: [/\bgoose\b/i] },
@@ -293,7 +305,7 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli", launch: "kiro-cli", launchPolicy: "standard", bannerPatterns: [/\bkiro cli\b/i] },
   { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: grokLaunch, launchPolicy: "standard", bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
   { id: "herdr", name: "Herdr", executable: "herdr", command: "herdr", launch: "herdr", launchPolicy: "standard", bannerPatterns: [/\bherdr\b/i] },
-  { id: "cmd", name: "Command Code", executable: "cmd", command: commandCodeLaunch, launch: commandCodeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bcommand code\b/i] },
+  { id: "cmd", name: "Command Code", executable: "cmd", command: commandCodeLaunch, launch: commandCodeLaunch, launchPolicy: "unattended", chatTransport: "command-code-json", bannerPatterns: [/\bcommand code\b/i] },
   { id: "agoragentic", name: "Agoragentic", executable: "agoragentic", command: "agoragentic", launch: "agoragentic", launchPolicy: "standard", bannerPatterns: [/\bagoragentic\b/i] },
   { id: "auggie", name: "Auggie CLI", executable: "auggie", command: "auggie", launch: "auggie", launchPolicy: "standard", bannerPatterns: [/\bauggie(?: cli)?\b/i] },
   { id: "autohand", name: "Autohand Code", executable: "autohand", command: "autohand", launch: "autohand", launchPolicy: "standard", bannerPatterns: [/\bautohand(?: code)?\b/i] },
@@ -354,11 +366,11 @@ export function getEnabledCliAgentDefinitions(
   configuredIds: readonly string[],
   disabledIds: readonly string[],
 ): CliAgentDefinition[] {
-  const configured = new Set(normalizeCliAgentIds(configuredIds));
   const disabled = new Set(normalizeCliAgentIds(disabledIds));
-  return CLI_AGENT_DEFINITIONS.filter(
-    ({ id }) => configured.has(id) && !disabled.has(id),
-  );
+  return normalizeCliAgentIds(configuredIds).flatMap((id) => {
+    const definition = CLI_AGENT_BY_ID[id];
+    return disabled.has(id) ? [] : [definition];
+  });
 }
 
 export function filterCliAgentCatalog(
@@ -390,14 +402,14 @@ function segmentExecutable(segment: string): string | null {
   return words[index]?.replace(/^['"]|['"]$/g, "") ?? null;
 }
 
-/** True for a segment that launches the Command Code CLI rather than the
- *  Windows built-in `cmd` shell. The bare name and `/c`, `/k`, `/d` shell
- *  invocations are deliberately excluded. */
+/** True for a segment that launches the Command Code CLI. On cmdSpace's
+ *  Unix hosts, bare `cmd` is the configured Command Code executable; explicit
+ *  Windows shell switches remain excluded. */
 function isCommandCodeSegment(segment: string): boolean {
   const words = segment.trim().split(/\s+/);
   if (words[0] !== "cmd") return false;
   const arg = words[1];
-  if (!arg) return false;
+  if (!arg) return true;
   return arg.startsWith("--");
 }
 

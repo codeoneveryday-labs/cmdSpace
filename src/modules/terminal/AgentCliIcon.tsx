@@ -18,7 +18,7 @@ const FALLBACK_ICON_BY_AGENT: Partial<Record<CliAgent, typeof CodeIcon>> = {
 
 type Props = {
   agent: CliAgent;
-  size?: "sm" | "md";
+  size?: "xxs" | "xs" | "sm" | "md";
   className?: string;
 };
 
@@ -35,11 +35,11 @@ export function AgentCliIcon({ agent, size = "sm", className }: Props) {
       aria-label={label}
     >
       {brandIcon ? (
-        <BrandIcon name={brandIcon} size={size === "md" ? 14 : 12} />
+        <BrandIcon name={brandIcon} size={size === "md" ? 14 : size === "xs" ? 10 : size === "xxs" ? 8 : 12} />
       ) : (
         <HugeiconsIcon
           icon={FALLBACK_ICON_BY_AGENT[agent] ?? Robot01Icon}
-          size={size === "md" ? 14 : 12}
+          size={size === "md" ? 14 : size === "xs" ? 10 : size === "xxs" ? 8 : 12}
           strokeWidth={2}
         />
       )}

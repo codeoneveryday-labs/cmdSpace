@@ -47,10 +47,17 @@ describe("Sidebar browser toolbar", () => {
 
   it("enables the native webview runtime instead of forcing the iframe fallback", () => {
     const source = readFileSync(sidebarBrowserPath, "utf8");
-    expect(source).toMatch(
-      /const useNativeWebview = hasTauriWebviewRuntime\(\);/,
+    expect(source).toContain(
+      "hasTauriWebviewRuntime() && (!embedded || !isLocalPreviewUrl(normalizedUrl))",
     );
     expect(source).not.toContain("false && hasTauriWebviewRuntime()");
+  });
+
+  it("uses the DOM iframe for Canvas so clipping does not shrink the page viewport", () => {
+    const source = readFileSync(sidebarBrowserPath, "utf8");
+    expect(source).toContain("embedded?: boolean;");
+    expect(source).toContain("embedded = false");
+    expect(source).toContain("!embedded || !isLocalPreviewUrl(normalizedUrl)");
   });
 
   it("hides the native webview while the sidebar is resizing", () => {

@@ -214,16 +214,17 @@ describe("FloatingVoiceAgent", () => {
     expect(recordingHook).toContain("void startNativeRecognition();");
   });
 
-  it("stops capture after the speaker finishes a request", () => {
+  it("uses the Paseo-style explicit cancel or confirm flow instead of auto-stopping", () => {
     const recordingHook = readFileSync(
       path.join(here, "../hooks/useWhisperRecording.ts"),
       "utf8",
     );
 
-    expect(recordingHook).toContain("AUTO_STOP_AFTER_VOICE_SILENCE_MS");
-    expect(recordingHook).toContain("scheduleSilenceStop");
-    expect(recordingHook).toContain("window.setTimeout(");
-    expect(recordingHook).toContain("stopCapture,");
+    expect(recordingHook).toContain("const confirm = useCallback");
+    expect(recordingHook).toContain("const cancel = useCallback");
+    expect(recordingHook).toContain("duration");
+    expect(recordingHook).not.toContain("AUTO_STOP_AFTER_VOICE_SILENCE_MS");
+    expect(recordingHook).not.toContain("scheduleSilenceStop");
   });
 
   it("discovers the exact speech locales available on this Mac", () => {

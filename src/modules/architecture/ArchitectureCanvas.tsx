@@ -10,6 +10,7 @@ import type {
   ArchitectureShapeKind,
   ArchitectureTerminalDockGroup,
 } from "@/modules/tabs";
+import { MAX_PANES_PER_TAB } from "@/modules/tabs";
 import {
   ApiIcon,
   ArrowRight01Icon,
@@ -68,6 +69,7 @@ import {
   resolveTerminalDropResult,
   useCanvasTerminalInteractions,
 } from "./lib/useCanvasTerminalInteractions";
+import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
 import {
   recommendTerminalPlacements,
   type TerminalPlacement,
@@ -203,6 +205,10 @@ type Props = {
   onActiveTerminalChange?: (
     tabId: number,
     terminalId: string | null,
+  ) => void;
+  onRegisterTerminalCreator?: (
+    tabId: number,
+    creator: ((initialCommand?: string) => boolean) | null,
   ) => void;
   canvasFocused?: boolean;
   onToggleCanvasFocus?: () => void;
@@ -595,6 +601,7 @@ export function ArchitectureCanvas({
   onDiagramChange,
   onTerminalHandleChange,
   onActiveTerminalChange,
+  onRegisterTerminalCreator,
   canvasFocused = false,
   onToggleCanvasFocus,
 }: Props) {
@@ -658,6 +665,7 @@ export function ArchitectureCanvas({
   const [isFreeTerminalPlacement, setIsFreeTerminalPlacement] = useState(false);
   const [pendingSurfaceKind, setPendingSurfaceKind] =
     useState<LiveSurfaceKind | null>(null);
+  const pendingTerminalCommandRef = useRef<string | undefined>(undefined);
   const [maximizedTerminalId, setMaximizedTerminalId] = useState("");
   // terminalId -> handle, populated via onTerminalHandleChange so Cmd+Arrow
   // can move real input focus to the newly active terminal node.
@@ -768,6 +776,17 @@ export function ArchitectureCanvas({
   useEffect(() => {
     onDiagramChange?.(tabId, { nodes, edges, terminalDockGroups });
   }, [edges, nodes, onDiagramChange, tabId, terminalDockGroups]);
+
+  useEffect(() => {
+    onRegisterTerminalCreator?.(tabId, (initialCommand) => {
+      const terminalCount = nodes.filter((item) => item.kind === "terminal").length;
+      if (terminalCount >= MAX_PANES_PER_TAB) return false;
+      pendingTerminalCommandRef.current = initialCommand;
+      beginSurfacePlacement("terminal");
+      return true;
+    });
+    return () => onRegisterTerminalCreator?.(tabId, null);
+  }, [nodes, onRegisterTerminalCreator, tabId]);
 
   const selectSingleNode = (id: string) => {
     setSelectedNodeId(id);
@@ -1782,6 +1801,7 @@ export function ArchitectureCanvas({
     target: Pick<TerminalDockStackLayout, "groupId" | "stackId" | "rect">,
     kind: "tab" | "split",
     source: ArchitectureNode,
+    initialCommand?: string,
   ) {
     pushHistory();
     const surfaceKind = isLiveSurfaceKind(source.kind) ? source.kind : "terminal";
@@ -1797,6 +1817,9 @@ export function ArchitectureCanvas({
       {
         ...(surfaceKind === "terminal" ? { terminalChromeVersion: 2 as const } : {}),
         ...(surfaceKind === "terminal" && source.cwd ? { cwd: source.cwd } : {}),
+        ...(surfaceKind === "terminal" && initialCommand
+          ? { initialCommand }
+          : {}),
         ...(surfaceKind === "browser" ? { url: "" } : {}),
         ...(source.frameId ? { frameId: source.frameId } : {}),
       },
@@ -1850,6 +1873,9 @@ export function ArchitectureCanvas({
         ...(kind === "terminal" && inheritedTerminalCwd()
           ? { cwd: inheritedTerminalCwd() }
           : {}),
+        ...(kind === "terminal" && pendingTerminalCommandRef.current
+          ? { initialCommand: pendingTerminalCommandRef.current }
+          : {}),
         ...(kind === "browser" ? { url: "" } : {}),
       },
     );
@@ -1863,6 +1889,7 @@ export function ArchitectureCanvas({
     setTerminalPlacements([]);
     setIsFreeTerminalPlacement(false);
     setPendingSurfaceKind(null);
+    pendingTerminalCommandRef.current = undefined;
   }
 
   function commitFreeSurfacePlacement(kind: LiveSurfaceKind, point: Point) {
@@ -2329,6 +2356,10 @@ export function ArchitectureCanvas({
                   return {
                     id: terminalId,
                     kind: terminalNode.kind as LiveSurfaceKind,
+                    agent:
+                      terminalNode.kind === "terminal"
+                        ? detectCliAgent(terminalNode.initialCommand)
+                        : null,
                     label:
                       cwd?.split("/").pop() ||
                       terminalNode.label ||
@@ -2340,6 +2371,7 @@ export function ArchitectureCanvas({
                     id: string;
                     label: string;
                     kind: LiveSurfaceKind;
+                    agent: ReturnType<typeof detectCliAgent>;
                   } => tab !== null,
                 );
               return (
@@ -2362,6 +2394,7 @@ export function ArchitectureCanvas({
                   }}
                 >
                   <CanvasTerminalNode
+                    terminalId={node.id}
                     initialCwd={node.cwd}
                     initialCommand={node.initialCommand}
                     onHandleChange={(handle) => {
@@ -2441,9 +2474,9 @@ export function ArchitectureCanvas({
                       });
                       eraseNode(terminalId);
                     }}
-                    onAddTab={() => {
+                    onAddTab={(initialCommand) => {
                       if (!layout) return;
-                      createDockedSurface(layout, "tab", node);
+                      createDockedSurface(layout, "tab", node, initialCommand);
                     }}
                     onSplitRight={() => {
                       if (!layout) return;
@@ -2477,6 +2510,16 @@ export function ArchitectureCanvas({
                         ),
                       )
                     }
+                    onInitialCommandChange={(command) => {
+                      pushHistory();
+                      setNodes((current) =>
+                        current.map((item) =>
+                          item.id === node.id
+                            ? { ...item, initialCommand: command }
+                            : item,
+                        ),
+                      );
+                    }}
                   />
                   {selectedNodeIds.includes(node.id) && !node.locked ? (
                     <div

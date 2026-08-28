@@ -14,6 +14,7 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("type PtySession");
     expect(source).toContain("openPty(");
     expect(source).toContain("initialCommand?: string");
+    expect(source).toContain("onInitialCommandChange");
     expect(source).toContain("initialCwdRef.current,");
     expect(source).toContain("initialCommandRef.current,");
     expect(source).toContain("registerPromptTracker");
@@ -41,7 +42,7 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain('aria-label="Canvas terminal tabs"');
     expect(source).not.toContain('aria-label="Split vertically"');
     expect(source).not.toContain('aria-label="Split horizontally"');
-    expect(source).toContain("onAddTab: () => void");
+    expect(source).toContain("onAddTab: (initialCommand?: string) => void");
     expect(source).toContain("onSplitRight: () => void");
     expect(source).toContain('aria-label="Add terminal tab"');
     expect(source).toContain('aria-label="Split terminal right"');
@@ -145,17 +146,16 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("trackPromptInput(normalized)");
   });
 
-  it("shows Canvas-only agent response and completion borders", () => {
+  it("shows the shared Canvas agent response indicator without response borders", () => {
     const source = readFileSync(sourcePath, "utf8");
 
     expect(source).toContain("type AgentResponseState = \"idle\" | \"responding\" | \"completed\"");
     expect(source).toContain("setAgentResponseState(\"responding\")");
     expect(source).toContain("setAgentResponseState(\"completed\")");
     expect(source).toContain("setAgentResponseState(\"idle\")");
-    expect(source).toContain("cmdspace-canvas-agent-responding");
-    expect(source).toContain("cmdspace-canvas-agent-completed");
-    expect(source).toContain("rounded-[inherit]");
-    expect(source).toContain("shadow-[0_0_18px_rgba(16,185,129,0.55)]");
+    expect(source).toContain("AgentStateDot");
+    expect(source).not.toContain("cmdspace-canvas-agent-responding");
+    expect(source).not.toContain("cmdspace-canvas-agent-completed");
   });
 
   it("renders dock tabs without changing the isolated PTY lifecycle", () => {
@@ -176,6 +176,30 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("useEffect(() => {");
     expect(source).toContain("}, []);");
     expect(source).toContain("session.close");
+  });
+
+  it("keeps each inactive agent tab branded instead of using the active agent", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("agent?: CliAgent | null");
+    expect(source).toContain("tab.agent");
+    expect(source).toContain("AgentCliIcon agent={tabAgent}");
+  });
+
+  it("keeps the active plain terminal icon interactive for agent selection", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("currentAgent={tabAgent ?? null}");
+    expect(source).toContain("tab.id === activeTabId ? (");
+  });
+
+  it("opens the agent picker from the add-terminal control", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("onAddTab: (initialCommand?: string) => void");
+    expect(source).toContain("onSelect={(_agent, command) => onAddTab(command ?? undefined)}");
+    expect(source).toContain('aria-label="Add terminal tab"');
+    expect(source).toContain("onPointerDown={(event) => event.stopPropagation()}");
   });
 
   it("uses Cate-like compact tab chrome instead of a large terminal title", () => {

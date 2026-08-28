@@ -26,12 +26,67 @@ describe("App sidebar toggle", () => {
     expect(source).toContain('invoke("db_save_pane"');
   });
 
+  it("publishes manual CLI-agent launches back into the live pane tree", () => {
+    const source = readFileSync(appPath, "utf8");
+    const matches = source.match(/setLeafLaunchCommand\(leafId, command\);/g) ?? [];
+
+    expect(source).toContain("const isCliAgent = detectCliAgent(command) !== null;");
+    expect(source).toContain("if (isCliAgent) {");
+    expect(matches).toHaveLength(2);
+  });
+
+  it("persists agent chat session identity for every CLI provider instead of Codex only", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).not.toContain('if (provider !== "codex") return;');
+    expect(source).toContain("nativeSessionId={tab.nativeSessionId}");
+  });
+
+  it("closing an agent chat tab preserves its persisted chat descriptor", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("const agentTabIds = workspace.agentTabIds.filter((id) => id !== tabId);");
+    expect(source).not.toContain("const agentProviders = (workspace.agentProviders ?? []).filter(");
+    expect(source).not.toContain("const agentSessionIds = (workspace.agentSessionIds ?? []).filter(");
+    expect(source).toContain("const index = tabIndex;");
+  });
+
+  it("opens the Paseo-style draft workspace flow before creating a forked agent session", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("workspaceForkContext");
+    expect(source).toContain("forkContext={workspaceForkContext}");
+    expect(source).toContain("initialAgentDraft = \"\"");
+    expect(source).toContain("initialDraft: index === 0 ? initialAgentDraft : undefined");
+  });
+
+  it("activates a freshly created workspace instead of leaving the previous tab selected", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("const activatedTabId = tabId ?? canvasTabId;");
+    expect(source).toContain("if (activatedTabId !== null) setActiveId(activatedTabId);");
+  });
+
+  it("deletes every agent tab owned by a workspace", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("...(workspace.agentTabIds ?? []),");
+    expect(source).toContain("for (const tabId of workspaceTabIds)");
+    expect(source).toContain("agentSessionIds");
+  });
+
   it("auto-activates the first workspace only once so standalone tabs remain selectable", () => {
     const source = readFileSync(appPath, "utf8");
 
     expect(source).toContain("initialWorkspaceActivationHandledRef.current = true");
     expect(source).toContain("pendingBootstrapCloseRef.current = true");
-    expect(source).not.toContain("initialWorkspaceActivationHandledRef.current = false");
+    expect(source).toContain("shouldSuppressBootstrapShell({");
+    expect(source).toContain(
+      "pendingBootstrapClose: pendingBootstrapCloseRef.current",
+    );
+    expect(source).not.toContain(
+      "initialWorkspaceActivationHandledRef.current = false",
+    );
   });
 
   it("replaces the bottom AI composer with a terminal drawer", () => {
@@ -91,12 +146,19 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("pointer-events-auto");
   });
 
+  it("keeps workspace and right-sidebar dividers visible across the main surface", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("after:inset-y-0 after:left-1/2 after:w-px");
+    expect(source).toContain("after:bg-border/70");
+  });
+
   it("opens the bottom terminal from the active workspace folder", () => {
     const source = readFileSync(appPath, "utf8");
 
     expect(source).toContain("const activeWorkspaceFolder =");
     expect(source).toContain("activeWorkspaceFolder ??");
-    expect(source).toContain("workspace.tabId === activeId || workspace.canvasTabId === activeId");
+    expect(source).toContain("workspace.agentTabIds?.includes(activeId)");
   });
 
   it("refreshes provider keys when the main window becomes active again", () => {
@@ -157,10 +219,9 @@ describe("App sidebar toggle", () => {
     );
     expect(source).toContain("handleSidebarResizeEnd");
     expect(source).toContain('role="separator"');
-    expect(source).toContain("relative z-50 flex w-2 shrink-0");
-    expect(source).toContain("after:w-full");
-    expect(source).toContain("bg-border/40 hover:bg-border/80");
-    expect(source).toContain("hover:bg-border/80");
+    expect(source).toContain("relative z-50 -mx-2 flex w-4 shrink-0");
+    expect(source).toContain("bg-transparent");
+    expect(source).not.toContain("bg-border/40 hover:bg-border/80");
     expect(source).not.toContain('"after:w-2"');
     expect(source).not.toContain("<ResizableHandle");
     expect(source).toContain("resizing={sidebarResizing}");
@@ -168,6 +229,28 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("setTerminalResizePaused(false);");
     expect(source).toContain("const resumeTerminalResizeAfterSidebarDrag");
     expect(source).toContain("requestAnimationFrame(() => {");
+  });
+
+  it("keeps the workspaces sidebar resizable without a visible divider bar", () => {
+    const source = readFileSync(appPath, "utf8");
+    const constants = readFileSync(appConstantsPath, "utf8");
+
+    expect(constants).toContain(
+      'export const WORKSPACES_PANEL_WIDTH_STORAGE_KEY = "cmdspace.workspaces.width"',
+    );
+    expect(constants).toContain("export const WORKSPACES_PANEL_COLLAPSE_WIDTH =");
+    expect(source).toContain("const [workspacesPanelResizing, setWorkspacesPanelResizing]");
+    expect(source).toContain("const workspacesPanelResizeStartRef = useRef");
+    expect(source).toContain("readWorkspacesPanelWidth");
+    expect(source).toContain("clampWorkspacesPanelWidth");
+    expect(source).toContain("handleWorkspacesPanelResizeStart");
+    expect(source).toContain("handleWorkspacesPanelResizeMove");
+    expect(source).toContain("handleWorkspacesPanelResizeEnd");
+    expect(source).toContain("handleWorkspacesPanelResizeKeyDown");
+    expect(source).toContain("Open workspaces panel");
+    expect(source).toContain("Resize workspaces panel");
+    expect(source).toContain("-mx-2 flex w-4 shrink-0 cursor-col-resize");
+    expect(source).not.toContain("cmdspace-workspaces-panel-width");
   });
 
   it("defers terminal resize work during animated sidebar toggles", () => {
@@ -179,7 +262,8 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("terminalResizeResumeTimerRef");
     expect(source).toContain("window.setTimeout(() => {");
     expect(source).toContain("requestAnimationFrame(() => {");
-    expect(source).toContain("if (!sidebarResizeStartRef.current) {");
+    expect(source).toContain("!sidebarResizeStartRef.current &&");
+    expect(source).toContain("!workspacesPanelResizeStartRef.current");
     expect(source).toContain("pauseTerminalResizeForChromeTransition();");
     expect(source).toContain("setSidebarOpen((open) => !open);");
     expect(source).toContain("setWorkspacesPanelOpen((open) => !open);");
@@ -203,6 +287,10 @@ describe("App sidebar toggle", () => {
       'persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace })',
     );
     expect(appSource).toContain("onPaneTreeChange={handleTerminalPaneTreeChange}");
+    expect(appSource).toContain("const appended = splitActivePane(activeId, dir);");
+    expect(appSource).toContain(
+      "persistSplitPaneTree(activeId, appended.paneTree);",
+    );
     expect(persistenceSource).toContain(
       "dependencies.setTerminalPaneTree(tabId, paneTree);",
     );
@@ -339,7 +427,7 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("setSidebarOpen(true);");
     expect(source).toContain("Resize right sidebar");
     expect(source).toContain("Open right sidebar");
-    expect(source).toContain("bg-transparent hover:bg-border/60");
+    expect(source).toContain('"relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent');
   });
 
   it("keeps the right sidebar content mounted across toggle cycles", () => {
@@ -364,5 +452,16 @@ describe("App sidebar toggle", () => {
     expect(source).not.toContain('sidebarView === "helper"');
     expect(source).not.toContain("AgentRunBridge");
     expect(source).not.toContain("AiMiniWindow");
+  });
+
+  it("keeps both sidebars free of visible edge borders", () => {
+    const appSource = readFileSync(appPath, "utf8");
+    const panelSource = readFileSync(
+      path.join(here, "../modules/workspaces/WorkspacesPanel.tsx"),
+      "utf8",
+    );
+
+    expect(appSource).not.toContain("border-l border-border/60 bg-card");
+    expect(panelSource).not.toContain("border-r border-border/60");
   });
 });

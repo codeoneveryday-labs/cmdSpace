@@ -94,9 +94,7 @@ describe("TerminalStack lazy renderer restore", () => {
   it("tracks coding-agent response output without requiring shell OSC command markers", () => {
     const source = readFileSync(useTerminalSessionPath, "utf8");
 
-    expect(source).toContain(
-      "if (s.interactiveCodingAgent && !outputIsUserEcho)",
-    );
+    expect(source).toContain("if (s.interactiveCodingAgent) {");
     expect(source).not.toContain(
       "s.interactiveCodingAgent && s.shellState?.inCommand && !outputIsUserEcho",
     );

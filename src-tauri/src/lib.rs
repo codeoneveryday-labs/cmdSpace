@@ -1,7 +1,8 @@
 mod modules;
 
 use modules::{
-    agent_usage, db, fs, git, music, net, pty, remote, secrets, shell, speech, workspace,
+    agent_chat, agent_usage, db, fs, git, music, net, pty, remote, secrets, shell, speech,
+    workspace,
 };
 use std::sync::Mutex;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -92,6 +93,14 @@ macro_rules! cmdspace_commands {
             agent_usage::agent_usage_statuses,
             agent_usage::provider_limit_status,
             agent_usage::provider_limit_statuses,
+            // Structured CLI agent chat
+            agent_chat::agent_chat_start,
+            agent_chat::agent_chat_send,
+            agent_chat::agent_chat_cancel,
+            agent_chat::agent_chat_close,
+            agent_chat::agent_chat_load_history,
+            agent_chat::agent_chat_list_models,
+            agent_chat::agent_chat_list_slash_options,
             // PTY
             pty::pty_open,
             pty::pty_write,
@@ -201,6 +210,10 @@ macro_rules! cmdspace_commands {
             db::db_save_recent_workspace,
             db::db_load_workspace_setup_custom_command,
             db::db_save_workspace_setup_custom_command,
+            db::db_load_agent_chat_config,
+            db::db_save_agent_chat_config,
+            db::db_load_agent_model_cache,
+            db::db_save_agent_model_cache,
         ]
     };
 }
@@ -1142,6 +1155,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .manage(pty::PtyState::default())
+        .manage(agent_chat::AgentChatRuntime::default())
         .manage(remote::RemoteAccessState::default())
         .manage(shell::ShellState::default())
         .manage(secrets::SecretsState::default())

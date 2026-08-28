@@ -19,6 +19,9 @@ import {
   type FloatingVoiceAgentHandle,
   type SpeechInputTarget,
 } from "@/modules/ai/components/FloatingVoiceAgent";
+import { AgentChatWorkspace } from "@/modules/ai/components/AgentChatWorkspace";
+import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
+import type { AgentDisplayState } from "@/modules/terminal/AgentStateDot";
 import {
   EMPTY_PROVIDER_KEYS,
   getAllKeys,
@@ -102,11 +105,18 @@ import {
 } from "@/modules/terminal";
 import {
   clearAgentCompleted,
+  useAgentBlockedLeaves,
   useAgentCliCommands,
   useAgentCompletedLeaves,
   useAgentResponseLeaves,
+  useAgentResponseRequestedLeaves,
 } from "@/modules/terminal/lib/agentActivity";
-import { detectTrackedCliAgent } from "@/modules/terminal/lib/cliAgents";
+import {
+  detectCliAgent,
+  detectTrackedCliAgent,
+  type CliAgent,
+} from "@/modules/terminal/lib/cliAgents";
+import type { PaneNode } from "@/modules/terminal/lib/panes";
 import { ThemeProvider } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
 import {
@@ -117,7 +127,6 @@ import {
 } from "@/modules/workspace";
 import {
   DEFAULT_WORKSPACE_ACCENT_COLOR,
-  buildSessionResumeCommand,
   ImportSessionDialog,
   normalizeWorkspaceAccentColor,
   WORKSPACE_ACCENT_COLORS,
@@ -128,13 +137,23 @@ import {
   type WorkspaceMode,
   type ImportableAgentSession,
 } from "@/modules/workspaces";
+import {
+  assignSessionsToPanes,
+  buildSessionResumeCommand,
+  isResumeCommand,
+} from "@/modules/workspaces/lib/importSessions";
 import { createWorkspaceOpenGate } from "./workspaceOpenGate";
+import {
+  getWorkspaceLoadingPresentation,
+  shouldSuppressBootstrapShell,
+} from "./lib/startupGate";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SearchAddon } from "@xterm/addon-search";
 import {
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -144,6 +163,7 @@ import {
 } from "react";
 import {
   CHROME_RESIZE_TRANSITION_MS,
+  ACTIVE_WORKSPACE_STORAGE_KEY,
   SIDEBAR_BROWSER_URL_STORAGE_KEY,
   SIDEBAR_COLLAPSE_WIDTH,
   SIDEBAR_DEFAULT_WIDTH,
@@ -154,9 +174,13 @@ import {
   WORKSPACE_DELETE_CONFIRM_STORAGE_KEY,
   WORKSPACE_LIMIT,
   WORKSPACE_MIN_WIDTH,
+  WORKSPACES_PANEL_COLLAPSE_WIDTH,
   WORKSPACES_PANEL_COMPACT_BREAKPOINT,
   WORKSPACES_PANEL_COMPACT_WIDTH,
+  WORKSPACES_PANEL_MAX_WIDTH,
+  WORKSPACES_PANEL_MIN_WIDTH,
   WORKSPACES_PANEL_WIDTH,
+  WORKSPACES_PANEL_WIDTH_STORAGE_KEY,
 } from "./constants";
 import { useWorkspacePersistence } from "./lib/useWorkspacePersistence";
 import {
@@ -174,6 +198,99 @@ function dirname(path: string | null): string | null {
 
 function canvasTerminalRefKey(tabId: number, terminalId: string): string {
   return `${tabId}:${terminalId}`;
+}
+
+function upsertWorkspacePane(
+  panes: readonly WorkspaceSelectionPane[],
+  pane: WorkspaceSelectionPane,
+): WorkspaceSelectionPane[] {
+  const next = [...panes];
+  const index = next.findIndex((item) => item.paneIndex === pane.paneIndex);
+  if (index === -1) next.push(pane);
+  else next[index] = pane;
+  next.sort((left, right) => left.paneIndex - right.paneIndex);
+  return next;
+}
+
+type PersistedPaneRecord = WorkspaceSelectionPane & { workspaceId: string };
+
+function paneRecordFromCommand(
+  workspaceId: string,
+  paneIndex: number,
+  workingFolder: string | null,
+  lastCommand: string | null,
+  autoLaunch: boolean,
+  existingPane?: WorkspaceSelectionPane,
+  explicitNativeSessionId?: string | null,
+  preserveExistingNativeSession = true,
+): PersistedPaneRecord {
+  if (!autoLaunch || !lastCommand) {
+    return {
+      workspaceId,
+      paneIndex,
+      workingFolder,
+      lastCommand: null,
+      autoLaunch: false,
+      agentProvider: null,
+      nativeSessionId: null,
+    };
+  }
+
+  const provider = detectCliAgent(lastCommand);
+  if (!provider) {
+    return {
+      workspaceId,
+      paneIndex,
+      workingFolder,
+      lastCommand,
+      autoLaunch,
+      agentProvider: existingPane?.agentProvider ?? null,
+      nativeSessionId: existingPane?.nativeSessionId ?? null,
+    };
+  }
+
+  if (explicitNativeSessionId) {
+    return {
+      workspaceId,
+      paneIndex,
+      workingFolder,
+      lastCommand: buildSessionResumeCommand(provider, explicitNativeSessionId),
+      autoLaunch: true,
+      agentProvider: provider,
+      nativeSessionId: explicitNativeSessionId,
+    };
+  }
+
+  if (
+    preserveExistingNativeSession &&
+    existingPane?.nativeSessionId &&
+    existingPane.agentProvider === provider &&
+    !isResumeCommand(lastCommand)
+  ) {
+    return {
+      workspaceId,
+      paneIndex,
+      workingFolder,
+      lastCommand:
+        existingPane.lastCommand ??
+        buildSessionResumeCommand(provider, existingPane.nativeSessionId),
+      autoLaunch: true,
+      agentProvider: provider,
+      nativeSessionId: existingPane.nativeSessionId,
+    };
+  }
+
+  return {
+    workspaceId,
+    paneIndex,
+    workingFolder,
+    lastCommand,
+    autoLaunch: true,
+    agentProvider: provider,
+    nativeSessionId: isResumeCommand(lastCommand)
+      ? (existingPane?.nativeSessionId ?? null)
+      : null,
+  };
 }
 
 function canvasWorkspaceDiagram(
@@ -214,13 +331,24 @@ type WorkspaceRecord = WorkspaceItem & {
   paneLayout: string | null;
   tabId: number | null;
   canvasTabId: number | null;
+  agentProvider: CliAgent | null;
+  agentSessionId: string | null;
+  agentTabIds?: number[];
+  agentProviders?: CliAgent[];
+  agentSessionIds?: Array<string | null>;
+  agentChatIds?: string[];
 };
 
 type PersistedWorkspaceRecord = Omit<
   WorkspaceRecord,
-  "accentColor" | "tabId" | "canvasTabId"
+  "accentColor" | "tabId" | "canvasTabId" | "agentProvider" | "agentSessionId" | "agentTabIds"
 > & {
   accentColor?: string | null;
+  agentProvider?: CliAgent | null;
+  agentSessionId?: string | null;
+  agentProviders?: CliAgent[] | null;
+  agentSessionIds?: Array<string | null> | null;
+  agentChatIds?: string[] | null;
 };
 
 type PersistedRecentWorkspaceRecord = WorkspaceItem & {
@@ -241,6 +369,27 @@ function clampSidebarWidth(width: number, containerWidth?: number): number {
 
 function shouldUseCompactWorkspacesPanel(width: number): boolean {
   return width < WORKSPACES_PANEL_COMPACT_BREAKPOINT;
+}
+
+function clampWorkspacesPanelWidth(
+  width: number,
+  containerWidth?: number,
+  sidebarWidth = 0,
+): number {
+  const maxWidth =
+    containerWidth && Number.isFinite(containerWidth)
+      ? Math.max(
+          WORKSPACES_PANEL_MIN_WIDTH,
+          Math.min(
+            WORKSPACES_PANEL_MAX_WIDTH,
+            containerWidth - sidebarWidth - WORKSPACE_MIN_WIDTH,
+          ),
+        )
+      : WORKSPACES_PANEL_MAX_WIDTH;
+  return Math.min(
+    maxWidth,
+    Math.max(WORKSPACES_PANEL_MIN_WIDTH, Math.round(width)),
+  );
 }
 
 function formatWorkspaceName(index: number): string {
@@ -274,6 +423,18 @@ function readSidebarWidth(): number {
       : SIDEBAR_DEFAULT_WIDTH;
   } catch {
     return SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
+function readWorkspacesPanelWidth(): number {
+  try {
+    const stored = window.localStorage.getItem(WORKSPACES_PANEL_WIDTH_STORAGE_KEY);
+    const parsed = stored ? Number.parseInt(stored, 10) : NaN;
+    return Number.isFinite(parsed)
+      ? clampWorkspacesPanelWidth(parsed)
+      : WORKSPACES_PANEL_WIDTH;
+  } catch {
+    return WORKSPACES_PANEL_WIDTH;
   }
 }
 
@@ -317,6 +478,7 @@ export default function App() {
     newTab,
     newPrivateTab,
     newWorkspaceTab,
+    newAgentChatTab,
     openFileTab,
     pinTab,
     newPreviewTab,
@@ -364,6 +526,7 @@ export default function App() {
   const bottomTerminalRef = useRef<BottomTerminalDrawerHandle | null>(null);
   const canvasTerminalRefs = useRef<Map<string, CanvasTerminalHandle>>(new Map());
   const activeCanvasTerminalIds = useRef<Map<number, string>>(new Map());
+  const [canvasTerminalSelectionVersion, setCanvasTerminalSelectionVersion] = useState(0);
   const pendingVoiceDraftsRef = useRef<Map<number, string>>(new Map());
   const voiceAgentRef = useRef<FloatingVoiceAgentHandle | null>(null);
   const editorRefs = useRef<Map<number, EditorPaneHandle>>(new Map());
@@ -386,6 +549,15 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarResizing, setSidebarResizing] = useState(false);
   const [workspacesPanelOpen, setWorkspacesPanelOpen] = useState(true);
+  const [workspacesPanelResizing, setWorkspacesPanelResizing] = useState(false);
+  const [workspacesPanelExpandedWidth, setWorkspacesPanelExpandedWidth] =
+    useState(readWorkspacesPanelWidth);
+  const workspacesPanelWidthRef = useRef(workspacesPanelExpandedWidth);
+  const workspacesPanelResizeStartRef = useRef<{
+    open: boolean;
+    pointerX: number;
+    width: number;
+  } | null>(null);
   const [workspacesPanelCompact, setWorkspacesPanelCompact] = useState(() =>
     typeof window === "undefined"
       ? false
@@ -393,7 +565,7 @@ export default function App() {
   );
   const workspacesPanelWidth = workspacesPanelCompact
     ? WORKSPACES_PANEL_COMPACT_WIDTH
-    : WORKSPACES_PANEL_WIDTH;
+    : workspacesPanelExpandedWidth;
   const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
   const sidebarWidthRef = useRef(sidebarWidth);
   const [sidebarView, setSidebarViewState] =
@@ -467,6 +639,15 @@ export default function App() {
       const nextWidth =
         width ?? shell?.getBoundingClientRect().width ?? window.innerWidth;
       setWorkspacesPanelCompact(shouldUseCompactWorkspacesPanel(nextWidth));
+      const clampedWidth = clampWorkspacesPanelWidth(
+        workspacesPanelWidthRef.current,
+        nextWidth,
+        sidebarOpen ? sidebarWidthRef.current : 0,
+      );
+      if (clampedWidth !== workspacesPanelWidthRef.current) {
+        workspacesPanelWidthRef.current = clampedWidth;
+        setWorkspacesPanelExpandedWidth(clampedWidth);
+      }
     };
 
     updateWorkspacesPanelMode();
@@ -489,7 +670,7 @@ export default function App() {
       resizeObserver.disconnect();
       window.removeEventListener("resize", onWindowResize);
     };
-  }, []);
+  }, [sidebarOpen]);
   const cycleSidebarView = useCallback(
     (view: SidebarViewId) => {
       if (view !== sidebarView) {
@@ -525,15 +706,51 @@ export default function App() {
       // ignore
     }
   }, []);
+  const rememberWorkspacesPanelWidth = useCallback(
+    (next: number) => {
+      const containerWidth = mainShellRef.current?.getBoundingClientRect().width;
+      const width = clampWorkspacesPanelWidth(
+        next,
+        containerWidth,
+        sidebarOpen ? sidebarWidthRef.current : 0,
+      );
+      workspacesPanelWidthRef.current = width;
+      setWorkspacesPanelExpandedWidth(width);
+    },
+    [sidebarOpen],
+  );
+  const persistRememberedWorkspacesPanelWidth = useCallback(() => {
+    try {
+      window.localStorage.setItem(
+        WORKSPACES_PANEL_WIDTH_STORAGE_KEY,
+        String(workspacesPanelWidthRef.current),
+      );
+    } catch {
+      // ignore
+    }
+  }, []);
   const resumeTerminalResizeAfterSidebarDrag = useCallback(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (!sidebarResizeStartRef.current) {
+        if (
+          !sidebarResizeStartRef.current &&
+          !workspacesPanelResizeStartRef.current
+        ) {
           setTerminalResizePaused(false);
         }
       });
     });
   }, []);
+  const collapseWorkspacesPanelFromResize = useCallback(() => {
+    workspacesPanelResizeStartRef.current = null;
+    setWorkspacesPanelOpen(false);
+    persistRememberedWorkspacesPanelWidth();
+    resumeTerminalResizeAfterSidebarDrag();
+    requestAnimationFrame(() => setWorkspacesPanelResizing(false));
+  }, [
+    persistRememberedWorkspacesPanelWidth,
+    resumeTerminalResizeAfterSidebarDrag,
+  ]);
   const collapseSidebarFromResize = useCallback(() => {
     sidebarResizeStartRef.current = null;
     setSidebarOpen(false);
@@ -541,6 +758,58 @@ export default function App() {
     resumeTerminalResizeAfterSidebarDrag();
     requestAnimationFrame(() => setSidebarResizing(false));
   }, [persistRememberedSidebarWidth, resumeTerminalResizeAfterSidebarDrag]);
+  const handleWorkspacesPanelResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (workspacesPanelCompact) return;
+      event.preventDefault();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      clearTerminalResizeResumeTimer();
+      setTerminalResizePaused(true);
+      workspacesPanelResizeStartRef.current = {
+        open: workspacesPanelOpen,
+        pointerX: event.clientX,
+        width: workspacesPanelOpen ? workspacesPanelWidthRef.current : 0,
+      };
+      setWorkspacesPanelResizing(true);
+    },
+    [clearTerminalResizeResumeTimer, workspacesPanelCompact, workspacesPanelOpen],
+  );
+  const handleWorkspacesPanelResizeMove = useCallback(
+    (event: PointerEvent) => {
+      const start = workspacesPanelResizeStartRef.current;
+      if (!start || workspacesPanelCompact) return;
+      event.preventDefault();
+      const nextWidth = start.width + (event.clientX - start.pointerX);
+      const reopeningPanel = !start.open;
+      if (reopeningPanel) {
+        if (nextWidth > WORKSPACES_PANEL_COLLAPSE_WIDTH) {
+          setWorkspacesPanelOpen(true);
+          rememberWorkspacesPanelWidth(nextWidth);
+        }
+        return;
+      }
+      if (nextWidth <= WORKSPACES_PANEL_COLLAPSE_WIDTH) {
+        collapseWorkspacesPanelFromResize();
+        return;
+      }
+      rememberWorkspacesPanelWidth(nextWidth);
+    },
+    [
+      collapseWorkspacesPanelFromResize,
+      rememberWorkspacesPanelWidth,
+      workspacesPanelCompact,
+    ],
+  );
+  const handleWorkspacesPanelResizeEnd = useCallback(() => {
+    if (!workspacesPanelResizeStartRef.current) return;
+    workspacesPanelResizeStartRef.current = null;
+    setWorkspacesPanelResizing(false);
+    persistRememberedWorkspacesPanelWidth();
+    resumeTerminalResizeAfterSidebarDrag();
+  }, [
+    persistRememberedWorkspacesPanelWidth,
+    resumeTerminalResizeAfterSidebarDrag,
+  ]);
   const handleSidebarResizeStart = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -586,6 +855,23 @@ export default function App() {
     resumeTerminalResizeAfterSidebarDrag();
   }, [persistRememberedSidebarWidth, resumeTerminalResizeAfterSidebarDrag]);
   useEffect(() => {
+    if (!workspacesPanelResizing) return;
+    window.addEventListener("pointermove", handleWorkspacesPanelResizeMove);
+    window.addEventListener("pointerup", handleWorkspacesPanelResizeEnd);
+    window.addEventListener("pointercancel", handleWorkspacesPanelResizeEnd);
+    window.addEventListener("blur", handleWorkspacesPanelResizeEnd);
+    return () => {
+      window.removeEventListener("pointermove", handleWorkspacesPanelResizeMove);
+      window.removeEventListener("pointerup", handleWorkspacesPanelResizeEnd);
+      window.removeEventListener("pointercancel", handleWorkspacesPanelResizeEnd);
+      window.removeEventListener("blur", handleWorkspacesPanelResizeEnd);
+    };
+  }, [
+    handleWorkspacesPanelResizeEnd,
+    handleWorkspacesPanelResizeMove,
+    workspacesPanelResizing,
+  ]);
+  useEffect(() => {
     if (!sidebarResizing) return;
     window.addEventListener("pointermove", handleSidebarResizeMove);
     window.addEventListener("pointerup", handleSidebarResizeEnd);
@@ -598,6 +884,92 @@ export default function App() {
       window.removeEventListener("blur", handleSidebarResizeEnd);
     };
   }, [handleSidebarResizeEnd, handleSidebarResizeMove, sidebarResizing]);
+  const nudgeWorkspacesPanelWidth = useCallback(
+    (delta: number) => {
+      if (workspacesPanelCompact) return;
+      const nextWidth = (workspacesPanelOpen ? workspacesPanelWidth : 0) + delta;
+      if (nextWidth <= WORKSPACES_PANEL_COLLAPSE_WIDTH) {
+        setWorkspacesPanelOpen(false);
+        persistRememberedWorkspacesPanelWidth();
+        return;
+      }
+      setWorkspacesPanelOpen(true);
+      rememberWorkspacesPanelWidth(nextWidth);
+      persistRememberedWorkspacesPanelWidth();
+    },
+    [
+      persistRememberedWorkspacesPanelWidth,
+      rememberWorkspacesPanelWidth,
+      workspacesPanelCompact,
+      workspacesPanelOpen,
+      workspacesPanelWidth,
+    ],
+  );
+  const handleWorkspacesPanelResizeKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (workspacesPanelCompact) return;
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        nudgeWorkspacesPanelWidth(-16);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        nudgeWorkspacesPanelWidth(16);
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setWorkspacesPanelOpen(true);
+        rememberWorkspacesPanelWidth(WORKSPACES_PANEL_MIN_WIDTH);
+        persistRememberedWorkspacesPanelWidth();
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setWorkspacesPanelOpen(true);
+        rememberWorkspacesPanelWidth(WORKSPACES_PANEL_MAX_WIDTH);
+        persistRememberedWorkspacesPanelWidth();
+      }
+    },
+    [
+      nudgeWorkspacesPanelWidth,
+      persistRememberedWorkspacesPanelWidth,
+      rememberWorkspacesPanelWidth,
+      workspacesPanelCompact,
+    ],
+  );
+  const handleSidebarResizeKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setSidebarOpen(true);
+        rememberSidebarWidth((sidebarOpen ? sidebarWidth : 0) + 16);
+        persistRememberedSidebarWidth();
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        const nextWidth = (sidebarOpen ? sidebarWidth : 0) - 16;
+        if (nextWidth <= SIDEBAR_COLLAPSE_WIDTH) {
+          setSidebarOpen(false);
+          persistRememberedSidebarWidth();
+          return;
+        }
+        setSidebarOpen(true);
+        rememberSidebarWidth(nextWidth);
+        persistRememberedSidebarWidth();
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setSidebarOpen(true);
+        rememberSidebarWidth(SIDEBAR_MIN_WIDTH);
+        persistRememberedSidebarWidth();
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setSidebarOpen(true);
+        rememberSidebarWidth(SIDEBAR_MAX_WIDTH);
+        persistRememberedSidebarWidth();
+      }
+    },
+    [
+      persistRememberedSidebarWidth,
+      rememberSidebarWidth,
+      sidebarOpen,
+      sidebarWidth,
+    ],
+  );
 
   const toggleExplorerFocus = useCallback(() => {
     const explorer = explorerRef.current;
@@ -644,17 +1016,69 @@ export default function App() {
   const [launchCwd, setLaunchCwd] = useState<string | null>(null);
   const [launchCwdResolved, setLaunchCwdResolved] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
+  const [openingWorkspaceId, setOpeningWorkspaceId] = useState<string | null>(null);
+  const [persistedWorkspacePanes, setPersistedWorkspacePanes] = useState<
+    Record<string, WorkspaceSelectionPane[]>
+  >({});
+  const persistedWorkspacePanesRef = useRef(persistedWorkspacePanes);
+  persistedWorkspacePanesRef.current = persistedWorkspacePanes;
+  const reservedNativeSessionIdsRef = useRef<Map<string, string>>(new Map());
+  const workspacePaneLaunchAtRef = useRef<Map<string, number>>(new Map());
+  const workspacePaneSyncTimersRef = useRef<Map<string, number[]>>(new Map());
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceItem[]>([]);
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
+  const [workspaceForkContext, setWorkspaceForkContext] = useState<{
+    provider: CliAgent;
+    cwd: string;
+    attachment: AgentChatHistoryAttachment;
+  } | null>(null);
   const [workspacesHydrated, setWorkspacesHydrated] = useState(false);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
   const workspaceOpenGateRef = useRef(createWorkspaceOpenGate());
+  const workspaceSelectionRequestRef = useRef(0);
   const initialWorkspaceActivationHandledRef = useRef(false);
   const pendingBootstrapCloseRef = useRef(false);
+  const pendingWorkspaceTerminalRef = useRef<{ workspaceId: string; leafId: number } | null>(null);
+  const persistCanvasDiagramRef = useRef<
+    ((tabId: number, diagram: ArchitectureDiagram) => void) | null
+  >(null);
+  const canvasTerminalCreatorRef = useRef(
+    new Map<number, (initialCommand?: string) => boolean>(),
+  );
   useEffect(() => {
     workspacesRef.current = workspaces;
   }, [workspaces]);
+
+  const setPersistedPaneRecord = useCallback(
+    (pane: PersistedPaneRecord) => {
+      const { workspaceId, ...persistedPane } = pane;
+      setPersistedWorkspacePanes((current) => ({
+        ...current,
+        [workspaceId]: upsertWorkspacePane(
+          current[workspaceId] ?? [],
+          persistedPane,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const persistedPaneFor = useCallback(
+    (workspaceId: string, paneIndex: number) =>
+      persistedWorkspacePanesRef.current[workspaceId]?.find(
+        (pane) => pane.paneIndex === paneIndex,
+      ),
+    [],
+  );
+
+  const persistPaneRecord = useCallback(
+    async (pane: PersistedPaneRecord) => {
+      setPersistedPaneRecord(pane);
+      await invoke("db_save_pane", { pane });
+    },
+    [setPersistedPaneRecord],
+  );
 
   useEffect(() => {
     if (workspacesHydrated && workspaces.length === 0) {
@@ -680,6 +1104,111 @@ export default function App() {
     });
   }, []);
 
+  const syncWorkspacePaneNativeSessions = useCallback(
+    async (workspaceId: string, workspaceCwd: string | null) => {
+      if (!workspaceCwd) return [] as WorkspaceSelectionPane[];
+      const [panes, sessions] = await Promise.all([
+        invoke<WorkspaceSelectionPane[]>("db_list_panes", { workspaceId }),
+        invoke<ImportableAgentSession[]>("list_agent_sessions", {
+          limit: 500,
+          workspaceCwd,
+        }),
+      ]);
+      const claimedSessionIds = Object.entries(
+        persistedWorkspacePanesRef.current,
+      )
+        .filter(([id]) => id !== workspaceId)
+        .flatMap(([, workspacePanes]) =>
+          workspacePanes
+            .map((pane) => pane.nativeSessionId)
+            .filter((value): value is string => Boolean(value)),
+        );
+      for (const [sessionId, ownerWorkspaceId] of reservedNativeSessionIdsRef.current) {
+        if (ownerWorkspaceId !== workspaceId && !claimedSessionIds.includes(sessionId)) {
+          claimedSessionIds.push(sessionId);
+        }
+      }
+      const resolvedPanes = assignSessionsToPanes(
+        panes,
+        sessions,
+        workspaceCwd,
+        claimedSessionIds,
+        new Map(
+          panes
+            .map((pane) => [
+              pane.paneIndex,
+              workspacePaneLaunchAtRef.current.get(`${workspaceId}:${pane.paneIndex}`),
+            ] as const)
+            .filter((entry): entry is readonly [number, number] => entry[1] !== undefined),
+        ),
+      );
+      for (const pane of resolvedPanes) {
+        if (pane.nativeSessionId) {
+          reservedNativeSessionIdsRef.current.set(pane.nativeSessionId, workspaceId);
+        }
+      }
+      const changedPanes = resolvedPanes.filter((pane, index) => {
+        const previous = panes[index];
+        return (
+          pane.lastCommand !== previous?.lastCommand ||
+          pane.agentProvider !== previous?.agentProvider ||
+          pane.nativeSessionId !== previous?.nativeSessionId
+        );
+      });
+      if (changedPanes.length === 0) {
+        setPersistedWorkspacePanes((current) => ({
+          ...current,
+          [workspaceId]: resolvedPanes,
+        }));
+        return resolvedPanes;
+      }
+      await Promise.all(
+        changedPanes.map((pane) =>
+          persistPaneRecord({
+            workspaceId,
+            paneIndex: pane.paneIndex,
+            workingFolder: pane.workingFolder ?? workspaceCwd,
+            lastCommand: pane.lastCommand,
+            autoLaunch: pane.autoLaunch,
+            agentProvider: pane.agentProvider ?? null,
+            nativeSessionId: pane.nativeSessionId ?? null,
+          }),
+        ),
+      );
+      return resolvedPanes;
+    },
+    [persistPaneRecord],
+  );
+
+  const scheduleWorkspacePaneSessionSync = useCallback(
+    (workspaceId: string, workspaceCwd: string | null) => {
+      if (!workspaceCwd) return;
+      const current = workspacePaneSyncTimersRef.current.get(workspaceId) ?? [];
+      for (const timer of current) window.clearTimeout(timer);
+      const runAfter = [1_200, 4_000];
+      const timers = runAfter.map((delay) =>
+        window.setTimeout(() => {
+          void syncWorkspacePaneNativeSessions(workspaceId, workspaceCwd).catch(
+            (error) => {
+              console.error("Failed to sync workspace pane native sessions:", error);
+            },
+          );
+        }, delay),
+      );
+      workspacePaneSyncTimersRef.current.set(workspaceId, timers);
+    },
+    [syncWorkspacePaneNativeSessions],
+  );
+
+  useEffect(() => {
+    return () => {
+      for (const timers of workspacePaneSyncTimersRef.current.values()) {
+        for (const timer of timers) window.clearTimeout(timer);
+      }
+      workspacePaneSyncTimersRef.current.clear();
+    };
+  }, []);
+
   useEffect(() => {
     invoke<PersistedWorkspaceRecord[]>("db_list_workspaces")
       .then((list) => {
@@ -693,10 +1222,34 @@ export default function App() {
           paneLayout: w.paneLayout ?? null,
           tabId: null,
           canvasTabId: null,
-          workspaceMode: w.workspaceMode === "canvas" ? "canvas" : "standard",
+          workspaceMode:
+            w.workspaceMode === "canvas"
+              ? "canvas"
+              : w.workspaceMode === "agent"
+                ? "agent"
+                : "standard",
+          agentProvider: w.agentProvider ?? null,
+          agentSessionId: w.agentSessionId ?? null,
+          agentTabIds: [],
+          agentProviders: w.agentProviders ?? [],
+          agentSessionIds: w.agentSessionIds ?? [],
+          agentChatIds: w.agentChatIds ?? [],
         }));
         setWorkspaces(hydrated);
         setWorkspacesHydrated(true);
+        void Promise.all(
+          hydrated.map(async (workspace) => {
+            try {
+              const panes = await invoke<WorkspaceSelectionPane[]>(
+                "db_list_panes",
+                { workspaceId: workspace.id },
+              );
+              return [workspace.id, panes] as const;
+            } catch {
+              return [workspace.id, []] as const;
+            }
+          }),
+        ).then((entries) => setPersistedWorkspacePanes(Object.fromEntries(entries)));
         if (hydrated.length === 0) setWorkspaceSetupOpen(true);
       })
       .catch((err) => {
@@ -860,12 +1413,16 @@ export default function App() {
   const activeTab = tabs.find((t) => t.id === activeId);
   const activeWorkspace = workspaces.find(
     (workspace) =>
-      workspace.tabId === activeId || workspace.canvasTabId === activeId,
+      workspace.tabId === activeId ||
+      workspace.canvasTabId === activeId ||
+      workspace.agentTabIds?.includes(activeId),
   );
   const activeWorkspaceId = activeWorkspace?.id ?? null;
   const activeWorkspaceFolder = activeWorkspace?.workingFolder ?? null;
   const agentCommands = useAgentCliCommands();
   const respondingLeaves = useAgentResponseLeaves();
+  const requestedLeaves = useAgentResponseRequestedLeaves();
+  const blockedLeaves = useAgentBlockedLeaves();
   const completedLeaves = useAgentCompletedLeaves();
   const activeWorkspaceCodingAgentCount =
     activeTab?.kind === "terminal"
@@ -886,16 +1443,33 @@ export default function App() {
         const savedCommand = findLeafLastCommand(activeTab.paneTree, leafId);
         const command = trackedCommand ?? savedCommand;
         const agent = detectTrackedCliAgent(trackedCommand, savedCommand);
-        return {
-          leafId,
-          label: command ?? (agent ?? `Terminal ${index + 1}`),
-          ...(agent ? { agent } : {}),
+          return {
+            leafId,
+            cwd: findLeafCwd(activeTab.paneTree, leafId) ?? activeTab.cwd ?? null,
+            label: command ?? (agent ?? `Terminal ${index + 1}`),
+            onClose: () => closePaneByLeaf(leafId),
+            ...(agent ? { agent } : {}),
           active: leafId === activeLeafId,
           responding: respondingLeaves.has(leafId),
           completed: completedLeaves.has(leafId),
+          state: (blockedLeaves.has(leafId)
+            ? "blocked"
+            : requestedLeaves.has(leafId) || respondingLeaves.has(leafId)
+              ? "working"
+                : completedLeaves.has(leafId)
+                  ? "done"
+                  : undefined) as AgentDisplayState | undefined,
         };
       });
-  }, [activeLeafId, activeTab, agentCommands, completedLeaves, respondingLeaves]);
+  }, [
+    activeLeafId,
+    activeTab,
+    agentCommands,
+    blockedLeaves,
+    completedLeaves,
+    respondingLeaves,
+    requestedLeaves,
+  ]);
   const activeWorkspaceAccentColor = activeWorkspace?.accentColor ?? "#0088ff";
   const pendingDeleteWorkspace =
     pendingDeleteWorkspaceId === null
@@ -906,15 +1480,176 @@ export default function App() {
   const workspaceItems = useMemo(
     () =>
       workspaces.map((workspace) => {
-        const tab = tabs.find((item) => item.id === workspace.tabId);
-        if (!tab || tab.kind !== "terminal") return workspace;
+        const workspaceTab = tabs.find((item) => item.id === workspace.tabId);
+        const liveWorkingFolder = workspace.workingFolder
+          ?? (workspaceTab?.kind === "terminal"
+            ? findLeafCwd(workspaceTab.paneTree, workspaceTab.activeLeafId) ?? workspaceTab.cwd ?? null
+            : workspaceTab?.kind === "agent-chat"
+              ? workspaceTab.cwd
+              : null);
+        if (workspace.id === activeWorkspaceId && activeWorkspaceTerminals.length > 0) {
+          const state = (activeWorkspaceTerminals.find(
+            (terminal) => terminal.state === "blocked",
+          )
+            ? "blocked"
+            : activeWorkspaceTerminals.find(
+                  (terminal) => terminal.state === "working",
+                )
+              ? "working"
+              : activeWorkspaceTerminals.find(
+                    (terminal) => terminal.state === "done",
+                  )
+                ? "done"
+                : undefined) as AgentDisplayState | undefined;
+          return {
+            ...workspace,
+            workingFolder: liveWorkingFolder,
+            count: activeWorkspaceTerminals.length,
+            terminals: activeWorkspaceTerminals,
+            responding: activeWorkspaceTerminals.some(
+              (terminal) => terminal.responding,
+            ),
+            state,
+          };
+        }
+        const tab = workspaceTab;
+        const canvasTab = workspace.canvasTabId === null
+          ? undefined
+          : tabs.find((item) => item.id === workspace.canvasTabId);
+        if (workspace.workspaceMode === "canvas" && canvasTab?.kind === "architecture") {
+          const activeCanvasId = activeCanvasTerminalIds.current.get(canvasTab.id);
+          const terminals = canvasTab.diagram?.nodes
+            .filter((node) => node.kind === "terminal")
+            .map((node, index): WorkspaceTerminalItem => {
+              const command = node.initialCommand ?? null;
+              const agent = detectTrackedCliAgent(command ?? undefined, command ?? undefined);
+              return {
+                leafId: -(index + 1),
+                cwd: node.cwd ?? workspace.workingFolder ?? null,
+                label: command ?? `Terminal ${index + 1}`,
+                onClose: () =>
+                  canvasTerminalRefs.current.get(
+                    canvasTerminalRefKey(canvasTab.id, node.id),
+                  )?.close(),
+                ...(agent ? { agent } : {}),
+                active: node.id === activeCanvasId,
+                responding: false,
+                completed: false,
+              };
+            }) ?? [];
+          return { ...workspace, workingFolder: liveWorkingFolder, count: terminals.length, terminals };
+        }
+        const agentTabs = tabs.filter(
+          (item) =>
+            item.kind === "agent-chat" &&
+            (item.id === workspace.tabId || workspace.agentTabIds?.includes(item.id)),
+        );
+        if (workspace.workspaceMode === "agent" && agentTabs.length > 0) {
+          const terminals = agentTabs.map((agentTab, index) => {
+            if (agentTab.kind !== "agent-chat") {
+              return {
+                leafId: -(index + 1),
+                label: `Agent ${index + 1}`,
+                active: agentTab.id === activeId,
+                responding: false,
+                completed: false,
+              } satisfies WorkspaceTerminalItem;
+            }
+            return {
+              leafId: -(index + 1),
+              cwd: agentTab.cwd,
+              tabId: agentTab.id,
+              label: agentTab.title,
+              onClose: () => handleClose(agentTab.id),
+              agent: agentTab.provider,
+              active: agentTab.id === activeId,
+              responding: false,
+              completed: false,
+            } satisfies WorkspaceTerminalItem;
+          });
+          return { ...workspace, workingFolder: liveWorkingFolder, count: terminals.length, terminals };
+        }
+        if (workspace.workspaceMode === "agent") {
+          return { ...workspace, workingFolder: liveWorkingFolder, count: agentTabs.length, terminals: [] };
+        }
+        if (!tab || tab.kind !== "terminal") {
+          const persistedPanes = persistedWorkspacePanes[workspace.id] ?? [];
+          const count = Math.max(workspace.count, persistedPanes.length);
+          const terminals: WorkspaceTerminalItem[] = Array.from(
+            { length: count },
+            (_, index) => {
+              const pane = persistedPanes[index];
+              const command = pane?.autoLaunch ? pane.lastCommand : null;
+              const agent = detectTrackedCliAgent(command ?? undefined, command ?? undefined);
+              return {
+                leafId: -(index + 1),
+                cwd: pane?.workingFolder ?? workspace.workingFolder ?? null,
+                label: command ?? (agent ?? `Terminal ${index + 1}`),
+                ...(agent ? { agent } : {}),
+                active: false,
+                responding: false,
+                completed: false,
+              };
+            },
+          );
+          return terminals.length > 0
+            ? { ...workspace, count: terminals.length, terminals }
+            : workspace;
+        }
+        const terminals = leafIds(tab.paneTree).map(
+          (leafId, index): WorkspaceTerminalItem => {
+            const trackedCommand = agentCommands.get(leafId);
+            const savedCommand = findLeafLastCommand(tab.paneTree, leafId);
+            const command = trackedCommand ?? savedCommand;
+            const agent = detectTrackedCliAgent(trackedCommand, savedCommand);
+            return {
+              leafId,
+              cwd: findLeafCwd(tab.paneTree, leafId) ?? tab.cwd ?? workspace.workingFolder ?? null,
+              label: command ?? (agent ?? `Terminal ${index + 1}`),
+              onClose: () => closePaneByLeaf(leafId),
+              ...(agent ? { agent } : {}),
+              active:
+                workspace.id === activeWorkspaceId && leafId === tab.activeLeafId,
+              responding: respondingLeaves.has(leafId),
+              completed: completedLeaves.has(leafId),
+              state: (blockedLeaves.has(leafId)
+                ? "blocked"
+                : requestedLeaves.has(leafId) || respondingLeaves.has(leafId)
+                  ? "working"
+                    : completedLeaves.has(leafId)
+                      ? "done"
+                      : undefined) as AgentDisplayState | undefined,
+            };
+          },
+        );
         return {
           ...workspace,
-          count: leafIds(tab.paneTree).length,
-          responding: leafIds(tab.paneTree).some((leafId) => respondingLeaves.has(leafId)),
+          count: terminals.length,
+          terminals,
+          responding: terminals.some((terminal) => terminal.responding),
+          state: (terminals.find((terminal) => terminal.state === "blocked")
+            ? "blocked"
+            : terminals.find((terminal) => terminal.state === "working")
+              ? "working"
+                : terminals.find((terminal) => terminal.state === "done")
+                  ? "done"
+                  : undefined) as AgentDisplayState | undefined,
         };
       }),
-    [respondingLeaves, tabs, workspaces],
+    [
+      activeWorkspaceId,
+      activeWorkspaceTerminals,
+      canvasTerminalSelectionVersion,
+      agentCommands,
+      blockedLeaves,
+      closePaneByLeaf,
+      completedLeaves,
+      persistedWorkspacePanes,
+      respondingLeaves,
+      requestedLeaves,
+      tabs,
+      workspaces,
+    ],
   );
   const isTerminalTab = activeTab?.kind === "terminal";
   const isEditorTab = activeTab?.kind === "editor";
@@ -925,6 +1660,38 @@ export default function App() {
     activeTab?.kind === "git-diff" || activeTab?.kind === "git-commit-file";
   const isGitHistoryTab = activeTab?.kind === "git-history";
   const isArchitectureTab = activeTab?.kind === "architecture";
+  const handleAgentNativeSessionId = useCallback(
+    (workspaceId: string, tabId: number, chatId: string, provider: CliAgent, nativeSessionId: string) => {
+      const workspace = workspacesRef.current.find((item) => item.id === workspaceId);
+      if (!workspace) return;
+      updateTab(tabId, { nativeSessionId });
+      const tabIndex = workspace.agentChatIds?.indexOf(chatId) ?? workspace.agentTabIds?.indexOf(tabId) ?? -1;
+      const agentProviders = [...(workspace.agentProviders ?? [])];
+      if (tabIndex >= 0) agentProviders[tabIndex] = provider;
+      const updated: WorkspaceRecord = {
+        ...workspace,
+          agentSessionId: nativeSessionId,
+        agentProviders,
+        agentSessionIds: (() => {
+          const next = [...(workspace.agentSessionIds ?? [])];
+          const index = tabIndex;
+          if (index >= 0) next[index] = nativeSessionId;
+          else if (next.length === 0) next[0] = nativeSessionId;
+          return next;
+        })(),
+        updatedAt: Date.now(),
+      };
+      setWorkspaces((current) =>
+        current.map((workspace) =>
+          workspace.id === updated.id ? updated : workspace,
+        ),
+      );
+      void invoke("db_save_workspace", { workspace: updated }).catch((error) => {
+        console.error("Failed to persist agent session identity:", error);
+      });
+    },
+    [updateTab],
+  );
 
   // When an AI diff is approved (write_file applied to disk), reload any
   // open editor tabs for that path so the user sees the new content. We
@@ -994,6 +1761,14 @@ export default function App() {
   const clearWorkspaceTabOwnership = useCallback((tabId: number) => {
     setWorkspaces((current) =>
       current.map((workspace) => {
+        if (workspace.agentTabIds?.includes(tabId)) {
+          const agentTabIds = workspace.agentTabIds.filter((id) => id !== tabId);
+          return {
+            ...workspace,
+            agentTabIds,
+            tabId: workspace.tabId === tabId ? agentTabIds[0] ?? null : workspace.tabId,
+          };
+        }
         if (workspace.tabId === tabId) {
           return { ...workspace, tabId: null };
         }
@@ -1151,6 +1926,10 @@ export default function App() {
       requestedName?: string,
       requestedColor?: string,
       workspaceMode: WorkspaceMode = "standard",
+      workspaceAgent: CliAgent | null = null,
+      workspaceAgents: CliAgent[] = [],
+      initialAgentDraft = "",
+      initialHistoryAttachments: AgentChatHistoryAttachment[] = [],
     ): Promise<WorkspaceRecord | null> => {
       const fallbackName = nextWorkspaceName(workspaces);
       if (fallbackName === null) {
@@ -1178,25 +1957,61 @@ export default function App() {
               initialCommands,
             )
           : null;
-      const tabId =
-        workspaceMode === "canvas"
-          ? null
+      const now = Date.now();
+      const wsId = `workspace-tab-${now}-${Math.random().toString(36).slice(2, 9)}`;
+      const agentProviders =
+        workspaceMode === "agent"
+          ? (workspaceAgents.length > 0
+              ? workspaceAgents
+              : workspaceAgent
+                ? [workspaceAgent]
+                : []
+            ).slice(0, 12)
+          : [];
+      const agentChatIds = workspaceMode === "agent"
+        ? agentProviders.map((_, index) => `${wsId}:chat:${index + 1}`)
+        : [];
+      const agentTabIds =
+        workspaceMode === "agent"
+          ? (workspaceAgents.length > 0
+              ? workspaceAgents
+              : workspaceAgent
+                ? [workspaceAgent]
+                : []
+            )
+              .slice(0, 12)
+              .map((provider, index) =>
+                newAgentChatTab({
+                  title: `${name} · ${index + 1}`,
+                  provider,
+                  cwd: effectiveWorkingFolder ?? "",
+                  nativeSessionId: null,
+                  chatId: agentChatIds[index],
+                  initialDraft: index === 0 ? initialAgentDraft : undefined,
+                  initialHistoryAttachments: index === 0 ? initialHistoryAttachments : undefined,
+                }),
+              )
+          : [];
+      const tabId = workspaceMode === "canvas"
+        ? null
+        : workspaceMode === "agent"
+          ? agentTabIds[0] ?? null
           : newWorkspaceTab(
               effectiveWorkingFolder ?? undefined,
               terminalCount,
               paneLaunchPlan,
+              null,
+              name,
             );
       const canvasTabId =
         canvasDiagram
-          ? newArchitectureTab(canvasDiagram, `${name} Canvas`)
+          ? newArchitectureTab(canvasDiagram, name)
           : null;
 
-      const now = Date.now();
-      const wsId = `workspace-tab-${now}-${Math.random().toString(36).slice(2, 9)}`;
       const newWs: WorkspaceRecord = {
         id: wsId,
         name,
-        count: terminalCount,
+        count: workspaceMode === "agent" ? agentTabIds.length : terminalCount,
         accentColor: normalizeWorkspaceAccentColor(
           requestedColor,
           workspaceAccentForIndex(workspaces.length),
@@ -1211,21 +2026,29 @@ export default function App() {
         tabId: workspaceMode === "canvas" ? null : tabId,
         canvasTabId,
         workspaceMode,
+        agentProvider: workspaceMode === "agent" ? workspaceAgent : null,
+        agentSessionId: null,
+        agentTabIds,
+        agentProviders,
+        agentSessionIds: workspaceMode === "agent"
+          ? agentProviders.map(() => null)
+          : [],
+        agentChatIds,
       };
       saveRecentWorkspace(newWs);
 
       const savePaneLaunchPlan = () => {
         if (!paneLaunchPlan) return;
         for (const pane of paneLaunchPlan) {
-          invoke("db_save_pane", {
-            pane: {
-              workspaceId: wsId,
-              paneIndex: pane.paneIndex,
-              workingFolder: pane.workingFolder,
-              lastCommand: pane.lastCommand,
-              autoLaunch: pane.autoLaunch,
-            },
-          }).catch((err) => {
+          void persistPaneRecord(
+            paneRecordFromCommand(
+              wsId,
+              pane.paneIndex,
+              pane.workingFolder,
+              pane.lastCommand,
+              pane.autoLaunch,
+            ),
+          ).catch((err) => {
             console.error(
               "Failed to save workspace agent pane to SQLite:",
               err,
@@ -1242,6 +2065,8 @@ export default function App() {
       }
       setWorkspaces((current) => [...current, newWs]);
       setWorkspaceSetupOpen(false);
+      const activatedTabId = tabId ?? canvasTabId;
+      if (activatedTabId !== null) setActiveId(activatedTabId);
       const bootstrapTab = tabsRef.current.find(
         (tab) => tab.id === 1 && tab.title === "shell",
       );
@@ -1254,7 +2079,9 @@ export default function App() {
       inheritedCwdForNewTab,
       closeTab,
       newArchitectureTab,
+      newAgentChatTab,
       newWorkspaceTab,
+      persistPaneRecord,
       saveRecentWorkspace,
       workspaces,
     ],
@@ -1263,7 +2090,58 @@ export default function App() {
   const handleWorkspaceSetupCancel = useCallback(() => {
     if (workspacesHydrated && workspaces.length === 0) return;
     setWorkspaceSetupOpen(false);
+    setWorkspaceForkContext(null);
   }, [workspaces, workspacesHydrated]);
+
+  const handleForkAgentResponse = useCallback(
+    (input: {
+      workspaceId: string;
+      provider: CliAgent;
+      cwd: string;
+      destination: "tab" | "workspace";
+      attachment: AgentChatHistoryAttachment;
+    }) => {
+      const workspace = workspacesRef.current.find((item) => item.id === input.workspaceId);
+      if (!workspace) return;
+
+      if (input.destination === "tab") {
+        const nextIndex = (workspace.agentChatIds?.length ?? 0) + 1;
+        const chatId = `${workspace.id}:fork:${Date.now()}`;
+        const tabId = newAgentChatTab({
+          title: `${workspace.name} · ${nextIndex}`,
+          provider: input.provider,
+          cwd: input.cwd,
+          chatId,
+          nativeSessionId: null,
+          initialHistoryAttachments: [input.attachment],
+        });
+        const updated: WorkspaceRecord = {
+          ...workspace,
+          tabId: workspace.tabId ?? tabId,
+          agentTabIds: [...(workspace.agentTabIds ?? []), tabId],
+          agentProviders: [...(workspace.agentProviders ?? []), input.provider],
+          agentSessionIds: [...(workspace.agentSessionIds ?? []), null],
+          agentChatIds: [...(workspace.agentChatIds ?? []), chatId],
+          count: (workspace.agentTabIds?.length ?? 0) + 1,
+          updatedAt: Date.now(),
+        };
+        setWorkspaces((current) => current.map((item) => item.id === workspace.id ? updated : item));
+        saveRecentWorkspace(updated);
+        void invoke("db_save_workspace", { workspace: updated }).catch((error) => {
+          console.error("Failed to persist forked agent chat:", error);
+        });
+        return;
+      }
+
+      setWorkspaceForkContext({
+        provider: input.provider,
+        cwd: input.cwd,
+        attachment: input.attachment,
+      });
+      setWorkspaceSetupOpen(true);
+    },
+    [newAgentChatTab, saveRecentWorkspace],
+  );
 
   const selectWorkspace = useWorkspaceSelection({
     workspaces,
@@ -1274,9 +2152,17 @@ export default function App() {
     updateCanvasTabDiagram: (tabId, diagram) => {
       updateTab(tabId, { diagram });
     },
+    persistCanvasDiagram: (tabId, diagram) => {
+      persistCanvasDiagramRef.current?.(tabId, diagram);
+    },
     createCanvasTab: newArchitectureTab,
+    createAgentChatTab: newAgentChatTab,
     createWorkspaceTab: newWorkspaceTab,
     replaceWorkspace: (workspaceId, patch) => {
+      const current = workspacesRef.current;
+      workspacesRef.current = current.map((workspace) =>
+        workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
+      );
       setWorkspaces((current) =>
         current.map((workspace) =>
           workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
@@ -1285,6 +2171,14 @@ export default function App() {
     },
     listWorkspacePanes: (workspaceId) =>
       invoke<WorkspaceSelectionPane[]>("db_list_panes", { workspaceId }),
+    resolvePaneResumeCommands: async (workspaceId, panes, workspaceCwd) => {
+      if (!workspaceCwd) return panes;
+      const resolved = await syncWorkspacePaneNativeSessions(
+        workspaceId,
+        workspaceCwd,
+      );
+      return resolved.length > 0 ? resolved : panes;
+    },
     buildCanvasWorkspaceDiagram: canvasWorkspaceDiagram,
     onLoadCanvasWorkspacePanesError: (err) => {
       console.error("Failed to load canvas workspace panes from SQLite:", err);
@@ -1296,11 +2190,26 @@ export default function App() {
 
   const handleSelectWorkspace = useCallback(
     (workspaceId: string) => {
-      void workspaceOpenGateRef.current.open(workspaceId, () =>
-        selectWorkspace(workspaceId),
-      );
+      const requestId = ++workspaceSelectionRequestRef.current;
+      window.localStorage.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, workspaceId);
+      const workspace = workspacesRef.current.find((item) => item.id === workspaceId);
+      const existingTabId = workspace?.tabId ?? workspace?.canvasTabId;
+      if (existingTabId !== null && existingTabId !== undefined) {
+        setActiveId(existingTabId);
+        return;
+      }
+      if (workspaceOpenGateRef.current.isOpening(workspaceId)) return;
+      setOpeningWorkspaceId(workspaceId);
+      void workspaceOpenGateRef.current
+        .open(workspaceId, () =>
+          selectWorkspace(
+            workspaceId,
+            () => requestId === workspaceSelectionRequestRef.current,
+          ),
+        )
+        .finally(() => setOpeningWorkspaceId((current) => current === workspaceId ? null : current));
     },
-    [selectWorkspace],
+    [selectWorkspace, setActiveId],
   );
 
   const handleSelectWorkspaceRef = useRef(handleSelectWorkspace);
@@ -1308,15 +2217,20 @@ export default function App() {
 
   useEffect(() => {
     if (
-      initialWorkspaceActivationHandledRef.current ||
       !workspacesHydrated ||
-      workspaces.length === 0
+      workspaces.length === 0 ||
+      activeWorkspaceId !== null ||
+      pendingBootstrapCloseRef.current
     ) {
       return;
     }
     initialWorkspaceActivationHandledRef.current = true;
-    if (activeWorkspaceId !== null) return;
-    const firstWorkspace = workspaces[0];
+    const storedWorkspaceId = window.localStorage.getItem(
+      ACTIVE_WORKSPACE_STORAGE_KEY,
+    );
+    const firstWorkspace =
+      workspaces.find((workspace) => workspace.id === storedWorkspaceId) ??
+      workspaces[0];
     if (!firstWorkspace) return;
     pendingBootstrapCloseRef.current = true;
     handleSelectWorkspace(firstWorkspace.id);
@@ -1354,7 +2268,11 @@ export default function App() {
       if (!workspace) return;
 
       const workspaceTabIds = new Set(
-        [workspace.tabId, workspace.canvasTabId].filter(
+        [
+          workspace.tabId,
+          workspace.canvasTabId,
+          ...(workspace.agentTabIds ?? []),
+        ].filter(
           (tabId): tabId is number => tabId !== null,
         ),
       );
@@ -1455,7 +2373,7 @@ export default function App() {
             }
             if (workspace.canvasTabId !== null) {
               updateTab(workspace.canvasTabId, {
-                title: `${nextName} Canvas`,
+                title: nextName,
               });
             }
             const updated = {
@@ -1789,13 +2707,44 @@ export default function App() {
     [newMarkdownTab],
   );
 
+  const persistSplitPaneTree = useCallback(
+    (tabId: number, paneTree: PaneNode) => {
+      const workspace = workspacesRef.current.find((item) => item.tabId === tabId);
+      if (!workspace) return;
+      const updated = {
+        ...workspace,
+        count: leafIds(paneTree).length,
+        paneLayout: JSON.stringify(paneTree),
+        updatedAt: Date.now(),
+      };
+      setWorkspaces((current) => current.map((item) => item.id === workspace.id ? updated : item));
+      void invoke("db_save_workspace", { workspace: updated });
+      void Promise.all(
+        leafIds(paneTree).map((leafId, paneIndex) =>
+          persistPaneRecord(
+            paneRecordFromCommand(
+              workspace.id,
+              paneIndex,
+              findLeafCwd(paneTree, leafId) ?? workspace.workingFolder,
+              findLeafLastCommand(paneTree, leafId) ?? null,
+              findLeafAutoLaunch(paneTree, leafId),
+              persistedPaneFor(workspace.id, paneIndex),
+            ),
+          ),
+        ),
+      );
+    },
+    [persistPaneRecord, persistedPaneFor],
+  );
+
   const splitActivePaneInActiveTab = useCallback(
     (dir: "row" | "col") => {
       const t = tabsRef.current.find((x) => x.id === activeId);
       if (!t || t.kind !== "terminal") return;
-      splitActivePane(activeId, dir);
+      const appended = splitActivePane(activeId, dir);
+      if (appended) persistSplitPaneTree(activeId, appended.paneTree);
     },
-    [activeId, splitActivePane],
+    [activeId, persistSplitPaneTree, splitActivePane],
   );
 
   const handleCloseTabOrPane = useCallback(() => {
@@ -1830,6 +2779,7 @@ export default function App() {
       } else {
         activeCanvasTerminalIds.current.delete(tabId);
       }
+      setCanvasTerminalSelectionVersion((version) => version + 1);
     },
     [],
   );
@@ -2085,29 +3035,32 @@ export default function App() {
           t.kind === "terminal" && hasLeaf((t as TerminalTab).paneTree, leafId),
       ) as TerminalTab | undefined;
       if (tab) {
-        const ws = workspacesRef.current.find((w) => w.tabId === tab.id);
+        const ws = workspacesRef.current.find((w) => w.tabId === tab.id)
+          ?? workspacesRef.current.find((w) => w.id === activeWorkspaceId);
         if (ws) {
           const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
           if (paneIndex !== -1) {
             const lastCommand =
               findLeafLastCommand(tab.paneTree, leafId) ?? null;
             const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);
-            invoke("db_save_pane", {
-              pane: {
-                workspaceId: ws.id,
+            const existingPane = persistedPaneFor(ws.id, paneIndex);
+            void persistPaneRecord(
+              paneRecordFromCommand(
+                ws.id,
                 paneIndex,
-                workingFolder: cwd,
-                lastCommand: autoLaunch ? lastCommand : null,
+                cwd,
+                autoLaunch ? lastCommand : null,
                 autoLaunch,
-              },
-            }).catch((err) => {
+                existingPane,
+              ),
+            ).catch((err) => {
               console.error("Failed to save terminal pane cwd to DB:", err);
             });
           }
         }
       }
     },
-    [setLeafCwd],
+    [persistPaneRecord, persistedPaneFor, setLeafCwd],
   );
 
   const changeTerminalDirectory = useCallback(
@@ -2137,21 +3090,30 @@ export default function App() {
 
       const workspace = workspacesRef.current.find(
         (item) => item.tabId === tab.id,
-      );
+      ) ?? workspacesRef.current.find((item) => item.id === activeWorkspaceId);
       if (workspace) {
         const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
-        if (paneIndex !== -1) {
-          void invoke("db_save_pane", {
-            pane: {
-              workspaceId: workspace.id,
-              paneIndex,
-              workingFolder: cwd ?? null,
-              lastCommand: command,
-              autoLaunch: Boolean(command),
-            },
-          }).catch((error) => {
+          if (paneIndex !== -1) {
+            workspacePaneLaunchAtRef.current.set(`${workspace.id}:${paneIndex}`, Date.now());
+            const pane = paneRecordFromCommand(
+            workspace.id,
+            paneIndex,
+            cwd ?? null,
+            command,
+            Boolean(command),
+            persistedPaneFor(workspace.id, paneIndex),
+            null,
+            false,
+          );
+          void persistPaneRecord(pane).catch((error) => {
             console.error("Failed to save switched terminal agent:", error);
           });
+          if (pane.agentProvider && !pane.nativeSessionId) {
+            scheduleWorkspacePaneSessionSync(
+              workspace.id,
+              cwd ?? workspace.workingFolder,
+            );
+          }
         }
       }
 
@@ -2159,14 +3121,14 @@ export default function App() {
         terminalRefs.current.get(leafId)?.focus();
       });
     },
-    [setLeafLaunchCommand],
+    [activeWorkspaceId, persistPaneRecord, persistedPaneFor, scheduleWorkspacePaneSessionSync, setLeafLaunchCommand],
   );
 
   const handleTerminalCommand = useCallback(
-    (leafId: number, _command: string) => {
+    (leafId: number, command: string) => {
       pendingVoiceDraftsRef.current.delete(leafId);
-      // Runtime shell history belongs to the shell. Keep the pane's saved
-      // command reserved for the workspace launch plan.
+      // Preserve coding-agent launches so workspace restoration can resolve
+      // their native session from the provider's local session index.
       const tab = tabsRef.current.find(
         (t) =>
           t.kind === "terminal" && hasLeaf((t as TerminalTab).paneTree, leafId),
@@ -2176,27 +3138,44 @@ export default function App() {
         if (ws) {
           const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
           if (paneIndex !== -1) {
-            const workingFolder = findLeafCwd(tab.paneTree, leafId) ?? null;
-            const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);
-            const configuredCommand = autoLaunch
-              ? (findLeafLastCommand(tab.paneTree, leafId) ?? null)
-              : null;
-            invoke("db_save_pane", {
-              pane: {
-                workspaceId: ws.id,
-                paneIndex,
-                workingFolder,
-                lastCommand: configuredCommand,
-                autoLaunch,
-              },
-            }).catch((err) => {
+          const workingFolder = findLeafCwd(tab.paneTree, leafId) ?? null;
+          const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);
+          const isCliAgent = detectCliAgent(command) !== null;
+          if (isCliAgent) {
+            setLeafLaunchCommand(leafId, command);
+            workspacePaneLaunchAtRef.current.set(`${ws.id}:${paneIndex}`, Date.now());
+          }
+          const existingPane = persistedPaneFor(ws.id, paneIndex);
+          const configuredCommand = isCliAgent
+            ? command
+              : autoLaunch
+                ? ((existingPane?.lastCommand ??
+                    findLeafLastCommand(tab.paneTree, leafId)) ?? null)
+                : null;
+            const pane = paneRecordFromCommand(
+              ws.id,
+              paneIndex,
+              workingFolder,
+              configuredCommand,
+              isCliAgent || autoLaunch,
+              existingPane,
+              null,
+              !isCliAgent,
+            );
+            void persistPaneRecord(pane).catch((err) => {
               console.error("Failed to save terminal pane command to DB:", err);
             });
+            if (pane.agentProvider && !pane.nativeSessionId) {
+              scheduleWorkspacePaneSessionSync(
+                ws.id,
+                workingFolder ?? ws.workingFolder,
+              );
+            }
           }
         }
       }
     },
-    [],
+    [activeWorkspaceId, persistPaneRecord, persistedPaneFor, scheduleWorkspacePaneSessionSync],
   );
 
   const { handleTerminalPaneTreeChange, handleArchitectureDiagramChange } =
@@ -2206,7 +3185,27 @@ export default function App() {
       updateTab,
       setWorkspaces,
       persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace }),
+      persistTerminalPanes: (workspace, paneTree) => {
+        const paneIds = leafIds(paneTree);
+        void Promise.all(
+          paneIds.map((leafId, paneIndex) =>
+            persistPaneRecord(
+              paneRecordFromCommand(
+                workspace.id,
+                paneIndex,
+                findLeafCwd(paneTree, leafId) ?? workspace.workingFolder,
+                findLeafLastCommand(paneTree, leafId) ?? null,
+                findLeafAutoLaunch(paneTree, leafId),
+                persistedPaneFor(workspace.id, paneIndex),
+              ),
+            ),
+          ),
+        ).catch((error) => {
+          console.error("Failed to persist split terminal panes:", error);
+        });
+      },
     });
+  persistCanvasDiagramRef.current = handleArchitectureDiagramChange;
 
   const handleSwapWorkspaceTerminals = useCallback(
     (sourceId: number, targetId: number) => {
@@ -2226,24 +3225,118 @@ export default function App() {
   );
 
   const handleFocusLeaf = useCallback(
-    (tabId: number, leafId: number) => focusPane(tabId, leafId),
+    (tabId: number, leafId: number) => {
+      clearAgentCompleted(leafId);
+      focusPane(tabId, leafId);
+    },
     [focusPane],
   );
 
   const handleSelectWorkspaceTerminal = useCallback(
-    (leafId: number) => {
+    (workspaceId: string, leafId: number) => {
+      const workspace = workspacesRef.current.find(
+        (item) => item.id === workspaceId,
+      );
+      if (workspace?.tabId === null || workspace?.tabId === undefined) {
+        if (workspace?.canvasTabId !== null && workspace?.canvasTabId !== undefined) {
+          const canvasTab = tabsRef.current.find((item) => item.id === workspace.canvasTabId);
+          if (canvasTab?.kind === "architecture") {
+            const terminalNodes = canvasTab.diagram?.nodes.filter((node) => node.kind === "terminal") ?? [];
+            const node = terminalNodes[-leafId - 1];
+            if (node) {
+              activeCanvasTerminalIds.current.set(canvasTab.id, node.id);
+              setCanvasTerminalSelectionVersion((version) => version + 1);
+            }
+          }
+          setActiveId(workspace.canvasTabId);
+          return;
+        }
+        pendingWorkspaceTerminalRef.current = { workspaceId, leafId };
+        handleSelectWorkspace(workspaceId);
+        return;
+      }
+      const tab = tabsRef.current.find((item) => item.id === workspace.tabId);
+      if (tab?.kind !== "terminal" || !hasLeaf(tab.paneTree, leafId)) return;
       clearAgentCompleted(leafId);
-      if (activeTerminalTab) focusPane(activeTerminalTab.id, leafId);
+      setActiveId(tab.id);
+      focusPane(tab.id, leafId);
     },
-    [activeTerminalTab, focusPane],
+    [focusPane, handleSelectWorkspace],
   );
+
+  useEffect(() => {
+    const pending = pendingWorkspaceTerminalRef.current;
+    if (!pending) return;
+    const workspace = workspacesRef.current.find((item) => item.id === pending.workspaceId);
+    if (!workspace?.tabId) return;
+    const tab = tabsRef.current.find((item) => item.id === workspace.tabId);
+    if (tab?.kind !== "terminal" || !hasLeaf(tab.paneTree, pending.leafId)) return;
+    pendingWorkspaceTerminalRef.current = null;
+    clearAgentCompleted(pending.leafId);
+    setActiveId(tab.id);
+    focusPane(tab.id, pending.leafId);
+  }, [focusPane, tabs, workspaces]);
 
   const handleCreateWorkspaceTerminal = useCallback(
     (initialCommand = "") => {
       const workspace = workspacesRef.current.find(
         (item) => item.id === activeWorkspaceId,
       );
-      if (!workspace || workspace.tabId === null) return false;
+      if (!workspace) return false;
+
+      if (workspace.workspaceMode === "agent") {
+        const provider = detectCliAgent(initialCommand);
+        if (!provider) return false;
+        const currentAgentTabs = tabsRef.current.filter(
+          (tab) =>
+            tab.kind === "agent-chat" &&
+            (tab.id === workspace.tabId || workspace.agentTabIds?.includes(tab.id)),
+        );
+        if (currentAgentTabs.length >= MAX_PANES_PER_TAB) return false;
+        const tabId = newAgentChatTab({
+          title: `${workspace.name} · ${currentAgentTabs.length + 1}`,
+          provider,
+          cwd: workspace.workingFolder ?? "",
+          nativeSessionId: null,
+          chatId: `${workspace.id}:chat:${currentAgentTabs.length + 1}`,
+        });
+        const agentTabIds = [...(workspace.agentTabIds ?? []), tabId];
+        const agentProviders = [...(workspace.agentProviders ?? []), provider];
+        const agentSessionIds = [...(workspace.agentSessionIds ?? []), null];
+        const agentChatIds = [
+          ...(workspace.agentChatIds ?? []),
+          `${workspace.id}:chat:${currentAgentTabs.length + 1}`,
+        ];
+        const updated: WorkspaceRecord = {
+          ...workspace,
+          tabId: workspace.tabId ?? tabId,
+          agentTabIds,
+          agentProviders,
+          agentSessionIds,
+          agentChatIds,
+          count: agentTabIds.length,
+          updatedAt: Date.now(),
+        };
+        setWorkspaces((current) =>
+          current.map((item) => (item.id === workspace.id ? updated : item)),
+        );
+        saveRecentWorkspace(updated);
+        void invoke("db_save_workspace", { workspace: updated }).catch((error) => {
+          console.error("Failed to persist created agent chat:", error);
+        });
+        setActiveId(tabId);
+        return true;
+      }
+
+      if (workspace.workspaceMode === "canvas") {
+        const canvasTabId = workspace.canvasTabId;
+        if (canvasTabId === null || canvasTabId === undefined) return false;
+        const creator = canvasTerminalCreatorRef.current.get(canvasTabId);
+        if (!creator) return false;
+        return creator(initialCommand || undefined);
+      }
+
+      if (workspace.tabId === null) return false;
 
       const workspaceTab = tabsRef.current.find(
         (item) => item.id === workspace.tabId,
@@ -2274,23 +3367,38 @@ export default function App() {
       void Promise.all([
         invoke("db_save_workspace", { workspace: updated }),
         ...leafOrder.map((leafId, paneIndex) =>
-          invoke("db_save_pane", {
-            pane: {
-              workspaceId: workspace.id,
+          persistPaneRecord(
+            paneRecordFromCommand(
+              workspace.id,
               paneIndex,
-              workingFolder:
-                findLeafCwd(appended.paneTree, leafId) ?? workspace.workingFolder,
-              lastCommand: findLeafLastCommand(appended.paneTree, leafId) ?? null,
-              autoLaunch: findLeafAutoLaunch(appended.paneTree, leafId),
-            },
-          }),
+              findLeafCwd(appended.paneTree, leafId) ?? workspace.workingFolder,
+              findLeafLastCommand(appended.paneTree, leafId) ?? null,
+              findLeafAutoLaunch(appended.paneTree, leafId),
+              persistedPaneFor(workspace.id, paneIndex),
+            ),
+          ),
         ),
       ]).catch((error) => {
         console.error("Failed to persist created workspace terminal:", error);
       });
+      if (initialCommand && detectCliAgent(initialCommand)) {
+        scheduleWorkspacePaneSessionSync(
+          workspace.id,
+          workspace.workingFolder ?? workspaceTab.cwd ?? null,
+        );
+      }
       return true;
     },
-    [activeWorkspaceId, appendTerminalPane, saveRecentWorkspace],
+    [
+      activeWorkspaceId,
+      appendTerminalPane,
+      persistPaneRecord,
+      persistedPaneFor,
+      saveRecentWorkspace,
+      scheduleWorkspacePaneSessionSync,
+      newAgentChatTab,
+      setActiveId,
+    ],
   );
 
   const handleLeafExit = useCallback(
@@ -2455,39 +3563,91 @@ export default function App() {
       void Promise.all([
         invoke("db_save_workspace", { workspace: updated }),
         ...leafOrder.map((leafId, paneIndex) =>
-          invoke("db_save_pane", {
-            pane: {
-              workspaceId: workspace.id,
+          persistPaneRecord(
+            paneRecordFromCommand(
+              workspace.id,
               paneIndex,
-              workingFolder:
-                findLeafCwd(appended.paneTree, leafId) ?? workspace.workingFolder,
-              lastCommand: findLeafLastCommand(appended.paneTree, leafId) ?? null,
-              autoLaunch: findLeafAutoLaunch(appended.paneTree, leafId),
-            },
-          }),
+              findLeafCwd(appended.paneTree, leafId) ?? workspace.workingFolder,
+              findLeafLastCommand(appended.paneTree, leafId) ?? null,
+              findLeafAutoLaunch(appended.paneTree, leafId),
+              persistedPaneFor(workspace.id, paneIndex),
+              paneIndex === leafOrder.length - 1 ? session.sessionId : null,
+            ),
+          ),
         ),
       ]).catch((error) => {
         console.error("Failed to persist imported agent session pane:", error);
       });
+      scheduleWorkspacePaneSessionSync(
+        workspace.id,
+        workspace.workingFolder ?? session.cwd,
+      );
       return true;
     },
     [
       activeWorkspaceId,
       appendTerminalPane,
       handleArchitectureDiagramChange,
+      persistPaneRecord,
+      persistedPaneFor,
       saveRecentWorkspace,
+      scheduleWorkspacePaneSessionSync,
       setActiveId,
     ],
   );
+
+  const hideBootstrapShell = shouldSuppressBootstrapShell({
+    activeTabId: activeTab?.id ?? null,
+    activeWorkspaceId,
+    workspacesHydrated,
+    initialWorkspaceActivationHandled:
+      initialWorkspaceActivationHandledRef.current,
+    pendingBootstrapClose: pendingBootstrapCloseRef.current,
+  });
+  const workspaceLoadingPresentation = getWorkspaceLoadingPresentation({
+    activeTabId: activeTab?.id ?? null,
+    activeWorkspaceId,
+    workspacesHydrated,
+    initialWorkspaceActivationHandled:
+      initialWorkspaceActivationHandledRef.current,
+    pendingBootstrapClose: pendingBootstrapCloseRef.current,
+    openingWorkspaceId,
+  });
+  const showWorkspaceSwitchLoading = workspaceLoadingPresentation === "local";
+  const openingWorkspace =
+    openingWorkspaceId === null
+      ? null
+      : workspaces.find((workspace) => workspace.id === openingWorkspaceId) ??
+        null;
+  const workspaceLoadingLabel = openingWorkspace
+    ? `Opening ${openingWorkspace.name}…`
+    : "Opening workspace…";
+  if (hideBootstrapShell) {
+    return (
+      <ThemeProvider>
+        <TooltipProvider>
+          <div className="flex h-screen items-center justify-center bg-background text-foreground">
+            <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3 text-sm shadow-sm">
+              <span className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+              <span>{workspaceLoadingLabel}</span>
+            </div>
+          </div>
+        </TooltipProvider>
+      </ThemeProvider>
+    );
+  }
+  const renderedTabs = hideBootstrapShell
+    ? tabs.filter((tab) => tab.id !== 1)
+    : tabs;
 
   const workspaceSurface = (
     <div className="relative h-full min-h-0">
       <div
         className={cn(
           "absolute inset-0",
-          !isTerminalTab && "invisible pointer-events-none",
+          (!isTerminalTab || hideBootstrapShell) && "invisible pointer-events-none",
         )}
-        aria-hidden={!isTerminalTab}
+        aria-hidden={!isTerminalTab || hideBootstrapShell}
       >
         <TerminalStack
           tabs={tabs}
@@ -2502,11 +3662,58 @@ export default function App() {
           onFocusLeaf={handleFocusLeaf}
           onCloseLeaf={closePaneByLeaf}
           onToggleMaximize={toggleMaximizePane}
-          onSplitPane={(dir) => splitActivePane(activeId, dir)}
+          onSplitPane={splitActivePaneInActiveTab}
           focusAccentColor={activeWorkspaceAccentColor}
           onPaneTreeChange={handleTerminalPaneTreeChange}
         />
       </div>
+      {tabs.flatMap((tab) => {
+        if (tab.kind !== "agent-chat") return [];
+        const workspace = workspaces.find(
+          (item) =>
+            item.tabId === tab.id || item.agentTabIds?.includes(tab.id),
+        );
+        if (!workspace) return [];
+        const active = tab.id === activeId;
+        return [
+          <div
+            key={tab.id}
+            className={cn(
+              "absolute inset-0",
+              !active && "invisible pointer-events-none",
+            )}
+            aria-hidden={!active}
+          >
+            <AgentChatWorkspace
+              workspaceId={workspace.id}
+              chatId={tab.chatId}
+              active={active}
+              provider={tab.provider}
+              cwd={tab.cwd}
+              nativeSessionId={tab.nativeSessionId}
+              apiKeys={apiKeys}
+              initialDraft={tab.initialDraft}
+              initialHistoryAttachments={tab.initialHistoryAttachments}
+              onForkResponse={(destination, response) => handleForkAgentResponse({
+                workspaceId: workspace.id,
+                provider: tab.provider,
+                cwd: tab.cwd,
+                destination,
+                attachment: response,
+              })}
+              onNativeSessionId={(nativeSessionId) =>
+                handleAgentNativeSessionId(
+                  workspace.id,
+                  tab.id,
+                  tab.chatId,
+                  tab.provider,
+                  nativeSessionId,
+                )
+              }
+            />
+          </div>,
+        ];
+      })}
       <div
         data-editor-file-drop-region
         className={cn(
@@ -2590,10 +3797,14 @@ export default function App() {
         )}
         aria-hidden={!isArchitectureTab}
       >
-        <ArchitectureStack
-          tabs={tabs}
-          activeId={activeId}
-          onDiagramChange={handleArchitectureDiagramChange}
+          <ArchitectureStack
+            tabs={tabs}
+            activeId={activeId}
+            onDiagramChange={handleArchitectureDiagramChange}
+            onRegisterTerminalCreator={(tabId, creator) => {
+              if (creator) canvasTerminalCreatorRef.current.set(tabId, creator);
+              else canvasTerminalCreatorRef.current.delete(tabId);
+            }}
           onTerminalHandleChange={onCanvasTerminalHandleChange}
           onActiveTerminalChange={onActiveCanvasTerminalChange}
           canvasFocused={canvasFocused}
@@ -2611,7 +3822,7 @@ export default function App() {
           className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground"
         >
           <Header
-            tabs={tabs}
+            tabs={renderedTabs}
             activeId={activeId}
             onSelect={setActiveId}
             onReorder={reorderTab}
@@ -2641,7 +3852,12 @@ export default function App() {
           <main className="relative min-h-0 flex-1 overflow-hidden">
             <div className="zoom-content absolute left-0 top-0 flex min-h-0">
               <div
-                className="min-h-0 shrink-0 overflow-hidden transition-[width] duration-150 ease-out"
+                className={cn(
+                  "min-h-0 shrink-0 overflow-hidden",
+                  workspacesPanelResizing
+                    ? "transition-none"
+                    : "transition-[width] duration-150 ease-out",
+                )}
                 style={{
                   width: workspacesPanelOpen ? workspacesPanelWidth : 0,
                 }}
@@ -2651,6 +3867,7 @@ export default function App() {
                     activeWorkspaceId={activeWorkspaceId}
                     activeWorkspaceTerminals={activeWorkspaceTerminals}
                     onSelectTerminal={handleSelectWorkspaceTerminal}
+                    onSelectTab={setActiveId}
                     onSwapTerminals={handleSwapWorkspaceTerminals}
                     onCreateTerminal={handleCreateWorkspaceTerminal}
                     compact={workspacesPanelCompact}
@@ -2666,18 +3883,48 @@ export default function App() {
                 </div>
               </div>
               <div
+                role="separator"
+                aria-label={
+                  workspacesPanelOpen
+                    ? "Resize workspaces panel"
+                    : "Open workspaces panel"
+                }
+                aria-orientation="vertical"
+                aria-valuemin={0}
+                aria-valuemax={WORKSPACES_PANEL_MAX_WIDTH}
+                aria-valuenow={workspacesPanelOpen ? workspacesPanelWidth : 0}
+                tabIndex={0}
+                onPointerDown={handleWorkspacesPanelResizeStart}
+                onKeyDown={handleWorkspacesPanelResizeKeyDown}
+                className={cn(
+                  "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 focus-visible:ring-1 focus-visible:ring-ring",
+                  workspacesPanelCompact && "cursor-default focus-visible:ring-0",
+                )}
+              />
+              <div
                 ref={sidebarSplitRef}
                 className={cn(
                   "flex min-h-0 min-w-0 flex-1",
-                  sidebarResizing && "cursor-col-resize select-none",
+                  (sidebarResizing || workspacesPanelResizing) &&
+                    "cursor-col-resize select-none",
                 )}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex h-full min-h-0 flex-col">
                     <div ref={workspaceRef} className="relative min-h-0 flex-1">
+                      <div
+                        className={cn(
+                          "absolute inset-0",
+                          workspaceSetupOpen && "invisible pointer-events-none",
+                        )}
+                        aria-hidden={workspaceSetupOpen}
+                      >
+                        {workspaceSurface}
+                      </div>
                       {workspaceSetupOpen ? (
-                        <WorkspaceSetupView
-                          workingFolder={workspaceSetupFolder}
+                        <div className="absolute inset-0 z-30 bg-background">
+                          <WorkspaceSetupView
+                          workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}
                           suggestedWorkspaceName={
                             nextWorkspaceName(workspaces) ?? "workspace"
                           }
@@ -2685,12 +3932,24 @@ export default function App() {
                             workspaces.length,
                           )}
                           recentWorkspaces={recentWorkspaces}
+                          forkContext={workspaceForkContext}
                           onCancel={handleWorkspaceSetupCancel}
                           onOpenWithoutAi={handleOpenWorkspaceWithoutAi}
-                        />
-                      ) : (
-                        workspaceSurface
-                      )}
+                          />
+                        </div>
+                      ) : null}
+                      {showWorkspaceSwitchLoading && !workspaceSetupOpen ? (
+                        <div className="pointer-events-none absolute right-4 top-4 z-20">
+                          <div
+                            role="status"
+                            aria-live="polite"
+                            className="flex items-center gap-2 rounded-full border border-border/60 bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur"
+                          >
+                            <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+                            <span>{workspaceLoadingLabel}</span>
+                          </div>
+                        </div>
+                      ) : null}
                       {bottomTerminalOpen ? (
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
                           <div className="pointer-events-auto">
@@ -2717,21 +3976,11 @@ export default function App() {
                   aria-valuenow={sidebarOpen ? sidebarWidth : 0}
                   tabIndex={0}
                   onPointerDown={handleSidebarResizeStart}
+                  onKeyDown={handleSidebarResizeKeyDown}
                   className={cn(
-                    "relative z-50 flex w-2 shrink-0 cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-0 after:w-full",
-                    sidebarOpen
-                      ? "bg-border/40 hover:bg-border/80"
-                      : "bg-transparent hover:bg-border/60",
-                    sidebarResizing && "bg-primary/70",
+                    "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 focus-visible:ring-1 focus-visible:ring-ring",
                   )}
-                >
-                  <div
-                    className={cn(
-                      "w-1 rounded-lg bg-border",
-                      sidebarOpen ? "h-6" : "h-12 opacity-70",
-                    )}
-                  />
-                </div>
+                />
                 <aside
                   className={cn(
                     "min-h-0 shrink-0 overflow-hidden",
@@ -2744,7 +3993,7 @@ export default function App() {
                   aria-hidden={!sidebarOpen}
                 >
                   <div
-                    className="flex h-full min-h-0 shrink-0 flex-col border-l border-border/60 bg-card"
+                    className="flex h-full min-h-0 shrink-0 flex-col bg-card"
                     style={{ width: sidebarWidth }}
                   >
                     <SidebarRail

@@ -5,11 +5,16 @@ export const SIDEBAR_MAX_WIDTH = 760;
 export const WORKSPACE_MIN_WIDTH = 260;
 export const WORKSPACES_PANEL_WIDTH = 240;
 export const WORKSPACES_PANEL_COMPACT_WIDTH = 152;
+export const WORKSPACES_PANEL_MIN_WIDTH = 180;
+export const WORKSPACES_PANEL_MAX_WIDTH = 360;
+export const WORKSPACES_PANEL_COLLAPSE_WIDTH = 120;
 export const WORKSPACES_PANEL_COMPACT_BREAKPOINT = 1180;
 export const CHROME_RESIZE_TRANSITION_MS = 180;
 export const SIDEBAR_WIDTH_STORAGE_KEY = "cmdspace.sidebar.width";
 export const SIDEBAR_VIEW_STORAGE_KEY = "cmdspace.sidebar.view";
 export const SIDEBAR_BROWSER_URL_STORAGE_KEY = "cmdspace.sidebar.browser.url";
+export const WORKSPACES_PANEL_WIDTH_STORAGE_KEY = "cmdspace.workspaces.width";
 export const WORKSPACE_DELETE_CONFIRM_STORAGE_KEY =
   "cmdspace.workspace.delete.confirm.skip";
+export const ACTIVE_WORKSPACE_STORAGE_KEY = "cmdspace.workspace.active";
 export const WORKSPACE_LIMIT = 99;

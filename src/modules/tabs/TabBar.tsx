@@ -10,8 +10,16 @@ import { KEY_SEP } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { fileIconUrl } from "@/modules/explorer/lib/iconResolver";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-import { useAgentResponseLeaves } from "@/modules/terminal/lib/agentActivity";
-import { leafIds } from "@/modules/terminal/lib/panes";
+import {
+  useAgentBlockedLeaves,
+  useAgentCompletedLeaves,
+  useAgentResponseLeaves,
+  useAgentResponseRequestedLeaves,
+} from "@/modules/terminal/lib/agentActivity";
+import { AgentStateDot, type AgentDisplayState } from "@/modules/terminal/AgentStateDot";
+import { findLeafLastCommand, leafIds } from "@/modules/terminal/lib/panes";
+import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
+import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { invoke } from "@tauri-apps/api/core";
 import {
   getBindingTokens,
@@ -21,6 +29,7 @@ import {
 import {
   Cancel01Icon,
   CanvasIcon,
+  AiChat01Icon,
   Clock01Icon,
   ComputerTerminal02Icon,
   GitBranchIcon,
@@ -101,6 +110,9 @@ export function TabBar({
   const [dragVisual, setDragVisual] = useState<DragVisualState | null>(null);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const respondingLeaves = useAgentResponseLeaves();
+  const requestedLeaves = useAgentResponseRequestedLeaves();
+  const blockedLeaves = useAgentBlockedLeaves();
+  const completedLeaves = useAgentCompletedLeaves();
   const userShortcuts = usePreferencesStore((s) => s.shortcuts);
   const hasMusicTab = tabs.some((tab) => tab.kind === "terminal" && tab.title === "Music CLI");
 
@@ -271,6 +283,16 @@ export function TabBar({
               const agentResponding =
                 t.kind === "terminal" &&
                 leafIds(t.paneTree).some((leafId) => respondingLeaves.has(leafId));
+              const agentState: AgentDisplayState | undefined =
+                t.id === activeId || t.kind !== "terminal"
+                  ? undefined
+                  : leafIds(t.paneTree).some((leafId) => blockedLeaves.has(leafId))
+                    ? "blocked"
+                      : leafIds(t.paneTree).some((leafId) => requestedLeaves.has(leafId)) || agentResponding
+                      ? "working"
+                      : leafIds(t.paneTree).some((leafId) => completedLeaves.has(leafId))
+                        ? "done"
+                        : undefined;
               return [
                 ...placeholder,
                 <TabsTrigger
@@ -304,7 +326,6 @@ export function TabBar({
                     "cursor-default",
                     t.kind === "terminal" && t.title === "Music CLI" && isMusicPlaying &&
                       "cmdspace-music-playing-tab",
-                    agentResponding && "cmdspace-agent-response-tab",
                     compact
                       ? "px-1.5!"
                       : tabs.length === 1
@@ -312,7 +333,12 @@ export function TabBar({
                         : "ps-2! pe-1!",
                   )}
                 >
-                  <TabTriggerContent tab={t} compact={compact} musicPlaying={isMusicPlaying} />
+                  <TabTriggerContent
+                    tab={t}
+                    compact={compact}
+                    musicPlaying={isMusicPlaying}
+                    agentState={agentState}
+                  />
                   {tabs.length > 1 && (
                     <span
                       role="button"
@@ -455,10 +481,12 @@ function TabTriggerContent({
   tab,
   compact,
   musicPlaying,
+  agentState,
 }: {
   tab: Tab;
   compact?: boolean;
   musicPlaying: boolean;
+  agentState?: AgentDisplayState;
 }) {
   const isPreview = tab.kind === "editor" && (tab as EditorTab).preview;
   return (
@@ -468,6 +496,7 @@ function TabTriggerContent({
         compact ? "max-w-48" : "max-w-80",
       )}
     >
+      {agentState ? <AgentStateDot state={agentState} /> : null}
       <TabIcon tab={tab} musicPlaying={musicPlaying} />
       {/* Preview tabs use italic to signal the transient state,
           matching the visual convention from VSCode. */}
@@ -485,6 +514,12 @@ function TabTriggerContent({
 }
 
 function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
+  if (tab.kind === "terminal") {
+    const agent = leafIds(tab.paneTree)
+      .map((leafId) => detectCliAgent(findLeafLastCommand(tab.paneTree, leafId) ?? undefined))
+      .find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+    if (agent) return <AgentCliIcon agent={agent} size="xxs" className="shrink-0" />;
+  }
   if (tab.kind === "terminal" && tab.title === "Music CLI") {
     return (
       <HugeiconsIcon
@@ -559,6 +594,9 @@ function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
       />
     );
   }
+  if (tab.kind === "agent-chat") {
+    return <HugeiconsIcon icon={AiChat01Icon} size={14} strokeWidth={2} className="shrink-0" />;
+  }
   return (
     <HugeiconsIcon
       icon={ComputerTerminal02Icon}
@@ -577,6 +615,7 @@ function labelFor(t: Tab): string {
   if (t.kind === "git-diff") return t.title;
   if (t.kind === "git-history") return t.title;
   if (t.kind === "architecture") return t.title;
+  if (t.kind === "agent-chat") return t.title;
   if (t.kind === "git-commit-file") return t.title;
   if (t.kind === "terminal" && t.title !== "shell" && t.title !== "workspace") {
     return t.title;

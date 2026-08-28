@@ -14,6 +14,8 @@ import {
   type SplitDir,
 } from "@/modules/terminal/lib/panes";
 import { disposeSession } from "@/modules/terminal/lib/useTerminalSession";
+import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
+import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 
 // Matches the renderer slot pool size — over this we'd evict an active leaf.
 export const MAX_PANES_PER_TAB = 12;
@@ -98,6 +100,18 @@ export type ArchitectureTab = {
   diagram?: ArchitectureDiagram;
 };
 
+export type AgentChatTab = {
+  id: number;
+  chatId: string;
+  kind: "agent-chat";
+  title: string;
+  provider: CliAgent;
+  cwd: string;
+  nativeSessionId: string | null;
+  initialDraft?: string;
+  initialHistoryAttachments?: AgentChatHistoryAttachment[];
+};
+
 export type ArchitectureShapeKind =
   | "actor" | "external" | "service" | "api" | "worker" | "function"
   | "ai" | "database" | "cache" | "queue" | "storage" | "gateway"
@@ -118,6 +132,7 @@ export type ArchitectureDiagramNode = {
   imageUrl?: string;
   cwd?: string;
   initialCommand?: string;
+  nativeSessionId?: string;
   url?: string;
   path?: string;
   terminalChromeVersion?: 2;
@@ -192,6 +207,7 @@ export type Tab =
   | GitDiffTab
   | GitHistoryTab
   | ArchitectureTab
+  | AgentChatTab
   | GitCommitFileDiffTab;
 
 export type TabPatch = Partial<{
@@ -201,6 +217,8 @@ export type TabPatch = Partial<{
   path: string;
   dirty: boolean;
   url: string;
+  nativeSessionId: string | null;
+  initialDraft: string;
 }>;
 
 function basename(path: string): string {
@@ -438,6 +456,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
       paneCount: number,
       panes?: SavedPaneInfo[],
       paneLayout?: string | null,
+      title = "workspace",
     ) => {
       const tabId = nextIdRef.current++;
       const { paneTree, activeLeafId } = createPaneTree(
@@ -452,7 +471,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         {
           id: tabId,
           kind: "terminal",
-          title: "workspace",
+          title,
           cwd,
           paneTree,
           activeLeafId,
@@ -463,6 +482,34 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     },
     [],
   );
+
+  const newAgentChatTab = useCallback((input: {
+    title: string;
+    provider: CliAgent;
+    cwd: string;
+    chatId?: string;
+    nativeSessionId?: string | null;
+    initialDraft?: string;
+    initialHistoryAttachments?: AgentChatHistoryAttachment[];
+  }) => {
+    const id = nextIdRef.current++;
+    setTabs((current) => [
+      ...current,
+      {
+        id,
+        chatId: input.chatId ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        kind: "agent-chat",
+        title: input.title,
+        provider: input.provider,
+        cwd: input.cwd,
+        nativeSessionId: input.nativeSessionId ?? null,
+        initialDraft: input.initialDraft,
+        initialHistoryAttachments: input.initialHistoryAttachments,
+      },
+    ]);
+    setActiveId(id);
+    return id;
+  }, []);
 
   /**
    * Opens a file in an editor tab.
@@ -876,6 +923,14 @@ export function useTabs(initial?: Partial<TerminalTab>) {
             ...(patch.diagram !== undefined && { diagram: patch.diagram }),
           };
         }
+        if (x.kind === "agent-chat") {
+          return {
+            ...x,
+            ...(patch.title !== undefined && { title: patch.title }),
+            ...(patch.nativeSessionId !== undefined && { nativeSessionId: patch.nativeSessionId }),
+            ...(patch.initialDraft !== undefined && { initialDraft: patch.initialDraft }),
+          };
+        }
         // editor tab: auto-promote from preview the moment the file becomes dirty.
         const autoPin =
           patch.dirty === true && (x as EditorTab).preview
@@ -1033,17 +1088,19 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     );
   }, []);
 
-  /** Split the active leaf of `tabId` along `dir`. Returns the new leaf id. */
+  /** Split the active leaf of `tabId` along `dir`. Returns the new leaf tree. */
   const splitActivePane = useCallback(
-    (tabId: number, dir: SplitDir): number | null => {
-      let newLeafId: number | null = null;
+    (
+      tabId: number,
+      dir: SplitDir,
+    ): { leafId: number; paneTree: PaneNode } | null => {
+      let result: { leafId: number; paneTree: PaneNode } | null = null;
       setTabs((curr) =>
         curr.map((t) => {
           if (t.id !== tabId || t.kind !== "terminal") return t;
           if (leafIds(t.paneTree).length >= MAX_PANES_PER_TAB) return t;
           const splitId = nextIdRef.current++;
           const leafId = nextIdRef.current++;
-          newLeafId = leafId;
           const paneTree = splitLeaf(
             t.paneTree,
             t.activeLeafId,
@@ -1052,10 +1109,16 @@ export function useTabs(initial?: Partial<TerminalTab>) {
             dir,
             t.cwd,
           );
-          return { ...t, paneTree, activeLeafId: leafId, maximizedLeafId: undefined };
+          result = { leafId, paneTree };
+          return {
+            ...t,
+            paneTree,
+            activeLeafId: leafId,
+            maximizedLeafId: undefined,
+          };
         }),
       );
-      return newLeafId;
+      return result;
     },
     [],
   );
@@ -1221,6 +1284,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     newTab,
     newPrivateTab,
     newWorkspaceTab,
+    newAgentChatTab,
     openFileTab,
     pinTab,
     newPreviewTab,

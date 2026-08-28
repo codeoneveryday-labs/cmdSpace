@@ -74,7 +74,7 @@ export function TerminalAgentSwitcher({
             title={`Switch coding agent · ${currentLabel}`}
           >
             {currentAgent ? (
-              <AgentCliIcon agent={currentAgent} />
+              <AgentCliIcon agent={currentAgent} size="md" />
             ) : (
               <HugeiconsIcon
                 icon={ComputerTerminal02Icon}
@@ -88,7 +88,7 @@ export function TerminalAgentSwitcher({
       <DropdownMenuContent
         align="start"
         sideOffset={6}
-        className="max-h-[min(70vh,28rem)] min-w-56 overflow-y-auto rounded-xl p-1.5"
+        className="max-h-[min(70vh,22rem)] min-w-44 overflow-y-auto rounded-xl p-1"
         onPointerDown={(event) => event.stopPropagation()}
       >
         <DropdownMenuRadioGroup
@@ -99,17 +99,17 @@ export function TerminalAgentSwitcher({
             <DropdownMenuRadioItem
               key={agent.id}
               value={agent.id}
-              className="rounded-lg"
+              className="gap-1.5 rounded-md py-1 text-xs"
             >
-              <AgentCliIcon agent={agent.id} size="md" />
+              <AgentCliIcon agent={agent.id} size="xs" />
               <span className="min-w-0 flex-1 truncate">{agent.name}</span>
             </DropdownMenuRadioItem>
           ))}
           {enabledAgents.length > 0 ? <DropdownMenuSeparator /> : null}
-          <DropdownMenuRadioItem value="terminal" className="rounded-lg">
+          <DropdownMenuRadioItem value="terminal" className="gap-1.5 rounded-md py-1 text-xs">
             <HugeiconsIcon
               icon={ComputerTerminal02Icon}
-              size={16}
+              size={13}
               strokeWidth={1.8}
             />
             <span className="min-w-0 flex-1 truncate">Terminal</span>

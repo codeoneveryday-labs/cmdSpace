@@ -22,6 +22,7 @@ describe("CLI agent registry", () => {
       cursor: "cursor-agent",
       aider: "aider",
       pi: "pi",
+      omp: "omp",
       amp: "amp",
       cline: "cline",
       goose: "goose",
@@ -76,8 +77,8 @@ describe("CLI agent registry", () => {
     expect(isInteractiveCodingAgentCommand("compile project")).toBe(false);
   });
 
-  it("does not mistake the Windows cmd shell for Command Code", () => {
-    expect(detectCliAgent("cmd")).toBeNull();
+  it("recognizes bare Command Code while excluding Windows shell switches", () => {
+    expect(detectCliAgent("cmd")).toBe("cmd");
     expect(detectCliAgent("cmd /c echo hi")).toBeNull();
     expect(detectCliAgent("cmd //c echo hi")).toBeNull();
     expect(detectCliAgent("cmd.exe /c dir")).toBeNull();
@@ -89,7 +90,7 @@ describe("CLI agent registry", () => {
 
   it("accepts a trusted runtime agent id without treating shell history as an agent", () => {
     expect(detectTrackedCliAgent("cmd", undefined)).toBe("cmd");
-    expect(detectTrackedCliAgent(undefined, "cmd")).toBeNull();
+    expect(detectTrackedCliAgent(undefined, "cmd")).toBe("cmd");
     expect(detectTrackedCliAgent(undefined, "cmd --dangerously-skip-permissions")).toBe(
       "cmd",
     );
@@ -114,13 +115,13 @@ describe("CLI agent registry", () => {
   });
 
   it("keeps newly added marketplace agents opt-in", () => {
-    expect(CLI_AGENT_DEFINITIONS).toHaveLength(45);
+    expect(CLI_AGENT_DEFINITIONS).toHaveLength(46);
     expect(DEFAULT_CONFIGURED_CLI_AGENT_IDS).toHaveLength(6);
     expect(
       CLI_AGENT_DEFINITIONS.filter(
         ({ id }) => !DEFAULT_CONFIGURED_CLI_AGENT_IDS.includes(id),
       ),
-    ).toHaveLength(39);
+    ).toHaveLength(40);
   });
 
   it("makes unattended launch behavior an explicit catalog policy", () => {
@@ -144,10 +145,10 @@ describe("CLI agent registry", () => {
 
   it("filters enabled workspace agents from configured preferences", () => {
     expect(
-      getEnabledCliAgentDefinitions(["claude", "codex", "cursor"], ["codex"]).map(
+      getEnabledCliAgentDefinitions(["cursor", "codex", "claude", "cursor"], ["codex"]).map(
         ({ id }) => id,
       ),
-    ).toEqual(["claude", "cursor"]);
+    ).toEqual(["cursor", "claude"]);
   });
 
   it("searches only agents that have not been configured", () => {

@@ -36,8 +36,13 @@ import {
 import { sharedTerminalOptions } from "@/modules/terminal/lib/terminalOptions";
 import {
   detectCodingAgentBanner,
+  detectCliAgent,
+  type CliAgent,
   isInteractiveCodingAgentCommand,
 } from "@/modules/terminal/lib/cliAgents";
+import { AgentStateDot } from "@/modules/terminal/AgentStateDot";
+import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
+import { TerminalAgentSwitcher } from "@/modules/terminal/TerminalAgentSwitcher";
 import { useTheme } from "@/modules/theme";
 
 type AgentResponseState = "idle" | "responding" | "completed";
@@ -46,12 +51,14 @@ const AGENT_RESPONSE_IDLE_MS = 900;
 const LOCAL_INPUT_ECHO_GRACE_MS = 180;
 
 type Props = {
+  terminalId: string;
   initialCwd?: string;
   initialCommand?: string;
   stackTabs: Array<{
     id: string;
     label: string;
     kind?: "terminal" | "browser";
+    agent?: CliAgent | null;
   }>;
   activeTabId: string;
   visible: boolean;
@@ -62,7 +69,7 @@ type Props = {
     event: ReactPointerEvent<HTMLElement>,
   ) => void;
   onRequestCloseTab: (terminalId: string) => void;
-  onAddTab: () => void;
+  onAddTab: (initialCommand?: string) => void;
   onSplitRight: () => void;
   singleTerminalGroup: boolean;
   terminalGroupLocked: boolean;
@@ -72,6 +79,7 @@ type Props = {
   onRequestCloseTerminalGroup: () => void;
   onHeaderPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onCwdChange: (cwd: string) => void;
+  onInitialCommandChange?: (command: string) => void;
   onHandleChange?: (handle: CanvasTerminalHandle | null) => void;
   cornerClassName: string;
   resizePaused: boolean;
@@ -86,6 +94,7 @@ export type CanvasTerminalHandle = {
   replaceCurrentInput: (next: string) => boolean;
   focus: () => void;
   getBuffer: (maxLines?: number) => string | null;
+  close: () => void;
 };
 
 function isRejectedCwdError(error: unknown): boolean {
@@ -133,6 +142,7 @@ function copySelection(selection: string): Promise<void> {
 }
 
 export function CanvasTerminalNode({
+  terminalId,
   initialCwd,
   initialCommand,
   stackTabs,
@@ -152,6 +162,7 @@ export function CanvasTerminalNode({
   onRequestCloseTerminalGroup,
   onHeaderPointerDown,
   onCwdChange,
+  onInitialCommandChange,
   onHandleChange,
   cornerClassName,
   resizePaused,
@@ -177,8 +188,10 @@ export function CanvasTerminalNode({
   );
   const cwdChangeRef = useRef(onCwdChange);
   const handleChangeRef = useRef(onHandleChange);
+  const requestCloseTabRef = useRef(onRequestCloseTab);
   const resizePausedRef = useRef(resizePaused);
   const [cwd, setCwd] = useState(initialCwd);
+  const [launchCommand, setLaunchCommand] = useState(initialCommand);
   const [agentResponseState, setAgentResponseState] =
     useState<AgentResponseState>("idle");
 	const [copyBadgeVisible, setCopyBadgeVisible] = useState(false);
@@ -192,7 +205,17 @@ export function CanvasTerminalNode({
   const zoomLevel = usePreferencesStore((state) => state.zoomLevel);
   cwdChangeRef.current = onCwdChange;
   handleChangeRef.current = onHandleChange;
+  requestCloseTabRef.current = onRequestCloseTab;
   const tabLabel = cwd ? cwd.replace(/\/$/, "").split("/").pop() || cwd : "Terminal";
+  const [detectedAgent, setDetectedAgent] = useState(() => detectCliAgent(initialCommand));
+  initialCommandRef.current = launchCommand;
+  const rememberDetectedAgentCommand = (command: string) => {
+    const nextAgent = detectCliAgent(command);
+    if (!nextAgent) return null;
+    setDetectedAgent(nextAgent);
+    onInitialCommandChange?.(command);
+    return nextAgent;
+  };
   const trackPromptInput = (data: string) => {
     lastLocalInputAtRef.current = Date.now();
     if (shellStateRef.current.inCommand) return;
@@ -200,9 +223,9 @@ export function CanvasTerminalNode({
     if (data.includes("\r") || data.includes("\n")) {
       const [beforeEnter = ""] = data.split(/[\r\n]+/);
       promptInputRef.current += beforeEnter;
-      interactiveCodingAgentRef.current = isInteractiveCodingAgentCommand(
-        promptInputRef.current.trim(),
-      );
+      const command = promptInputRef.current.trim();
+      interactiveCodingAgentRef.current = isInteractiveCodingAgentCommand(command);
+      rememberDetectedAgentCommand(command);
       promptInputRef.current = "";
       return;
     }
@@ -235,6 +258,7 @@ export function CanvasTerminalNode({
         return true;
       },
       focus: () => terminalRef.current?.focus(),
+      close: () => requestCloseTabRef.current?.(terminalId),
       getBuffer: (maxLines = 200) => {
         const terminal = terminalRef.current;
         if (!terminal) return null;
@@ -528,7 +552,7 @@ export function CanvasTerminalNode({
       sessionRef.current = null;
       if (session) void session.close();
     };
-  }, []);
+  }, [launchCommand]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -611,17 +635,6 @@ export function CanvasTerminalNode({
         event.stopPropagation();
       }}
     >
-      {agentResponseState !== "idle" ? (
-        <div
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none absolute inset-0 z-30 rounded-[inherit] border-2",
-            agentResponseState === "responding"
-              ? "cmdspace-canvas-agent-responding border-dashed border-primary"
-              : "cmdspace-canvas-agent-completed border-emerald-500",
-          )}
-        />
-      ) : null}
       <div className="relative z-20 flex h-7 shrink-0 items-center gap-0.5 border-b border-border/60 bg-white/95 px-1 text-muted-foreground shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300">
         <div
           role="tablist"
@@ -639,6 +652,11 @@ export function CanvasTerminalNode({
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:hover:bg-zinc-800/70",
               )}
             >
+              {(() => {
+                const tabAgent =
+                  tab.id === activeTabId ? detectedAgent ?? tab.agent : tab.agent;
+
+                return (
               <button
                 type="button"
                 role="tab"
@@ -655,23 +673,46 @@ export function CanvasTerminalNode({
                 onActivateTab(tab.id);
               }}
               >
-                <HugeiconsIcon
-                  icon={
-                    tab.kind === "browser"
-                      ? Globe02Icon
-                      : TerminalIcon
-                  }
-                  size={12}
-                  strokeWidth={1.8}
-                  className={cn(
-                    "shrink-0",
-                    tab.id === activeTabId && "text-emerald-500",
-                  )}
-                />
+                {tab.kind === "browser" ? (
+                  <HugeiconsIcon icon={Globe02Icon} size={12} strokeWidth={1.8} className="shrink-0" />
+                ) : tab.id === activeTabId ? (
+                  <TerminalAgentSwitcher
+                    currentAgent={tabAgent ?? null}
+                    onSelect={(_agent, command) => {
+                      if (!command) return;
+                      rememberDetectedAgentCommand(command);
+                      setLaunchCommand(command);
+                    }}
+                    trigger={
+                      <span
+                        className="inline-flex shrink-0 cursor-pointer"
+                        aria-label="Switch coding agent"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {tabAgent ? (
+                          <AgentCliIcon agent={tabAgent} size="sm" />
+                        ) : (
+                          <HugeiconsIcon
+                            icon={TerminalIcon}
+                            size={12}
+                            strokeWidth={1.8}
+                          />
+                        )}
+                      </span>
+                    }
+                  />
+                ) : tabAgent ? (
+                  <AgentCliIcon agent={tabAgent} size="sm" />
+                ) : (
+                  <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} className={cn("shrink-0", tab.id === activeTabId && "text-emerald-500")} />
+                )}
                 <span className="truncate">
                   {tab.id === activeTabId ? tabLabel : tab.label}
                 </span>
               </button>
+                );
+              })()}
               <button
                 type="button"
                 aria-label={`Close ${tab.label}`}
@@ -691,20 +732,24 @@ export function CanvasTerminalNode({
             </div>
           ))}
         </div>
+        {agentResponseState === "responding" ? <AgentStateDot state="working" /> : null}
+        {agentResponseState === "completed" ? <AgentStateDot state="done" /> : null}
         <div className="flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            aria-label="Add terminal tab"
-            title="Add terminal tab"
-            className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            onClick={onAddTab}
-          >
-            <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.8} />
-          </button>
+          <TerminalAgentSwitcher
+            currentAgent={null}
+            onSelect={(_agent, command) => onAddTab(command ?? undefined)}
+            trigger={
+              <button
+                type="button"
+                aria-label="Add terminal tab"
+                title="Add terminal tab or agent"
+                className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.8} />
+              </button>
+            }
+          />
           <button
             type="button"
             aria-label="Split terminal right"

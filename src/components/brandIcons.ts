@@ -49,6 +49,7 @@ import elevenLabsIconSvg from "@/assets/provider-icons/elevenlabs.svg?raw";
 import cloudflareIconSvg from "@/assets/provider-icons/cloudflare.svg?raw";
 import replicateIconSvg from "@/assets/provider-icons/replicate.svg?raw";
 import nvidiaIconSvg from "@/assets/provider-icons/nvidia.svg?raw";
+import ompIconSvg from "@/assets/provider-icons/omp.svg?raw";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { ProviderId } from "@/modules/ai/config";
 
@@ -102,6 +103,7 @@ export const BRAND_ICON_ASSETS = {
   cloudflare: cloudflareIconSvg,
   replicate: replicateIconSvg,
   nvidia: nvidiaIconSvg,
+  omp: ompIconSvg,
 } as const;
 
 export const BRAND_ICON_IMAGE_ASSETS = {
@@ -116,6 +118,7 @@ export type BrandIconName =
 export const BRAND_ICON_SOURCE_URLS: Partial<
   Record<BrandIconName, string>
 > = {
+  omp: "https://raw.githubusercontent.com/unsigned-gg/omp/main/assets/icon.svg",
   cmd: "https://raw.githubusercontent.com/CommandCodeAI/command-code/main/.github/commandcode/symbols/commandcode.svg",
   herdr:
     "https://raw.githubusercontent.com/ogulcancelik/herdr/master/website/assets/agent-icons/herdr-mask.svg",
@@ -133,6 +136,7 @@ const PROVIDER_BRAND_ICONS: Partial<Record<ProviderId, BrandIconName>> = {
 };
 
 const AGENT_BRAND_ICONS: Partial<Record<CliAgent, BrandIconName>> = {
+  omp: "omp",
   claude: "claude",
   codex: "codex",
   gemini: "gemini",

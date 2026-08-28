@@ -23,6 +23,16 @@ pub struct WorkspaceRow {
     pub pane_layout: Option<String>,
     #[serde(rename = "workspaceMode")]
     pub workspace_mode: Option<String>,
+    #[serde(rename = "agentProvider")]
+    pub agent_provider: Option<String>,
+    #[serde(rename = "agentSessionId")]
+    pub agent_session_id: Option<String>,
+    #[serde(rename = "agentProviders", default)]
+    pub agent_providers: Option<Vec<String>>,
+    #[serde(rename = "agentSessionIds", default)]
+    pub agent_session_ids: Option<Vec<Option<String>>>,
+    #[serde(rename = "agentChatIds", default)]
+    pub agent_chat_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -37,6 +47,10 @@ pub struct WorkspacePaneRow {
     pub last_command: Option<String>,
     #[serde(rename = "autoLaunch", default)]
     pub auto_launch: bool,
+    #[serde(rename = "agentProvider", default)]
+    pub agent_provider: Option<String>,
+    #[serde(rename = "nativeSessionId", default)]
+    pub native_session_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -48,6 +62,36 @@ pub struct RecentWorkspaceRow {
     pub working_folder: String,
     #[serde(rename = "updatedAt")]
     pub updated_at: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct AgentChatConfigRow {
+    #[serde(rename = "chatId")]
+    pub chat_id: String,
+    pub provider: String,
+    pub model: Option<String>,
+    pub effort: Option<String>,
+    #[serde(rename = "permissionMode")]
+    pub permission_mode: Option<String>,
+    #[serde(rename = "fastMode")]
+    pub fast_mode: bool,
+    #[serde(rename = "planMode")]
+    pub plan_mode: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct AgentModelCacheRow {
+    pub provider: String,
+    pub models: Vec<AgentModelCacheEntry>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct AgentModelCacheEntry {
+    pub id: String,
+    pub label: String,
+    pub description: Option<String>,
 }
 
 /// A workspace created from a paired native device. It deliberately has no
@@ -135,31 +179,31 @@ fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Failed to create workspace_panes table: {e}"))?;
 
-    let has_auto_launch = {
+    let columns = {
         let mut stmt = conn
             .prepare("PRAGMA table_info(workspace_panes)")
             .map_err(|e| format!("Failed to inspect workspace_panes table: {e}"))?;
         let columns = stmt
             .query_map([], |row| row.get::<_, String>(1))
             .map_err(|e| format!("Failed to read workspace_panes table columns: {e}"))?;
-        let mut found = false;
+        let mut found = Vec::new();
         for column in columns {
-            if column.map_err(|e| format!("Failed to read column name: {e}"))? == "auto_launch" {
-                found = true;
-                break;
-            }
+            found.push(column.map_err(|e| format!("Failed to read column name: {e}"))?);
         }
         found
     };
-    if has_auto_launch {
-        return Ok(());
+    if !columns.iter().any(|column| column == "auto_launch") {
+        conn.execute("ALTER TABLE workspace_panes ADD COLUMN auto_launch INTEGER NOT NULL DEFAULT 0", [])
+            .map_err(|e| format!("Failed to add auto_launch column: {e}"))?;
     }
-
-    conn.execute(
-        "ALTER TABLE workspace_panes ADD COLUMN auto_launch INTEGER NOT NULL DEFAULT 0",
-        [],
-    )
-    .map_err(|e| format!("Failed to add auto_launch column: {e}"))?;
+    if !columns.iter().any(|column| column == "agent_provider") {
+        conn.execute("ALTER TABLE workspace_panes ADD COLUMN agent_provider TEXT", [])
+            .map_err(|e| format!("Failed to add agent_provider column: {e}"))?;
+    }
+    if !columns.iter().any(|column| column == "native_session_id") {
+        conn.execute("ALTER TABLE workspace_panes ADD COLUMN native_session_id TEXT", [])
+            .map_err(|e| format!("Failed to add native_session_id column: {e}"))?;
+    }
     conn.execute(
         "UPDATE workspace_panes SET auto_launch = 1
          WHERE lower(trim(last_command)) IN ('codex', 'claude', 'opencode', 'gemini', 'kimi', 'grok', 'copilot', 'cursor-agent', 'aider', 'pi', 'amp', 'cline', 'goose', 'qwen', 'openhands', 'kiro-cli', 'cmd')
@@ -236,13 +280,18 @@ pub fn init_db() -> Result<Connection, String> {
             updated_at INTEGER NOT NULL,
             display_order INTEGER NOT NULL DEFAULT 0,
             pane_layout TEXT,
-            workspace_mode TEXT
+            workspace_mode TEXT,
+            agent_provider TEXT,
+            agent_session_id TEXT
+            ,agent_providers TEXT
+            ,agent_session_ids TEXT
+            ,agent_chat_ids TEXT
         );",
         [],
     )
     .map_err(|e| format!("Failed to create table: {e}"))?;
 
-    let (has_accent_color, has_pane_layout, has_workspace_mode) = {
+    let (has_accent_color, has_pane_layout, has_workspace_mode, has_agent_provider, has_agent_session_id, has_agent_providers, has_agent_session_ids, has_agent_chat_ids) = {
         let mut stmt = conn
             .prepare("PRAGMA table_info(workspaces)")
             .map_err(|e| format!("Failed to inspect workspaces table: {e}"))?;
@@ -252,6 +301,11 @@ pub fn init_db() -> Result<Connection, String> {
         let mut found_accent_color = false;
         let mut found_pane_layout = false;
         let mut found_workspace_mode = false;
+        let mut found_agent_provider = false;
+        let mut found_agent_session_id = false;
+        let mut found_agent_providers = false;
+        let mut found_agent_session_ids = false;
+        let mut found_agent_chat_ids = false;
         for column in columns {
             match column
                 .map_err(|e| format!("Failed to read column name: {e}"))?
@@ -260,10 +314,24 @@ pub fn init_db() -> Result<Connection, String> {
                 "accent_color" => found_accent_color = true,
                 "pane_layout" => found_pane_layout = true,
                 "workspace_mode" => found_workspace_mode = true,
+                "agent_provider" => found_agent_provider = true,
+                "agent_session_id" => found_agent_session_id = true,
+                "agent_providers" => found_agent_providers = true,
+                "agent_session_ids" => found_agent_session_ids = true,
+                "agent_chat_ids" => found_agent_chat_ids = true,
                 _ => {}
             }
         }
-        (found_accent_color, found_pane_layout, found_workspace_mode)
+        (
+            found_accent_color,
+            found_pane_layout,
+            found_workspace_mode,
+            found_agent_provider,
+            found_agent_session_id,
+            found_agent_providers,
+            found_agent_session_ids,
+            found_agent_chat_ids,
+        )
     };
     if !has_accent_color {
         conn.execute("ALTER TABLE workspaces ADD COLUMN accent_color TEXT", [])
@@ -277,9 +345,51 @@ pub fn init_db() -> Result<Connection, String> {
         conn.execute("ALTER TABLE workspaces ADD COLUMN workspace_mode TEXT", [])
             .map_err(|e| format!("Failed to add workspace_mode column: {e}"))?;
     }
+    if !has_agent_provider {
+        conn.execute("ALTER TABLE workspaces ADD COLUMN agent_provider TEXT", [])
+            .map_err(|e| format!("Failed to add agent_provider column: {e}"))?;
+    }
+    if !has_agent_session_id {
+        conn.execute("ALTER TABLE workspaces ADD COLUMN agent_session_id TEXT", [])
+            .map_err(|e| format!("Failed to add agent_session_id column: {e}"))?;
+    }
+    if !has_agent_providers {
+        conn.execute("ALTER TABLE workspaces ADD COLUMN agent_providers TEXT", [])
+            .map_err(|e| format!("Failed to add agent_providers column: {e}"))?;
+    }
+    if !has_agent_session_ids {
+        conn.execute("ALTER TABLE workspaces ADD COLUMN agent_session_ids TEXT", [])
+            .map_err(|e| format!("Failed to add agent_session_ids column: {e}"))?;
+    }
+    if !has_agent_chat_ids {
+        conn.execute("ALTER TABLE workspaces ADD COLUMN agent_chat_ids TEXT", [])
+            .map_err(|e| format!("Failed to add agent_chat_ids column: {e}"))?;
+    }
 
     migrate_workspace_panes(&conn)?;
     migrate_workspace_setup_preferences(&conn)?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS agent_chat_configs (
+            chat_id TEXT PRIMARY KEY,
+            provider TEXT NOT NULL,
+            model TEXT,
+            effort TEXT,
+            permission_mode TEXT,
+            fast_mode INTEGER NOT NULL DEFAULT 0,
+            plan_mode INTEGER NOT NULL DEFAULT 0
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create agent chat config table: {e}"))?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS agent_model_cache (
+            provider TEXT PRIMARY KEY,
+            models_json TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create agent model cache table: {e}"))?;
     init_mobile_workspace_schema(&conn)?;
 
     conn.execute(
@@ -300,7 +410,7 @@ pub fn init_db() -> Result<Connection, String> {
 // Inner logic functions, decoupled from tauri::State for direct, easy unit testing
 pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, String> {
     let mut stmt = conn
-        .prepare("SELECT id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode FROM workspaces ORDER BY display_order ASC, created_at ASC")
+        .prepare("SELECT id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode, agent_provider, agent_session_id, agent_providers, agent_session_ids, agent_chat_ids FROM workspaces ORDER BY display_order ASC, created_at ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -316,6 +426,17 @@ pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, Str
                 display_order: row.get(7)?,
                 pane_layout: row.get(8)?,
                 workspace_mode: row.get(9)?,
+                agent_provider: row.get(10)?,
+                agent_session_id: row.get(11)?,
+                agent_providers: row
+                    .get::<_, Option<String>>(12)?
+                    .and_then(|value| serde_json::from_str(&value).ok()),
+                agent_session_ids: row
+                    .get::<_, Option<String>>(13)?
+                    .and_then(|value| serde_json::from_str(&value).ok()),
+                agent_chat_ids: row
+                    .get::<_, Option<String>>(14)?
+                    .and_then(|value| serde_json::from_str(&value).ok()),
             })
         })
         .map_err(|e| e.to_string())?;
@@ -330,8 +451,8 @@ pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, Str
 
 pub fn save_workspace_inner(conn: &Connection, workspace: &WorkspaceRow) -> Result<(), String> {
     conn.execute(
-        "INSERT OR REPLACE INTO workspaces (id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT OR REPLACE INTO workspaces (id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode, agent_provider, agent_session_id, agent_providers, agent_session_ids, agent_chat_ids)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         params![
             workspace.id,
             workspace.name,
@@ -342,7 +463,12 @@ pub fn save_workspace_inner(conn: &Connection, workspace: &WorkspaceRow) -> Resu
             workspace.updated_at,
             workspace.display_order,
             workspace.pane_layout,
-            workspace.workspace_mode
+            workspace.workspace_mode,
+            workspace.agent_provider,
+            workspace.agent_session_id,
+            workspace.agent_providers.as_ref().and_then(|value| serde_json::to_string(value).ok()),
+            workspace.agent_session_ids.as_ref().and_then(|value| serde_json::to_string(value).ok()),
+            workspace.agent_chat_ids.as_ref().and_then(|value| serde_json::to_string(value).ok())
         ],
     )
     .map_err(|e| format!("Failed to save workspace: {e}"))?;
@@ -388,7 +514,7 @@ pub fn list_panes_inner(
     workspace_id: &str,
 ) -> Result<Vec<WorkspacePaneRow>, String> {
     let mut stmt = conn
-        .prepare("SELECT workspace_id, pane_index, working_folder, last_command, auto_launch FROM workspace_panes WHERE workspace_id = ?1 ORDER BY pane_index ASC")
+        .prepare("SELECT workspace_id, pane_index, working_folder, last_command, auto_launch, agent_provider, native_session_id FROM workspace_panes WHERE workspace_id = ?1 ORDER BY pane_index ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -399,6 +525,8 @@ pub fn list_panes_inner(
                 working_folder: row.get(2)?,
                 last_command: row.get(3)?,
                 auto_launch: row.get(4)?,
+                agent_provider: row.get(5)?,
+                native_session_id: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -413,14 +541,16 @@ pub fn list_panes_inner(
 
 pub fn save_pane_inner(conn: &Connection, pane: &WorkspacePaneRow) -> Result<(), String> {
     conn.execute(
-        "INSERT OR REPLACE INTO workspace_panes (workspace_id, pane_index, working_folder, last_command, auto_launch)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT OR REPLACE INTO workspace_panes (workspace_id, pane_index, working_folder, last_command, auto_launch, agent_provider, native_session_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             pane.workspace_id,
             pane.pane_index,
             pane.working_folder,
             pane.last_command,
-            pane.auto_launch
+            pane.auto_launch,
+            pane.agent_provider,
+            pane.native_session_id
         ],
     )
     .map_err(|e| format!("Failed to save workspace pane: {e}"))?;
@@ -663,6 +793,73 @@ pub fn db_save_workspace_setup_custom_command(
     save_workspace_setup_custom_command_inner(&conn, &command)
 }
 
+#[tauri::command]
+pub fn db_load_agent_chat_config(
+    state: tauri::State<'_, DbState>,
+    chat_id: String,
+) -> Result<Option<AgentChatConfigRow>, String> {
+    let conn = state.0.lock().map_err(|_| "DB mutex poisoned")?;
+    conn.query_row(
+        "SELECT chat_id, provider, model, effort, permission_mode, fast_mode, plan_mode FROM agent_chat_configs WHERE chat_id = ?1",
+        [&chat_id],
+        |row| Ok(AgentChatConfigRow {
+            chat_id: row.get(0)?, provider: row.get(1)?, model: row.get(2)?, effort: row.get(3)?, permission_mode: row.get(4)?, fast_mode: row.get::<_, i64>(5)? != 0, plan_mode: row.get::<_, i64>(6)? != 0,
+        }),
+    )
+    .optional()
+    .map_err(|e| format!("Failed to load agent chat config: {e}"))
+}
+
+#[tauri::command]
+pub fn db_save_agent_chat_config(
+    state: tauri::State<'_, DbState>,
+    config: AgentChatConfigRow,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|_| "DB mutex poisoned")?;
+    conn.execute(
+        "INSERT INTO agent_chat_configs (chat_id, provider, model, effort, permission_mode, fast_mode, plan_mode) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT(chat_id) DO UPDATE SET provider=excluded.provider, model=excluded.model, effort=excluded.effort, permission_mode=excluded.permission_mode, fast_mode=excluded.fast_mode, plan_mode=excluded.plan_mode",
+        params![config.chat_id, config.provider, config.model, config.effort, config.permission_mode, config.fast_mode as i64, config.plan_mode as i64],
+    )
+    .map_err(|e| format!("Failed to save agent chat config: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn db_load_agent_model_cache(
+    state: tauri::State<'_, DbState>,
+    provider: String,
+) -> Result<Option<AgentModelCacheRow>, String> {
+    let conn = state.0.lock().map_err(|_| "DB mutex poisoned")?;
+    conn.query_row(
+        "SELECT models_json, updated_at FROM agent_model_cache WHERE provider = ?1",
+        [&provider],
+        |row| {
+            let models_json: String = row.get(0)?;
+            let models = serde_json::from_str(&models_json)
+                .map_err(|error| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(error)))?;
+            Ok(AgentModelCacheRow { provider: provider.clone(), models, updated_at: row.get(1)? })
+        },
+    )
+    .optional()
+    .map_err(|e| format!("Failed to load agent model cache: {e}"))
+}
+
+#[tauri::command]
+pub fn db_save_agent_model_cache(
+    state: tauri::State<'_, DbState>,
+    cache: AgentModelCacheRow,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|_| "DB mutex poisoned")?;
+    let models_json = serde_json::to_string(&cache.models)
+        .map_err(|e| format!("Failed to encode agent model cache: {e}"))?;
+    conn.execute(
+        "INSERT INTO agent_model_cache (provider, models_json, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(provider) DO UPDATE SET models_json=excluded.models_json, updated_at=excluded.updated_at",
+        params![cache.provider, models_json, cache.updated_at],
+    )
+    .map_err(|e| format!("Failed to save agent model cache: {e}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -714,6 +911,11 @@ mod tests {
             display_order: 0,
             pane_layout: Some("{\"kind\":\"leaf\",\"size\":100}".to_string()),
             workspace_mode: Some("canvas".to_string()),
+            agent_provider: Some("claude".to_string()),
+            agent_session_id: Some("claude-session".to_string()),
+            agent_chat_ids: None,
+            agent_providers: Some(vec!["claude".to_string()]),
+            agent_session_ids: Some(vec![Some("claude-session".to_string())]),
         };
         save_workspace_inner(&conn, &w1).expect("save workspace");
 
@@ -729,6 +931,8 @@ mod tests {
             working_folder: Some("/path/to/project/src".to_string()),
             last_command: Some("npm run dev".to_string()),
             auto_launch: false,
+            agent_provider: None,
+            native_session_id: None,
         };
         let p2 = WorkspacePaneRow {
             workspace_id: "ws-1".to_string(),
@@ -736,6 +940,8 @@ mod tests {
             working_folder: None,
             last_command: Some("codex".to_string()),
             auto_launch: true,
+            agent_provider: Some("codex".to_string()),
+            native_session_id: Some("session-1".to_string()),
         };
         save_pane_inner(&conn, &p1).expect("save pane 1");
         save_pane_inner(&conn, &p2).expect("save pane 2");
@@ -763,6 +969,42 @@ mod tests {
         assert_eq!(panes.len(), 0); // Cascading deleted successfully!
 
         let _ = std::fs::remove_file(&test_path);
+    }
+
+    #[test]
+    fn agent_workspace_frontend_payload_deserializes_and_persists() {
+        let payload = serde_json::json!({
+            "id": "agent-workspace",
+            "name": "Agent Workspace",
+            "count": 0,
+            "accentColor": "#10B981",
+            "workingFolder": "/tmp/project",
+            "createdAt": 10,
+            "updatedAt": 11,
+            "displayOrder": 0,
+            "paneLayout": null,
+            "workspaceMode": "agent",
+            "agentProvider": "codex",
+            "agentSessionId": null,
+            "agentProviders": ["codex", "cmd"],
+            "agentSessionIds": [null, null],
+            "tabId": 99,
+            "canvasTabId": null
+        });
+        let workspace: WorkspaceRow = serde_json::from_value(payload).unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE workspaces (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, terminal_count INTEGER NOT NULL,
+                accent_color TEXT, working_folder TEXT, created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL, display_order INTEGER NOT NULL,
+                pane_layout TEXT, workspace_mode TEXT, agent_provider TEXT, agent_session_id TEXT,
+                agent_providers TEXT, agent_session_ids TEXT
+            );",
+        )
+        .unwrap();
+        save_workspace_inner(&conn, &workspace).unwrap();
+        assert_eq!(list_workspaces_inner(&conn).unwrap(), vec![workspace]);
     }
 
     #[test]
