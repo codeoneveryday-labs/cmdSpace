@@ -3,6 +3,7 @@ pub mod codex;
 pub mod claude;
 pub mod events;
 pub mod models;
+pub mod providers;
 
 use self::{
     adapter::{build_launch, parse_structured_line, AdapterKind},
@@ -120,7 +121,7 @@ impl AgentChatRuntime {
             .take_stderr()
             .ok_or_else(|| "Codex app-server stderr unavailable".to_string())?;
         let writer = Arc::new(Mutex::new(stdin));
-        let protocol = Arc::new(Mutex::new(match native_session_id {
+        let protocol = Arc::new(Mutex::new(match native_session_id.filter(|id| native_session_path("codex", id).is_some()) {
             Some(thread_id) => CodexProtocol::with_resume(cwd, thread_id),
             None => CodexProtocol::new(cwd),
         }));
@@ -194,7 +195,9 @@ impl AgentChatRuntime {
                             send_event(&channel, AgentChatEvent::Error { message: error });
                         }
                     }
-                    if protocol.thread_id().is_some() {
+                    if protocol.thread_id().is_some()
+                        && initial_prompt.as_deref().is_some_and(|prompt| !prompt.is_empty())
+                    {
                         if let Some(prompt) = initial_prompt.take() {
                             match protocol.start_turn(&prompt, model.as_deref()) {
                                 Ok(message) => {
@@ -230,9 +233,15 @@ impl AgentChatRuntime {
         &self,
         cwd: std::path::PathBuf,
         prompt: String,
+        native_session_id: Option<String>,
         model: Option<String>,
         channel: Channel<AgentChatEvent>,
     ) -> Result<AgentChatStartResult, String> {
+        let native_session_id = match native_session_id {
+            Some(id) if native_session_path("claude", &id).is_some() => Some(id),
+            Some(_) => return Err("Saved Claude session is missing its durable transcript and cannot be resumed".to_string()),
+            None => None,
+        };
         let session_id = format!(
             "agent-chat-{}",
             self.next_id.fetch_add(1, Ordering::Relaxed)
@@ -240,7 +249,7 @@ impl AgentChatRuntime {
         let session = Arc::new(AgentChatSession {
             provider: "claude".to_string(),
             cwd: cwd.clone(),
-            native_id: Arc::new(Mutex::new(None)),
+            native_id: Arc::new(Mutex::new(native_session_id)),
             channel: Arc::new(Mutex::new(channel)),
             backend: AgentChatBackend::Claude {
                 cwd,
@@ -300,7 +309,9 @@ impl AgentChatRuntime {
                     if let Some(model) = &model_for_reader {
                         let _ = write_json(&writer_for_reader, &serde_json::json!({ "id": "model", "type": "set_model", "provider": "", "modelId": model }));
                     }
-                    let _ = write_json(&writer_for_reader, &serde_json::json!({ "id": "initial", "type": "prompt", "message": prompt }));
+                    if !prompt.is_empty() {
+                        let _ = write_json(&writer_for_reader, &serde_json::json!({ "id": "initial", "type": "prompt", "message": prompt }));
+                    }
                 }
                 for event in parse_structured_line(AdapterKind::OmpRpc, &line) {
                     if let AgentChatEvent::Session { native_id } = &event {
@@ -323,16 +334,26 @@ impl AgentChatRuntime {
         provider: &str,
         cwd: std::path::PathBuf,
         prompt: String,
+        native_session_id: Option<String>,
         model: Option<String>,
         channel: Channel<AgentChatEvent>,
     ) -> Result<AgentChatStartResult, String> {
+        let native_session_id = match native_session_id {
+            Some(id) if native_session_path(provider, &id).is_some() => Some(id),
+            Some(_) => {
+                return Err(format!(
+                    "Saved {provider} session is missing its durable transcript and cannot be resumed"
+                ));
+            }
+            None => None,
+        };
         let session_id = format!("agent-chat-{}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let session = Arc::new(AgentChatSession {
-            provider: provider.to_string(), cwd: cwd.clone(), native_id: Arc::new(Mutex::new(None)), channel: Arc::new(Mutex::new(channel)),
+            provider: provider.to_string(), cwd: cwd.clone(), native_id: Arc::new(Mutex::new(native_session_id.clone())), channel: Arc::new(Mutex::new(channel)),
             backend: AgentChatBackend::Print { provider: provider.to_string(), cwd, child: Arc::new(Mutex::new(None)), history: Arc::new(Mutex::new(Vec::new())) },
         });
         self.sessions.write().map_err(|_| "agent chat state lock poisoned".to_string())?.insert(session_id.clone(), Arc::clone(&session));
-        spawn_print_turn(session, prompt, model)?;
+        spawn_print_turn(session, prompt, native_session_id, model)?;
         Ok(AgentChatStartResult { session_id })
     }
 
@@ -350,7 +371,14 @@ fn spawn_claude_turn(session: Arc<AgentChatSession>, prompt: String, model: Opti
     let AgentChatBackend::Claude { cwd, child, history } = &session.backend else {
         return Err("agent chat session is not Claude".to_string());
     };
-    let contextual_prompt = {
+    let native_session_id = session
+        .native_id
+        .lock()
+        .map_err(|_| "Claude native session lock poisoned".to_string())?
+        .clone();
+    let contextual_prompt = if native_session_id.is_some() {
+        prompt.clone()
+    } else {
         let history = history
             .lock()
             .map_err(|_| "Claude history lock poisoned".to_string())?;
@@ -366,6 +394,7 @@ fn spawn_claude_turn(session: Arc<AgentChatSession>, prompt: String, model: Opti
     command
         .args(&launch.args)
         .args(model.filter(|model| model != "default").map(|model| vec!["--model".to_string(), model]).unwrap_or_default())
+        .args(native_session_id.map(|id| vec!["--resume".to_string(), id]).unwrap_or_default())
         .arg(contextual_prompt)
         .current_dir(&launch.cwd)
         .stdin(Stdio::null())
@@ -447,18 +476,33 @@ fn spawn_claude_turn(session: Arc<AgentChatSession>, prompt: String, model: Opti
     Ok(())
 }
 
-fn spawn_print_turn(session: Arc<AgentChatSession>, prompt: String, model: Option<String>) -> Result<(), String> {
+fn spawn_print_turn(session: Arc<AgentChatSession>, prompt: String, native_session_id: Option<String>, model: Option<String>) -> Result<(), String> {
     let AgentChatBackend::Print { provider, cwd, child, history } = &session.backend else { return Err("agent chat session is not a print adapter".to_string()); };
     let provider = provider.clone();
     let cwd = cwd.clone();
     let child = Arc::clone(child);
     let history = Arc::clone(history);
     let native_id = Arc::clone(&session.native_id);
-    let contextual_prompt = { let history = history.lock().map_err(|_| "agent history lock poisoned".to_string())?; build_contextual_prompt(&history, &prompt) };
+    let effective_native_session_id = native_session_id.or_else(|| {
+        native_id.lock().ok().and_then(|stored| stored.clone())
+    });
+    let contextual_prompt = if effective_native_session_id.is_some() {
+        prompt.clone()
+    } else {
+        let history = history.lock().map_err(|_| "agent history lock poisoned".to_string())?;
+        build_contextual_prompt(&history, &prompt)
+    };
     history.lock().map_err(|_| "agent history lock poisoned".to_string())?.push(("user".to_string(), prompt));
     let launch = build_launch(&provider, &cwd).map_err(|error| error.to_string())?;
     let mut command = Command::new(&launch.program);
     command.args(&launch.args);
+    if let Some(native_session_id) = effective_native_session_id {
+        if launch.adapter == AdapterKind::CommandCodeJson {
+            command.arg("--resume").arg(native_session_id);
+        } else if let Some(path) = native_session_path(&provider, &native_session_id) {
+            command.arg("--session").arg(path);
+        }
+    }
     if let Some(model) = model.filter(|model| model != "default") {
         match launch.adapter {
             AdapterKind::GeminiStreamJson | AdapterKind::CommandCodeJson => { command.arg("--model").arg(model); }
@@ -466,7 +510,12 @@ fn spawn_print_turn(session: Arc<AgentChatSession>, prompt: String, model: Optio
             _ => {}
         }
     }
-    command.arg(&contextual_prompt).current_dir(&launch.cwd).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    if launch.adapter == AdapterKind::CommandCodeJson {
+        command.arg("-p").arg(&contextual_prompt);
+    } else {
+        command.arg(&contextual_prompt);
+    }
+    command.current_dir(&launch.cwd).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     crate::modules::proc::hide_console(&mut command);
     let spawned = Arc::new(SharedChild::spawn(&mut command).map_err(|error| error.to_string())?);
     let stdout = spawned.take_stdout().ok_or_else(|| format!("{provider} structured stdout unavailable"))?;
@@ -476,6 +525,7 @@ fn spawn_print_turn(session: Arc<AgentChatSession>, prompt: String, model: Optio
     let history = Arc::clone(&history);
     let child_slot = Arc::clone(&child);
     let adapter = launch.adapter;
+    let session_cwd = cwd.clone();
     let child_for_wait = Arc::clone(&spawned);
     let stderr_handle = thread::Builder::new()
         .name(format!("cmdspace-agent-chat-{provider}-stderr"))
@@ -487,7 +537,21 @@ fn spawn_print_turn(session: Arc<AgentChatSession>, prompt: String, model: Optio
         .map_err(|error| error.to_string())?;
     thread::Builder::new().name(format!("cmdspace-agent-chat-{provider}")).spawn(move || {
         let mut saw_done = false;
+        let mut command_code_session_id = None;
+        let mut command_code_run_end = None;
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            if adapter == AdapterKind::CommandCodeJson {
+                command_code_session_id = command_code_result_session_id(&line)
+                    .or(command_code_session_id);
+                if serde_json::from_str::<Value>(&line)
+                    .ok()
+                    .and_then(|value| value.pointer("/event/type").and_then(Value::as_str).map(str::to_string))
+                    .as_deref()
+                    == Some("run_end")
+                {
+                    command_code_run_end = Some(line.clone());
+                }
+            }
             for event in parse_structured_line(adapter, &line) {
                 if agent_turn_events_include_done(std::slice::from_ref(&event)) {
                     saw_done = true;
@@ -500,18 +564,89 @@ fn spawn_print_turn(session: Arc<AgentChatSession>, prompt: String, model: Optio
         let status = child_for_wait.wait();
         let stderr_text = stderr_handle.join().unwrap_or_default();
         if let Ok(status) = status {
-            if !status.success() && !stderr_text.trim().is_empty() {
-                send_event(&channel, AgentChatEvent::Error { message: stderr_text.trim().to_string() });
+            if !status.success() {
+                let message = if !stderr_text.trim().is_empty() {
+                    Some(stderr_text.trim().to_string())
+                } else if adapter == AdapterKind::CommandCodeJson {
+                    providers::cmd::headless_exit_message(status.code()).map(str::to_string)
+                } else {
+                    None
+                };
+                if let Some(message) = message {
+                    send_event(&channel, AgentChatEvent::Error { message });
+                }
+            }
+            if status.success() && adapter == AdapterKind::CommandCodeJson {
+                let committed_id = match command_code_run_end
+                    .as_deref()
+                    .map(|line| providers::cmd::materialize_headless_transcript(&session_cwd, line))
+                    .transpose()
+                {
+                    Ok(session_id) => session_id.flatten().or(command_code_session_id),
+                    Err(error) => {
+                        send_event(&channel, AgentChatEvent::Error { message: error });
+                        None
+                    }
+                }
+                .or_else(|| {
+                    native_id.lock().ok().and_then(|stored| stored.clone())
+                });
+                match committed_id.filter(|id| native_session_path("cmd", id).is_some()) {
+                    Some(native_id_value) => {
+                        if let Ok(mut stored) = native_id.lock() {
+                            *stored = Some(native_id_value.clone());
+                        }
+                        send_event(&channel, AgentChatEvent::Session { native_id: native_id_value });
+                    }
+                    None => send_event(
+                        &channel,
+                        AgentChatEvent::Error {
+                            message: "Command Code completed without a durable session transcript; this chat cannot be resumed.".to_string(),
+                        },
+                    ),
+                }
             }
         } else if !stderr_text.trim().is_empty() {
             send_event(&channel, AgentChatEvent::Error { message: stderr_text.trim().to_string() });
         }
-        if let Ok(mut child) = child_slot.lock() { *child = None; }
-        if !saw_done {
+        if let Ok(mut child) = child_slot.lock() {
+            if child.as_ref().is_some_and(|current| Arc::ptr_eq(current, &spawned)) {
+                *child = None;
+            }
+        }
+        if adapter == AdapterKind::CommandCodeJson || !saw_done {
             send_event(&channel, AgentChatEvent::Done);
         }
     }).map_err(|error| error.to_string())?;
     Ok(())
+}
+
+fn command_code_result_session_id(line: &str) -> Option<String> {
+    let value = serde_json::from_str::<Value>(line).ok()?;
+    (value.get("type").and_then(Value::as_str) == Some("result"))
+        .then(|| value.get("sessionId").and_then(Value::as_str).map(str::to_string))
+        .flatten()
+}
+
+fn native_session_path(provider: &str, session_id: &str) -> Option<std::path::PathBuf> {
+    let home = dirs::home_dir()?;
+    let root = match provider {
+        "codex" => home.join(".codex").join("sessions"),
+        "claude" => home.join(".claude").join("projects"),
+        "cmd" => home.join(".commandcode").join("projects"),
+        _ => return None,
+    };
+    find_resumable_session_file(&root, session_id)
+}
+
+pub(crate) fn find_resumable_session_file(
+    root: &std::path::Path,
+    session_id: &str,
+) -> Option<std::path::PathBuf> {
+    find_native_session_file(root, session_id)
+        .ok()
+        .flatten()
+        .filter(|path| std::fs::metadata(path).is_ok_and(|metadata| metadata.len() > 0))
 }
 
 pub(crate) fn agent_turn_events_include_done(events: &[AgentChatEvent]) -> bool {
@@ -552,14 +687,9 @@ pub fn agent_chat_start(
         AdapterKind::CodexAppServer => {
             state.start_codex(cwd, prompt, native_session_id, model, on_event)
         }
-        AdapterKind::ClaudeJson => {
-            if native_session_id.is_some() {
-                return Err("This Claude CLI version cannot resume a native session".to_string());
-            }
-            state.start_claude(cwd, prompt, model, on_event)
-        }
+        AdapterKind::ClaudeJson => state.start_claude(cwd, prompt, native_session_id, model, on_event),
         AdapterKind::OmpRpc => state.start_omp(cwd, prompt, model, on_event),
-        AdapterKind::GeminiStreamJson | AdapterKind::OpenCodeJson | AdapterKind::CommandCodeJson => state.start_print(&provider, cwd, prompt, model, on_event),
+        AdapterKind::GeminiStreamJson | AdapterKind::OpenCodeJson | AdapterKind::CommandCodeJson => state.start_print(&provider, cwd, prompt, native_session_id, model, on_event),
     }
 }
 
@@ -603,7 +733,7 @@ pub fn agent_chat_send(
         }
         AgentChatBackend::Print { child, .. } => {
             if child.lock().map_err(|_| "agent child lock poisoned".to_string())?.is_some() { return Err("Agent is still responding".to_string()); }
-            spawn_print_turn(session, prompt, model)
+            spawn_print_turn(session, prompt, None, model)
         }
     }
 }
@@ -664,7 +794,9 @@ pub fn agent_chat_close(
     };
     match &session.backend {
         AgentChatBackend::Codex { child, .. } => {
-            child.kill().map_err(|error| error.to_string())
+            child.kill().map_err(|error| error.to_string())?;
+            child.wait().map_err(|error| error.to_string())?;
+            Ok(())
         }
         AgentChatBackend::Claude { child, .. } => {
             if let Some(child) = child
@@ -673,15 +805,146 @@ pub fn agent_chat_close(
                 .clone()
             {
                 child.kill().map_err(|error| error.to_string())?;
+                child.wait().map_err(|error| error.to_string())?;
             }
             Ok(())
         }
-        AgentChatBackend::Omp { child, .. } => child.kill().map_err(|error| error.to_string()),
+        AgentChatBackend::Omp { child, .. } => {
+            child.kill().map_err(|error| error.to_string())?;
+            child.wait().map_err(|error| error.to_string())?;
+            Ok(())
+        }
         AgentChatBackend::Print { child, .. } => {
-            if let Some(child) = child.lock().map_err(|_| "agent child lock poisoned".to_string())?.clone() { child.kill().map_err(|error| error.to_string())?; }
+            if let Some(child) = child.lock().map_err(|_| "agent child lock poisoned".to_string())?.clone() {
+                child.kill().map_err(|error| error.to_string())?;
+                child.wait().map_err(|error| error.to_string())?;
+            }
             Ok(())
         }
     }
+}
+
+#[tauri::command]
+pub fn agent_chat_load_history(
+    registry: tauri::State<'_, WorkspaceRegistry>,
+    provider: String,
+    cwd: String,
+    native_session_id: String,
+    workspace: Option<WorkspaceEnv>,
+) -> Result<Vec<AgentChatEvent>, String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    let _cwd = authorize_spawn_cwd(&registry, Some(&cwd), &workspace)?
+        .ok_or_else(|| "Agent history requires a working folder".to_string())?;
+    if provider != "codex" && provider != "claude" && provider != "cmd" {
+        return Ok(Vec::new());
+    }
+    if native_session_id.len() > 100
+        || !native_session_id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+    {
+        return Err("Invalid native agent session id".to_string());
+    }
+    let Some(home) = dirs::home_dir() else {
+        return Ok(Vec::new());
+    };
+    let sessions_dir = if provider == "codex" {
+        home.join(".codex").join("sessions")
+    } else if provider == "claude" {
+        home.join(".claude").join("projects")
+    } else {
+        home.join(".commandcode").join("projects")
+    };
+    if !sessions_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let Some(path) = find_native_session_file(&sessions_dir, &native_session_id)? else {
+        return Ok(Vec::new());
+    };
+    let contents = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+    Ok(parse_native_history(&provider, &contents))
+}
+
+pub(crate) fn parse_native_history(provider: &str, contents: &str) -> Vec<AgentChatEvent> {
+    let mut events = Vec::new();
+    for line in contents.lines() {
+        let Ok(value) = serde_json::from_str::<Value>(line) else { continue };
+        if provider == "codex" {
+            let Some(payload) = value.get("payload") else { continue };
+            if value.get("type").and_then(Value::as_str) != Some("event_msg") { continue; }
+            match payload.get("type").and_then(Value::as_str) {
+                Some("user_message") => if let Some(text) = payload.get("message").and_then(Value::as_str) { events.push(AgentChatEvent::User { text: text.to_string() }); },
+                Some("agent_message")
+                    if payload.get("phase").and_then(Value::as_str) == Some("final_answer") =>
+                {
+                    // Codex persists orchestration commentary alongside the
+                    // user-facing final answer. Only replay final answers;
+                    // internal routing/progress text must never appear in chat.
+                    if let Some(text) = payload.get("message").and_then(Value::as_str) {
+                        events.push(AgentChatEvent::Assistant { text: text.to_string() });
+                    }
+                }
+                _ => {}
+            }
+        } else if provider == "claude" {
+            let role = value
+                .pointer("/message/role")
+                .or_else(|| value.pointer("/role"))
+                .and_then(Value::as_str);
+            let text = value
+                .pointer("/message/content")
+                .or_else(|| value.pointer("/content"))
+                .and_then(|content| {
+                    content.as_str().map(str::to_string).or_else(|| {
+                        content.as_array().and_then(|parts| {
+                            parts.iter().find_map(|part| {
+                                part.get("text").and_then(Value::as_str).map(str::to_string)
+                            })
+                        })
+                    })
+            });
+            if let Some(text) = text {
+                match role {
+                    Some("user") => events.push(AgentChatEvent::User { text }),
+                    Some("assistant") => events.push(AgentChatEvent::Assistant { text }),
+                    _ => {}
+                }
+            }
+        } else if value.get("type").and_then(Value::as_str) == Some("message") {
+            let role = value.get("message").and_then(|message| message.get("role")).and_then(Value::as_str);
+            let text = value.get("message").and_then(|message| message.get("content")).and_then(Value::as_array).and_then(|content| content.iter().find_map(|item| item.get("text").and_then(Value::as_str)));
+            if let Some(text) = text {
+                if role == Some("user") { events.push(AgentChatEvent::User { text: text.to_string() }); }
+                if role == Some("assistant") { events.push(AgentChatEvent::Assistant { text: text.to_string() }); }
+            }
+        }
+    }
+    events
+}
+
+fn find_native_session_file(
+    root: &std::path::Path,
+    session_id: &str,
+) -> Result<Option<std::path::PathBuf>, String> {
+    let entries = std::fs::read_dir(root).map_err(|error| error.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(found) = find_native_session_file(&path, session_id)? {
+                return Ok(Some(found));
+            }
+        } else if path.extension().and_then(|extension| extension.to_str()) == Some("jsonl") {
+            let file_name = path.file_name().and_then(|name| name.to_str());
+            if file_name.is_some_and(|name| name.ends_with(".checkpoints.jsonl")) {
+                continue;
+            }
+            if file_name.is_some_and(|name| name.contains(session_id)) {
+                return Ok(Some(path));
+            }
+        }
+    }
+    Ok(None)
 }
 
 #[tauri::command]

@@ -518,7 +518,7 @@ function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
     const agent = leafIds(tab.paneTree)
       .map((leafId) => detectCliAgent(findLeafLastCommand(tab.paneTree, leafId) ?? undefined))
       .find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
-    if (agent) return <AgentCliIcon agent={agent} size="sm" className="shrink-0" />;
+    if (agent) return <AgentCliIcon agent={agent} size="xxs" className="shrink-0" />;
   }
   if (tab.kind === "terminal" && tab.title === "Music CLI") {
     return (

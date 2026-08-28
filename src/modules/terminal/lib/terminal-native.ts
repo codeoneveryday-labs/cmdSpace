@@ -20,8 +20,12 @@ export type AgentUsageStatus = {
 export const traceTerminalInput = (source: string, data: string): Promise<void> =>
   invoke("pty_trace_input", { source, data });
 
-export const getAgentUsageStatuses = (cwd: string): Promise<AgentUsageStatus[]> =>
-  invoke("agent_usage_statuses", { cwd });
+export const getAgentUsageStatuses = (
+  cwd: string,
+  provider?: string,
+  nativeSessionId?: string | null,
+): Promise<AgentUsageStatus[]> =>
+  invoke("agent_usage_statuses", { cwd, provider, nativeSessionId });
 
 export const listTerminalSubdirectories = (
   path: string,

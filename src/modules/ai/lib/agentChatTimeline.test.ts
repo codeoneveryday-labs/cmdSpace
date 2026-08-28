@@ -6,6 +6,8 @@ import {
   buildAgentChatReplayPrompt,
   sanitizeAgentChatText,
   buildAgentChatOutlineItems,
+  buildAgentChatForkHistory,
+  editAgentChatPrompt,
 } from "./agentChatTimeline";
 
 describe("agent chat timeline", () => {
@@ -55,10 +57,11 @@ describe("agent chat timeline", () => {
       status: "idle",
       error: null,
       usage: { inputTokens: 12, outputTokens: 7 },
+      turnStartedAt: null,
       items: [
-        { id: "item-1", kind: "user", text: "inspect repo" },
+        { id: "item-1", kind: "user", text: "inspect repo", sentAt: expect.any(Number) },
         { id: "item-2", kind: "reasoning", text: "Looking around" },
-        { id: "item-3", kind: "assistant", text: "Found it" },
+        { id: "item-3", kind: "assistant", text: "Found it", workedMs: expect.any(Number) },
         {
           id: "tool-1",
           kind: "tool",
@@ -95,5 +98,30 @@ describe("agent chat timeline", () => {
     expect(buildAgentChatReplayPrompt(state, "fix it")).toBe(
       "Continue this coding-agent conversation in the same workspace.\n\nUser: inspect\n\nAssistant: found it\n\nUser: fix it",
     );
+  });
+
+  it("forks every user and assistant turn through a dedicated chat-history attachment", () => {
+    const attachment = buildAgentChatForkHistory([
+      { id: "u1", kind: "user", text: "Explain Lambda" },
+      { id: "r1", kind: "reasoning", text: "internal" },
+      { id: "a1", kind: "assistant", text: "Lambda is serverless." },
+    ], "a1");
+
+    expect(attachment).toEqual({
+      kind: "chat-history",
+      title: "Chat history",
+      subtitle: "Previous conversation",
+      context: "User: Explain Lambda\n\nAssistant: Lambda is serverless.",
+    });
+  });
+
+  it("edits the active user prompt in place before a replacement turn starts", () => {
+    const state = editAgentChatPrompt({
+      ...createAgentChatTimeline("runtime-1"),
+      items: [{ id: "u1", kind: "user", text: "original" }],
+    }, "u1", "corrected");
+
+    expect(state.status).toBe("running");
+    expect(state.items[0]).toMatchObject({ id: "u1", text: "corrected" });
   });
 });

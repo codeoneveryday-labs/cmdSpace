@@ -53,7 +53,8 @@ export type CliAgentLaunchPolicy = "standard" | "unattended";
 export type CliAgentChatTransport =
   | "codex-app-server"
   | "claude-json"
-  | "omp-rpc";
+  | "omp-rpc"
+  | "command-code-json";
 
 export type CliAgentDefinition = {
   id: CliAgent;
@@ -304,7 +305,7 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli", launch: "kiro-cli", launchPolicy: "standard", bannerPatterns: [/\bkiro cli\b/i] },
   { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: grokLaunch, launchPolicy: "standard", bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
   { id: "herdr", name: "Herdr", executable: "herdr", command: "herdr", launch: "herdr", launchPolicy: "standard", bannerPatterns: [/\bherdr\b/i] },
-  { id: "cmd", name: "Command Code", executable: "cmd", command: commandCodeLaunch, launch: commandCodeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bcommand code\b/i] },
+  { id: "cmd", name: "Command Code", executable: "cmd", command: commandCodeLaunch, launch: commandCodeLaunch, launchPolicy: "unattended", chatTransport: "command-code-json", bannerPatterns: [/\bcommand code\b/i] },
   { id: "agoragentic", name: "Agoragentic", executable: "agoragentic", command: "agoragentic", launch: "agoragentic", launchPolicy: "standard", bannerPatterns: [/\bagoragentic\b/i] },
   { id: "auggie", name: "Auggie CLI", executable: "auggie", command: "auggie", launch: "auggie", launchPolicy: "standard", bannerPatterns: [/\bauggie(?: cli)?\b/i] },
   { id: "autohand", name: "Autohand Code", executable: "autohand", command: "autohand", launch: "autohand", launchPolicy: "standard", bannerPatterns: [/\bautohand(?: code)?\b/i] },

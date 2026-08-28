@@ -1,31 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+  FULLY_SUPPORTED_AGENT_CHAT_PROVIDER_IDS,
   resolveAgentChatProviders,
   resolveAgentChatWorkspaceAgents,
 } from "./agentChatProviders";
 
 describe("resolveAgentChatWorkspaceAgents", () => {
-  it("keeps every enabled configured agent except Herdr", () => {
+  it("keeps only enabled configured providers with full agent-chat support", () => {
     const agents = resolveAgentChatWorkspaceAgents({
       configuredIds: ["codex", "gemini", "opencode", "herdr", "cmd"],
       disabledIds: [],
     });
 
-    expect(agents.map(({ id }) => id)).toEqual([
-      "codex",
-      "gemini",
-      "opencode",
-      "cmd",
-    ]);
+    expect(agents.map(({ id }) => id)).toEqual(["codex", "cmd"]);
   });
 
-  it("honors disabled settings without falling back to Codex", () => {
+  it("returns no provider when the only fully supported configured CLI is disabled", () => {
     const agents = resolveAgentChatWorkspaceAgents({
       configuredIds: ["codex", "gemini", "opencode", "cmd"],
-      disabledIds: ["codex"],
+      disabledIds: ["codex", "cmd"],
     });
 
-    expect(agents.map(({ id }) => id)).toEqual(["gemini", "opencode", "cmd"]);
+    expect(agents).toEqual([]);
+  });
+});
+
+describe("FULLY_SUPPORTED_AGENT_CHAT_PROVIDER_IDS", () => {
+  it("lists Codex, Command Code, and Claude as fully supported agent-chat providers", () => {
+    expect(FULLY_SUPPORTED_AGENT_CHAT_PROVIDER_IDS).toEqual(["codex", "cmd", "claude"]);
   });
 });
 
@@ -53,14 +55,24 @@ describe("resolveAgentChatProviders", () => {
     ).toEqual([]);
   });
 
-  it("includes omp when its RPC CLI is enabled and installed", () => {
+  it("excludes installed providers that are not fully supported", () => {
     const providers = resolveAgentChatProviders({
       configuredIds: ["omp"],
       disabledIds: [],
       installedIds: ["omp"],
     });
+    expect(providers).toEqual([]);
+  });
+
+  it("includes Command Code when it is enabled and installed", () => {
+    const providers = resolveAgentChatProviders({
+      configuredIds: ["cmd"],
+      disabledIds: [],
+      installedIds: ["cmd"],
+    });
+
     expect(providers.map(({ id, chatTransport }) => ({ id, chatTransport }))).toEqual([
-      { id: "omp", chatTransport: "omp-rpc" },
+      { id: "cmd", chatTransport: "command-code-json" },
     ]);
   });
 });

@@ -20,6 +20,7 @@ import {
   type SpeechInputTarget,
 } from "@/modules/ai/components/FloatingVoiceAgent";
 import { AgentChatWorkspace } from "@/modules/ai/components/AgentChatWorkspace";
+import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import type { AgentDisplayState } from "@/modules/terminal/AgentStateDot";
 import {
   EMPTY_PROVIDER_KEYS,
@@ -333,6 +334,9 @@ type WorkspaceRecord = WorkspaceItem & {
   agentProvider: CliAgent | null;
   agentSessionId: string | null;
   agentTabIds?: number[];
+  agentProviders?: CliAgent[];
+  agentSessionIds?: Array<string | null>;
+  agentChatIds?: string[];
 };
 
 type PersistedWorkspaceRecord = Omit<
@@ -342,6 +346,9 @@ type PersistedWorkspaceRecord = Omit<
   accentColor?: string | null;
   agentProvider?: CliAgent | null;
   agentSessionId?: string | null;
+  agentProviders?: CliAgent[] | null;
+  agentSessionIds?: Array<string | null> | null;
+  agentChatIds?: string[] | null;
 };
 
 type PersistedRecentWorkspaceRecord = WorkspaceItem & {
@@ -1020,6 +1027,11 @@ export default function App() {
   const workspacePaneSyncTimersRef = useRef<Map<string, number[]>>(new Map());
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceItem[]>([]);
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
+  const [workspaceForkContext, setWorkspaceForkContext] = useState<{
+    provider: CliAgent;
+    cwd: string;
+    attachment: AgentChatHistoryAttachment;
+  } | null>(null);
   const [workspacesHydrated, setWorkspacesHydrated] = useState(false);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
@@ -1031,6 +1043,9 @@ export default function App() {
   const persistCanvasDiagramRef = useRef<
     ((tabId: number, diagram: ArchitectureDiagram) => void) | null
   >(null);
+  const canvasTerminalCreatorRef = useRef(
+    new Map<number, (initialCommand?: string) => boolean>(),
+  );
   useEffect(() => {
     workspacesRef.current = workspaces;
   }, [workspaces]);
@@ -1216,6 +1231,9 @@ export default function App() {
           agentProvider: w.agentProvider ?? null,
           agentSessionId: w.agentSessionId ?? null,
           agentTabIds: [],
+          agentProviders: w.agentProviders ?? [],
+          agentSessionIds: w.agentSessionIds ?? [],
+          agentChatIds: w.agentChatIds ?? [],
         }));
         setWorkspaces(hydrated);
         setWorkspacesHydrated(true);
@@ -1427,6 +1445,7 @@ export default function App() {
         const agent = detectTrackedCliAgent(trackedCommand, savedCommand);
           return {
             leafId,
+            cwd: findLeafCwd(activeTab.paneTree, leafId) ?? activeTab.cwd ?? null,
             label: command ?? (agent ?? `Terminal ${index + 1}`),
             onClose: () => closePaneByLeaf(leafId),
             ...(agent ? { agent } : {}),
@@ -1461,6 +1480,13 @@ export default function App() {
   const workspaceItems = useMemo(
     () =>
       workspaces.map((workspace) => {
+        const workspaceTab = tabs.find((item) => item.id === workspace.tabId);
+        const liveWorkingFolder = workspace.workingFolder
+          ?? (workspaceTab?.kind === "terminal"
+            ? findLeafCwd(workspaceTab.paneTree, workspaceTab.activeLeafId) ?? workspaceTab.cwd ?? null
+            : workspaceTab?.kind === "agent-chat"
+              ? workspaceTab.cwd
+              : null);
         if (workspace.id === activeWorkspaceId && activeWorkspaceTerminals.length > 0) {
           const state = (activeWorkspaceTerminals.find(
             (terminal) => terminal.state === "blocked",
@@ -1477,6 +1503,7 @@ export default function App() {
                 : undefined) as AgentDisplayState | undefined;
           return {
             ...workspace,
+            workingFolder: liveWorkingFolder,
             count: activeWorkspaceTerminals.length,
             terminals: activeWorkspaceTerminals,
             responding: activeWorkspaceTerminals.some(
@@ -1485,7 +1512,7 @@ export default function App() {
             state,
           };
         }
-        const tab = tabs.find((item) => item.id === workspace.tabId);
+        const tab = workspaceTab;
         const canvasTab = workspace.canvasTabId === null
           ? undefined
           : tabs.find((item) => item.id === workspace.canvasTabId);
@@ -1498,6 +1525,7 @@ export default function App() {
               const agent = detectTrackedCliAgent(command ?? undefined, command ?? undefined);
               return {
                 leafId: -(index + 1),
+                cwd: node.cwd ?? workspace.workingFolder ?? null,
                 label: command ?? `Terminal ${index + 1}`,
                 onClose: () =>
                   canvasTerminalRefs.current.get(
@@ -1509,7 +1537,7 @@ export default function App() {
                 completed: false,
               };
             }) ?? [];
-          return { ...workspace, count: terminals.length, terminals };
+          return { ...workspace, workingFolder: liveWorkingFolder, count: terminals.length, terminals };
         }
         const agentTabs = tabs.filter(
           (item) =>
@@ -1529,6 +1557,7 @@ export default function App() {
             }
             return {
               leafId: -(index + 1),
+              cwd: agentTab.cwd,
               tabId: agentTab.id,
               label: agentTab.title,
               onClose: () => handleClose(agentTab.id),
@@ -1538,10 +1567,10 @@ export default function App() {
               completed: false,
             } satisfies WorkspaceTerminalItem;
           });
-          return { ...workspace, count: terminals.length, terminals };
+          return { ...workspace, workingFolder: liveWorkingFolder, count: terminals.length, terminals };
         }
         if (workspace.workspaceMode === "agent") {
-          return { ...workspace, count: agentTabs.length, terminals: [] };
+          return { ...workspace, workingFolder: liveWorkingFolder, count: agentTabs.length, terminals: [] };
         }
         if (!tab || tab.kind !== "terminal") {
           const persistedPanes = persistedWorkspacePanes[workspace.id] ?? [];
@@ -1554,6 +1583,7 @@ export default function App() {
               const agent = detectTrackedCliAgent(command ?? undefined, command ?? undefined);
               return {
                 leafId: -(index + 1),
+                cwd: pane?.workingFolder ?? workspace.workingFolder ?? null,
                 label: command ?? (agent ?? `Terminal ${index + 1}`),
                 ...(agent ? { agent } : {}),
                 active: false,
@@ -1574,6 +1604,7 @@ export default function App() {
             const agent = detectTrackedCliAgent(trackedCommand, savedCommand);
             return {
               leafId,
+              cwd: findLeafCwd(tab.paneTree, leafId) ?? tab.cwd ?? workspace.workingFolder ?? null,
               label: command ?? (agent ?? `Terminal ${index + 1}`),
               onClose: () => closePaneByLeaf(leafId),
               ...(agent ? { agent } : {}),
@@ -1630,13 +1661,24 @@ export default function App() {
   const isGitHistoryTab = activeTab?.kind === "git-history";
   const isArchitectureTab = activeTab?.kind === "architecture";
   const handleAgentNativeSessionId = useCallback(
-    (workspaceId: string, tabId: number, _provider: CliAgent, nativeSessionId: string) => {
+    (workspaceId: string, tabId: number, chatId: string, provider: CliAgent, nativeSessionId: string) => {
       const workspace = workspacesRef.current.find((item) => item.id === workspaceId);
       if (!workspace) return;
       updateTab(tabId, { nativeSessionId });
+      const tabIndex = workspace.agentChatIds?.indexOf(chatId) ?? workspace.agentTabIds?.indexOf(tabId) ?? -1;
+      const agentProviders = [...(workspace.agentProviders ?? [])];
+      if (tabIndex >= 0) agentProviders[tabIndex] = provider;
       const updated: WorkspaceRecord = {
         ...workspace,
-        agentSessionId: nativeSessionId,
+          agentSessionId: nativeSessionId,
+        agentProviders,
+        agentSessionIds: (() => {
+          const next = [...(workspace.agentSessionIds ?? [])];
+          const index = tabIndex;
+          if (index >= 0) next[index] = nativeSessionId;
+          else if (next.length === 0) next[0] = nativeSessionId;
+          return next;
+        })(),
         updatedAt: Date.now(),
       };
       setWorkspaces((current) =>
@@ -1886,6 +1928,8 @@ export default function App() {
       workspaceMode: WorkspaceMode = "standard",
       workspaceAgent: CliAgent | null = null,
       workspaceAgents: CliAgent[] = [],
+      initialAgentDraft = "",
+      initialHistoryAttachments: AgentChatHistoryAttachment[] = [],
     ): Promise<WorkspaceRecord | null> => {
       const fallbackName = nextWorkspaceName(workspaces);
       if (fallbackName === null) {
@@ -1913,6 +1957,20 @@ export default function App() {
               initialCommands,
             )
           : null;
+      const now = Date.now();
+      const wsId = `workspace-tab-${now}-${Math.random().toString(36).slice(2, 9)}`;
+      const agentProviders =
+        workspaceMode === "agent"
+          ? (workspaceAgents.length > 0
+              ? workspaceAgents
+              : workspaceAgent
+                ? [workspaceAgent]
+                : []
+            ).slice(0, 12)
+          : [];
+      const agentChatIds = workspaceMode === "agent"
+        ? agentProviders.map((_, index) => `${wsId}:chat:${index + 1}`)
+        : [];
       const agentTabIds =
         workspaceMode === "agent"
           ? (workspaceAgents.length > 0
@@ -1928,6 +1986,9 @@ export default function App() {
                   provider,
                   cwd: effectiveWorkingFolder ?? "",
                   nativeSessionId: null,
+                  chatId: agentChatIds[index],
+                  initialDraft: index === 0 ? initialAgentDraft : undefined,
+                  initialHistoryAttachments: index === 0 ? initialHistoryAttachments : undefined,
                 }),
               )
           : [];
@@ -1947,8 +2008,6 @@ export default function App() {
           ? newArchitectureTab(canvasDiagram, name)
           : null;
 
-      const now = Date.now();
-      const wsId = `workspace-tab-${now}-${Math.random().toString(36).slice(2, 9)}`;
       const newWs: WorkspaceRecord = {
         id: wsId,
         name,
@@ -1970,6 +2029,11 @@ export default function App() {
         agentProvider: workspaceMode === "agent" ? workspaceAgent : null,
         agentSessionId: null,
         agentTabIds,
+        agentProviders,
+        agentSessionIds: workspaceMode === "agent"
+          ? agentProviders.map(() => null)
+          : [],
+        agentChatIds,
       };
       saveRecentWorkspace(newWs);
 
@@ -2001,6 +2065,8 @@ export default function App() {
       }
       setWorkspaces((current) => [...current, newWs]);
       setWorkspaceSetupOpen(false);
+      const activatedTabId = tabId ?? canvasTabId;
+      if (activatedTabId !== null) setActiveId(activatedTabId);
       const bootstrapTab = tabsRef.current.find(
         (tab) => tab.id === 1 && tab.title === "shell",
       );
@@ -2024,7 +2090,58 @@ export default function App() {
   const handleWorkspaceSetupCancel = useCallback(() => {
     if (workspacesHydrated && workspaces.length === 0) return;
     setWorkspaceSetupOpen(false);
+    setWorkspaceForkContext(null);
   }, [workspaces, workspacesHydrated]);
+
+  const handleForkAgentResponse = useCallback(
+    (input: {
+      workspaceId: string;
+      provider: CliAgent;
+      cwd: string;
+      destination: "tab" | "workspace";
+      attachment: AgentChatHistoryAttachment;
+    }) => {
+      const workspace = workspacesRef.current.find((item) => item.id === input.workspaceId);
+      if (!workspace) return;
+
+      if (input.destination === "tab") {
+        const nextIndex = (workspace.agentChatIds?.length ?? 0) + 1;
+        const chatId = `${workspace.id}:fork:${Date.now()}`;
+        const tabId = newAgentChatTab({
+          title: `${workspace.name} · ${nextIndex}`,
+          provider: input.provider,
+          cwd: input.cwd,
+          chatId,
+          nativeSessionId: null,
+          initialHistoryAttachments: [input.attachment],
+        });
+        const updated: WorkspaceRecord = {
+          ...workspace,
+          tabId: workspace.tabId ?? tabId,
+          agentTabIds: [...(workspace.agentTabIds ?? []), tabId],
+          agentProviders: [...(workspace.agentProviders ?? []), input.provider],
+          agentSessionIds: [...(workspace.agentSessionIds ?? []), null],
+          agentChatIds: [...(workspace.agentChatIds ?? []), chatId],
+          count: (workspace.agentTabIds?.length ?? 0) + 1,
+          updatedAt: Date.now(),
+        };
+        setWorkspaces((current) => current.map((item) => item.id === workspace.id ? updated : item));
+        saveRecentWorkspace(updated);
+        void invoke("db_save_workspace", { workspace: updated }).catch((error) => {
+          console.error("Failed to persist forked agent chat:", error);
+        });
+        return;
+      }
+
+      setWorkspaceForkContext({
+        provider: input.provider,
+        cwd: input.cwd,
+        attachment: input.attachment,
+      });
+      setWorkspaceSetupOpen(true);
+    },
+    [newAgentChatTab, saveRecentWorkspace],
+  );
 
   const selectWorkspace = useWorkspaceSelection({
     workspaces,
@@ -2151,7 +2268,11 @@ export default function App() {
       if (!workspace) return;
 
       const workspaceTabIds = new Set(
-        [workspace.tabId, workspace.canvasTabId].filter(
+        [
+          workspace.tabId,
+          workspace.canvasTabId,
+          ...(workspace.agentTabIds ?? []),
+        ].filter(
           (tabId): tabId is number => tabId !== null,
         ),
       );
@@ -3161,7 +3282,61 @@ export default function App() {
       const workspace = workspacesRef.current.find(
         (item) => item.id === activeWorkspaceId,
       );
-      if (!workspace || workspace.tabId === null) return false;
+      if (!workspace) return false;
+
+      if (workspace.workspaceMode === "agent") {
+        const provider = detectCliAgent(initialCommand);
+        if (!provider) return false;
+        const currentAgentTabs = tabsRef.current.filter(
+          (tab) =>
+            tab.kind === "agent-chat" &&
+            (tab.id === workspace.tabId || workspace.agentTabIds?.includes(tab.id)),
+        );
+        if (currentAgentTabs.length >= MAX_PANES_PER_TAB) return false;
+        const tabId = newAgentChatTab({
+          title: `${workspace.name} · ${currentAgentTabs.length + 1}`,
+          provider,
+          cwd: workspace.workingFolder ?? "",
+          nativeSessionId: null,
+          chatId: `${workspace.id}:chat:${currentAgentTabs.length + 1}`,
+        });
+        const agentTabIds = [...(workspace.agentTabIds ?? []), tabId];
+        const agentProviders = [...(workspace.agentProviders ?? []), provider];
+        const agentSessionIds = [...(workspace.agentSessionIds ?? []), null];
+        const agentChatIds = [
+          ...(workspace.agentChatIds ?? []),
+          `${workspace.id}:chat:${currentAgentTabs.length + 1}`,
+        ];
+        const updated: WorkspaceRecord = {
+          ...workspace,
+          tabId: workspace.tabId ?? tabId,
+          agentTabIds,
+          agentProviders,
+          agentSessionIds,
+          agentChatIds,
+          count: agentTabIds.length,
+          updatedAt: Date.now(),
+        };
+        setWorkspaces((current) =>
+          current.map((item) => (item.id === workspace.id ? updated : item)),
+        );
+        saveRecentWorkspace(updated);
+        void invoke("db_save_workspace", { workspace: updated }).catch((error) => {
+          console.error("Failed to persist created agent chat:", error);
+        });
+        setActiveId(tabId);
+        return true;
+      }
+
+      if (workspace.workspaceMode === "canvas") {
+        const canvasTabId = workspace.canvasTabId;
+        if (canvasTabId === null || canvasTabId === undefined) return false;
+        const creator = canvasTerminalCreatorRef.current.get(canvasTabId);
+        if (!creator) return false;
+        return creator(initialCommand || undefined);
+      }
+
+      if (workspace.tabId === null) return false;
 
       const workspaceTab = tabsRef.current.find(
         (item) => item.id === workspace.tabId,
@@ -3221,6 +3396,8 @@ export default function App() {
       persistedPaneFor,
       saveRecentWorkspace,
       scheduleWorkspacePaneSessionSync,
+      newAgentChatTab,
+      setActiveId,
     ],
   );
 
@@ -3509,14 +3686,26 @@ export default function App() {
           >
             <AgentChatWorkspace
               workspaceId={workspace.id}
-              workspaceName={workspace.name}
+              chatId={tab.chatId}
+              active={active}
               provider={tab.provider}
               cwd={tab.cwd}
               nativeSessionId={tab.nativeSessionId}
+              apiKeys={apiKeys}
+              initialDraft={tab.initialDraft}
+              initialHistoryAttachments={tab.initialHistoryAttachments}
+              onForkResponse={(destination, response) => handleForkAgentResponse({
+                workspaceId: workspace.id,
+                provider: tab.provider,
+                cwd: tab.cwd,
+                destination,
+                attachment: response,
+              })}
               onNativeSessionId={(nativeSessionId) =>
                 handleAgentNativeSessionId(
                   workspace.id,
                   tab.id,
+                  tab.chatId,
                   tab.provider,
                   nativeSessionId,
                 )
@@ -3612,6 +3801,10 @@ export default function App() {
             tabs={tabs}
             activeId={activeId}
             onDiagramChange={handleArchitectureDiagramChange}
+            onRegisterTerminalCreator={(tabId, creator) => {
+              if (creator) canvasTerminalCreatorRef.current.set(tabId, creator);
+              else canvasTerminalCreatorRef.current.delete(tabId);
+            }}
           onTerminalHandleChange={onCanvasTerminalHandleChange}
           onActiveTerminalChange={onActiveCanvasTerminalChange}
           canvasFocused={canvasFocused}
@@ -3704,7 +3897,7 @@ export default function App() {
                 onPointerDown={handleWorkspacesPanelResizeStart}
                 onKeyDown={handleWorkspacesPanelResizeKeyDown}
                 className={cn(
-                  "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 focus-visible:ring-1 focus-visible:ring-ring",
                   workspacesPanelCompact && "cursor-default focus-visible:ring-0",
                 )}
               />
@@ -3731,7 +3924,7 @@ export default function App() {
                       {workspaceSetupOpen ? (
                         <div className="absolute inset-0 z-30 bg-background">
                           <WorkspaceSetupView
-                          workingFolder={workspaceSetupFolder}
+                          workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}
                           suggestedWorkspaceName={
                             nextWorkspaceName(workspaces) ?? "workspace"
                           }
@@ -3739,6 +3932,7 @@ export default function App() {
                             workspaces.length,
                           )}
                           recentWorkspaces={recentWorkspaces}
+                          forkContext={workspaceForkContext}
                           onCancel={handleWorkspaceSetupCancel}
                           onOpenWithoutAi={handleOpenWorkspaceWithoutAi}
                           />
@@ -3784,7 +3978,7 @@ export default function App() {
                   onPointerDown={handleSidebarResizeStart}
                   onKeyDown={handleSidebarResizeKeyDown}
                   className={cn(
-                    "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                    "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 focus-visible:ring-1 focus-visible:ring-ring",
                   )}
                 />
                 <aside

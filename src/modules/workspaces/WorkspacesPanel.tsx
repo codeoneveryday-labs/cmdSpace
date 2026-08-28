@@ -45,6 +45,7 @@ import {
   worktreeGroup,
 } from "@/modules/ai/lib/agentWorktree";
 import { resolveAgentChatWorkspaceAgents } from "@/modules/ai/lib/agentChatProviders";
+import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import { ImportSessionDialog } from "./ImportSessionDialog";
 import {
   buildSessionResumeCommand,
@@ -68,6 +69,7 @@ export type WorkspaceItem = {
 export type WorkspaceMode = "standard" | "canvas" | "agent";
 export type WorkspaceTerminalItem = {
   leafId: number;
+  cwd?: string | null;
   tabId?: number;
   label: string;
   onClose?: () => void;
@@ -226,6 +228,7 @@ export function WorkspacesPanel({
       return new Set([...current, activeWorkspaceId]);
     });
   }, [activeWorkspaceId]);
+
   const [terminalDragVisual, setTerminalDragVisual] = useState<{
     sourceId: number;
     targetId: number | null;
@@ -584,11 +587,7 @@ export function WorkspacesPanel({
                       <WorkspaceTerminalList
                         workspace={workspace}
                         terminals={workspace.terminals ?? []}
-                        canCreate={
-                          workspace.id === activeWorkspaceId &&
-                          workspace.workspaceMode !== "agent" &&
-                          workspace.workspaceMode !== "canvas"
-                        }
+                        canCreate={workspace.id === activeWorkspaceId}
                         createNotice={
                           workspace.id === activeWorkspaceId ? createNotice : null
                         }
@@ -1324,6 +1323,7 @@ export function WorkspaceSetupView({
   suggestedWorkspaceName,
   suggestedWorkspaceColor,
   recentWorkspaces,
+  forkContext,
   onCancel,
   onOpenWithoutAi,
 }: {
@@ -1331,6 +1331,7 @@ export function WorkspaceSetupView({
   suggestedWorkspaceName: string;
   suggestedWorkspaceColor: string;
   recentWorkspaces: WorkspaceItem[];
+  forkContext?: { provider: CliAgent; attachment: AgentChatHistoryAttachment } | null;
   onCancel: () => void;
   onOpenWithoutAi: (
     terminalCount: number,
@@ -1341,6 +1342,8 @@ export function WorkspaceSetupView({
     workspaceMode?: WorkspaceMode,
     workspaceAgent?: CliAgent | null,
     workspaceAgents?: CliAgent[],
+    initialAgentDraft?: string,
+    initialHistoryAttachments?: AgentChatHistoryAttachment[],
   ) => void;
 }) {
   const [workspaceName, setWorkspaceName] = useState(suggestedWorkspaceName);
@@ -1352,14 +1355,15 @@ export function WorkspaceSetupView({
   const [terminalCount, setTerminalCount] =
     useState<(typeof TERMINAL_COUNTS)[number]>(1);
   const [workspaceMode, setWorkspaceMode] =
-    useState<WorkspaceMode>("standard");
-  const [selectedChatAgent, setSelectedChatAgent] = useState<CliAgent | null>(null);
-  const [setupStep, setSetupStep] = useState<"layout" | "agents">("layout");
+    useState<WorkspaceMode>(forkContext ? "agent" : "standard");
+  const [selectedChatAgent, setSelectedChatAgent] = useState<CliAgent | null>(forkContext?.provider ?? null);
+  const [setupStep, setSetupStep] = useState<"layout" | "agents">(forkContext ? "agents" : "layout");
   const [importSessionPickerOpen, setImportSessionPickerOpen] = useState(false);
   const [selectedImportSessions, setSelectedImportSessions] = useState<
     ImportableAgentSession[]
   >([]);
   const [agentCounts, setAgentCounts] = useState<Record<string, number>>({});
+  const [forkPrompt, setForkPrompt] = useState("");
   const [isolateAgentWorktrees, setIsolateAgentWorktrees] = useState(false);
   const [agentWorktreeGroup] = useState(worktreeGroup);
   const [customCommand, setCustomCommand] = useState("");
@@ -1521,6 +1525,14 @@ export function WorkspaceSetupView({
   }, [workingFolder]);
 
   useEffect(() => {
+    if (!forkContext) return;
+    setWorkspaceMode("agent");
+    setSelectedChatAgent(forkContext.provider);
+    setSetupStep("agents");
+    setAgentCounts({ [forkContext.provider]: 1 });
+  }, [forkContext]);
+
+  useEffect(() => {
     const selected = (workspaceMode === "agent" ? agentChatAgents : configuredAgentCliOptions).find(
       (agent) => (agentCounts[agent.id] ?? 0) > 0,
     );
@@ -1566,6 +1578,7 @@ export function WorkspaceSetupView({
           ...selectedImportSessions.map((session) => session.provider),
         );
       }
+      const initialAgentDraft = forkContext ? forkPrompt.trim() : undefined;
       onOpenWithoutAi(
         terminalCount,
         selectedFolder || null,
@@ -1577,6 +1590,8 @@ export function WorkspaceSetupView({
         workspaceMode === "agent"
           ? selectedWorkspaceAgents.slice(0, 12)
           : undefined,
+        initialAgentDraft,
+        forkContext ? [forkContext.attachment] : undefined,
       );
       onCancel();
     },
@@ -1590,6 +1605,8 @@ export function WorkspaceSetupView({
       workspaceName,
       selectedChatAgent,
       agentCounts,
+      forkContext,
+      forkPrompt,
     ],
   );
 
@@ -1693,23 +1710,64 @@ export function WorkspaceSetupView({
     });
   }, [customCommand]);
 
+  if (forkContext) {
+    const agentLabel = agentChatAgents.find((agent) => agent.id === selectedChatAgent)?.name
+      ?? selectedChatAgent
+      ?? "Agent";
+    const canCreate = Boolean(selectedChatAgent && selectedFolder);
+    return (
+      <div className="flex h-full min-h-0 justify-center overflow-y-auto bg-background px-6 py-10 sm:px-10">
+        <div className="flex w-full max-w-3xl self-center flex-col gap-5">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">New workspace</h1>
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-2"><AgentCliIcon agent={forkContext.provider} size="md" />{agentLabel}</span>
+            <span>Chat</span>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/45 p-4 shadow-sm">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/45 px-3 py-2">
+              <HugeiconsIcon icon={AiChat01Icon} size={16} strokeWidth={1.8} className="text-muted-foreground" />
+              <span><span className="block text-sm font-medium text-foreground">Chat history</span><span className="block text-xs text-muted-foreground">Previous conversation</span></span>
+            </div>
+            <textarea value={forkPrompt} onChange={(event) => setForkPrompt(event.target.value)} rows={3} placeholder="Message the agent, tag @files, or use /commands and /skills" aria-label="Fork workspace message" className="w-full resize-none bg-transparent px-1 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground" />
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/50 pt-3">
+              <button type="button" onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+              <Button type="button" disabled={!canCreate} onClick={() => openWorkspace([])} className="rounded-full px-4">Create workspace <HugeiconsIcon icon={ArrowRight01Icon} size={15} strokeWidth={2} /></Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 justify-center overflow-y-auto bg-background px-6 py-10 sm:px-10 lg:px-14">
       <div className="w-full max-w-[920px] self-start">
         <header className="mb-6 flex flex-col items-center gap-3 text-center sm:mb-8">
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-            {setupStep === "layout"
+            {forkContext
+              ? "New workspace"
+              : setupStep === "layout"
               ? "Set up your workspace"
               : "Add AI coding agents"}
           </h1>
           <p className="max-w-xl text-sm text-muted-foreground">
-            {setupStep === "layout"
+            {forkContext
+              ? "Fork the previous conversation into an independent agent workspace."
+              : setupStep === "layout"
               ? "Pick a folder to work in and choose how many terminals you want."
               : `Pick which agent CLIs should launch in your ${terminalCount} terminals.`}
           </p>
         </header>
 
         <div className="space-y-6 sm:space-y-8">
+          {forkContext ? (
+            <section className="rounded-xl border border-border/60 bg-card/45 p-3">
+              <div className="flex items-center gap-3">
+                <span className="flex size-9 items-center justify-center rounded-lg border border-border/60 bg-background/60 text-muted-foreground"><HugeiconsIcon icon={AiChat01Icon} size={17} strokeWidth={1.8} /></span>
+                <span><span className="block text-sm font-medium text-foreground">Chat history</span><span className="block text-xs text-muted-foreground">Previous conversation</span></span>
+              </div>
+            </section>
+          ) : null}
           {setupStep === "layout" ? (
             <>
               <section className="space-y-3">

@@ -89,4 +89,10 @@ describe("TabBar drag reorder", () => {
     expect(headerSource).toContain("onNewMusic");
     expect(appSource).toContain("openTopMusicTab");
   });
+
+  it("keeps agent logos compact in tab labels", () => {
+    const tabBarSource = readFileSync(tabBarPath, "utf8");
+
+    expect(tabBarSource).toContain('<AgentCliIcon agent={agent} size="xxs" className="shrink-0" />');
+  });
 });

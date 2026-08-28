@@ -3009,6 +3009,9 @@ fn create_remote_workspace(
         workspace_mode: Some("terminal".to_string()),
         agent_provider: None,
         agent_session_id: None,
+        agent_providers: None,
+        agent_session_ids: None,
+        agent_chat_ids: None,
     };
     db::save_workspace_inner(&conn, &workspace)?;
     for pane_index in 0..terminal_count {
@@ -3971,6 +3974,9 @@ mod tests {
                 workspace_mode: Some("canvas".to_string()),
                 agent_provider: None,
                 agent_session_id: None,
+                agent_providers: None,
+                agent_session_ids: None,
+                agent_chat_ids: None,
             },
         )
         .unwrap();

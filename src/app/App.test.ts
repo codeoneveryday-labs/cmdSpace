@@ -42,6 +42,39 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("nativeSessionId={tab.nativeSessionId}");
   });
 
+  it("closing an agent chat tab preserves its persisted chat descriptor", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("const agentTabIds = workspace.agentTabIds.filter((id) => id !== tabId);");
+    expect(source).not.toContain("const agentProviders = (workspace.agentProviders ?? []).filter(");
+    expect(source).not.toContain("const agentSessionIds = (workspace.agentSessionIds ?? []).filter(");
+    expect(source).toContain("const index = tabIndex;");
+  });
+
+  it("opens the Paseo-style draft workspace flow before creating a forked agent session", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("workspaceForkContext");
+    expect(source).toContain("forkContext={workspaceForkContext}");
+    expect(source).toContain("initialAgentDraft = \"\"");
+    expect(source).toContain("initialDraft: index === 0 ? initialAgentDraft : undefined");
+  });
+
+  it("activates a freshly created workspace instead of leaving the previous tab selected", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("const activatedTabId = tabId ?? canvasTabId;");
+    expect(source).toContain("if (activatedTabId !== null) setActiveId(activatedTabId);");
+  });
+
+  it("deletes every agent tab owned by a workspace", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("...(workspace.agentTabIds ?? []),");
+    expect(source).toContain("for (const tabId of workspaceTabIds)");
+    expect(source).toContain("agentSessionIds");
+  });
+
   it("auto-activates the first workspace only once so standalone tabs remain selectable", () => {
     const source = readFileSync(appPath, "utf8");
 
@@ -111,6 +144,13 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("absolute inset-x-0 bottom-0 z-40");
     expect(source).toContain("pointer-events-none");
     expect(source).toContain("pointer-events-auto");
+  });
+
+  it("keeps workspace and right-sidebar dividers visible across the main surface", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("after:inset-y-0 after:left-1/2 after:w-px");
+    expect(source).toContain("after:bg-border/70");
   });
 
   it("opens the bottom terminal from the active workspace folder", () => {

@@ -98,6 +98,7 @@ macro_rules! cmdspace_commands {
             agent_chat::agent_chat_send,
             agent_chat::agent_chat_cancel,
             agent_chat::agent_chat_close,
+            agent_chat::agent_chat_load_history,
             agent_chat::agent_chat_list_models,
             agent_chat::agent_chat_list_slash_options,
             // PTY
@@ -209,6 +210,10 @@ macro_rules! cmdspace_commands {
             db::db_save_recent_workspace,
             db::db_load_workspace_setup_custom_command,
             db::db_save_workspace_setup_custom_command,
+            db::db_load_agent_chat_config,
+            db::db_save_agent_chat_config,
+            db::db_load_agent_model_cache,
+            db::db_save_agent_model_cache,
         ]
     };
 }

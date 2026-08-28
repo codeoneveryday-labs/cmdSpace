@@ -1,4 +1,5 @@
 use super::events::AgentChatEvent;
+use super::providers;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -39,45 +40,12 @@ pub struct LaunchSpec {
 }
 
 pub fn build_launch(provider: &str, cwd: &Path) -> Result<LaunchSpec, AgentChatError> {
-    let (adapter, program, args) = match provider {
-        "codex" => (
-            AdapterKind::CodexAppServer,
-            "codex",
-            vec!["app-server", "--stdio"],
-        ),
-        "claude" => (
-            AdapterKind::ClaudeJson,
-            "claude",
-            vec!["--print", "--json"],
-        ),
-        "omp" => (
-            AdapterKind::OmpRpc,
-            "omp",
-            vec!["--mode", "rpc"],
-        ),
-        "gemini" => (
-            AdapterKind::GeminiStreamJson,
-            "gemini",
-            vec!["--skip-trust", "--yolo", "--output-format", "stream-json", "--prompt"],
-        ),
-        "opencode" => (
-            AdapterKind::OpenCodeJson,
-            "opencode",
-            vec!["run", "--format", "json", "--auto"],
-        ),
-        "cmd" => (
-            AdapterKind::CommandCodeJson,
-            "cmd",
-            vec!["-p", "--output-format", "json", "--yolo"],
-        ),
-        _ => {
-            return Err(AgentChatError::UnsupportedProvider(provider.to_string()));
-        }
-    };
+    let profile = providers::profile(provider)
+        .ok_or_else(|| AgentChatError::UnsupportedProvider(provider.to_string()))?;
     Ok(LaunchSpec {
-        adapter,
-        program: program.to_string(),
-        args: args.into_iter().map(str::to_string).collect(),
+        adapter: profile.adapter,
+        program: profile.program.to_string(),
+        args: profile.launch_args.iter().map(|arg| (*arg).to_string()).collect(),
         cwd: cwd.to_path_buf(),
     })
 }
@@ -125,7 +93,22 @@ fn parse_codex(value: &Value) -> Vec<AgentChatEvent> {
         "item/started" => parse_codex_tool(value, "running"),
         "item/completed" => parse_codex_tool(value, "completed"),
         "thread/tokenUsage/updated" => parse_codex_usage(value),
-        "turn/completed" => vec![AgentChatEvent::Done],
+        "turn/completed" | "task_complete" => {
+            let mut events = Vec::new();
+            if let Some(message) = value
+                .pointer("/params/error/message")
+                .or_else(|| value.pointer("/params/result/error/message"))
+                .or_else(|| value.pointer("/error/message"))
+                .or_else(|| value.pointer("/params/error"))
+                .and_then(Value::as_str)
+            {
+                events.push(AgentChatEvent::Error {
+                    message: message.to_string(),
+                });
+            }
+            events.push(AgentChatEvent::Done);
+            events
+        }
         _ => Vec::new(),
     }
 }
@@ -185,8 +168,14 @@ fn parse_claude(value: &Value) -> Vec<AgentChatEvent> {
         });
     }
     if let Some(text) = value.get("result").and_then(Value::as_str) {
-        events.push(AgentChatEvent::Assistant {
-            text: text.to_string(),
+        events.push(if value.get("is_error").and_then(Value::as_bool) == Some(true) {
+            AgentChatEvent::Error {
+                message: text.to_string(),
+            }
+        } else {
+            AgentChatEvent::Assistant {
+                text: text.to_string(),
+            }
         });
     }
     events
@@ -337,6 +326,20 @@ fn parse_command_code(value: &Value) -> Vec<AgentChatEvent> {
     if value.get("type").and_then(Value::as_str) == Some("event") {
         let event = value.get("event").unwrap_or(&Value::Null);
         let event_type = event.get("type").and_then(Value::as_str).unwrap_or_default();
+        if event_type == "run_end" {
+            let mut events = Vec::new();
+            if let Some(message) = event
+                .pointer("/result/error/message")
+                .or_else(|| event.pointer("/result/error"))
+                .and_then(Value::as_str)
+            {
+                events.push(AgentChatEvent::Error {
+                    message: message.to_string(),
+                });
+            }
+            events.push(AgentChatEvent::Done);
+            return events;
+        }
         if event_type.contains("tool") {
             return vec![AgentChatEvent::Tool { id: event.get("toolCallId").and_then(Value::as_str).unwrap_or("cmd-tool").to_string(), name: event.get("toolName").and_then(Value::as_str).unwrap_or("Tool").to_string(), status: if event_type.contains("running") { "running" } else { "completed" }.to_string(), detail: event.get("description").and_then(Value::as_str).map(str::to_string) }];
         }
@@ -344,7 +347,6 @@ fn parse_command_code(value: &Value) -> Vec<AgentChatEvent> {
     }
     if value.get("type").and_then(Value::as_str) == Some("result") {
         let mut events = Vec::new();
-        if let Some(id) = value.get("sessionId").and_then(Value::as_str) { events.push(AgentChatEvent::Session { native_id: id.to_string() }); }
         if let Some(text) = value.get("finalText").and_then(Value::as_str) {
             if !text.is_empty() {
                 events.push(AgentChatEvent::Assistant { text: text.to_string() });
@@ -357,7 +359,6 @@ fn parse_command_code(value: &Value) -> Vec<AgentChatEvent> {
         {
             events.push(AgentChatEvent::Error { message: error.to_string() });
         }
-        events.push(AgentChatEvent::Done);
         return events;
     }
     Vec::new()

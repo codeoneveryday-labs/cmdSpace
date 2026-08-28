@@ -15,6 +15,7 @@ import {
 } from "@/modules/terminal/lib/panes";
 import { disposeSession } from "@/modules/terminal/lib/useTerminalSession";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
+import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 
 // Matches the renderer slot pool size — over this we'd evict an active leaf.
 export const MAX_PANES_PER_TAB = 12;
@@ -101,11 +102,14 @@ export type ArchitectureTab = {
 
 export type AgentChatTab = {
   id: number;
+  chatId: string;
   kind: "agent-chat";
   title: string;
   provider: CliAgent;
   cwd: string;
   nativeSessionId: string | null;
+  initialDraft?: string;
+  initialHistoryAttachments?: AgentChatHistoryAttachment[];
 };
 
 export type ArchitectureShapeKind =
@@ -214,6 +218,7 @@ export type TabPatch = Partial<{
   dirty: boolean;
   url: string;
   nativeSessionId: string | null;
+  initialDraft: string;
 }>;
 
 function basename(path: string): string {
@@ -482,18 +487,24 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     title: string;
     provider: CliAgent;
     cwd: string;
+    chatId?: string;
     nativeSessionId?: string | null;
+    initialDraft?: string;
+    initialHistoryAttachments?: AgentChatHistoryAttachment[];
   }) => {
     const id = nextIdRef.current++;
     setTabs((current) => [
       ...current,
       {
         id,
+        chatId: input.chatId ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         kind: "agent-chat",
         title: input.title,
         provider: input.provider,
         cwd: input.cwd,
         nativeSessionId: input.nativeSessionId ?? null,
+        initialDraft: input.initialDraft,
+        initialHistoryAttachments: input.initialHistoryAttachments,
       },
     ]);
     setActiveId(id);
@@ -910,6 +921,14 @@ export function useTabs(initial?: Partial<TerminalTab>) {
             ...x,
             ...(patch.title !== undefined && { title: patch.title }),
             ...(patch.diagram !== undefined && { diagram: patch.diagram }),
+          };
+        }
+        if (x.kind === "agent-chat") {
+          return {
+            ...x,
+            ...(patch.title !== undefined && { title: patch.title }),
+            ...(patch.nativeSessionId !== undefined && { nativeSessionId: patch.nativeSessionId }),
+            ...(patch.initialDraft !== undefined && { initialDraft: patch.initialDraft }),
           };
         }
         // editor tab: auto-promote from preview the moment the file becomes dirty.

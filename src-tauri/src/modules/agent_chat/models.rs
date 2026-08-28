@@ -1,4 +1,5 @@
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use super::providers::{self, ControlDiscovery, ModelDiscovery};
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -11,6 +12,7 @@ use std::{
 };
 
 const MODEL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(5);
+const COMMAND_MODEL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(20);
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,24 +23,20 @@ pub struct AgentChatModel {
 }
 
 pub fn list_models(provider: &str, cwd: &Path) -> Result<Vec<AgentChatModel>, String> {
-    let models = match provider {
-        "codex" => list_codex_models(cwd)?,
-        "opencode" => list_command_models("opencode", &["models"], cwd)?,
-        "cmd" => list_command_models("cmd", &["--list-models"], cwd)?,
-        "gemini" => list_slash_models("gemini", cwd, "/model", &["--skip-trust"])?,
-        "claude" => list_slash_models("claude", cwd, "/model", &[])?,
-        "omp" => list_slash_models("omp", cwd, "/model", &["--mode", "interactive"])?,
-        _ => {
-            return Err(format!(
-                "model discovery is not supported for agent '{provider}'"
-            ))
-        }
+    let profile = providers::profile(provider)
+        .ok_or_else(|| format!("model discovery is not supported for agent '{provider}'"))?;
+    let models = match profile.model_discovery {
+        ModelDiscovery::CodexAppServer => list_codex_models(cwd)?,
+        ModelDiscovery::Command(args) => list_command_models(profile.program, args, cwd)?,
+        ModelDiscovery::InteractiveSlash { command, args } => list_slash_models(profile.program, cwd, command, args)?,
     };
     Ok(dedupe(models))
 }
 
 pub fn list_slash_options(provider: &str, cwd: &Path, command: &str) -> Result<Vec<AgentChatModel>, String> {
-    if provider == "codex" {
+    let profile = providers::profile(provider)
+        .ok_or_else(|| format!("control discovery is not supported for agent '{provider}'"))?;
+    if profile.control_discovery == ControlDiscovery::Codex {
         return match command {
             "/effort" => list_codex_effort_options(cwd),
             "/permissions" => list_codex_permission_options(cwd),
@@ -46,18 +44,33 @@ pub fn list_slash_options(provider: &str, cwd: &Path, command: &str) -> Result<V
             _ => Ok(Vec::new()),
         };
     }
-    if provider == "cmd" {
+    if profile.control_discovery == ControlDiscovery::Cmd {
         let args: &[&str] = match command {
             "/effort" => &["--effort", "__discover_invalid__", "--no-session"],
-            "/mode" => &["--permission-mode", "__discover_invalid__", "--no-session"],
+            "/mode" | "/plan" => &["--permission-mode", "__discover_invalid__", "--no-session"],
             _ => &[],
         };
         if !args.is_empty() {
-            return list_flag_choices("cmd", args, cwd);
+            let options = list_flag_choices(profile.program, args, cwd)?;
+            return Ok(match command {
+                "/plan" => options
+                    .into_iter()
+                    .filter(|option| option.id.eq_ignore_ascii_case("plan"))
+                    .collect(),
+                "/mode" => options
+                    .into_iter()
+                    .filter(|option| !option.id.eq_ignore_ascii_case("plan"))
+                    .collect(),
+                _ => options,
+            });
         }
     }
-    let args: &[&str] = if provider == "gemini" { &["--skip-trust"] } else { &[] };
-    list_slash_models(provider, cwd, command, args).map(dedupe)
+    match profile.control_discovery {
+        ControlDiscovery::InteractiveSlash { args } => {
+            list_slash_models(profile.program, cwd, command, args).map(dedupe)
+        }
+        ControlDiscovery::Codex | ControlDiscovery::Cmd => Ok(Vec::new()),
+    }
 }
 
 fn list_codex_permission_options(cwd: &Path) -> Result<Vec<AgentChatModel>, String> {
@@ -133,7 +146,11 @@ fn list_flag_choices(program: &str, args: &[&str], cwd: &Path) -> Result<Vec<Age
     command.args(args).current_dir(cwd).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     crate::modules::proc::hide_console(&mut command);
     let child = command.spawn().map_err(|error| error.to_string())?;
-    let output = read_child_output(child)?;
+    let output = read_child_output_with_timeout(child, if program == "cmd" {
+        COMMAND_MODEL_DISCOVERY_TIMEOUT
+    } else {
+        MODEL_DISCOVERY_TIMEOUT
+    })?;
     let combined = format!("{}\n{}", output.stdout, output.stderr);
     let marker = combined.find("Supported:").map(|index| index + "Supported:".len())
         .or_else(|| combined.find("Allowed choices are").map(|index| index + "Allowed choices are".len()))
@@ -164,7 +181,11 @@ fn list_command_models(
         .stderr(Stdio::piped());
     crate::modules::proc::hide_console(&mut command);
     let child = command.spawn().map_err(|error| error.to_string())?;
-    let output = read_child_output(child)?;
+    let output = read_child_output_with_timeout(child, if program == "cmd" {
+        COMMAND_MODEL_DISCOVERY_TIMEOUT
+    } else {
+        MODEL_DISCOVERY_TIMEOUT
+    })?;
     if !output.status.success() && output.stdout.trim().is_empty() {
         return Err(if output.stderr.trim().is_empty() {
             format!("{program} model listing failed")
@@ -181,7 +202,10 @@ struct ChildOutput {
     stderr: String,
 }
 
-fn read_child_output(mut child: std::process::Child) -> Result<ChildOutput, String> {
+fn read_child_output_with_timeout(
+    mut child: std::process::Child,
+    timeout: Duration,
+) -> Result<ChildOutput, String> {
     let stdout = child
         .stdout
         .take()
@@ -198,7 +222,7 @@ fn read_child_output(mut child: std::process::Child) -> Result<ChildOutput, Stri
         let _ = BufReader::new(stderr).read_to_string(&mut err);
         let _ = tx.send((out, err));
     });
-    let (stdout, stderr) = rx.recv_timeout(MODEL_DISCOVERY_TIMEOUT).map_err(|_| {
+    let (stdout, stderr) = rx.recv_timeout(timeout).map_err(|_| {
         let _ = child.kill();
         "model discovery timed out".to_string()
     })?;

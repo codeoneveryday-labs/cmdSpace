@@ -47,7 +47,7 @@ describe("FloatingTerminalOverlay", () => {
     );
     expect(iconSource).toContain("getAgentBrandIcon");
     expect(iconSource).toContain("<BrandIcon");
-    expect(iconSource).toContain('size === "md" ? 14 : size === "xs" ? 10 : 12');
+    expect(iconSource).toContain('size === "md" ? 14 : size === "xs" ? 10 : size === "xxs" ? 8 : 12');
     expect(iconSource).toContain("text-foreground");
     expect(iconSource).not.toContain("AGENT_CLI_ICON_META");
   });

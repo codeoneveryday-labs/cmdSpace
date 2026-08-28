@@ -24,6 +24,10 @@ export type WorkspaceSelectionRecord = {
   workspaceMode?: "standard" | "canvas" | "agent";
   agentProvider?: CliAgent | null;
   agentSessionId?: string | null;
+  agentProviders?: CliAgent[] | null;
+  agentSessionIds?: Array<string | null> | null;
+  agentChatIds?: string[] | null;
+  agentTabIds?: number[];
 };
 
 export type WorkspaceSelectionTab = {
@@ -50,6 +54,7 @@ export type WorkspaceSelectionPort<
     provider: CliAgent;
     cwd: string;
     nativeSessionId: string | null;
+    chatId?: string;
   }) => number;
   createWorkspaceTab: (
     workingFolder: string | undefined,
@@ -60,7 +65,7 @@ export type WorkspaceSelectionPort<
   ) => number;
   replaceWorkspace: (
     workspaceId: string,
-    patch: Partial<Pick<TWorkspace, "tabId" | "canvasTabId">>,
+    patch: Partial<Pick<TWorkspace, "tabId" | "canvasTabId" | "agentTabIds" | "agentProviders" | "agentSessionIds" | "agentChatIds">>,
   ) => void;
   listWorkspacePanes: (workspaceId: string) => Promise<WorkspaceSelectionPane[]>;
   resolvePaneResumeCommands?: (
@@ -323,6 +328,7 @@ function restoreStandardWorkspace<
       port.replaceWorkspace(workspaceId, { tabId });
     })
     .catch((error) => {
+      if (!selectionIsCurrent(port)) return;
       port.onLoadWorkspacePanesError(error);
       const tabId = port.createWorkspaceTab(
         workspace.workingFolder ?? undefined,
@@ -335,14 +341,14 @@ function restoreStandardWorkspace<
     });
 }
 
-function restoreAgentWorkspace<
+async function restoreAgentWorkspace<
   TWorkspace extends WorkspaceSelectionRecord,
   TTab extends WorkspaceSelectionTab,
 >(
   port: WorkspaceSelectionPort<TWorkspace, TTab>,
   workspace: TWorkspace,
   workspaceId: string,
-): void {
+): Promise<void> {
   if (workspace.tabId !== null) {
     if (!selectionIsCurrent(port)) return;
     port.activateTab(workspace.tabId);
@@ -351,16 +357,61 @@ function restoreAgentWorkspace<
   if (!workspace.agentProvider || !workspace.workingFolder) return;
   if (!selectionIsCurrent(port)) return;
   const count = Math.max(1, workspace.count);
-  const tabIds = Array.from({ length: count }, (_, index) =>
+  const providers = workspace.agentProviders?.length
+    ? workspace.agentProviders
+    : Array.from({ length: count }, () => workspace.agentProvider).filter(
+      (provider): provider is CliAgent => Boolean(provider),
+      );
+  const usedNativeSessionIds = new Set<string>();
+  const chatIds = workspace.agentChatIds?.length
+    ? workspace.agentChatIds
+    : Array.from({ length: count }, (_, index) => `${workspace.id}:chat:${index + 1}`);
+  const usedChatIds = new Set<string>();
+  const restoredChats = Array.from({ length: count }, (_, index) => {
+    const chatId = chatIds[index] ?? `${workspace.id}:chat:${index + 1}`;
+    if (usedChatIds.has(chatId)) return null;
+    usedChatIds.add(chatId);
+    return {
+      index,
+      chatId,
+      provider: providers[index] ?? workspace.agentProvider!,
+      nativeSessionId: (() => {
+        const candidate =
+          workspace.agentSessionIds?.[index] ??
+          (index === 0 ? workspace.agentSessionId ?? null : null);
+        if (!candidate || usedNativeSessionIds.has(candidate)) return null;
+        usedNativeSessionIds.add(candidate);
+        return candidate;
+      })(),
+    };
+  }).filter((chat): chat is {
+    index: number;
+    chatId: string;
+    provider: CliAgent;
+    nativeSessionId: string | null;
+  } => chat !== null);
+  const tabIds = restoredChats.map((chat) =>
     port.createAgentChatTab({
-      title: `${workspace.name} Agent${count > 1 ? ` · ${index + 1}` : ""}`,
-      provider: workspace.agentProvider!,
+      title: `${workspace.name} Agent${count > 1 ? ` · ${chat.index + 1}` : ""}`,
+      provider: chat.provider,
       cwd: workspace.workingFolder!,
-      nativeSessionId: index === 0 ? workspace.agentSessionId ?? null : null,
+      chatId: chat.chatId,
+      nativeSessionId: chat.nativeSessionId,
     }),
   );
   const tabId = tabIds[0];
-  if (tabId !== undefined) port.replaceWorkspace(workspaceId, { tabId });
+  if (tabId !== undefined) {
+    port.replaceWorkspace(workspaceId, {
+      tabId,
+      agentTabIds: tabIds,
+      agentProviders: restoredChats.map((chat) => chat.provider),
+      agentSessionIds: restoredChats.map(
+        (chat) => workspace.agentSessionIds?.[chat.index] ?? null,
+      ),
+      agentChatIds: restoredChats.map((chat) => chat.chatId),
+    });
+  }
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
 
 export async function selectWorkspace<
@@ -384,7 +435,7 @@ export async function selectWorkspace<
   }
 
   if (workspace.workspaceMode === "agent") {
-    restoreAgentWorkspace(selectionPort, workspace, workspaceId);
+    await restoreAgentWorkspace(selectionPort, workspace, workspaceId);
     return;
   }
 

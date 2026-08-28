@@ -45,6 +45,12 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("WORKSPACES");
     expect(panelSource).toContain("TerminalAgentSwitcher");
     expect(panelSource).toContain("onCreateTerminal(command ?? undefined)");
+    expect(panelSource).toContain("canCreate={");
+    expect(panelSource).not.toContain('workspace.workspaceMode !== "agent"');
+    expect(panelSource).not.toContain('workspace.workspaceMode !== "canvas"');
+    expect(appSource).toContain('workspace.workspaceMode === "agent"');
+    expect(appSource).toContain('workspace.workspaceMode === "canvas"');
+    expect(appSource).toContain("canvasTerminalCreatorRef");
     expect(appSource).toContain("Failed to persist created workspace terminal");
     expect(panelSource).toContain("Set up your workspace");
     expect(panelSource).toContain("Workspace mode");
@@ -60,8 +66,12 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("Canvas workspace");
     expect(panelSource).toContain("Standard terminal workspace");
     expect(panelSource).toContain(
-      'useState<WorkspaceMode>("standard")',
+      'useState<WorkspaceMode>(forkContext ? "agent" : "standard")',
     );
+    expect(panelSource).toContain("Chat history");
+    expect(panelSource).toContain("Previous conversation");
+    expect(panelSource).toContain("Fork workspace message");
+    expect(panelSource).toContain("Create workspace");
     expect(panelSource).toContain("workspaceMode?: WorkspaceMode");
     expect(panelSource).toContain("Workspace name");
     expect(panelSource).toContain("Shown in the workspace list and tab");
@@ -213,11 +223,15 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain(
       "mt-2 flex flex-col gap-3 pt-2 sm:mt-3",
     );
-    expect(panelSource).not.toContain("border-t border-border/50");
+    expect(panelSource).toContain("Fork workspace message");
     expect(panelSource).toContain(
       "sm:flex-row sm:items-center sm:justify-between",
     );
     expect(panelSource).toContain("renderedWorkspaces.flatMap");
+    expect(panelSource).not.toContain("native.gitResolveRepo(cwd)");
+    expect(panelSource).not.toContain("native.workspaceAuthorize(cwd)");
+    expect(panelSource).not.toContain('git diff HEAD --shortstat');
+    expect(panelSource).not.toContain("WorkspaceGitMeta");
     expect(panelSource).toContain("No workspaces yet");
     expect(panelSource).toContain("onDoubleClick");
     expect(panelSource).toContain("setRenaming(true)");
@@ -330,7 +344,8 @@ describe("WorkspacesPanel", () => {
       /<WorkspacesPanel[\s\S]*workspaces=\{workspaceItems\}[\s\S]*onRenameWorkspace=\{handleRenameWorkspace\}[\s\S]*onStartWorkspaceSetup=\{\(\) => setWorkspaceSetupOpen\(true\)\}/,
     );
     expect(appSource).toContain("recentWorkspaces={recentWorkspaces}");
-    expect(appSource).toContain("workingFolder={workspaceSetupFolder}");
+    expect(appSource).toContain("workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}");
+    expect(appSource).toContain("forkContext={workspaceForkContext}");
     expect(appSource).toContain("db_list_recent_workspaces");
     expect(appSource).toContain("db_save_recent_workspace");
     expect(appSource).toContain("saveRecentWorkspace(newWs)");

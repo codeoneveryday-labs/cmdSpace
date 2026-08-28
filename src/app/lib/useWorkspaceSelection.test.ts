@@ -203,11 +203,178 @@ describe("selectWorkspace", () => {
     expect(createCanvasTab).not.toHaveBeenCalled();
     expect(createAgentChatTab).toHaveBeenCalledWith({
       title: "Agent Agent",
+      chatId: "ws-agent:chat:1",
       provider: "claude",
       cwd: "/repo",
       nativeSessionId: "claude-session",
     });
-    expect(replaceWorkspace).toHaveBeenCalledWith("ws-agent", { tabId: 92 });
+    expect(replaceWorkspace).toHaveBeenCalledWith("ws-agent", {
+      tabId: 92,
+      agentTabIds: [92],
+      agentProviders: ["claude"],
+      agentSessionIds: [null],
+      agentChatIds: ["ws-agent:chat:1"],
+    });
+  });
+
+  it("does not create a fallback tab from a stale standard-workspace request", async () => {
+    const workspace: TestWorkspace = {
+      id: "ws-stale-fallback",
+      name: "Stale fallback",
+      count: 1,
+      workingFolder: "/repo",
+      paneLayout: null,
+      tabId: null,
+      canvasTabId: null,
+      workspaceMode: "standard",
+    };
+    const { port, createWorkspaceTab, onLoadWorkspacePanesError } = createPort(
+      [workspace],
+      [],
+      {
+        listWorkspacePanes: vi.fn(async () => {
+          throw new Error("database unavailable");
+        }),
+      },
+    );
+
+    await selectWorkspace(port, workspace.id, () => false);
+
+    expect(onLoadWorkspacePanesError).not.toHaveBeenCalled();
+    expect(createWorkspaceTab).not.toHaveBeenCalled();
+  });
+
+  it("keeps agent workspace selection open through a paint frame", async () => {
+    vi.useFakeTimers();
+    const workspace: TestWorkspace = {
+      id: "ws-agent-loading",
+      name: "Agent loading",
+      count: 1,
+      workingFolder: "/repo",
+      paneLayout: null,
+      tabId: null,
+      canvasTabId: null,
+      workspaceMode: "agent",
+      agentProvider: "cmd",
+      agentSessionId: null,
+    };
+    const { port } = createPort([workspace], []);
+    let settled = false;
+    const opening = selectWorkspace(port, workspace.id).then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.runAllTimersAsync();
+    await opening;
+    expect(settled).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("restores each agent chat tab with its own provider and native session", async () => {
+    const workspace: TestWorkspace = {
+      id: "ws-multi-agent",
+      name: "Multi Agent",
+      count: 2,
+      workingFolder: "/repo",
+      paneLayout: null,
+      tabId: null,
+      canvasTabId: null,
+      workspaceMode: "agent",
+      agentProvider: "codex",
+      agentSessionId: "codex-legacy",
+      agentProviders: ["codex", "cmd"],
+      agentSessionIds: ["codex-session", "cmd-session"],
+      agentChatIds: ["ws-multi-agent:chat:1", "ws-multi-agent:chat:2"],
+    };
+    const { port, createAgentChatTab, replaceWorkspace } = createPort(
+      [workspace],
+      [],
+    );
+
+    await selectWorkspace(port, workspace.id);
+
+    expect(createAgentChatTab).toHaveBeenNthCalledWith(1, {
+      title: "Multi Agent Agent · 1",
+      chatId: "ws-multi-agent:chat:1",
+      provider: "codex",
+      cwd: "/repo",
+      nativeSessionId: "codex-session",
+    });
+    expect(createAgentChatTab).toHaveBeenNthCalledWith(2, {
+      title: "Multi Agent Agent · 2",
+      chatId: "ws-multi-agent:chat:2",
+      provider: "cmd",
+      cwd: "/repo",
+      nativeSessionId: "cmd-session",
+    });
+    expect(replaceWorkspace).toHaveBeenCalledWith("ws-multi-agent", {
+      tabId: 92,
+      agentTabIds: [92, 92],
+      agentProviders: ["codex", "cmd"],
+      agentSessionIds: ["codex-session", "cmd-session"],
+      agentChatIds: ["ws-multi-agent:chat:1", "ws-multi-agent:chat:2"],
+    });
+  });
+
+  it("does not restore one native session into multiple agent tabs", async () => {
+    const workspace: TestWorkspace = {
+      id: "ws-duplicate-session",
+      name: "Duplicate Session",
+      count: 2,
+      workingFolder: "/repo",
+      paneLayout: null,
+      tabId: null,
+      canvasTabId: null,
+      workspaceMode: "agent",
+      agentProvider: "codex",
+      agentSessionId: "same-session",
+      agentProviders: ["codex", "codex"],
+      agentSessionIds: ["same-session", "same-session"],
+    };
+    const { port, createAgentChatTab } = createPort([workspace], []);
+
+    await selectWorkspace(port, workspace.id);
+
+    expect(createAgentChatTab).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ nativeSessionId: "same-session" }),
+    );
+    expect(createAgentChatTab).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ nativeSessionId: null }),
+    );
+  });
+
+  it("restores only one tab for duplicate persisted chat ids", async () => {
+    const workspace: TestWorkspace = {
+      id: "ws-duplicate-chat",
+      name: "Duplicate chat",
+      count: 2,
+      workingFolder: "/repo",
+      paneLayout: null,
+      tabId: null,
+      canvasTabId: null,
+      workspaceMode: "agent",
+      agentProvider: "codex",
+      agentProviders: ["codex", "codex"],
+      agentSessionIds: ["shared-session", "shared-session"],
+      agentChatIds: ["ws-duplicate-chat:chat:1", "ws-duplicate-chat:chat:1"],
+    };
+    const { port, createAgentChatTab, replaceWorkspace } = createPort([workspace], []);
+
+    await selectWorkspace(port, workspace.id);
+
+    expect(createAgentChatTab).toHaveBeenCalledTimes(1);
+    expect(replaceWorkspace).toHaveBeenCalledWith("ws-duplicate-chat", {
+      tabId: 92,
+      agentTabIds: [92],
+      agentProviders: ["codex"],
+      agentSessionIds: ["shared-session"],
+      agentChatIds: ["ws-duplicate-chat:chat:1"],
+    });
   });
 
   it("restores a persisted canvas diagram into an existing canvas tab and activates it", async () => {

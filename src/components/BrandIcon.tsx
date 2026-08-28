@@ -32,7 +32,7 @@ export function BrandIcon({ name, size = 12, className }: Props) {
         <img src={iconImage} alt="" className="size-full object-contain" />
       ) : (
         <span
-          className="inline-flex size-full items-center justify-center [&>svg]:block [&>svg]:size-full"
+          className="inline-flex size-full items-center justify-center [&>svg]:block [&>svg]:size-full!"
           dangerouslySetInnerHTML={{ __html: iconSvg ?? "" }}
         />
       )}

@@ -8,6 +8,38 @@ export type AgentChatModelOption = {
   description?: string | null;
 };
 
+export type AgentModelCache = {
+  provider: string;
+  models: AgentChatModelOption[];
+  updatedAt: number;
+};
+
+export function loadAgentModelCache(provider: string) {
+  return invoke<AgentModelCache | null>("db_load_agent_model_cache", { provider });
+}
+
+export function saveAgentModelCache(cache: AgentModelCache) {
+  return invoke<void>("db_save_agent_model_cache", { cache });
+}
+
+export type AgentChatConfig = {
+  chatId: string;
+  provider: string;
+  model: string | null;
+  effort: string | null;
+  permissionMode: string | null;
+  fastMode: boolean;
+  planMode: boolean;
+};
+
+export function loadAgentChatConfig(chatId: string) {
+  return invoke<AgentChatConfig | null>("db_load_agent_chat_config", { chatId });
+}
+
+export function saveAgentChatConfig(config: AgentChatConfig) {
+  return invoke<void>("db_save_agent_chat_config", { config });
+}
+
 const modelDiscoveryCache = new Map<string, Promise<AgentChatModelOption[]>>();
 const slashOptionsCache = new Map<string, Promise<AgentChatModelOption[]>>();
 
@@ -71,6 +103,14 @@ export function createAgentChatRuntime(onEvent: (event: AgentChatEvent) => void)
     },
     close(sessionId: string) {
       return invoke<void>("agent_chat_close", { sessionId });
+    },
+    loadHistory(provider: string, cwd: string, nativeSessionId: string) {
+      return invoke<AgentChatEvent[]>("agent_chat_load_history", {
+        provider,
+        cwd,
+        nativeSessionId,
+        workspace: currentWorkspaceEnv(),
+      });
     },
   };
 }

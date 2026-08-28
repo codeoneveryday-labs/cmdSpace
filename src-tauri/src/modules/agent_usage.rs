@@ -72,8 +72,14 @@ pub struct AgentSessionUsage {
 }
 
 #[tauri::command]
-pub async fn agent_usage_statuses(cwd: String) -> Result<Vec<AgentUsageStatus>, String> {
-    tauri::async_runtime::spawn_blocking(move || scan_agent_usage(&cwd))
+pub async fn agent_usage_statuses(
+    cwd: String,
+    provider: Option<String>,
+    native_session_id: Option<String>,
+) -> Result<Vec<AgentUsageStatus>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        scan_agent_usage(&cwd, provider.as_deref(), native_session_id.as_deref())
+    })
         .await
         .map_err(|error| error.to_string())?
 }
@@ -104,10 +110,20 @@ pub async fn provider_limit_status(
     .map_err(|error| error.to_string())
 }
 
-fn scan_agent_usage(cwd: &str) -> Result<Vec<AgentUsageStatus>, String> {
+fn scan_agent_usage(
+    cwd: &str,
+    provider: Option<&str>,
+    native_session_id: Option<&str>,
+) -> Result<Vec<AgentUsageStatus>, String> {
     let Some(home) = dirs::home_dir() else {
         return Ok(Vec::new());
     };
+
+    if let (Some(provider), Some(native_session_id)) = (provider, native_session_id) {
+        return Ok(scan_exact_session_usage(&home, provider, native_session_id)
+            .into_iter()
+            .collect());
+    }
 
     let mut statuses = Vec::new();
     if let Some(status) = scan_codex(&home, cwd) {
@@ -117,6 +133,34 @@ fn scan_agent_usage(cwd: &str) -> Result<Vec<AgentUsageStatus>, String> {
         statuses.push(status);
     }
     Ok(statuses)
+}
+
+fn scan_exact_session_usage(
+    home: &Path,
+    provider: &str,
+    native_session_id: &str,
+) -> Option<AgentUsageStatus> {
+    if native_session_id.is_empty()
+        || native_session_id.len() > 100
+        || !native_session_id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+    {
+        return None;
+    }
+    let roots: Vec<PathBuf> = match provider {
+        "codex" => vec![home.join(".codex").join("sessions")],
+        "claude" => claude_project_roots(home).into(),
+        _ => return None,
+    };
+    roots.iter().find_map(|root| {
+        let path = crate::modules::agent_chat::find_resumable_session_file(root, native_session_id)?;
+        tail_lines(&path).into_iter().rev().find_map(|line| match provider {
+            "codex" => parse_codex_status(&line),
+            "claude" => parse_claude_status(&line),
+            _ => None,
+        })
+    })
 }
 
 fn scan_provider_limit_statuses() -> Result<Vec<ProviderLimitStatus>, String> {

@@ -4,6 +4,7 @@ use serde::Serialize;
 #[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum AgentChatEvent {
     Session { native_id: String },
+    User { text: String },
     Assistant { text: String },
     Reasoning { text: String },
     Tool {

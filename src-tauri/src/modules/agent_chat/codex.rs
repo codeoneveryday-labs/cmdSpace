@@ -134,17 +134,36 @@ impl CodexProtocol {
     }
 
     pub fn handle_message(&mut self, value: &Value) -> Vec<AgentChatEvent> {
-        if value.get("id").and_then(Value::as_u64) == Some(2) {
-            if let Some(thread_id) = value
-                .get("result")
-                .and_then(|result| result.get("thread"))
-                .and_then(|thread| thread.get("id"))
+        if let Some(error) = value.get("error") {
+            let message = error
+                .get("message")
                 .and_then(Value::as_str)
-            {
+                .or_else(|| error.as_str())
+                .unwrap_or("Codex app-server request failed");
+            return vec![AgentChatEvent::Error {
+                message: message.to_string(),
+            }];
+        }
+        let is_thread_ready_response = value.get("id").and_then(Value::as_u64) == Some(2);
+        let is_thread_ready_notification = matches!(
+            value.get("method").and_then(Value::as_str),
+            Some("thread/started") | Some("thread/resumed")
+        );
+        if is_thread_ready_response || is_thread_ready_notification {
+            let thread_id = value
+                .get("result")
+                .and_then(|result| {
+                    result
+                        .get("thread")
+                        .and_then(|thread| thread.get("id"))
+                        .or_else(|| result.get("threadId"))
+                        .or_else(|| result.get("id"))
+                })
+                .or_else(|| value.get("params").and_then(|params| params.get("thread")).and_then(|thread| thread.get("id")))
+                .and_then(Value::as_str);
+            if let Some(thread_id) = thread_id {
                 self.thread_id = Some(thread_id.to_string());
-                return vec![AgentChatEvent::Session {
-                    native_id: thread_id.to_string(),
-                }];
+                return vec![AgentChatEvent::Session { native_id: thread_id.to_string() }];
             }
         }
         if value.get("method").and_then(Value::as_str) == Some("turn/started") {

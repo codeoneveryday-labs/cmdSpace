@@ -17,6 +17,10 @@ type Props = {
     tabId: number,
     terminalId: string | null,
   ) => void;
+  onRegisterTerminalCreator?: (
+    tabId: number,
+    creator: ((initialCommand?: string) => boolean) | null,
+  ) => void;
   canvasFocused?: boolean;
   onToggleCanvasFocus?: () => void;
 };
@@ -27,6 +31,7 @@ export function ArchitectureStack({
   onDiagramChange,
   onTerminalHandleChange,
   onActiveTerminalChange,
+  onRegisterTerminalCreator,
   canvasFocused,
   onToggleCanvasFocus,
 }: Props) {
@@ -57,6 +62,7 @@ export function ArchitectureStack({
                 onDiagramChange={onDiagramChange}
                 onTerminalHandleChange={onTerminalHandleChange}
                 onActiveTerminalChange={onActiveTerminalChange}
+                onRegisterTerminalCreator={onRegisterTerminalCreator}
                 canvasFocused={canvasFocused}
                 onToggleCanvasFocus={onToggleCanvasFocus}
               />

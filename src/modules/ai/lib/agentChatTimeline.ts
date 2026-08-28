@@ -1,5 +1,6 @@
 export type AgentChatEvent =
   | { type: "session"; nativeId: string }
+  | { type: "user"; text: string }
   | { type: "assistant"; text: string }
   | { type: "reasoning"; text: string }
   | { type: "tool"; id: string; name: string; status: string; detail: string | null }
@@ -7,9 +8,16 @@ export type AgentChatEvent =
   | { type: "error"; message: string }
   | { type: "done" };
 
+export type AgentChatHistoryAttachment = {
+  kind: "chat-history";
+  title: "Chat history";
+  subtitle: "Previous conversation";
+  context: string;
+};
+
 export type AgentChatTimelineItem =
-  | { id: string; kind: "user"; text: string }
-  | { id: string; kind: "assistant"; text: string }
+  | { id: string; kind: "user"; text: string; sentAt?: number; attachments?: AgentChatHistoryAttachment[] }
+  | { id: string; kind: "assistant"; text: string; workedMs?: number }
   | { id: string; kind: "reasoning"; text: string }
   | { id: string; kind: "tool"; name: string; status: string; detail: string | null };
 
@@ -19,6 +27,7 @@ export type AgentChatTimelineState = {
   status: "idle" | "running" | "error";
   error: string | null;
   usage: { inputTokens: number; outputTokens: number } | null;
+  turnStartedAt?: number | null;
   items: AgentChatTimelineItem[];
 };
 
@@ -69,6 +78,7 @@ export function createAgentChatTimeline(
     status: "idle",
     error: null,
     usage: null,
+    turnStartedAt: null,
     items: [],
   };
 }
@@ -80,12 +90,56 @@ function nextItemId(state: AgentChatTimelineState): string {
 export function submitAgentChatPrompt(
   state: AgentChatTimelineState,
   text: string,
+  attachments: AgentChatHistoryAttachment[] = [],
 ): AgentChatTimelineState {
   return {
     ...state,
     status: "running",
     error: null,
-    items: [...state.items, { id: nextItemId(state), kind: "user", text }],
+    turnStartedAt: Date.now(),
+    items: [...state.items, {
+      id: nextItemId(state),
+      kind: "user",
+      text,
+      sentAt: Date.now(),
+      ...(attachments.length > 0 ? { attachments } : {}),
+    }],
+  };
+}
+
+export function editAgentChatPrompt(
+  state: AgentChatTimelineState,
+  itemId: string,
+  text: string,
+): AgentChatTimelineState {
+  return {
+    ...state,
+    status: "running",
+    error: null,
+    turnStartedAt: Date.now(),
+    items: state.items.map((item) =>
+      item.kind === "user" && item.id === itemId ? { ...item, text } : item,
+    ),
+  };
+}
+
+export function buildAgentChatForkHistory(
+  items: readonly AgentChatTimelineItem[],
+  boundaryId: string,
+): AgentChatHistoryAttachment {
+  const boundary = items.findIndex((item) => item.id === boundaryId);
+  const history = (boundary < 0 ? items : items.slice(0, boundary + 1))
+    .flatMap((item) => item.kind === "user"
+      ? [`User: ${item.text}`]
+      : item.kind === "assistant"
+        ? [`Assistant: ${item.text}`]
+        : [])
+    .join("\n\n");
+  return {
+    kind: "chat-history",
+    title: "Chat history",
+    subtitle: "Previous conversation",
+    context: history,
   };
 }
 
@@ -128,7 +182,23 @@ export function applyAgentChatEvent(
     return { ...state, status: "error", error: event.message };
   }
   if (event.type === "done") {
-    return state.status === "error" ? state : { ...state, status: "idle" };
+    if (state.status === "error") return state;
+    const workedMs = state.turnStartedAt === null || state.turnStartedAt === undefined
+      ? undefined
+      : Math.max(0, Date.now() - state.turnStartedAt);
+    const lastAssistantIndex = state.items.map((item) => item.kind).lastIndexOf("assistant");
+    const items = lastAssistantIndex < 0 || workedMs === undefined
+      ? state.items
+      : state.items.map((item, index) => index === lastAssistantIndex && item.kind === "assistant"
+        ? { ...item, workedMs }
+        : item);
+    return { ...state, status: "idle", turnStartedAt: null, items };
+  }
+  if (event.type === "user") {
+    return {
+      ...state,
+      items: [...state.items, { id: nextItemId(state), kind: "user", text: sanitizeAgentChatText(event.text) }],
+    };
   }
   if (event.type === "tool") {
     const existing = state.items.findIndex(
