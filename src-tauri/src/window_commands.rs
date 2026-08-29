@@ -43,7 +43,7 @@ pub(crate) fn set_webview_corner_radius(
 
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
-fn set_webview_corner_radius(
+pub(crate) fn set_webview_corner_radius(
     _app: tauri::AppHandle,
     _label: String,
     _radius: f64,
@@ -539,7 +539,7 @@ pub(crate) fn hide_workspace_switcher(app: tauri::AppHandle) -> Result<(), Strin
 
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
-fn hide_workspace_switcher() -> Result<(), String> {
+pub(crate) fn hide_workspace_switcher() -> Result<(), String> {
     Ok(())
 }
 
