@@ -3,6 +3,25 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.101] - 2026-08-29
+
+### Changed
+
+- Split the monolithic `App.tsx` into `AppChrome`, `WorkspaceSurface`, and
+  focused app hooks.
+- Split `lib.rs` command registration into dedicated `commands.rs` and
+  `window_commands.rs` modules.
+
+### Added
+
+- Added `agentChatEdits` helpers as groundwork for inline diff cards in agent
+  chat.
+
+### Known limitations
+
+- Agent-chat diff cards are groundwork only; inline per-file diff cards are not
+  yet rendered in the chat timeline.
+
 ## [0.7.100] - 2026-08-28
 
 ### Added
