@@ -11,6 +11,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem},
 };
+#[cfg(target_os = "macos")]
 use tauri::Emitter;
 use tauri_plugin_window_state::StateFlags;
 
