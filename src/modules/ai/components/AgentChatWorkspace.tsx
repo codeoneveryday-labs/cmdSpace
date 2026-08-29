@@ -6,6 +6,7 @@ import {
   type AgentUsageStatus,
 } from "@/modules/terminal/lib/terminal-native";
 import { useAgentChatSession } from "@/modules/ai/hooks/useAgentChatSession";
+import { native, type GitChangedFile } from "@/modules/ai/lib/native";
 import { useWhisperRecording } from "@/modules/ai/hooks/useWhisperRecording";
 import type { ProviderKeys } from "@/modules/ai/lib/keyring";
 import { listAgentChatModels, listAgentChatSlashOptions, loadAgentChatConfig, loadAgentModelCache, saveAgentChatConfig, saveAgentModelCache, type AgentChatModelOption } from "@/modules/ai/lib/agentChatRuntime";
@@ -14,6 +15,13 @@ import {
   buildAgentChatOutlineItems,
   type AgentChatHistoryAttachment,
 } from "@/modules/ai/lib/agentChatTimeline";
+import {
+  countDiffLines,
+  countTextLines,
+  createAgentEditBaseline,
+  filesChangedByAgent,
+  type AgentEditFile,
+} from "@/modules/ai/lib/agentChatEdits";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   Add01Icon,
@@ -35,6 +43,7 @@ import {
   Copy01Icon,
   GitForkIcon,
   Edit01Icon,
+  PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -193,6 +202,44 @@ function AssistantResponseActions({ text, workedMs, onFork }: { text: string; wo
     <DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label="Fork response" className="inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-foreground/[0.07] hover:text-foreground"><HugeiconsIcon icon={GitForkIcon} size={15} strokeWidth={1.8} /><span className="hidden sm:inline">Fork</span></button></DropdownMenuTrigger><DropdownMenuContent align="start" side="bottom" className="min-w-56"><DropdownMenuItem onSelect={() => onFork("tab")}><HugeiconsIcon icon={GitForkIcon} size={16} strokeWidth={1.8} />Fork in a new tab</DropdownMenuItem><DropdownMenuItem onSelect={() => onFork("workspace")}><HugeiconsIcon icon={GitForkIcon} size={16} strokeWidth={1.8} />Fork in a new workspace</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
     <span className="hidden min-[380px]:inline text-muted-foreground/80">Worked for {formatWorkedDuration(workedMs)}</span>
   </div>;
+}
+
+function AgentEditCard({
+  files,
+  onReview,
+  onUndo,
+}: {
+  files: AgentEditFile[];
+  onReview: () => void;
+  onUndo: () => void;
+}) {
+  const added = files.reduce((total, file) => total + file.added, 0);
+  const removed = files.reduce((total, file) => total + file.removed, 0);
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border/80 bg-card/80 shadow-sm" aria-label={`Edited ${files.length} ${files.length === 1 ? "file" : "files"}`}>
+      <div className="flex items-center gap-3 border-b border-border/70 px-3.5 py-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.08] text-foreground">
+          <HugeiconsIcon icon={PencilEdit02Icon} size={20} strokeWidth={1.8} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-foreground">Edited {files.length} {files.length === 1 ? "file" : "files"}</p>
+          <p className="text-sm tabular-nums"><span className="text-emerald-500">+{added}</span><span className="ml-1.5 text-rose-500">-{removed}</span></p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" onClick={onUndo} className="inline-flex h-9 items-center rounded-xl px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground">Undo</button>
+          <button type="button" onClick={onReview} className="inline-flex h-9 items-center rounded-xl border border-border bg-background/60 px-3 text-sm font-medium transition-colors hover:bg-foreground/[0.07]">Review</button>
+        </div>
+      </div>
+      <div className="divide-y divide-border/60">
+        {files.map((file) => (
+          <button key={`${file.repoRoot}:${file.path}`} type="button" onClick={onReview} className="flex min-h-11 w-full items-center gap-3 px-3.5 text-left text-sm transition-colors hover:bg-foreground/[0.05]">
+            <span className="min-w-0 flex-1 truncate text-muted-foreground" title={file.path}>{file.path}</span>
+            <span className="shrink-0 tabular-nums"><span className="text-emerald-500">+{file.added}</span><span className="ml-1.5 text-rose-500">-{file.removed}</span></span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 type AgentAttachment = {
@@ -422,6 +469,7 @@ type Props = {
   initialDraft?: string;
   initialHistoryAttachments?: AgentChatHistoryAttachment[];
   onForkResponse: (destination: "tab" | "workspace", attachment: AgentChatHistoryAttachment) => void;
+  onOpenFileDiff?: (input: { path: string; repoRoot: string; mode: "-"; originalPath: string | null }) => void;
 };
 
 export function AgentChatWorkspace({
@@ -436,6 +484,7 @@ export function AgentChatWorkspace({
   initialDraft = "",
   initialHistoryAttachments = [],
   onForkResponse,
+  onOpenFileDiff,
 }: Props) {
   const [draft, setDraft] = useState(initialDraft);
   const [selectedModel, setSelectedModel] = useState("");
@@ -481,6 +530,9 @@ export function AgentChatWorkspace({
     initialNativeSessionId: nativeSessionId,
     onNativeSessionId,
   });
+  const [editFiles, setEditFiles] = useState<AgentEditFile[]>([]);
+  const editBaselineRef = useRef<ReturnType<typeof createAgentEditBaseline>>(null);
+  const previousTimelineStatusRef = useRef(timeline.status);
   const responseOutlineItems = useMemo(
     () => buildAgentChatOutlineItems(timeline.items),
     [timeline.items],
@@ -574,6 +626,51 @@ export function AgentChatWorkspace({
       window.clearInterval(interval);
     };
   }, [active, cwd, provider, supportsContextUsage, timeline.nativeSessionId, timeline.status]);
+
+  useEffect(() => {
+    const wasRunning = previousTimelineStatusRef.current === "running";
+    previousTimelineStatusRef.current = timeline.status;
+    if (!wasRunning || timeline.status !== "idle") return;
+    const baseline = editBaselineRef.current;
+    if (!baseline) return;
+    editBaselineRef.current = null;
+    let cancelled = false;
+    void native.gitPanelSnapshot(cwd)
+      .then(async (snapshot) => {
+        const changed = filesChangedByAgent(baseline, snapshot);
+        const files = await Promise.all(changed.map(async (file: GitChangedFile) => {
+          let counts = { added: 0, removed: 0 };
+          try {
+            const diff = await native.gitDiff(snapshot.repo?.repoRoot ?? baseline.repoRoot, file.path, false);
+            counts = countDiffLines(diff.diffText);
+          } catch {
+            // A file can disappear before the post-turn status refresh.
+          }
+          if (file.untracked && counts.added === 0 && counts.removed === 0) {
+            try {
+              const absolutePath = `${snapshot.repo?.repoRoot ?? baseline.repoRoot}/${file.path}`;
+              const content = await native.readFile(absolutePath);
+              if (content.kind === "text") counts = { added: countTextLines(content.content), removed: 0 };
+            } catch {
+              // Keep the file visible even if its contents are unavailable.
+            }
+          }
+          return {
+            path: file.path,
+            originalPath: file.originalPath,
+            repoRoot: snapshot.repo?.repoRoot ?? baseline.repoRoot,
+            added: counts.added,
+            removed: counts.removed,
+            untracked: file.untracked,
+          } satisfies AgentEditFile;
+        }));
+        if (!cancelled) setEditFiles(files);
+      })
+      .catch(() => {
+        if (!cancelled) setEditFiles([]);
+      });
+    return () => { cancelled = true; };
+  }, [cwd, timeline.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -689,13 +786,42 @@ export function AgentChatWorkspace({
       : "";
     const displayPrompt = prompt || (attachments.length > 0 ? "Please inspect the attached context." : "Continue from the attached conversation.");
     const composedPrompt = `${displayPrompt}${attachmentContext}${historyContext}`;
+    const baselineSnapshot = await native.gitPanelSnapshot(cwd).catch(() => null);
+    editBaselineRef.current = baselineSnapshot
+      ? createAgentEditBaseline(baselineSnapshot)
+      : null;
+    setEditFiles([]);
     const dispatch = timeline.status === "running" ? steer : submit;
     if (await dispatch(composedPrompt, selectedModel, displayPrompt, historyAttachments)) {
       setDraft("");
       revokeAttachmentPreviews(attachments);
       setAttachments([]);
       setHistoryAttachments([]);
+    } else {
+      editBaselineRef.current = null;
     }
+  };
+
+  const reviewEdits = () => {
+    for (const file of editFiles) {
+      onOpenFileDiff?.({
+        path: file.path,
+        repoRoot: file.repoRoot,
+        mode: "-",
+        originalPath: file.originalPath,
+      });
+    }
+  };
+
+  const undoEdits = async () => {
+    if (editFiles.length === 0) return;
+    const repoRoot = editFiles[0]?.repoRoot;
+    if (!repoRoot || editFiles.some((file) => file.repoRoot !== repoRoot)) return;
+    await native.gitDiscard(
+      repoRoot,
+      editFiles.map((file) => ({ path: file.path, untracked: file.untracked })),
+    );
+    setEditFiles([]);
   };
 
   const startVoiceToText = async () => {
@@ -808,6 +934,13 @@ export function AgentChatWorkspace({
               return <div key={item.id} className="rounded-lg border border-border/60 bg-card/35 px-3 py-2 text-xs"><div className="flex items-center justify-between gap-3"><span className="truncate font-medium text-foreground">{item.name}</span><span className="text-muted-foreground">{item.status}</span></div>{item.detail ? <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-muted-foreground">{item.detail}</pre> : null}</div>;
             })
           )}
+          {editFiles.length > 0 ? (
+            <AgentEditCard
+              files={editFiles}
+              onReview={reviewEdits}
+              onUndo={() => void undoEdits()}
+            />
+          ) : null}
           {timeline.status === "running" ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status" aria-label="Agent is responding">
               <AgentStateDot state="working" />

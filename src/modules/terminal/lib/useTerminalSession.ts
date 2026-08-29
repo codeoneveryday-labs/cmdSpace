@@ -92,8 +92,6 @@ const LOCAL_INPUT_ECHO_GRACE_MS = 180;
 const FONT_READY_TIMEOUT_MS = 1500;
 const OUTPUT_ACTIVITY_QUIET_MS = 900;
 
-ensureAgentActivityListener();
-
 /**
  * Rebind visible leaves after the window comes back from sleep/hibernation.
  * macOS freezes the webview while the machine sleeps; when timers resume, a
@@ -724,6 +722,10 @@ export function useTerminalSession({
   onAgentActivity,
   onOutputActivity,
 }: Options) {
+  useEffect(() => {
+    ensureAgentActivityListener();
+  }, []);
+
   const cbRef = useRef({ onSearchReady, onExit, onCwd, onCommand, onAgentActivity, onOutputActivity });
   cbRef.current = { onSearchReady, onExit, onCwd, onCommand, onAgentActivity, onOutputActivity };
 

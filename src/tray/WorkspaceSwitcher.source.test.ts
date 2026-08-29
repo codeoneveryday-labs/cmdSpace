@@ -94,12 +94,15 @@ describe("menu bar workspace switcher wiring", () => {
   });
 
   it("hands selection to the existing main-window workspace callback", () => {
-    const app = readFileSync(path.join(root, "src/app/App.tsx"), "utf8");
-    const tauri = readFileSync(path.join(root, "src-tauri/src/lib.rs"), "utf8");
+    const selection = readFileSync(
+      path.join(root, "src/app/lib/useWorkspaceSelectionController.ts"),
+      "utf8",
+    );
+    const tauri = readFileSync(path.join(root, "src-tauri/src/window_commands.rs"), "utf8");
 
-    expect(app).toContain("workspaceSelectionRequestRef");
-    expect(app).toContain("handleSelectWorkspaceRef.current(event.payload)");
-    expect(app).toContain('listen<string>("cmdspace:open-workspace"');
+    expect(selection).toContain("selectionRequestRef");
+    expect(selection).toContain("selectWorkspaceRef.current(event.payload)");
+    expect(selection).toContain('listen<string>("cmdspace:open-workspace"');
     expect(tauri).toContain("TrayIconBuilder::with_id(WORKSPACE_TRAY_ID)");
     expect(tauri).toContain('WebviewUrl::App("tray.html".into())');
     expect(tauri).toContain('"cmdspace:tray-opened"');
@@ -107,7 +110,7 @@ describe("menu bar workspace switcher wiring", () => {
   });
 
   it("uses the transparent monochrome menu bar asset instead of the app icon", () => {
-    const tauri = readFileSync(path.join(root, "src-tauri/src/lib.rs"), "utf8");
+    const tauri = readFileSync(path.join(root, "src-tauri/src/window_commands.rs"), "utf8");
 
     expect(existsSync(path.join(root, "src-tauri/icons/trayTemplate.png"))).toBe(
       true,

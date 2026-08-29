@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -19,7 +18,6 @@ import {
   type FloatingVoiceAgentHandle,
   type SpeechInputTarget,
 } from "@/modules/ai/components/FloatingVoiceAgent";
-import { AgentChatWorkspace } from "@/modules/ai/components/AgentChatWorkspace";
 import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import type { AgentDisplayState } from "@/modules/terminal/AgentStateDot";
 import {
@@ -30,21 +28,13 @@ import {
 import { developerVocabularyFromWorkspace } from "@/modules/ai/lib/developerVocabulary";
 import { native } from "@/modules/ai/lib/native";
 import {
-  ArchitectureStack,
-  serializeCanvasWorkspaceDiagram,
   type CanvasTerminalHandle,
 } from "@/modules/architecture";
 import {
-  AiDiffStack,
-  EditorStack,
-  GitDiffStack,
   NewEditorDialog,
   type EditorPaneHandle,
 } from "@/modules/editor";
-import {
-  GitHistoryStack,
-  type GitHistorySearchHandle,
-} from "@/modules/git-history";
+import type { GitHistorySearchHandle } from "@/modules/git-history";
 import { getLaunchDir } from "@/lib/launchDir";
 import { useZoom } from "@/lib/useZoom";
 import { FileExplorer, type FileExplorerHandle } from "@/modules/explorer";
@@ -53,12 +43,7 @@ import {
   type SearchInlineHandle,
   type SearchTarget,
 } from "@/modules/header";
-import { MarkdownStack } from "@/modules/markdown";
-import {
-  SidebarBrowserPane,
-  PreviewStack,
-  type PreviewPaneHandle,
-} from "@/modules/preview";
+import { SidebarBrowserPane, type PreviewPaneHandle } from "@/modules/preview";
 import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
@@ -75,14 +60,12 @@ import {
 import {
   EditorSidebarRail,
   SidebarRail,
-  type EditorSidebarViewId,
   type SidebarViewId,
 } from "@/modules/sidebar";
 import { SourceControlPanel, useSourceControl } from "@/modules/source-control";
 import { StatusBar } from "@/modules/statusbar";
 import {
   MAX_PANES_PER_TAB,
-  TerminalTab,
   useTabs,
   useWorkspaceCwd,
 } from "@/modules/tabs";
@@ -97,14 +80,11 @@ import {
   replaceSessionCommand,
   respawnSession,
   setTerminalResizePaused,
-  swapLeafNodes,
   BottomTerminalDrawer,
-  TerminalStack,
   type BottomTerminalDrawerHandle,
   type TerminalPaneHandle,
 } from "@/modules/terminal";
 import {
-  clearAgentCompleted,
   useAgentBlockedLeaves,
   useAgentCliCommands,
   useAgentCompletedLeaves,
@@ -119,6 +99,7 @@ import {
 import type { PaneNode } from "@/modules/terminal/lib/panes";
 import { ThemeProvider } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
+import { WorkspaceSurface } from "./WorkspaceSurface";
 import {
   getWslHome,
   LOCAL_WORKSPACE,
@@ -128,12 +109,10 @@ import {
 import {
   DEFAULT_WORKSPACE_ACCENT_COLOR,
   ImportSessionDialog,
-  normalizeWorkspaceAccentColor,
   WORKSPACE_ACCENT_COLORS,
   WorkspacesPanel,
   type WorkspaceTerminalItem,
   WorkspaceSetupView,
-  type WorkspaceItem,
   type WorkspaceMode,
   type ImportableAgentSession,
 } from "@/modules/workspaces";
@@ -142,7 +121,6 @@ import {
   buildSessionResumeCommand,
   isResumeCommand,
 } from "@/modules/workspaces/lib/importSessions";
-import { createWorkspaceOpenGate } from "./workspaceOpenGate";
 import {
   getWorkspaceLoadingPresentation,
   shouldSuppressBootstrapShell,
@@ -153,8 +131,6 @@ import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SearchAddon } from "@xterm/addon-search";
 import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -162,29 +138,24 @@ import {
   useState,
 } from "react";
 import {
-  CHROME_RESIZE_TRANSITION_MS,
-  ACTIVE_WORKSPACE_STORAGE_KEY,
-  SIDEBAR_BROWSER_URL_STORAGE_KEY,
-  SIDEBAR_COLLAPSE_WIDTH,
-  SIDEBAR_DEFAULT_WIDTH,
-  SIDEBAR_MAX_WIDTH,
-  SIDEBAR_MIN_WIDTH,
-  SIDEBAR_VIEW_STORAGE_KEY,
-  SIDEBAR_WIDTH_STORAGE_KEY,
   WORKSPACE_DELETE_CONFIRM_STORAGE_KEY,
   WORKSPACE_LIMIT,
-  WORKSPACE_MIN_WIDTH,
-  WORKSPACES_PANEL_COLLAPSE_WIDTH,
-  WORKSPACES_PANEL_COMPACT_BREAKPOINT,
   WORKSPACES_PANEL_COMPACT_WIDTH,
-  WORKSPACES_PANEL_MAX_WIDTH,
-  WORKSPACES_PANEL_MIN_WIDTH,
-  WORKSPACES_PANEL_WIDTH,
-  WORKSPACES_PANEL_WIDTH_STORAGE_KEY,
 } from "./constants";
 import { useWorkspacePersistence } from "./lib/useWorkspacePersistence";
+import { useAppLayout } from "./lib/useAppLayout";
+import { useAppLayoutResize } from "./lib/useAppLayoutResize";
 import {
-  useWorkspaceSelection,
+  useWorkspaceController,
+  type PersistedPaneRecord,
+  type WorkspaceRecord,
+} from "./lib/useWorkspaceController";
+import { useWorkspaceSelectionController } from "./lib/useWorkspaceSelectionController";
+import { useTerminalWorkspaceActions } from "./lib/useTerminalWorkspaceActions";
+import { useTerminalPaneActions } from "./lib/useTerminalPaneActions";
+import { useWorkspaceTerminalSelection } from "./lib/useWorkspaceTerminalSelection";
+import { AppChrome } from "./AppChrome";
+import {
   type WorkspaceSelectionPane,
 } from "./lib/useWorkspaceSelection";
 
@@ -199,20 +170,6 @@ function dirname(path: string | null): string | null {
 function canvasTerminalRefKey(tabId: number, terminalId: string): string {
   return `${tabId}:${terminalId}`;
 }
-
-function upsertWorkspacePane(
-  panes: readonly WorkspaceSelectionPane[],
-  pane: WorkspaceSelectionPane,
-): WorkspaceSelectionPane[] {
-  const next = [...panes];
-  const index = next.findIndex((item) => item.paneIndex === pane.paneIndex);
-  if (index === -1) next.push(pane);
-  else next[index] = pane;
-  next.sort((left, right) => left.paneIndex - right.paneIndex);
-  return next;
-}
-
-type PersistedPaneRecord = WorkspaceSelectionPane & { workspaceId: string };
 
 function paneRecordFromCommand(
   workspaceId: string,
@@ -323,75 +280,6 @@ function canvasWorkspaceDiagram(
   };
 }
 
-type WorkspaceRecord = WorkspaceItem & {
-  workingFolder: string | null;
-  createdAt: number;
-  updatedAt: number;
-  displayOrder: number;
-  paneLayout: string | null;
-  tabId: number | null;
-  canvasTabId: number | null;
-  agentProvider: CliAgent | null;
-  agentSessionId: string | null;
-  agentTabIds?: number[];
-  agentProviders?: CliAgent[];
-  agentSessionIds?: Array<string | null>;
-  agentChatIds?: string[];
-};
-
-type PersistedWorkspaceRecord = Omit<
-  WorkspaceRecord,
-  "accentColor" | "tabId" | "canvasTabId" | "agentProvider" | "agentSessionId" | "agentTabIds"
-> & {
-  accentColor?: string | null;
-  agentProvider?: CliAgent | null;
-  agentSessionId?: string | null;
-  agentProviders?: CliAgent[] | null;
-  agentSessionIds?: Array<string | null> | null;
-  agentChatIds?: string[] | null;
-};
-
-type PersistedRecentWorkspaceRecord = WorkspaceItem & {
-  workingFolder: string;
-  updatedAt: number;
-};
-
-function clampSidebarWidth(width: number, containerWidth?: number): number {
-  const maxWidth =
-    containerWidth && Number.isFinite(containerWidth)
-      ? Math.max(
-          SIDEBAR_MIN_WIDTH,
-          Math.min(SIDEBAR_MAX_WIDTH, containerWidth - WORKSPACE_MIN_WIDTH),
-        )
-      : SIDEBAR_MAX_WIDTH;
-  return Math.min(maxWidth, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
-}
-
-function shouldUseCompactWorkspacesPanel(width: number): boolean {
-  return width < WORKSPACES_PANEL_COMPACT_BREAKPOINT;
-}
-
-function clampWorkspacesPanelWidth(
-  width: number,
-  containerWidth?: number,
-  sidebarWidth = 0,
-): number {
-  const maxWidth =
-    containerWidth && Number.isFinite(containerWidth)
-      ? Math.max(
-          WORKSPACES_PANEL_MIN_WIDTH,
-          Math.min(
-            WORKSPACES_PANEL_MAX_WIDTH,
-            containerWidth - sidebarWidth - WORKSPACE_MIN_WIDTH,
-          ),
-        )
-      : WORKSPACES_PANEL_MAX_WIDTH;
-  return Math.min(
-    maxWidth,
-    Math.max(WORKSPACES_PANEL_MIN_WIDTH, Math.round(width)),
-  );
-}
-
 function formatWorkspaceName(index: number): string {
   return `workspace-${String(index).padStart(2, "0")}`;
 }
@@ -414,44 +302,6 @@ function workspaceAccentForIndex(index: number): string {
   );
 }
 
-function readSidebarWidth(): number {
-  try {
-    const stored = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
-    const parsed = stored ? Number.parseInt(stored, 10) : NaN;
-    return Number.isFinite(parsed)
-      ? clampSidebarWidth(parsed)
-      : SIDEBAR_DEFAULT_WIDTH;
-  } catch {
-    return SIDEBAR_DEFAULT_WIDTH;
-  }
-}
-
-function readWorkspacesPanelWidth(): number {
-  try {
-    const stored = window.localStorage.getItem(WORKSPACES_PANEL_WIDTH_STORAGE_KEY);
-    const parsed = stored ? Number.parseInt(stored, 10) : NaN;
-    return Number.isFinite(parsed)
-      ? clampWorkspacesPanelWidth(parsed)
-      : WORKSPACES_PANEL_WIDTH;
-  } catch {
-    return WORKSPACES_PANEL_WIDTH;
-  }
-}
-
-function readSidebarView(): SidebarViewId {
-  try {
-    const stored = window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY);
-    if (stored === "browser" || stored === "editor") {
-      return stored;
-    }
-    if (stored === "explorer") return "editor";
-    if (stored === "source-control") return "editor";
-  } catch {
-    // ignore
-  }
-  return "browser";
-}
-
 function readSkipWorkspaceDeleteConfirm(): boolean {
   try {
     return (
@@ -459,14 +309,6 @@ function readSkipWorkspaceDeleteConfirm(): boolean {
     );
   } catch {
     return false;
-  }
-}
-
-function readSidebarBrowserUrl(): string {
-  try {
-    return window.localStorage.getItem(SIDEBAR_BROWSER_URL_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
   }
 }
 
@@ -509,7 +351,6 @@ export default function App() {
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
 
-  const mainShellRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   const activeTerminalTab = useMemo(() => {
@@ -539,81 +380,64 @@ export default function App() {
   const explorerRef = useRef<FileExplorerHandle>(null);
   const explorerReturnFocusRef = useRef<HTMLElement | null>(null);
 
-  const sidebarSplitRef = useRef<HTMLDivElement | null>(null);
-  const sidebarResizeStartRef = useRef<{
-    open: boolean;
-    pointerX: number;
-    width: number;
-  } | null>(null);
-  const terminalResizeResumeTimerRef = useRef<number | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarResizing, setSidebarResizing] = useState(false);
-  const [workspacesPanelOpen, setWorkspacesPanelOpen] = useState(true);
-  const [workspacesPanelResizing, setWorkspacesPanelResizing] = useState(false);
-  const [workspacesPanelExpandedWidth, setWorkspacesPanelExpandedWidth] =
-    useState(readWorkspacesPanelWidth);
-  const workspacesPanelWidthRef = useRef(workspacesPanelExpandedWidth);
-  const workspacesPanelResizeStartRef = useRef<{
-    open: boolean;
-    pointerX: number;
-    width: number;
-  } | null>(null);
-  const [workspacesPanelCompact, setWorkspacesPanelCompact] = useState(() =>
-    typeof window === "undefined"
-      ? false
-      : shouldUseCompactWorkspacesPanel(window.innerWidth),
-  );
+  const {
+    mainShellRef,
+    sidebarSplitRef,
+    sidebarOpen,
+    setSidebarOpen,
+    sidebarWidth,
+    setSidebarWidth,
+    sidebarResizing,
+    setSidebarResizing,
+    sidebarView,
+    persistSidebarView,
+    editorSidebarView,
+    setEditorSidebarView,
+    sidebarBrowserUrl,
+    persistSidebarBrowserUrl,
+    workspacesPanelOpen,
+    setWorkspacesPanelOpen,
+    workspacesPanelResizing,
+    setWorkspacesPanelResizing,
+    workspacesPanelExpandedWidth,
+    setWorkspacesPanelExpandedWidth,
+    workspacesPanelCompact,
+    sidebarWidthRef,
+    workspacesPanelWidthRef,
+    sidebarResizeStartRef,
+    workspacesPanelResizeStartRef,
+  } = useAppLayout();
   const workspacesPanelWidth = workspacesPanelCompact
     ? WORKSPACES_PANEL_COMPACT_WIDTH
     : workspacesPanelExpandedWidth;
-  const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
-  const sidebarWidthRef = useRef(sidebarWidth);
-  const [sidebarView, setSidebarViewState] =
-    useState<SidebarViewId>(readSidebarView);
-  const [editorSidebarView, setEditorSidebarView] =
-    useState<EditorSidebarViewId>("files");
-  const [sidebarBrowserUrl, setSidebarBrowserUrl] = useState(
-    readSidebarBrowserUrl,
-  );
-  const persistSidebarView = useCallback((view: SidebarViewId) => {
-    setSidebarViewState(view);
-    try {
-      window.localStorage.setItem(SIDEBAR_VIEW_STORAGE_KEY, view);
-    } catch {
-      // storage may fail in private mode
-    }
-  }, []);
-  const persistSidebarBrowserUrl = useCallback((url: string) => {
-    setSidebarBrowserUrl(url);
-    try {
-      window.localStorage.setItem(SIDEBAR_BROWSER_URL_STORAGE_KEY, url);
-    } catch {
-      // storage may fail in private mode
-    }
-  }, []);
-  const clearTerminalResizeResumeTimer = useCallback(() => {
-    if (terminalResizeResumeTimerRef.current === null) return;
-    window.clearTimeout(terminalResizeResumeTimerRef.current);
-    terminalResizeResumeTimerRef.current = null;
-  }, []);
-  const pauseTerminalResizeForChromeTransition = useCallback(() => {
-    clearTerminalResizeResumeTimer();
-    setTerminalResizePaused(true);
-    terminalResizeResumeTimerRef.current = window.setTimeout(() => {
-      terminalResizeResumeTimerRef.current = null;
-      requestAnimationFrame(() => {
-        if (!sidebarResizeStartRef.current) {
-          setTerminalResizePaused(false);
-        }
-      });
-    }, CHROME_RESIZE_TRANSITION_MS);
-  }, [clearTerminalResizeResumeTimer]);
-  useEffect(() => {
-    return () => {
-      clearTerminalResizeResumeTimer();
-      setTerminalResizePaused(false);
-    };
-  }, [clearTerminalResizeResumeTimer]);
+  const {
+    pauseTerminalResizeForChromeTransition,
+    handleWorkspacesPanelResizeStart,
+    handleWorkspacesPanelResizeKeyDown,
+    handleSidebarResizeStart,
+    handleSidebarResizeKeyDown,
+  } = useAppLayoutResize({
+    mainShellRef,
+    sidebarSplitRef,
+    sidebarResizeStartRef,
+    workspacesPanelResizeStartRef,
+    sidebarOpen,
+    sidebarWidth,
+    workspacesPanelOpen,
+    workspacesPanelCompact,
+    workspacesPanelWidth,
+    workspacesPanelResizing,
+    sidebarResizing,
+    sidebarWidthRef,
+    workspacesPanelWidthRef,
+    setSidebarOpen,
+    setSidebarWidth,
+    setSidebarResizing,
+    setWorkspacesPanelOpen,
+    setWorkspacesPanelExpandedWidth,
+    setWorkspacesPanelResizing,
+    setTerminalResizePaused,
+  });
   const toggleSidebar = useCallback(() => {
     pauseTerminalResizeForChromeTransition();
     setSidebarOpen((open) => !open);
@@ -633,44 +457,6 @@ export default function App() {
     setWorkspacesPanelOpen(false);
     setSidebarOpen(false);
   }, [canvasFocused, pauseTerminalResizeForChromeTransition]);
-  useEffect(() => {
-    const shell = mainShellRef.current;
-    const updateWorkspacesPanelMode = (width?: number) => {
-      const nextWidth =
-        width ?? shell?.getBoundingClientRect().width ?? window.innerWidth;
-      setWorkspacesPanelCompact(shouldUseCompactWorkspacesPanel(nextWidth));
-      const clampedWidth = clampWorkspacesPanelWidth(
-        workspacesPanelWidthRef.current,
-        nextWidth,
-        sidebarOpen ? sidebarWidthRef.current : 0,
-      );
-      if (clampedWidth !== workspacesPanelWidthRef.current) {
-        workspacesPanelWidthRef.current = clampedWidth;
-        setWorkspacesPanelExpandedWidth(clampedWidth);
-      }
-    };
-
-    updateWorkspacesPanelMode();
-    const onWindowResize = () => updateWorkspacesPanelMode();
-
-    if (!shell || typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", onWindowResize);
-      return () => {
-        window.removeEventListener("resize", onWindowResize);
-      };
-    }
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      updateWorkspacesPanelMode(entries[0]?.contentRect.width);
-    });
-    resizeObserver.observe(shell);
-
-    window.addEventListener("resize", onWindowResize);
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", onWindowResize);
-    };
-  }, [sidebarOpen]);
   const cycleSidebarView = useCallback(
     (view: SidebarViewId) => {
       if (view !== sidebarView) {
@@ -689,288 +475,6 @@ export default function App() {
       sidebarView,
     ],
   );
-  const rememberSidebarWidth = useCallback((next: number) => {
-    const containerWidth =
-      sidebarSplitRef.current?.getBoundingClientRect().width;
-    const width = clampSidebarWidth(next, containerWidth);
-    sidebarWidthRef.current = width;
-    setSidebarWidth(width);
-  }, []);
-  const persistRememberedSidebarWidth = useCallback(() => {
-    try {
-      window.localStorage.setItem(
-        SIDEBAR_WIDTH_STORAGE_KEY,
-        String(sidebarWidthRef.current),
-      );
-    } catch {
-      // ignore
-    }
-  }, []);
-  const rememberWorkspacesPanelWidth = useCallback(
-    (next: number) => {
-      const containerWidth = mainShellRef.current?.getBoundingClientRect().width;
-      const width = clampWorkspacesPanelWidth(
-        next,
-        containerWidth,
-        sidebarOpen ? sidebarWidthRef.current : 0,
-      );
-      workspacesPanelWidthRef.current = width;
-      setWorkspacesPanelExpandedWidth(width);
-    },
-    [sidebarOpen],
-  );
-  const persistRememberedWorkspacesPanelWidth = useCallback(() => {
-    try {
-      window.localStorage.setItem(
-        WORKSPACES_PANEL_WIDTH_STORAGE_KEY,
-        String(workspacesPanelWidthRef.current),
-      );
-    } catch {
-      // ignore
-    }
-  }, []);
-  const resumeTerminalResizeAfterSidebarDrag = useCallback(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (
-          !sidebarResizeStartRef.current &&
-          !workspacesPanelResizeStartRef.current
-        ) {
-          setTerminalResizePaused(false);
-        }
-      });
-    });
-  }, []);
-  const collapseWorkspacesPanelFromResize = useCallback(() => {
-    workspacesPanelResizeStartRef.current = null;
-    setWorkspacesPanelOpen(false);
-    persistRememberedWorkspacesPanelWidth();
-    resumeTerminalResizeAfterSidebarDrag();
-    requestAnimationFrame(() => setWorkspacesPanelResizing(false));
-  }, [
-    persistRememberedWorkspacesPanelWidth,
-    resumeTerminalResizeAfterSidebarDrag,
-  ]);
-  const collapseSidebarFromResize = useCallback(() => {
-    sidebarResizeStartRef.current = null;
-    setSidebarOpen(false);
-    persistRememberedSidebarWidth();
-    resumeTerminalResizeAfterSidebarDrag();
-    requestAnimationFrame(() => setSidebarResizing(false));
-  }, [persistRememberedSidebarWidth, resumeTerminalResizeAfterSidebarDrag]);
-  const handleWorkspacesPanelResizeStart = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (workspacesPanelCompact) return;
-      event.preventDefault();
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      clearTerminalResizeResumeTimer();
-      setTerminalResizePaused(true);
-      workspacesPanelResizeStartRef.current = {
-        open: workspacesPanelOpen,
-        pointerX: event.clientX,
-        width: workspacesPanelOpen ? workspacesPanelWidthRef.current : 0,
-      };
-      setWorkspacesPanelResizing(true);
-    },
-    [clearTerminalResizeResumeTimer, workspacesPanelCompact, workspacesPanelOpen],
-  );
-  const handleWorkspacesPanelResizeMove = useCallback(
-    (event: PointerEvent) => {
-      const start = workspacesPanelResizeStartRef.current;
-      if (!start || workspacesPanelCompact) return;
-      event.preventDefault();
-      const nextWidth = start.width + (event.clientX - start.pointerX);
-      const reopeningPanel = !start.open;
-      if (reopeningPanel) {
-        if (nextWidth > WORKSPACES_PANEL_COLLAPSE_WIDTH) {
-          setWorkspacesPanelOpen(true);
-          rememberWorkspacesPanelWidth(nextWidth);
-        }
-        return;
-      }
-      if (nextWidth <= WORKSPACES_PANEL_COLLAPSE_WIDTH) {
-        collapseWorkspacesPanelFromResize();
-        return;
-      }
-      rememberWorkspacesPanelWidth(nextWidth);
-    },
-    [
-      collapseWorkspacesPanelFromResize,
-      rememberWorkspacesPanelWidth,
-      workspacesPanelCompact,
-    ],
-  );
-  const handleWorkspacesPanelResizeEnd = useCallback(() => {
-    if (!workspacesPanelResizeStartRef.current) return;
-    workspacesPanelResizeStartRef.current = null;
-    setWorkspacesPanelResizing(false);
-    persistRememberedWorkspacesPanelWidth();
-    resumeTerminalResizeAfterSidebarDrag();
-  }, [
-    persistRememberedWorkspacesPanelWidth,
-    resumeTerminalResizeAfterSidebarDrag,
-  ]);
-  const handleSidebarResizeStart = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      clearTerminalResizeResumeTimer();
-      setTerminalResizePaused(true);
-      sidebarResizeStartRef.current = {
-        open: sidebarOpen,
-        pointerX: event.clientX,
-        width: sidebarOpen ? sidebarWidthRef.current : 0,
-      };
-      setSidebarResizing(true);
-    },
-    [clearTerminalResizeResumeTimer, sidebarOpen],
-  );
-  const handleSidebarResizeMove = useCallback(
-    (event: PointerEvent) => {
-      const start = sidebarResizeStartRef.current;
-      if (!start) return;
-      event.preventDefault();
-      const nextWidth = start.width - (event.clientX - start.pointerX);
-      const reopeningSidebar = !start.open;
-      if (reopeningSidebar) {
-        if (nextWidth > SIDEBAR_COLLAPSE_WIDTH) {
-          setSidebarOpen(true);
-          rememberSidebarWidth(nextWidth);
-        }
-        return;
-      }
-      if (nextWidth <= SIDEBAR_COLLAPSE_WIDTH) {
-        collapseSidebarFromResize();
-        return;
-      }
-      rememberSidebarWidth(nextWidth);
-    },
-    [collapseSidebarFromResize, rememberSidebarWidth],
-  );
-  const handleSidebarResizeEnd = useCallback(() => {
-    if (!sidebarResizeStartRef.current) return;
-    sidebarResizeStartRef.current = null;
-    setSidebarResizing(false);
-    persistRememberedSidebarWidth();
-    resumeTerminalResizeAfterSidebarDrag();
-  }, [persistRememberedSidebarWidth, resumeTerminalResizeAfterSidebarDrag]);
-  useEffect(() => {
-    if (!workspacesPanelResizing) return;
-    window.addEventListener("pointermove", handleWorkspacesPanelResizeMove);
-    window.addEventListener("pointerup", handleWorkspacesPanelResizeEnd);
-    window.addEventListener("pointercancel", handleWorkspacesPanelResizeEnd);
-    window.addEventListener("blur", handleWorkspacesPanelResizeEnd);
-    return () => {
-      window.removeEventListener("pointermove", handleWorkspacesPanelResizeMove);
-      window.removeEventListener("pointerup", handleWorkspacesPanelResizeEnd);
-      window.removeEventListener("pointercancel", handleWorkspacesPanelResizeEnd);
-      window.removeEventListener("blur", handleWorkspacesPanelResizeEnd);
-    };
-  }, [
-    handleWorkspacesPanelResizeEnd,
-    handleWorkspacesPanelResizeMove,
-    workspacesPanelResizing,
-  ]);
-  useEffect(() => {
-    if (!sidebarResizing) return;
-    window.addEventListener("pointermove", handleSidebarResizeMove);
-    window.addEventListener("pointerup", handleSidebarResizeEnd);
-    window.addEventListener("pointercancel", handleSidebarResizeEnd);
-    window.addEventListener("blur", handleSidebarResizeEnd);
-    return () => {
-      window.removeEventListener("pointermove", handleSidebarResizeMove);
-      window.removeEventListener("pointerup", handleSidebarResizeEnd);
-      window.removeEventListener("pointercancel", handleSidebarResizeEnd);
-      window.removeEventListener("blur", handleSidebarResizeEnd);
-    };
-  }, [handleSidebarResizeEnd, handleSidebarResizeMove, sidebarResizing]);
-  const nudgeWorkspacesPanelWidth = useCallback(
-    (delta: number) => {
-      if (workspacesPanelCompact) return;
-      const nextWidth = (workspacesPanelOpen ? workspacesPanelWidth : 0) + delta;
-      if (nextWidth <= WORKSPACES_PANEL_COLLAPSE_WIDTH) {
-        setWorkspacesPanelOpen(false);
-        persistRememberedWorkspacesPanelWidth();
-        return;
-      }
-      setWorkspacesPanelOpen(true);
-      rememberWorkspacesPanelWidth(nextWidth);
-      persistRememberedWorkspacesPanelWidth();
-    },
-    [
-      persistRememberedWorkspacesPanelWidth,
-      rememberWorkspacesPanelWidth,
-      workspacesPanelCompact,
-      workspacesPanelOpen,
-      workspacesPanelWidth,
-    ],
-  );
-  const handleWorkspacesPanelResizeKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (workspacesPanelCompact) return;
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        nudgeWorkspacesPanelWidth(-16);
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        nudgeWorkspacesPanelWidth(16);
-      } else if (event.key === "Home") {
-        event.preventDefault();
-        setWorkspacesPanelOpen(true);
-        rememberWorkspacesPanelWidth(WORKSPACES_PANEL_MIN_WIDTH);
-        persistRememberedWorkspacesPanelWidth();
-      } else if (event.key === "End") {
-        event.preventDefault();
-        setWorkspacesPanelOpen(true);
-        rememberWorkspacesPanelWidth(WORKSPACES_PANEL_MAX_WIDTH);
-        persistRememberedWorkspacesPanelWidth();
-      }
-    },
-    [
-      nudgeWorkspacesPanelWidth,
-      persistRememberedWorkspacesPanelWidth,
-      rememberWorkspacesPanelWidth,
-      workspacesPanelCompact,
-    ],
-  );
-  const handleSidebarResizeKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        setSidebarOpen(true);
-        rememberSidebarWidth((sidebarOpen ? sidebarWidth : 0) + 16);
-        persistRememberedSidebarWidth();
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        const nextWidth = (sidebarOpen ? sidebarWidth : 0) - 16;
-        if (nextWidth <= SIDEBAR_COLLAPSE_WIDTH) {
-          setSidebarOpen(false);
-          persistRememberedSidebarWidth();
-          return;
-        }
-        setSidebarOpen(true);
-        rememberSidebarWidth(nextWidth);
-        persistRememberedSidebarWidth();
-      } else if (event.key === "Home") {
-        event.preventDefault();
-        setSidebarOpen(true);
-        rememberSidebarWidth(SIDEBAR_MIN_WIDTH);
-        persistRememberedSidebarWidth();
-      } else if (event.key === "End") {
-        event.preventDefault();
-        setSidebarOpen(true);
-        rememberSidebarWidth(SIDEBAR_MAX_WIDTH);
-        persistRememberedSidebarWidth();
-      }
-    },
-    [
-      persistRememberedSidebarWidth,
-      rememberSidebarWidth,
-      sidebarOpen,
-      sidebarWidth,
-    ],
-  );
-
   const toggleExplorerFocus = useCallback(() => {
     const explorer = explorerRef.current;
     if (sidebarView !== "editor" || !sidebarOpen) {
@@ -1015,30 +519,36 @@ export default function App() {
   const setWorkspaceEnv = useWorkspaceEnvStore((s) => s.setEnv);
   const [launchCwd, setLaunchCwd] = useState<string | null>(null);
   const [launchCwdResolved, setLaunchCwdResolved] = useState(false);
-  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
-  const [openingWorkspaceId, setOpeningWorkspaceId] = useState<string | null>(null);
-  const [persistedWorkspacePanes, setPersistedWorkspacePanes] = useState<
-    Record<string, WorkspaceSelectionPane[]>
-  >({});
-  const persistedWorkspacePanesRef = useRef(persistedWorkspacePanes);
-  persistedWorkspacePanesRef.current = persistedWorkspacePanes;
+  const {
+    workspaces,
+    setWorkspaces,
+    recentWorkspaces,
+    persistedWorkspacePanes,
+    setPersistedWorkspacePanes,
+    persistedWorkspacePanesRef,
+    workspacesHydrated,
+    persistedPaneFor,
+    persistPaneRecord,
+    saveRecentWorkspace,
+    renameWorkspace,
+    changeWorkspaceColor,
+    reorderWorkspaces,
+    deleteWorkspace: removeWorkspace,
+    createWorkspace,
+    createWorkspaceTerminal,
+    importAgentSession,
+  } = useWorkspaceController({ updateTab });
   const reservedNativeSessionIdsRef = useRef<Map<string, string>>(new Map());
   const workspacePaneLaunchAtRef = useRef<Map<string, number>>(new Map());
   const workspacePaneSyncTimersRef = useRef<Map<string, number[]>>(new Map());
-  const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceItem[]>([]);
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
   const [workspaceForkContext, setWorkspaceForkContext] = useState<{
     provider: CliAgent;
     cwd: string;
     attachment: AgentChatHistoryAttachment;
   } | null>(null);
-  const [workspacesHydrated, setWorkspacesHydrated] = useState(false);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const workspacesRef = useRef(workspaces);
-  const workspaceOpenGateRef = useRef(createWorkspaceOpenGate());
-  const workspaceSelectionRequestRef = useRef(0);
-  const initialWorkspaceActivationHandledRef = useRef(false);
-  const pendingBootstrapCloseRef = useRef(false);
   const pendingWorkspaceTerminalRef = useRef<{ workspaceId: string; leafId: number } | null>(null);
   const persistCanvasDiagramRef = useRef<
     ((tabId: number, diagram: ArchitectureDiagram) => void) | null
@@ -1050,59 +560,11 @@ export default function App() {
     workspacesRef.current = workspaces;
   }, [workspaces]);
 
-  const setPersistedPaneRecord = useCallback(
-    (pane: PersistedPaneRecord) => {
-      const { workspaceId, ...persistedPane } = pane;
-      setPersistedWorkspacePanes((current) => ({
-        ...current,
-        [workspaceId]: upsertWorkspacePane(
-          current[workspaceId] ?? [],
-          persistedPane,
-        ),
-      }));
-    },
-    [],
-  );
-
-  const persistedPaneFor = useCallback(
-    (workspaceId: string, paneIndex: number) =>
-      persistedWorkspacePanesRef.current[workspaceId]?.find(
-        (pane) => pane.paneIndex === paneIndex,
-      ),
-    [],
-  );
-
-  const persistPaneRecord = useCallback(
-    async (pane: PersistedPaneRecord) => {
-      setPersistedPaneRecord(pane);
-      await invoke("db_save_pane", { pane });
-    },
-    [setPersistedPaneRecord],
-  );
-
   useEffect(() => {
     if (workspacesHydrated && workspaces.length === 0) {
       setWorkspaceSetupOpen(true);
     }
   }, [workspacesHydrated, workspaces.length]);
-
-  const saveRecentWorkspace = useCallback((workspace: WorkspaceItem) => {
-    if (!workspace.workingFolder) return;
-    const recent = {
-      id: workspace.id,
-      name: workspace.name,
-      count: workspace.count,
-      accentColor: workspace.accentColor,
-      workingFolder: workspace.workingFolder,
-      updatedAt: Date.now(),
-    };
-    setRecentWorkspaces((current) =>
-      [recent, ...current.filter((item) => item.id !== recent.id)].slice(0, 6),
-    );
-    invoke("db_save_recent_workspace", { workspace: recent }).catch((err) => {
-      console.error("Failed to save recent workspace to SQLite:", err);
-    });
-  }, []);
 
   const syncWorkspacePaneNativeSessions = useCallback(
     async (workspaceId: string, workspaceCwd: string | null) => {
@@ -1209,68 +671,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    invoke<PersistedWorkspaceRecord[]>("db_list_workspaces")
-      .then((list) => {
-        // Set tabId to null on startup for all records
-        const hydrated = list.map((w, index): WorkspaceRecord => ({
-          ...w,
-          accentColor: normalizeWorkspaceAccentColor(
-            w.accentColor,
-            workspaceAccentForIndex(index),
-          ),
-          paneLayout: w.paneLayout ?? null,
-          tabId: null,
-          canvasTabId: null,
-          workspaceMode:
-            w.workspaceMode === "canvas"
-              ? "canvas"
-              : w.workspaceMode === "agent"
-                ? "agent"
-                : "standard",
-          agentProvider: w.agentProvider ?? null,
-          agentSessionId: w.agentSessionId ?? null,
-          agentTabIds: [],
-          agentProviders: w.agentProviders ?? [],
-          agentSessionIds: w.agentSessionIds ?? [],
-          agentChatIds: w.agentChatIds ?? [],
-        }));
-        setWorkspaces(hydrated);
-        setWorkspacesHydrated(true);
-        void Promise.all(
-          hydrated.map(async (workspace) => {
-            try {
-              const panes = await invoke<WorkspaceSelectionPane[]>(
-                "db_list_panes",
-                { workspaceId: workspace.id },
-              );
-              return [workspace.id, panes] as const;
-            } catch {
-              return [workspace.id, []] as const;
-            }
-          }),
-        ).then((entries) => setPersistedWorkspacePanes(Object.fromEntries(entries)));
-        if (hydrated.length === 0) setWorkspaceSetupOpen(true);
-      })
-      .catch((err) => {
-        console.error("Failed to load workspaces from SQLite:", err);
-      });
-    invoke<PersistedRecentWorkspaceRecord[]>("db_list_recent_workspaces")
-      .then((list) => {
-        setRecentWorkspaces(
-          list.map((workspace, index) => ({
-            ...workspace,
-            accentColor: normalizeWorkspaceAccentColor(
-              workspace.accentColor,
-              workspaceAccentForIndex(index),
-            ),
-          })),
-        );
-      })
-      .catch((err) => {
-        console.error("Failed to load recent workspaces from SQLite:", err);
-      });
-  }, []);
   const [pendingDeleteTabs, setPendingDeleteTabs] = useState<number[] | null>(
     null,
   );
@@ -1930,163 +1330,39 @@ export default function App() {
       workspaceAgents: CliAgent[] = [],
       initialAgentDraft = "",
       initialHistoryAttachments: AgentChatHistoryAttachment[] = [],
-    ): Promise<WorkspaceRecord | null> => {
-      const fallbackName = nextWorkspaceName(workspaces);
-      if (fallbackName === null) {
-        window.alert("Workspace limit reached (99).");
-        return null;
-      }
-      const name = requestedName?.trim() || fallbackName;
-
-      const effectiveWorkingFolder =
-        workingFolder ?? inheritedCwdForNewTab() ?? null;
-      const paneLaunchPlan =
-        initialCommands.length > 0 || workspaceMode === "canvas"
-          ? Array.from({ length: terminalCount }, (_, paneIndex) => ({
-              paneIndex,
-              workingFolder: effectiveWorkingFolder,
-              lastCommand: initialCommands[paneIndex] ?? null,
-              autoLaunch: Boolean(initialCommands[paneIndex]),
-            }))
-          : undefined;
-      const canvasDiagram =
-        workspaceMode === "canvas"
-          ? canvasWorkspaceDiagram(
-              terminalCount,
-              effectiveWorkingFolder,
-              initialCommands,
-            )
-          : null;
-      const now = Date.now();
-      const wsId = `workspace-tab-${now}-${Math.random().toString(36).slice(2, 9)}`;
-      const agentProviders =
-        workspaceMode === "agent"
-          ? (workspaceAgents.length > 0
-              ? workspaceAgents
-              : workspaceAgent
-                ? [workspaceAgent]
-                : []
-            ).slice(0, 12)
-          : [];
-      const agentChatIds = workspaceMode === "agent"
-        ? agentProviders.map((_, index) => `${wsId}:chat:${index + 1}`)
-        : [];
-      const agentTabIds =
-        workspaceMode === "agent"
-          ? (workspaceAgents.length > 0
-              ? workspaceAgents
-              : workspaceAgent
-                ? [workspaceAgent]
-                : []
-            )
-              .slice(0, 12)
-              .map((provider, index) =>
-                newAgentChatTab({
-                  title: `${name} · ${index + 1}`,
-                  provider,
-                  cwd: effectiveWorkingFolder ?? "",
-                  nativeSessionId: null,
-                  chatId: agentChatIds[index],
-                  initialDraft: index === 0 ? initialAgentDraft : undefined,
-                  initialHistoryAttachments: index === 0 ? initialHistoryAttachments : undefined,
-                }),
-              )
-          : [];
-      const tabId = workspaceMode === "canvas"
-        ? null
-        : workspaceMode === "agent"
-          ? agentTabIds[0] ?? null
-          : newWorkspaceTab(
-              effectiveWorkingFolder ?? undefined,
-              terminalCount,
-              paneLaunchPlan,
-              null,
-              name,
-            );
-      const canvasTabId =
-        canvasDiagram
-          ? newArchitectureTab(canvasDiagram, name)
-          : null;
-
-      const newWs: WorkspaceRecord = {
-        id: wsId,
-        name,
-        count: workspaceMode === "agent" ? agentTabIds.length : terminalCount,
-        accentColor: normalizeWorkspaceAccentColor(
-          requestedColor,
-          workspaceAccentForIndex(workspaces.length),
-        ),
-        workingFolder: effectiveWorkingFolder,
-        createdAt: now,
-        updatedAt: now,
-        displayOrder: workspaces.length,
-        paneLayout: canvasDiagram
-          ? serializeCanvasWorkspaceDiagram(canvasDiagram)
-          : null,
-        tabId: workspaceMode === "canvas" ? null : tabId,
-        canvasTabId,
+    ): Promise<WorkspaceRecord | null> =>
+      createWorkspace({
+        terminalCount,
+        workingFolder,
+        initialCommands,
+        requestedName,
+        requestedColor,
         workspaceMode,
-        agentProvider: workspaceMode === "agent" ? workspaceAgent : null,
-        agentSessionId: null,
-        agentTabIds,
-        agentProviders,
-        agentSessionIds: workspaceMode === "agent"
-          ? agentProviders.map(() => null)
-          : [],
-        agentChatIds,
-      };
-      saveRecentWorkspace(newWs);
-
-      const savePaneLaunchPlan = () => {
-        if (!paneLaunchPlan) return;
-        for (const pane of paneLaunchPlan) {
-          void persistPaneRecord(
-            paneRecordFromCommand(
-              wsId,
-              pane.paneIndex,
-              pane.workingFolder,
-              pane.lastCommand,
-              pane.autoLaunch,
-            ),
-          ).catch((err) => {
-            console.error(
-              "Failed to save workspace agent pane to SQLite:",
-              err,
-            );
-          });
-        }
-      };
-
-      try {
-        await invoke("db_save_workspace", { workspace: newWs });
-        savePaneLaunchPlan();
-      } catch (err) {
-        console.error("Failed to save workspace to SQLite:", err);
-      }
-      setWorkspaces((current) => [...current, newWs]);
-      setWorkspaceSetupOpen(false);
-      const activatedTabId = tabId ?? canvasTabId;
-      if (activatedTabId !== null) setActiveId(activatedTabId);
-      const bootstrapTab = tabsRef.current.find(
-        (tab) => tab.id === 1 && tab.title === "shell",
-      );
-      if (bootstrapTab && tabsRef.current.length > 1) {
-        closeTab(bootstrapTab.id);
-      }
-      return newWs;
-    },
+        workspaceAgent,
+        workspaceAgents,
+        initialAgentDraft,
+        initialHistoryAttachments,
+        inheritedCwd: inheritedCwdForNewTab(),
+        nextWorkspaceName,
+        tabs: tabsRef.current,
+        newAgentChatTab,
+        newWorkspaceTab,
+        newArchitectureTab,
+        closeTab,
+        setActiveId,
+        closeSetup: () => setWorkspaceSetupOpen(false),
+        alert: (message) => window.alert(message),
+      }),
     [
-      inheritedCwdForNewTab,
       closeTab,
-      newArchitectureTab,
+      createWorkspace,
+      inheritedCwdForNewTab,
       newAgentChatTab,
+      newArchitectureTab,
       newWorkspaceTab,
-      persistPaneRecord,
-      saveRecentWorkspace,
-      workspaces,
+      setActiveId,
     ],
   );
-
   const handleWorkspaceSetupCancel = useCallback(() => {
     if (workspacesHydrated && workspaces.length === 0) return;
     setWorkspaceSetupOpen(false);
@@ -2142,178 +1418,66 @@ export default function App() {
     },
     [newAgentChatTab, saveRecentWorkspace],
   );
-
-  const selectWorkspace = useWorkspaceSelection({
+  const {
+    handleSelectWorkspace,
+    openingWorkspaceId,
+    initialActivationHandled,
+    pendingBootstrapCloseRef,
+  } = useWorkspaceSelectionController({
     workspaces,
     tabs,
+    activeWorkspaceId,
+    workspacesHydrated,
+    setWorkspaces,
     closeWorkspaceSetup: () => setWorkspaceSetupOpen(false),
     saveRecentWorkspace,
     activateTab: setActiveId,
-    updateCanvasTabDiagram: (tabId, diagram) => {
-      updateTab(tabId, { diagram });
-    },
+    updateTab: (tabId, patch) => updateTab(tabId, patch),
     persistCanvasDiagram: (tabId, diagram) => {
       persistCanvasDiagramRef.current?.(tabId, diagram);
     },
     createCanvasTab: newArchitectureTab,
     createAgentChatTab: newAgentChatTab,
     createWorkspaceTab: newWorkspaceTab,
-    replaceWorkspace: (workspaceId, patch) => {
-      const current = workspacesRef.current;
-      workspacesRef.current = current.map((workspace) =>
-        workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
-      );
-      setWorkspaces((current) =>
-        current.map((workspace) =>
-          workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
-        ),
-      );
-    },
-    listWorkspacePanes: (workspaceId) =>
-      invoke<WorkspaceSelectionPane[]>("db_list_panes", { workspaceId }),
-    resolvePaneResumeCommands: async (workspaceId, panes, workspaceCwd) => {
-      if (!workspaceCwd) return panes;
-      const resolved = await syncWorkspacePaneNativeSessions(
-        workspaceId,
-        workspaceCwd,
-      );
-      return resolved.length > 0 ? resolved : panes;
-    },
+    syncWorkspacePaneNativeSessions,
     buildCanvasWorkspaceDiagram: canvasWorkspaceDiagram,
-    onLoadCanvasWorkspacePanesError: (err) => {
-      console.error("Failed to load canvas workspace panes from SQLite:", err);
-    },
-    onLoadWorkspacePanesError: (err) => {
-      console.error("Failed to load workspace panes from SQLite:", err);
-    },
   });
 
-  const handleSelectWorkspace = useCallback(
-    (workspaceId: string) => {
-      const requestId = ++workspaceSelectionRequestRef.current;
-      window.localStorage.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, workspaceId);
-      const workspace = workspacesRef.current.find((item) => item.id === workspaceId);
-      const existingTabId = workspace?.tabId ?? workspace?.canvasTabId;
-      if (existingTabId !== null && existingTabId !== undefined) {
-        setActiveId(existingTabId);
-        return;
-      }
-      if (workspaceOpenGateRef.current.isOpening(workspaceId)) return;
-      setOpeningWorkspaceId(workspaceId);
-      void workspaceOpenGateRef.current
-        .open(workspaceId, () =>
-          selectWorkspace(
-            workspaceId,
-            () => requestId === workspaceSelectionRequestRef.current,
-          ),
-        )
-        .finally(() => setOpeningWorkspaceId((current) => current === workspaceId ? null : current));
-    },
-    [selectWorkspace, setActiveId],
-  );
-
-  const handleSelectWorkspaceRef = useRef(handleSelectWorkspace);
-  handleSelectWorkspaceRef.current = handleSelectWorkspace;
-
-  useEffect(() => {
-    if (
-      !workspacesHydrated ||
-      workspaces.length === 0 ||
-      activeWorkspaceId !== null ||
-      pendingBootstrapCloseRef.current
-    ) {
-      return;
-    }
-    initialWorkspaceActivationHandledRef.current = true;
-    const storedWorkspaceId = window.localStorage.getItem(
-      ACTIVE_WORKSPACE_STORAGE_KEY,
-    );
-    const firstWorkspace =
-      workspaces.find((workspace) => workspace.id === storedWorkspaceId) ??
-      workspaces[0];
-    if (!firstWorkspace) return;
-    pendingBootstrapCloseRef.current = true;
-    handleSelectWorkspace(firstWorkspace.id);
-  }, [activeWorkspaceId, handleSelectWorkspace, workspaces, workspacesHydrated]);
-
-  useEffect(() => {
-    if (!pendingBootstrapCloseRef.current || activeWorkspaceId === null) {
-      return;
-    }
-    const bootstrapTab = tabs.find(
-      (tab) => tab.id === 1 && tab.title === "shell",
-    );
-    if (bootstrapTab && tabs.length > 1) {
-      closeTab(bootstrapTab.id);
-    }
-    pendingBootstrapCloseRef.current = false;
-  }, [activeWorkspaceId, closeTab, tabs]);
-
-  useEffect(() => {
-    const unlisten = listen<string>("cmdspace:open-workspace", (event) => {
-      handleSelectWorkspaceRef.current(event.payload);
-    });
-
-    return () => {
-      void unlisten.then((dispose) => dispose());
-    };
-  }, []);
+  const initialWorkspaceActivationHandledRef = {
+    current: initialActivationHandled,
+  };
 
   const deleteWorkspace = useCallback(
     (workspaceId: string) => {
       if (workspacesRef.current.length <= 1) return;
-      const workspace = workspacesRef.current.find(
-        (item) => item.id === workspaceId,
-      );
+      const workspace = workspacesRef.current.find((item) => item.id === workspaceId);
       if (!workspace) return;
-
       const workspaceTabIds = new Set(
-        [
-          workspace.tabId,
-          workspace.canvasTabId,
-          ...(workspace.agentTabIds ?? []),
-        ].filter(
+        [workspace.tabId, workspace.canvasTabId, ...(workspace.agentTabIds ?? [])].filter(
           (tabId): tabId is number => tabId !== null,
         ),
       );
-      const wouldLeaveNoTabs =
-        workspaceTabIds.size > 0 &&
-        tabsRef.current.every((tab) => workspaceTabIds.has(tab.id));
-
-      if (wouldLeaveNoTabs) {
-        // closeTab preserves the final tab. Replace it here so the deleted
-        // workspace cannot leave a terminal tab without a workspace owner.
-        resetWorkspace(launchCwd ?? home ?? undefined);
-      } else {
-        for (const tabId of workspaceTabIds) {
-          disposeTab(tabId);
-        }
-      }
-
-      setWorkspaces((current) =>
-        current.filter((item) => item.id !== workspaceId),
-      );
-
-      invoke("db_delete_workspace", { id: workspaceId }).catch((err) => {
-        console.error("Failed to delete workspace from SQLite:", err);
+      removeWorkspace({
+        workspaceId,
+        tabIds: workspaceTabIds,
+        wouldLeaveNoTabs:
+          workspaceTabIds.size > 0 &&
+          tabsRef.current.every((tab) => workspaceTabIds.has(tab.id)),
+        disposeTab,
+        resetWorkspace,
+        fallbackCwd: launchCwd ?? home ?? undefined,
       });
     },
-    [disposeTab, home, launchCwd, resetWorkspace],
+    [disposeTab, home, launchCwd, removeWorkspace, resetWorkspace],
   );
 
   const handleCloseWorkspace = useCallback(
     (workspaceId: string) => {
       if (workspacesRef.current.length <= 1) return;
-      const workspace = workspacesRef.current.find(
-        (item) => item.id === workspaceId,
-      );
-      if (!workspace) return;
-
       if (skipWorkspaceDeleteConfirm) {
         deleteWorkspace(workspaceId);
         return;
       }
-
       setWorkspaceDeleteDoNotAskAgain(false);
       setPendingDeleteWorkspaceId(workspaceId);
     },
@@ -2322,20 +1486,14 @@ export default function App() {
 
   const confirmDeleteWorkspace = useCallback(() => {
     if (pendingDeleteWorkspaceId === null) return;
-    if (workspacesRef.current.length <= 1) {
-      setPendingDeleteWorkspaceId(null);
-      return;
-    }
-
     if (workspaceDeleteDoNotAskAgain) {
       setSkipWorkspaceDeleteConfirm(true);
       try {
         window.localStorage.setItem(WORKSPACE_DELETE_CONFIRM_STORAGE_KEY, "1");
       } catch {
-        // storage may fail in private mode
+        // Storage is optional.
       }
     }
-
     deleteWorkspace(pendingDeleteWorkspaceId);
     setPendingDeleteWorkspaceId(null);
   }, [deleteWorkspace, pendingDeleteWorkspaceId, workspaceDeleteDoNotAskAgain]);
@@ -2346,126 +1504,39 @@ export default function App() {
   }, []);
 
   const handleRenameWorkspace = useCallback(
-    (workspaceId: string, name: string) => {
-      let nextName = name.trim();
-      if (nextName.length === 0) return;
-
-      const otherWorkspaces = workspaces.filter((w) => w.id !== workspaceId);
-      const existingNames = new Set(
-        otherWorkspaces.map((w) => w.name.toLowerCase()),
-      );
-
-      if (existingNames.has(nextName.toLowerCase())) {
-        let suffix = 1;
-        let uniqueName = `${nextName} (${suffix})`;
-        while (existingNames.has(uniqueName.toLowerCase())) {
-          suffix += 1;
-          uniqueName = `${nextName} (${suffix})`;
-        }
-        nextName = uniqueName;
-      }
-
-      setWorkspaces((current) =>
-        current.map((workspace) => {
-          if (workspace.id === workspaceId) {
-            if (workspace.tabId !== null) {
-              updateTab(workspace.tabId, { title: nextName });
-            }
-            if (workspace.canvasTabId !== null) {
-              updateTab(workspace.canvasTabId, {
-                title: nextName,
-              });
-            }
-            const updated = {
-              ...workspace,
-              name: nextName,
-              updatedAt: Date.now(),
-            };
-            invoke("db_save_workspace", { workspace: updated }).catch((err) =>
-              console.error("Failed to save renamed workspace to SQLite:", err),
-            );
-            return updated;
-          }
-          return workspace;
-        }),
-      );
-    },
-    [updateTab, workspaces],
+    (workspaceId: string, name: string) => renameWorkspace(workspaceId, name),
+    [renameWorkspace],
   );
-
   const handleChangeWorkspaceColor = useCallback(
-    (workspaceId: string, accentColor: string) => {
-      const nextAccentColor = normalizeWorkspaceAccentColor(accentColor);
-      setWorkspaces((current) =>
-        current.map((workspace) => {
-          if (workspace.id !== workspaceId) return workspace;
-          if (workspace.accentColor === nextAccentColor) return workspace;
-
-          const updated = {
-            ...workspace,
-            accentColor: nextAccentColor,
-            updatedAt: Date.now(),
-          };
-          invoke("db_save_workspace", { workspace: updated }).catch((err) =>
-            console.error("Failed to save workspace color to SQLite:", err),
-          );
-          return updated;
-        }),
-      );
-    },
-    [],
+    (workspaceId: string, color: string) => changeWorkspaceColor(workspaceId, color),
+    [changeWorkspaceColor],
   );
-
   const handleReorderWorkspaces = useCallback(
-    (draggedId: string, targetId: string, position: "before" | "after") => {
-      setWorkspaces((current) => {
-        const fromIndex = current.findIndex((item) => item.id === draggedId);
-        const toIndex = current.findIndex((item) => item.id === targetId);
-        if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex)
-          return current;
-
-        const next = [...current];
-        const [dragged] = next.splice(fromIndex, 1);
-
-        let insertAt = next.findIndex((item) => item.id === targetId);
-        if (position === "after") insertAt += 1;
-
-        next.splice(insertAt, 0, dragged);
-
-        const reordered = next.map((item, idx) => ({
-          ...item,
-          displayOrder: idx,
-        }));
-
-        const orders = reordered.map((item) => [item.id, item.displayOrder]);
-        invoke("db_reorder_workspaces", { orders }).catch((err) =>
-          console.error("Failed to save reordered workspaces to SQLite:", err),
-        );
-
-        return reordered;
-      });
-    },
-    [],
+    (draggedId: string, targetId: string, position: "before" | "after") =>
+      reorderWorkspaces(draggedId, targetId, position),
+    [reorderWorkspaces],
   );
 
   const cycleWorkspace = useCallback(
     (delta: 1 | -1) => {
       if (workspaces.length < 2) return;
-      const currentIdx = workspaces.findIndex((w) => w.id === activeWorkspaceId);
-      if (currentIdx === -1) {
-        if (delta === 1) {
-          handleSelectWorkspace(workspaces[0].id);
-        } else {
-          handleSelectWorkspace(workspaces[workspaces.length - 1].id);
-        }
-        return;
-      }
-      const nextIdx =
-        (currentIdx + delta + workspaces.length) % workspaces.length;
-      handleSelectWorkspace(workspaces[nextIdx].id);
+      const index = workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId);
+      const nextIndex = index === -1
+        ? delta === 1 ? 0 : workspaces.length - 1
+        : (index + delta + workspaces.length) % workspaces.length;
+      handleSelectWorkspace(workspaces[nextIndex].id);
     },
-    [workspaces, activeWorkspaceId, handleSelectWorkspace],
+    [activeWorkspaceId, handleSelectWorkspace, workspaces],
   );
+
+  useEffect(() => {
+    if (!pendingBootstrapCloseRef.current || activeWorkspaceId === null) return;
+    const bootstrapTab = tabs.find(
+      (tab) => tab.id === 1 && tab.title === "shell",
+    );
+    if (bootstrapTab && tabs.length > 1) closeTab(bootstrapTab.id);
+    pendingBootstrapCloseRef.current = false;
+  }, [activeWorkspaceId, closeTab, tabs]);
 
   const focusDirectionalPane = useCallback(
     (direction: "left" | "right" | "up" | "down") => {
@@ -3026,157 +2097,30 @@ export default function App() {
     [updateTab],
   );
 
-  const handleTerminalCwd = useCallback(
-    (leafId: number, cwd: string) => {
-      setLeafCwd(leafId, cwd);
-      // Persist to DB if it's a workspace
-      const tab = tabsRef.current.find(
-        (t) =>
-          t.kind === "terminal" && hasLeaf((t as TerminalTab).paneTree, leafId),
-      ) as TerminalTab | undefined;
-      if (tab) {
-        const ws = workspacesRef.current.find((w) => w.tabId === tab.id)
-          ?? workspacesRef.current.find((w) => w.id === activeWorkspaceId);
-        if (ws) {
-          const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
-          if (paneIndex !== -1) {
-            const lastCommand =
-              findLeafLastCommand(tab.paneTree, leafId) ?? null;
-            const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);
-            const existingPane = persistedPaneFor(ws.id, paneIndex);
-            void persistPaneRecord(
-              paneRecordFromCommand(
-                ws.id,
-                paneIndex,
-                cwd,
-                autoLaunch ? lastCommand : null,
-                autoLaunch,
-                existingPane,
-              ),
-            ).catch((err) => {
-              console.error("Failed to save terminal pane cwd to DB:", err);
-            });
-          }
-        }
-      }
-    },
-    [persistPaneRecord, persistedPaneFor, setLeafCwd],
-  );
+  const {
+    handleTerminalCwd,
+    changeTerminalDirectory,
+    handleSwitchTerminalAgent,
+    handleTerminalCommand,
+  } = useTerminalWorkspaceActions({
+    activeLeafId,
+    activeWorkspaceId,
+    tabsRef,
+    workspacesRef,
+    terminalRefs,
+    pendingVoiceDraftsRef,
+    workspacePaneLaunchAtRef,
+    setLeafCwd,
+    setLeafLaunchCommand,
+    persistPaneRecord,
+    persistedPaneFor,
+    buildPaneRecord: paneRecordFromCommand,
+    scheduleWorkspacePaneSessionSync,
+    respawnSession,
+    replaceSessionCommand,
+  });
 
-  const changeTerminalDirectory = useCallback(
-    (path: string) => {
-      const nextPath = path.trim();
-      if (activeLeafId === null || !nextPath) return;
 
-      // A coding CLI owns stdin after launch, so typing `cd` into the PTY is
-      // treated as agent input. Persist the pane's cwd and respawn the PTY,
-      // which starts the shell/agent directly in the selected directory.
-      handleTerminalCwd(activeLeafId, nextPath);
-      void respawnSession(activeLeafId, nextPath, true);
-      terminalRefs.current.get(activeLeafId)?.focus();
-    },
-    [activeLeafId, handleTerminalCwd],
-  );
-
-  const handleSwitchTerminalAgent = useCallback(
-    (leafId: number, command: string | null) => {
-      const tab = tabsRef.current.find(
-        (item) => item.kind === "terminal" && hasLeaf(item.paneTree, leafId),
-      );
-      if (!tab || tab.kind !== "terminal") return;
-
-      const cwd = findLeafCwd(tab.paneTree, leafId) ?? tab.cwd;
-      setLeafLaunchCommand(leafId, command);
-
-      const workspace = workspacesRef.current.find(
-        (item) => item.tabId === tab.id,
-      ) ?? workspacesRef.current.find((item) => item.id === activeWorkspaceId);
-      if (workspace) {
-        const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
-          if (paneIndex !== -1) {
-            workspacePaneLaunchAtRef.current.set(`${workspace.id}:${paneIndex}`, Date.now());
-            const pane = paneRecordFromCommand(
-            workspace.id,
-            paneIndex,
-            cwd ?? null,
-            command,
-            Boolean(command),
-            persistedPaneFor(workspace.id, paneIndex),
-            null,
-            false,
-          );
-          void persistPaneRecord(pane).catch((error) => {
-            console.error("Failed to save switched terminal agent:", error);
-          });
-          if (pane.agentProvider && !pane.nativeSessionId) {
-            scheduleWorkspacePaneSessionSync(
-              workspace.id,
-              cwd ?? workspace.workingFolder,
-            );
-          }
-        }
-      }
-
-      void replaceSessionCommand(leafId, cwd, command).finally(() => {
-        terminalRefs.current.get(leafId)?.focus();
-      });
-    },
-    [activeWorkspaceId, persistPaneRecord, persistedPaneFor, scheduleWorkspacePaneSessionSync, setLeafLaunchCommand],
-  );
-
-  const handleTerminalCommand = useCallback(
-    (leafId: number, command: string) => {
-      pendingVoiceDraftsRef.current.delete(leafId);
-      // Preserve coding-agent launches so workspace restoration can resolve
-      // their native session from the provider's local session index.
-      const tab = tabsRef.current.find(
-        (t) =>
-          t.kind === "terminal" && hasLeaf((t as TerminalTab).paneTree, leafId),
-      ) as TerminalTab | undefined;
-      if (tab) {
-        const ws = workspacesRef.current.find((w) => w.tabId === tab.id);
-        if (ws) {
-          const paneIndex = leafIds(tab.paneTree).indexOf(leafId);
-          if (paneIndex !== -1) {
-          const workingFolder = findLeafCwd(tab.paneTree, leafId) ?? null;
-          const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);
-          const isCliAgent = detectCliAgent(command) !== null;
-          if (isCliAgent) {
-            setLeafLaunchCommand(leafId, command);
-            workspacePaneLaunchAtRef.current.set(`${ws.id}:${paneIndex}`, Date.now());
-          }
-          const existingPane = persistedPaneFor(ws.id, paneIndex);
-          const configuredCommand = isCliAgent
-            ? command
-              : autoLaunch
-                ? ((existingPane?.lastCommand ??
-                    findLeafLastCommand(tab.paneTree, leafId)) ?? null)
-                : null;
-            const pane = paneRecordFromCommand(
-              ws.id,
-              paneIndex,
-              workingFolder,
-              configuredCommand,
-              isCliAgent || autoLaunch,
-              existingPane,
-              null,
-              !isCliAgent,
-            );
-            void persistPaneRecord(pane).catch((err) => {
-              console.error("Failed to save terminal pane command to DB:", err);
-            });
-            if (pane.agentProvider && !pane.nativeSessionId) {
-              scheduleWorkspacePaneSessionSync(
-                ws.id,
-                workingFolder ?? ws.workingFolder,
-              );
-            }
-          }
-        }
-      }
-    },
-    [activeWorkspaceId, persistPaneRecord, persistedPaneFor, scheduleWorkspacePaneSessionSync],
-  );
 
   const { handleTerminalPaneTreeChange, handleArchitectureDiagramChange } =
     useWorkspacePersistence<WorkspaceRecord>({
@@ -3207,221 +2151,64 @@ export default function App() {
     });
   persistCanvasDiagramRef.current = handleArchitectureDiagramChange;
 
-  const handleSwapWorkspaceTerminals = useCallback(
-    (sourceId: number, targetId: number) => {
-      const tab = tabsRef.current.find(
-        (item) =>
-          item.kind === "terminal" &&
-          hasLeaf(item.paneTree, sourceId) &&
-          hasLeaf(item.paneTree, targetId),
-      );
-      if (!tab || tab.kind !== "terminal") return;
-      const paneTree = swapLeafNodes(tab.paneTree, sourceId, targetId);
-      if (paneTree === tab.paneTree) return;
-      handleTerminalPaneTreeChange(tab.id, paneTree);
-      focusPane(tab.id, sourceId);
-    },
-    [focusPane, handleTerminalPaneTreeChange],
-  );
+  const {
+    swapWorkspaceTerminals: handleSwapWorkspaceTerminals,
+    focusLeaf: handleFocusLeaf,
+    handleLeafExit,
+  } = useTerminalPaneActions({
+    tabsRef,
+    focusPane,
+    handlePaneTreeChange: handleTerminalPaneTreeChange,
+    closePaneByLeaf,
+    clearWorkspaceTabOwnership,
+    respawnSession,
+  });
 
-  const handleFocusLeaf = useCallback(
-    (tabId: number, leafId: number) => {
-      clearAgentCompleted(leafId);
-      focusPane(tabId, leafId);
-    },
-    [focusPane],
-  );
 
-  const handleSelectWorkspaceTerminal = useCallback(
-    (workspaceId: string, leafId: number) => {
-      const workspace = workspacesRef.current.find(
-        (item) => item.id === workspaceId,
-      );
-      if (workspace?.tabId === null || workspace?.tabId === undefined) {
-        if (workspace?.canvasTabId !== null && workspace?.canvasTabId !== undefined) {
-          const canvasTab = tabsRef.current.find((item) => item.id === workspace.canvasTabId);
-          if (canvasTab?.kind === "architecture") {
-            const terminalNodes = canvasTab.diagram?.nodes.filter((node) => node.kind === "terminal") ?? [];
-            const node = terminalNodes[-leafId - 1];
-            if (node) {
-              activeCanvasTerminalIds.current.set(canvasTab.id, node.id);
-              setCanvasTerminalSelectionVersion((version) => version + 1);
-            }
-          }
-          setActiveId(workspace.canvasTabId);
-          return;
-        }
-        pendingWorkspaceTerminalRef.current = { workspaceId, leafId };
-        handleSelectWorkspace(workspaceId);
-        return;
-      }
-      const tab = tabsRef.current.find((item) => item.id === workspace.tabId);
-      if (tab?.kind !== "terminal" || !hasLeaf(tab.paneTree, leafId)) return;
-      clearAgentCompleted(leafId);
-      setActiveId(tab.id);
-      focusPane(tab.id, leafId);
-    },
-    [focusPane, handleSelectWorkspace],
-  );
-
-  useEffect(() => {
-    const pending = pendingWorkspaceTerminalRef.current;
-    if (!pending) return;
-    const workspace = workspacesRef.current.find((item) => item.id === pending.workspaceId);
-    if (!workspace?.tabId) return;
-    const tab = tabsRef.current.find((item) => item.id === workspace.tabId);
-    if (tab?.kind !== "terminal" || !hasLeaf(tab.paneTree, pending.leafId)) return;
-    pendingWorkspaceTerminalRef.current = null;
-    clearAgentCompleted(pending.leafId);
-    setActiveId(tab.id);
-    focusPane(tab.id, pending.leafId);
-  }, [focusPane, tabs, workspaces]);
+  const { handleSelectWorkspaceTerminal } = useWorkspaceTerminalSelection({
+    activeCanvasTerminalIds,
+    pendingWorkspaceTerminalRef,
+    tabsRef,
+    workspacesRef,
+    tabs,
+    workspaces,
+    setActiveId,
+    setCanvasTerminalSelectionVersion,
+    focusPane,
+    handleSelectWorkspace,
+  });
 
   const handleCreateWorkspaceTerminal = useCallback(
-    (initialCommand = "") => {
-      const workspace = workspacesRef.current.find(
-        (item) => item.id === activeWorkspaceId,
-      );
-      if (!workspace) return false;
-
-      if (workspace.workspaceMode === "agent") {
-        const provider = detectCliAgent(initialCommand);
-        if (!provider) return false;
-        const currentAgentTabs = tabsRef.current.filter(
-          (tab) =>
-            tab.kind === "agent-chat" &&
-            (tab.id === workspace.tabId || workspace.agentTabIds?.includes(tab.id)),
-        );
-        if (currentAgentTabs.length >= MAX_PANES_PER_TAB) return false;
-        const tabId = newAgentChatTab({
-          title: `${workspace.name} · ${currentAgentTabs.length + 1}`,
-          provider,
-          cwd: workspace.workingFolder ?? "",
-          nativeSessionId: null,
-          chatId: `${workspace.id}:chat:${currentAgentTabs.length + 1}`,
-        });
-        const agentTabIds = [...(workspace.agentTabIds ?? []), tabId];
-        const agentProviders = [...(workspace.agentProviders ?? []), provider];
-        const agentSessionIds = [...(workspace.agentSessionIds ?? []), null];
-        const agentChatIds = [
-          ...(workspace.agentChatIds ?? []),
-          `${workspace.id}:chat:${currentAgentTabs.length + 1}`,
-        ];
-        const updated: WorkspaceRecord = {
-          ...workspace,
-          tabId: workspace.tabId ?? tabId,
-          agentTabIds,
-          agentProviders,
-          agentSessionIds,
-          agentChatIds,
-          count: agentTabIds.length,
-          updatedAt: Date.now(),
-        };
-        setWorkspaces((current) =>
-          current.map((item) => (item.id === workspace.id ? updated : item)),
-        );
-        saveRecentWorkspace(updated);
-        void invoke("db_save_workspace", { workspace: updated }).catch((error) => {
-          console.error("Failed to persist created agent chat:", error);
-        });
-        setActiveId(tabId);
-        return true;
-      }
-
-      if (workspace.workspaceMode === "canvas") {
-        const canvasTabId = workspace.canvasTabId;
-        if (canvasTabId === null || canvasTabId === undefined) return false;
-        const creator = canvasTerminalCreatorRef.current.get(canvasTabId);
-        if (!creator) return false;
-        return creator(initialCommand || undefined);
-      }
-
-      if (workspace.tabId === null) return false;
-
-      const workspaceTab = tabsRef.current.find(
-        (item) => item.id === workspace.tabId,
-      );
-      if (workspaceTab?.kind !== "terminal") return false;
-
-      const appended = appendTerminalPane(
-        workspace.tabId,
-        workspace.workingFolder ?? workspaceTab.cwd,
+    (initialCommand = "") =>
+      createWorkspaceTerminal({
+        workspaceId: activeWorkspaceId,
         initialCommand,
-      );
-      if (!appended) {
-        return false;
-      }
-
-      const updated: WorkspaceRecord = {
-        ...workspace,
-        count: leafIds(appended.paneTree).length,
-        paneLayout: JSON.stringify(appended.paneTree),
-        updatedAt: Date.now(),
-      };
-      setWorkspaces((current) =>
-        current.map((item) => (item.id === workspace.id ? updated : item)),
-      );
-      saveRecentWorkspace(updated);
-
-      const leafOrder = leafIds(appended.paneTree);
-      void Promise.all([
-        invoke("db_save_workspace", { workspace: updated }),
-        ...leafOrder.map((leafId, paneIndex) =>
-          persistPaneRecord(
-            paneRecordFromCommand(
-              workspace.id,
-              paneIndex,
-              findLeafCwd(appended.paneTree, leafId) ?? workspace.workingFolder,
-              findLeafLastCommand(appended.paneTree, leafId) ?? null,
-              findLeafAutoLaunch(appended.paneTree, leafId),
-              persistedPaneFor(workspace.id, paneIndex),
-            ),
-          ),
-        ),
-      ]).catch((error) => {
-        console.error("Failed to persist created workspace terminal:", error);
-      });
-      if (initialCommand && detectCliAgent(initialCommand)) {
-        scheduleWorkspacePaneSessionSync(
-          workspace.id,
-          workspace.workingFolder ?? workspaceTab.cwd ?? null,
-        );
-      }
-      return true;
-    },
+        tabsRef,
+        canvasTerminalCreators: canvasTerminalCreatorRef,
+        appendTerminalPane,
+        newAgentChatTab,
+        setActiveId,
+        persistPaneRecord,
+        persistedPaneFor,
+        buildPaneRecord: paneRecordFromCommand,
+        saveRecentWorkspace,
+        scheduleWorkspacePaneSessionSync,
+        alert: (message) => window.alert(message),
+      }),
     [
       activeWorkspaceId,
       appendTerminalPane,
+      createWorkspaceTerminal,
+      newAgentChatTab,
       persistPaneRecord,
       persistedPaneFor,
       saveRecentWorkspace,
       scheduleWorkspacePaneSessionSync,
-      newAgentChatTab,
       setActiveId,
     ],
   );
 
-  const handleLeafExit = useCallback(
-    (leafId: number, _code: number) => {
-      const all = tabsRef.current;
-      const tab = all.find(
-        (t) => t.kind === "terminal" && hasLeaf(t.paneTree, leafId),
-      );
-      if (!tab || tab.kind !== "terminal") return;
-      const isLast =
-        leafIds(tab.paneTree).length === 1 &&
-        all.filter((t) => t.kind === "terminal").length === 1;
-      if (isLast) {
-        void respawnSession(leafId, tab.cwd);
-      } else {
-        if (leafIds(tab.paneTree).length === 1) {
-          clearWorkspaceTabOwnership(tab.id);
-        }
-        closePaneByLeaf(leafId);
-      }
-    },
-    [clearWorkspaceTabOwnership, closePaneByLeaf],
-  );
+
 
   const handleEditorDirty = useCallback(
     (id: number, dirty: boolean) => updateTab(id, { dirty }),
@@ -3461,133 +2248,26 @@ export default function App() {
   const activeCwd = activeTerminalLeafCwd;
 
   const handleImportAgentSession = useCallback(
-    async (session: ImportableAgentSession): Promise<boolean> => {
-      if (session.active) return false;
-      const workspace = workspacesRef.current.find(
-        (item) => item.id === activeWorkspaceId,
-      );
-      if (!workspace) return false;
-
-      const initialCommand = buildSessionResumeCommand(
-        session.provider,
-        session.sessionId,
-      );
-
-      if (workspace.workspaceMode === "canvas") {
-        const tab = tabsRef.current.find(
-          (item) => item.id === workspace.canvasTabId,
-        );
-        if (!tab || tab.kind !== "architecture") return false;
-        const diagram = tab.diagram ?? { nodes: [], edges: [] };
-        if (
-          diagram.nodes.some(
-            (node) =>
-              node.kind === "terminal" &&
-              node.initialCommand === initialCommand,
-          )
-        ) {
-          window.alert("This agent session is already open in the workspace.");
-          return false;
-        }
-        const terminalIndex = diagram.nodes.filter(
-          (node) => node.kind === "terminal",
-        ).length;
-        if (terminalIndex >= MAX_PANES_PER_TAB) {
-          window.alert(`Workspace terminal limit reached (${MAX_PANES_PER_TAB}).`);
-          return false;
-        }
-        const terminalWidth = 620;
-        const terminalHeight = 400;
-        const gap = 48;
-        const nextDiagram: ArchitectureDiagram = {
-          ...diagram,
-          nodes: [
-            ...diagram.nodes,
-            {
-              id: `imported-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              kind: "terminal",
-              label: `${session.provider} session`,
-              technology: "",
-              x: 96 + (terminalIndex % 2) * (terminalWidth + gap),
-              y: 96 + Math.floor(terminalIndex / 2) * (terminalHeight + gap),
-              width: terminalWidth,
-              height: terminalHeight,
-              cwd: session.cwd,
-              initialCommand,
-              terminalChromeVersion: 2,
-            },
-          ],
-        };
-        handleArchitectureDiagramChange(tab.id, nextDiagram);
-        setActiveId(tab.id);
-        return true;
-      }
-
-      if (workspace.tabId === null) return false;
-      const workspaceTab = tabsRef.current.find(
-        (item) => item.id === workspace.tabId,
-      );
-      if (
-        workspaceTab?.kind === "terminal" &&
-        leafIds(workspaceTab.paneTree).some(
-          (leafId) =>
-            findLeafLastCommand(workspaceTab.paneTree, leafId) ===
-            initialCommand,
-        )
-      ) {
-        window.alert("This agent session is already open in the workspace.");
-        return false;
-      }
-      const appended = appendTerminalPane(
-        workspace.tabId,
-        session.cwd,
-        initialCommand,
-      );
-      if (!appended) {
-        window.alert(`Workspace terminal limit reached (${MAX_PANES_PER_TAB}).`);
-        return false;
-      }
-
-      const updated: WorkspaceRecord = {
-        ...workspace,
-        count: leafIds(appended.paneTree).length,
-        paneLayout: JSON.stringify(appended.paneTree),
-        updatedAt: Date.now(),
-      };
-      setWorkspaces((current) =>
-        current.map((item) => (item.id === workspace.id ? updated : item)),
-      );
-      saveRecentWorkspace(updated);
-
-      const leafOrder = leafIds(appended.paneTree);
-      void Promise.all([
-        invoke("db_save_workspace", { workspace: updated }),
-        ...leafOrder.map((leafId, paneIndex) =>
-          persistPaneRecord(
-            paneRecordFromCommand(
-              workspace.id,
-              paneIndex,
-              findLeafCwd(appended.paneTree, leafId) ?? workspace.workingFolder,
-              findLeafLastCommand(appended.paneTree, leafId) ?? null,
-              findLeafAutoLaunch(appended.paneTree, leafId),
-              persistedPaneFor(workspace.id, paneIndex),
-              paneIndex === leafOrder.length - 1 ? session.sessionId : null,
-            ),
-          ),
-        ),
-      ]).catch((error) => {
-        console.error("Failed to persist imported agent session pane:", error);
-      });
-      scheduleWorkspacePaneSessionSync(
-        workspace.id,
-        workspace.workingFolder ?? session.cwd,
-      );
-      return true;
-    },
+    (session: ImportableAgentSession): Promise<boolean> =>
+      importAgentSession({
+        session,
+        workspaceId: activeWorkspaceId,
+        tabsRef,
+        appendTerminalPane,
+        updateCanvasDiagram: handleArchitectureDiagramChange,
+        setActiveId,
+        persistPaneRecord,
+        persistedPaneFor,
+        buildPaneRecord: paneRecordFromCommand,
+        saveRecentWorkspace,
+        scheduleWorkspacePaneSessionSync,
+        alert: (message) => window.alert(message),
+      }),
     [
       activeWorkspaceId,
       appendTerminalPane,
       handleArchitectureDiagramChange,
+      importAgentSession,
       persistPaneRecord,
       persistedPaneFor,
       saveRecentWorkspace,
@@ -3595,6 +2275,8 @@ export default function App() {
       setActiveId,
     ],
   );
+
+
 
   const hideBootstrapShell = shouldSuppressBootstrapShell({
     activeTabId: activeTab?.id ?? null,
@@ -3641,177 +2323,176 @@ export default function App() {
     : tabs;
 
   const workspaceSurface = (
-    <div className="relative h-full min-h-0">
+    <WorkspaceSurface
+      tabs={tabs}
+      activeId={activeId}
+      hideBootstrapShell={hideBootstrapShell}
+      isTerminalTab={isTerminalTab}
+      isEditorTab={isEditorTab}
+      isPreviewTab={isPreviewTab}
+      isMarkdownTab={isMarkdownTab}
+      isAiDiffTab={isAiDiffTab}
+      isGitDiffTab={isGitDiffTab}
+      isGitHistoryTab={isGitHistoryTab}
+      isArchitectureTab={isArchitectureTab}
+      canvasFocused={canvasFocused}
+      activeWorkspaceAccentColor={activeWorkspaceAccentColor}
+      workspaces={workspaces}
+      apiKeys={apiKeys}
+      terminalProps={{
+        registerHandle: registerTerminalHandle,
+        onSearchReady: handleSearchReady,
+        onCwd: handleTerminalCwd,
+        onChangeDirectory: changeTerminalDirectory,
+        onExit: handleLeafExit,
+        onCommand: handleTerminalCommand,
+        onSwitchAgent: handleSwitchTerminalAgent,
+        onFocusLeaf: handleFocusLeaf,
+        onCloseLeaf: closePaneByLeaf,
+        onToggleMaximize: toggleMaximizePane,
+        onSplitPane: splitActivePaneInActiveTab,
+        onPaneTreeChange: handleTerminalPaneTreeChange,
+      }}
+      onAgentForkResponse={(workspaceId, provider, cwd, destination, attachment) =>
+        handleForkAgentResponse({
+          workspaceId,
+          provider,
+          cwd,
+          destination: destination as "tab" | "workspace",
+          attachment,
+        })
+      }
+      onAgentNativeSessionId={handleAgentNativeSessionId}
+      onOpenFileDiff={openGitDiffTab}
+      onDiagramChange={handleArchitectureDiagramChange}
+      onRegisterTerminalCreator={(tabId, creator) => {
+        if (creator) canvasTerminalCreatorRef.current.set(tabId, creator);
+        else canvasTerminalCreatorRef.current.delete(tabId);
+      }}
+      onTerminalHandleChange={onCanvasTerminalHandleChange}
+      onActiveTerminalChange={onActiveCanvasTerminalChange}
+      onToggleCanvasFocus={toggleCanvasFocus}
+      registerEditorHandle={registerEditorHandle}
+      onEditorDirty={handleEditorDirty}
+      onCloseEditorTab={disposeTab}
+      registerPreviewHandle={registerPreviewHandle}
+      onPreviewUrlChange={handlePreviewUrl}
+      onOpenCommitFile={openCommitFileDiffTab}
+      onGitHistorySearchHandle={setGitHistoryHandle}
+    />
+  );
+
+  const workspacesPanel = (
+    <WorkspacesPanel
+      activeWorkspaceId={activeWorkspaceId}
+      activeWorkspaceTerminals={activeWorkspaceTerminals}
+      onSelectTerminal={handleSelectWorkspaceTerminal}
+      onSelectTab={setActiveId}
+      onSwapTerminals={handleSwapWorkspaceTerminals}
+      onCreateTerminal={handleCreateWorkspaceTerminal}
+      compact={workspacesPanelCompact}
+      workspaces={workspaceItems}
+      onSelectWorkspace={handleSelectWorkspace}
+      onCloseWorkspace={handleCloseWorkspace}
+      onRenameWorkspace={handleRenameWorkspace}
+      onChangeWorkspaceColor={handleChangeWorkspaceColor}
+      onStartWorkspaceSetup={() => setWorkspaceSetupOpen(true)}
+      onImportSession={() => setImportSessionOpen(true)}
+      onReorderWorkspaces={handleReorderWorkspaces}
+    />
+  );
+
+  const workspaceSetup = workspaceSetupOpen ? (
+    <div className="absolute inset-0 z-30 bg-background">
+      <WorkspaceSetupView
+        workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}
+        suggestedWorkspaceName={nextWorkspaceName(workspaces) ?? "workspace"}
+        suggestedWorkspaceColor={workspaceAccentForIndex(workspaces.length)}
+        recentWorkspaces={recentWorkspaces}
+        forkContext={workspaceForkContext}
+        onCancel={handleWorkspaceSetupCancel}
+        onOpenWithoutAi={handleOpenWorkspaceWithoutAi}
+      />
+    </div>
+  ) : null;
+
+  const workspaceLoading = showWorkspaceSwitchLoading && !workspaceSetupOpen ? (
+    <div className="pointer-events-none absolute right-4 top-4 z-20">
       <div
-        className={cn(
-          "absolute inset-0",
-          (!isTerminalTab || hideBootstrapShell) && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isTerminalTab || hideBootstrapShell}
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-2 rounded-full border border-border/60 bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur"
       >
-        <TerminalStack
-          tabs={tabs}
-          activeId={activeId}
-          registerHandle={registerTerminalHandle}
-          onSearchReady={handleSearchReady}
-          onCwd={handleTerminalCwd}
-          onChangeDirectory={changeTerminalDirectory}
-          onExit={handleLeafExit}
-          onCommand={handleTerminalCommand}
-          onSwitchAgent={handleSwitchTerminalAgent}
-          onFocusLeaf={handleFocusLeaf}
-          onCloseLeaf={closePaneByLeaf}
-          onToggleMaximize={toggleMaximizePane}
-          onSplitPane={splitActivePaneInActiveTab}
-          focusAccentColor={activeWorkspaceAccentColor}
-          onPaneTreeChange={handleTerminalPaneTreeChange}
-        />
+        <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+        <span>{workspaceLoadingLabel}</span>
       </div>
-      {tabs.flatMap((tab) => {
-        if (tab.kind !== "agent-chat") return [];
-        const workspace = workspaces.find(
-          (item) =>
-            item.tabId === tab.id || item.agentTabIds?.includes(tab.id),
-        );
-        if (!workspace) return [];
-        const active = tab.id === activeId;
-        return [
-          <div
-            key={tab.id}
-            className={cn(
-              "absolute inset-0",
-              !active && "invisible pointer-events-none",
-            )}
-            aria-hidden={!active}
-          >
-            <AgentChatWorkspace
-              workspaceId={workspace.id}
-              chatId={tab.chatId}
-              active={active}
-              provider={tab.provider}
-              cwd={tab.cwd}
-              nativeSessionId={tab.nativeSessionId}
-              apiKeys={apiKeys}
-              initialDraft={tab.initialDraft}
-              initialHistoryAttachments={tab.initialHistoryAttachments}
-              onForkResponse={(destination, response) => handleForkAgentResponse({
-                workspaceId: workspace.id,
-                provider: tab.provider,
-                cwd: tab.cwd,
-                destination,
-                attachment: response,
-              })}
-              onNativeSessionId={(nativeSessionId) =>
-                handleAgentNativeSessionId(
-                  workspace.id,
-                  tab.id,
-                  tab.chatId,
-                  tab.provider,
-                  nativeSessionId,
-                )
-              }
-            />
-          </div>,
-        ];
-      })}
-      <div
-        data-editor-file-drop-region
-        className={cn(
-          "absolute inset-0",
-          !isEditorTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isEditorTab}
-      >
-        <EditorStack
-          tabs={tabs}
-          activeId={activeId}
-          registerHandle={registerEditorHandle}
-          onDirtyChange={handleEditorDirty}
-          onCloseTab={disposeTab}
-        />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0",
-          !isPreviewTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isPreviewTab}
-      >
-        <PreviewStack
-          tabs={tabs}
-          activeId={activeId}
-          registerHandle={registerPreviewHandle}
-          onUrlChange={handlePreviewUrl}
-        />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0",
-          !isMarkdownTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isMarkdownTab}
-      >
-        <MarkdownStack tabs={tabs} activeId={activeId} />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0",
-          !isAiDiffTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isAiDiffTab}
-      >
-        <AiDiffStack
-          tabs={tabs}
-          activeId={activeId}
-          onAccept={() => undefined}
-          onReject={() => undefined}
-        />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0",
-          !isGitDiffTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isGitDiffTab}
-      >
-        <GitDiffStack tabs={tabs} activeId={activeId} />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0",
-          !isGitHistoryTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isGitHistoryTab}
-      >
-        <GitHistoryStack
-          tabs={tabs}
-          activeId={activeId}
-          onOpenCommitFile={openCommitFileDiffTab}
-          onSearchHandle={setGitHistoryHandle}
-        />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0",
-          !isArchitectureTab && "hidden pointer-events-none",
-        )}
-        aria-hidden={!isArchitectureTab}
-      >
-          <ArchitectureStack
-            tabs={tabs}
-            activeId={activeId}
-            onDiagramChange={handleArchitectureDiagramChange}
-            onRegisterTerminalCreator={(tabId, creator) => {
-              if (creator) canvasTerminalCreatorRef.current.set(tabId, creator);
-              else canvasTerminalCreatorRef.current.delete(tabId);
-            }}
-          onTerminalHandleChange={onCanvasTerminalHandleChange}
-          onActiveTerminalChange={onActiveCanvasTerminalChange}
-          canvasFocused={canvasFocused}
-          onToggleCanvasFocus={toggleCanvasFocus}
+    </div>
+  ) : null;
+
+  const bottomTerminal = bottomTerminalOpen ? (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
+      <div className="pointer-events-auto">
+        <BottomTerminalDrawer
+          ref={bottomTerminalRef}
+          cwd={bottomTerminalCwd}
+          codingAgentCount={activeWorkspaceCodingAgentCount}
+          onClose={() => setBottomTerminalOpen(false)}
         />
       </div>
     </div>
+  ) : null;
+
+  const sidebar = (
+    <>
+      <SidebarRail
+        placement="top"
+        activeView={sidebarView}
+        onSelectView={persistSidebarView}
+      />
+      <div className="min-h-0 flex-1">
+        {sidebarView === "browser" ? (
+          <div className="h-full min-h-0 p-2">
+            <SidebarBrowserPane
+              url={sidebarBrowserUrl}
+              visible={sidebarView === "browser"}
+              resizing={sidebarResizing}
+              onUrlChange={persistSidebarBrowserUrl}
+            />
+          </div>
+        ) : sidebarView === "editor" ? (
+          editorSidebarView === "files" ? (
+            <FileExplorer
+              ref={explorerRef}
+              rootPath={explorerRoot}
+              acceptExternalDrops={isEditorTab}
+              onOpenFile={handleOpenFile}
+              onPathRenamed={handlePathRenamed}
+              onPathDeleted={handlePathDeleted}
+              onRevealInTerminal={cdInNewTab}
+              onOpenMarkdownPreview={openMarkdownPreview}
+            />
+          ) : (
+            <SourceControlPanel
+              open={
+                sidebarView === "editor" &&
+                editorSidebarView === "source-control"
+              }
+              sourceControl={sourceControl}
+              onOpenGitGraph={openGitGraphFromContext}
+              onOpenDiff={openGitDiffTab}
+            />
+          )
+        ) : (
+          <div className="h-full min-h-0" />
+        )}
+      </div>
+      {sidebarView === "editor" ? (
+        <EditorSidebarRail
+          activeView={editorSidebarView}
+          onSelectView={setEditorSidebarView}
+        />
+      ) : null}
+    </>
   );
 
   const shell = (
@@ -3849,206 +2530,28 @@ export default function App() {
             searchRef={searchInlineRef}
           />
 
-          <main className="relative min-h-0 flex-1 overflow-hidden">
-            <div className="zoom-content absolute left-0 top-0 flex min-h-0">
-              <div
-                className={cn(
-                  "min-h-0 shrink-0 overflow-hidden",
-                  workspacesPanelResizing
-                    ? "transition-none"
-                    : "transition-[width] duration-150 ease-out",
-                )}
-                style={{
-                  width: workspacesPanelOpen ? workspacesPanelWidth : 0,
-                }}
-              >
-                <div className="h-full" style={{ width: workspacesPanelWidth }}>
-                  <WorkspacesPanel
-                    activeWorkspaceId={activeWorkspaceId}
-                    activeWorkspaceTerminals={activeWorkspaceTerminals}
-                    onSelectTerminal={handleSelectWorkspaceTerminal}
-                    onSelectTab={setActiveId}
-                    onSwapTerminals={handleSwapWorkspaceTerminals}
-                    onCreateTerminal={handleCreateWorkspaceTerminal}
-                    compact={workspacesPanelCompact}
-                    workspaces={workspaceItems}
-                    onSelectWorkspace={handleSelectWorkspace}
-                    onCloseWorkspace={handleCloseWorkspace}
-                    onRenameWorkspace={handleRenameWorkspace}
-                    onChangeWorkspaceColor={handleChangeWorkspaceColor}
-                    onStartWorkspaceSetup={() => setWorkspaceSetupOpen(true)}
-                    onImportSession={() => setImportSessionOpen(true)}
-                    onReorderWorkspaces={handleReorderWorkspaces}
-                  />
-                </div>
-              </div>
-              <div
-                role="separator"
-                aria-label={
-                  workspacesPanelOpen
-                    ? "Resize workspaces panel"
-                    : "Open workspaces panel"
-                }
-                aria-orientation="vertical"
-                aria-valuemin={0}
-                aria-valuemax={WORKSPACES_PANEL_MAX_WIDTH}
-                aria-valuenow={workspacesPanelOpen ? workspacesPanelWidth : 0}
-                tabIndex={0}
-                onPointerDown={handleWorkspacesPanelResizeStart}
-                onKeyDown={handleWorkspacesPanelResizeKeyDown}
-                className={cn(
-                  "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 focus-visible:ring-1 focus-visible:ring-ring",
-                  workspacesPanelCompact && "cursor-default focus-visible:ring-0",
-                )}
-              />
-              <div
-                ref={sidebarSplitRef}
-                className={cn(
-                  "flex min-h-0 min-w-0 flex-1",
-                  (sidebarResizing || workspacesPanelResizing) &&
-                    "cursor-col-resize select-none",
-                )}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex h-full min-h-0 flex-col">
-                    <div ref={workspaceRef} className="relative min-h-0 flex-1">
-                      <div
-                        className={cn(
-                          "absolute inset-0",
-                          workspaceSetupOpen && "invisible pointer-events-none",
-                        )}
-                        aria-hidden={workspaceSetupOpen}
-                      >
-                        {workspaceSurface}
-                      </div>
-                      {workspaceSetupOpen ? (
-                        <div className="absolute inset-0 z-30 bg-background">
-                          <WorkspaceSetupView
-                          workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}
-                          suggestedWorkspaceName={
-                            nextWorkspaceName(workspaces) ?? "workspace"
-                          }
-                          suggestedWorkspaceColor={workspaceAccentForIndex(
-                            workspaces.length,
-                          )}
-                          recentWorkspaces={recentWorkspaces}
-                          forkContext={workspaceForkContext}
-                          onCancel={handleWorkspaceSetupCancel}
-                          onOpenWithoutAi={handleOpenWorkspaceWithoutAi}
-                          />
-                        </div>
-                      ) : null}
-                      {showWorkspaceSwitchLoading && !workspaceSetupOpen ? (
-                        <div className="pointer-events-none absolute right-4 top-4 z-20">
-                          <div
-                            role="status"
-                            aria-live="polite"
-                            className="flex items-center gap-2 rounded-full border border-border/60 bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur"
-                          >
-                            <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-                            <span>{workspaceLoadingLabel}</span>
-                          </div>
-                        </div>
-                      ) : null}
-                      {bottomTerminalOpen ? (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
-                          <div className="pointer-events-auto">
-                            <BottomTerminalDrawer
-                              ref={bottomTerminalRef}
-                              cwd={bottomTerminalCwd}
-                              codingAgentCount={activeWorkspaceCodingAgentCount}
-                              onClose={() => setBottomTerminalOpen(false)}
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                <div
-                  role="separator"
-                  aria-label={
-                    sidebarOpen ? "Resize right sidebar" : "Open right sidebar"
-                  }
-                  aria-orientation="vertical"
-                  aria-valuemin={0}
-                  aria-valuemax={SIDEBAR_MAX_WIDTH}
-                  aria-valuenow={sidebarOpen ? sidebarWidth : 0}
-                  tabIndex={0}
-                  onPointerDown={handleSidebarResizeStart}
-                  onKeyDown={handleSidebarResizeKeyDown}
-                  className={cn(
-                    "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 focus-visible:ring-1 focus-visible:ring-ring",
-                  )}
-                />
-                <aside
-                  className={cn(
-                    "min-h-0 shrink-0 overflow-hidden",
-                    !sidebarOpen && "pointer-events-none",
-                    sidebarResizing
-                      ? "transition-none"
-                      : "transition-[width] duration-150 ease-out",
-                  )}
-                  style={{ width: sidebarOpen ? sidebarWidth : 0 }}
-                  aria-hidden={!sidebarOpen}
-                >
-                  <div
-                    className="flex h-full min-h-0 shrink-0 flex-col bg-card"
-                    style={{ width: sidebarWidth }}
-                  >
-                    <SidebarRail
-                      placement="top"
-                      activeView={sidebarView}
-                      onSelectView={persistSidebarView}
-                    />
-                    <div className="min-h-0 flex-1">
-                      {sidebarView === "browser" ? (
-                        <div className="h-full min-h-0 p-2">
-                          <SidebarBrowserPane
-                            url={sidebarBrowserUrl}
-                            visible={sidebarView === "browser"}
-                            resizing={sidebarResizing}
-                            onUrlChange={persistSidebarBrowserUrl}
-                          />
-                        </div>
-                      ) : sidebarView === "editor" ? (
-                        editorSidebarView === "files" ? (
-                          <FileExplorer
-                            ref={explorerRef}
-                            rootPath={explorerRoot}
-                            acceptExternalDrops={isEditorTab}
-                            onOpenFile={handleOpenFile}
-                            onPathRenamed={handlePathRenamed}
-                            onPathDeleted={handlePathDeleted}
-                            onRevealInTerminal={cdInNewTab}
-                            onOpenMarkdownPreview={openMarkdownPreview}
-                          />
-                        ) : (
-                          <SourceControlPanel
-                            open={
-                              sidebarView === "editor" &&
-                              editorSidebarView === "source-control"
-                            }
-                            sourceControl={sourceControl}
-                            onOpenGitGraph={openGitGraphFromContext}
-                            onOpenDiff={openGitDiffTab}
-                          />
-                        )
-                      ) : (
-                        <div className="h-full min-h-0" />
-                      )}
-                    </div>
-                    {sidebarView === "editor" ? (
-                      <EditorSidebarRail
-                        activeView={editorSidebarView}
-                        onSelectView={setEditorSidebarView}
-                      />
-                    ) : null}
-                  </div>
-                </aside>
-              </div>
-            </div>
-          </main>
+          <AppChrome
+            sidebarSplitRef={sidebarSplitRef}
+            workspaceRef={workspaceRef}
+            workspacesPanel={workspacesPanel}
+            workspaceSurface={workspaceSurface}
+            workspaceSetup={workspaceSetup}
+            workspaceLoading={workspaceLoading}
+            bottomTerminal={bottomTerminal}
+            sidebar={sidebar}
+            sidebarOpen={sidebarOpen}
+            sidebarWidth={sidebarWidth}
+            sidebarResizing={sidebarResizing}
+            workspacesPanelOpen={workspacesPanelOpen}
+            workspacesPanelWidth={workspacesPanelWidth}
+            workspacesPanelCompact={workspacesPanelCompact}
+            workspacesPanelResizing={workspacesPanelResizing}
+            workspaceSetupOpen={workspaceSetupOpen}
+            onWorkspacesPanelResizeStart={handleWorkspacesPanelResizeStart}
+            onWorkspacesPanelResizeKeyDown={handleWorkspacesPanelResizeKeyDown}
+            onSidebarResizeStart={handleSidebarResizeStart}
+            onSidebarResizeKeyDown={handleSidebarResizeKeyDown}
+          />
           <ImportSessionDialog
             open={importSessionOpen}
             onOpenChange={setImportSessionOpen}

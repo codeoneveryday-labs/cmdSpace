@@ -15,11 +15,11 @@ const searchSource = readFileSync(
   "utf8",
 );
 const tauriSource = readFileSync(
-  resolve(process.cwd(), "src-tauri/src/lib.rs"),
+  resolve(process.cwd(), "src-tauri/src/commands.rs"),
   "utf8",
 );
 const appSource = readFileSync(
-  resolve(process.cwd(), "src/app/App.tsx"),
+  resolve(process.cwd(), "src/app/WorkspaceSurface.tsx"),
   "utf8",
 );
 const internalDragSource = readFileSync(

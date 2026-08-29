@@ -27,6 +27,22 @@ describe("WorkspacesPanel", () => {
 
     const panelSource = readFileSync(panelPath, "utf8");
     const appSource = readFileSync(appPath, "utf8");
+    const appChromeSource = readFileSync(
+      path.join(here, "../../app/AppChrome.tsx"),
+      "utf8",
+    );
+    const workspaceControllerSource = readFileSync(
+      path.join(here, "../../app/lib/useWorkspaceController.ts"),
+      "utf8",
+    );
+    const terminalPaneActionsSource = readFileSync(
+      path.join(here, "../../app/lib/useTerminalPaneActions.ts"),
+      "utf8",
+    );
+    const layoutResizeSource = readFileSync(
+      path.join(here, "../../app/lib/useAppLayoutResize.ts"),
+      "utf8",
+    );
     const appConstantsSource = readFileSync(appConstantsPath, "utf8");
     const workspacePersistenceSource = readFileSync(
       workspacePersistencePath,
@@ -51,7 +67,7 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain('workspace.workspaceMode === "agent"');
     expect(appSource).toContain('workspace.workspaceMode === "canvas"');
     expect(appSource).toContain("canvasTerminalCreatorRef");
-    expect(appSource).toContain("Failed to persist created workspace terminal");
+    expect(workspaceControllerSource).toContain("Failed to persist created workspace terminal");
     expect(panelSource).toContain("Set up your workspace");
     expect(panelSource).toContain("Workspace mode");
     expect(panelSource).toContain("Standard workspace");
@@ -266,8 +282,8 @@ describe("WorkspacesPanel", () => {
     expect(appSource).not.toContain("WORKSPACES_PANEL_COLLAPSED_WIDTH = 42");
     expect(appSource).not.toContain('id="workspaces"');
     expect(appSource).not.toContain("panelRef={workspacesRef}");
-    expect(appSource).toContain("WORKSPACES_PANEL_MIN_WIDTH");
-    expect(appSource).toContain("WORKSPACES_PANEL_MAX_WIDTH");
+    expect(layoutResizeSource).toContain("WORKSPACES_PANEL_MIN_WIDTH");
+    expect(layoutResizeSource).toContain("WORKSPACES_PANEL_MAX_WIDTH");
     expect(appConstantsSource).toContain(
       "WORKSPACES_PANEL_COMPACT_WIDTH = 152",
     );
@@ -278,25 +294,26 @@ describe("WorkspacesPanel", () => {
       "WORKSPACES_PANEL_COMPACT_BREAKPOINT = 1180",
     );
     expect(appSource).toContain("workspacesPanelCompact");
-    expect(appSource).toContain("shouldUseCompactWorkspacesPanel");
+    expect(readFileSync(path.join(here, "../../app/lib/useAppLayout.ts"), "utf8"))
+      .toContain("WORKSPACES_PANEL_COMPACT_BREAKPOINT");
     expect(appSource).toContain(
       "const workspacesPanelWidth = workspacesPanelCompact",
     );
-    expect(appSource).toContain(
+    expect(appChromeSource).toContain(
       "width: workspacesPanelOpen ? workspacesPanelWidth : 0",
     );
-    expect(appSource).toContain("style={{ width: workspacesPanelWidth }}");
+    expect(appChromeSource).toContain("style={{ width: workspacesPanelWidth }}");
     expect(appSource).toContain("compact={workspacesPanelCompact}");
-    expect(appSource).toContain('"flex min-h-0 min-w-0 flex-1"');
+    expect(appChromeSource).toContain('"flex min-h-0 min-w-0 flex-1"');
     expect(appSource).toContain("newWorkspaceTab");
     expect(appSource).toContain("formatWorkspaceName");
     expect(appSource).toContain("workspace-");
-    expect(appSource).toContain("workspace-tab-");
+    expect(workspaceControllerSource).toContain("workspace-tab-");
     expect(appSource).toContain("workspace.id, workspace.name");
     expect(appConstantsSource).toContain("WORKSPACE_LIMIT = 99");
     expect(appSource).toContain("setWorkspaces");
     expect(appSource).toContain("workspaceItems");
-    expect(appSource).toContain("leafIds(tab.paneTree).length");
+    expect(terminalPaneActionsSource).toContain("leafIds(tab.paneTree).length");
     expect(appSource).toContain("handleOpenWorkspaceWithoutAi");
     expect(appSource).toContain("workspaceMode: WorkspaceMode = \"standard\"");
     expect(appSource).toContain("function canvasWorkspaceDiagram");
@@ -308,31 +325,32 @@ describe("WorkspacesPanel", () => {
     expect(workspaceSelectionSource).toContain(
       'filter((node) => node.kind === "terminal")',
     );
-    expect(appSource).toContain('count: workspaceMode === "agent" ? agentTabIds.length : terminalCount');
-    expect(appSource).toContain("workspaceMode === \"canvas\"");
-    expect(appSource).toContain("tabId: workspaceMode === \"canvas\" ? null : tabId");
-    expect(appSource).toContain("initialCommands: string[] = []");
-    expect(appSource).toContain("requestedName?: string");
-    expect(appSource).toContain("requestedColor?: string");
-    expect(appSource).toContain("requestedName?.trim() || fallbackName");
+    expect(workspaceControllerSource).toContain('count: workspaceMode === "agent" ? agentTabIds.length : input.terminalCount');
+    expect(workspaceControllerSource).toContain("workspaceMode === \"canvas\"");
+    expect(workspaceControllerSource).toContain("tabId: workspaceMode === \"canvas\" ? null : tabId");
+    expect(workspaceControllerSource).toContain("initialCommands?: string[]");
+    expect(workspaceControllerSource).toContain("requestedName?: string");
+    expect(workspaceControllerSource).toContain("requestedColor?: string");
+    expect(workspaceControllerSource).toContain("input.requestedName?.trim() || fallbackName");
     expect(appSource).toContain("suggestedWorkspaceName={");
     expect(appSource).toContain(
       "suggestedWorkspaceColor={workspaceAccentForIndex",
     );
-    expect(appSource).toContain("normalizeWorkspaceAccentColor(");
-    expect(appSource).toContain("const paneLaunchPlan");
-    expect(appSource).toContain(
+    expect(workspaceControllerSource).toContain("normalizeWorkspaceAccentColor(");
+    expect(workspaceControllerSource).toContain("const paneLaunchPlan");
+    expect(workspaceControllerSource).toContain(
       "lastCommand: initialCommands[paneIndex] ?? null",
     );
-    expect(appSource).toContain(
+    expect(workspaceControllerSource).toContain(
       "autoLaunch: Boolean(initialCommands[paneIndex])",
     );
-    expect(appSource).toContain("paneLaunchPlan");
-    expect(appSource).toContain("savePaneLaunchPlan");
-    expect(appSource).toContain("db_save_pane");
+    expect(workspaceControllerSource).toContain("paneLaunchPlan");
+    expect(workspaceControllerSource).toContain("persistPaneRecord");
+    expect(workspaceControllerSource).toContain("db_save_pane");
     expect(appSource).toContain("workspaceSetupOpen");
     expect(appSource).toContain("setWorkspaceSetupOpen(true)");
-    expect(appSource).toContain("if (hydrated.length === 0) setWorkspaceSetupOpen(true);");
+    expect(workspaceControllerSource).toContain("setWorkspacesHydrated(true);");
+    expect(appSource).toContain("workspacesHydrated");
     expect(appSource).toContain("const handleWorkspaceSetupCancel");
     expect(appSource).toContain("<WorkspaceSetupView");
     expect(appSource).toContain("onCancel={handleWorkspaceSetupCancel}");
@@ -346,9 +364,9 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("recentWorkspaces={recentWorkspaces}");
     expect(appSource).toContain("workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}");
     expect(appSource).toContain("forkContext={workspaceForkContext}");
-    expect(appSource).toContain("db_list_recent_workspaces");
-    expect(appSource).toContain("db_save_recent_workspace");
-    expect(appSource).toContain("saveRecentWorkspace(newWs)");
+    expect(workspaceControllerSource).toContain("db_list_recent_workspaces");
+    expect(workspaceControllerSource).toContain("db_save_recent_workspace");
+    expect(workspaceControllerSource).toContain("saveRecentWorkspace(workspace)");
     expect(appSource).toMatch(
       /<Header[\s\S]*onToggleWorkspacesPanel=\{toggleWorkspacesPanel\}/,
     );
@@ -374,16 +392,20 @@ describe("WorkspacesPanel", () => {
 
   it("does not persist runtime shell history as a workspace launch command", () => {
     const appSource = readFileSync(appPath, "utf8");
+    const terminalActionsSource = readFileSync(
+      path.join(here, "../../app/lib/useTerminalWorkspaceActions.ts"),
+      "utf8",
+    );
     const dbSource = readFileSync(dbPath, "utf8");
 
     expect(appSource).not.toContain("setLeafLastCommand(leafId, command)");
-    expect(appSource).toContain(
+    expect(terminalActionsSource).toContain(
       "const autoLaunch = findLeafAutoLaunch(tab.paneTree, leafId);",
     );
-    expect(appSource).toContain("const isCliAgent = detectCliAgent(command) !== null;");
-    expect(appSource).toContain("const configuredCommand = isCliAgent");
-    expect(appSource).toContain(": autoLaunch");
-    expect(appSource).toContain("autoLaunch,");
+    expect(terminalActionsSource).toContain("const isCliAgent = Boolean(command.trim())");
+    expect(terminalActionsSource).toContain("const configuredCommand = isCliAgent");
+    expect(terminalActionsSource).toContain(": autoLaunch");
+    expect(terminalActionsSource).toContain("autoLaunch,");
     expect(dbSource).toContain("auto_launch INTEGER NOT NULL DEFAULT 0");
     expect(dbSource).toContain(
       "ALTER TABLE workspace_panes ADD COLUMN auto_launch INTEGER NOT NULL DEFAULT 0",
@@ -407,12 +429,16 @@ describe("WorkspacesPanel", () => {
   it("supports swapping terminal positions from the sidebar", () => {
     const panelSource = readFileSync(panelPath, "utf8");
     const appSource = readFileSync(appPath, "utf8");
+    const paneActionsSource = readFileSync(
+      path.join(here, "../../app/lib/useTerminalPaneActions.ts"),
+      "utf8",
+    );
 
     expect(panelSource).toContain("onSwapTerminals");
     expect(panelSource).toContain("data-terminal-leaf-id");
     expect(appSource).toContain("handleSwapWorkspaceTerminals");
-    expect(appSource).toContain("swapLeafNodes(");
-    expect(appSource).toContain("handleTerminalPaneTreeChange(tab.id, paneTree)");
+    expect(paneActionsSource).toContain("swapLeafNodes(");
+    expect(paneActionsSource).toContain("handlePaneTreeChange(tab.id, paneTree)");
   });
 
   it("renders the terminal drag preview outside the transformed zoom container", () => {

@@ -114,4 +114,17 @@ describe("AgentChatWorkspace", () => {
     expect(source).toContain("absolute bottom-4 left-1/2 z-20");
     expect(source).not.toContain("void send(transcript)");
   });
+
+  it("surfaces agent-edited files as a reviewable card at the end of the timeline", () => {
+    const source = readFileSync(componentPath, "utf8");
+
+    expect(source).toContain("AgentEditCard");
+    expect(source).toContain("Edited {files.length}");
+    expect(source).toContain("onReview={reviewEdits}");
+    expect(source).toContain("onUndo={() => void undoEdits()}");
+    expect(source).toContain("native.gitPanelSnapshot(cwd)");
+    expect(source).toContain("native.gitDiff");
+    expect(source).toContain("native.gitDiscard");
+    expect(source).toContain("onOpenFileDiff");
+  });
 });

@@ -233,7 +233,7 @@ describe("FloatingVoiceAgent", () => {
       "utf8",
     );
     const app = readFileSync(
-      path.join(here, "../../../../src-tauri/src/lib.rs"),
+      path.join(here, "../../../../src-tauri/src/commands.rs"),
       "utf8",
     );
 

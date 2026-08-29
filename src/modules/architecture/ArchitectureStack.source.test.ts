@@ -14,7 +14,7 @@ const canvasTerminalPath = path.join(here, "CanvasTerminalNode.tsx");
 const preferencesPath = path.join(here, "../settings/store.ts");
 const tabsPath = path.join(here, "../tabs/lib/useTabs.ts");
 const tabBarPath = path.join(here, "../tabs/TabBar.tsx");
-const appPath = path.join(here, "../../app/App.tsx");
+const surfacePath = path.join(here, "../../app/WorkspaceSurface.tsx");
 
 describe("Architecture workspace page", () => {
   it("loads the Architecture canvas from the main bundle instead of a blank lazy boundary", () => {
@@ -38,7 +38,7 @@ describe("Architecture workspace page", () => {
 
   it("removes inactive canvas tasks from layout without destroying their PTYs", () => {
     const stackSource = readFileSync(stackPath, "utf8");
-    const appSource = readFileSync(appPath, "utf8");
+    const appSource = readFileSync(surfacePath, "utf8");
 
     expect(stackSource).toContain('!visible && "hidden pointer-events-none"');
     expect(appSource).toContain('!isArchitectureTab && "hidden pointer-events-none"');
@@ -78,7 +78,7 @@ describe("Architecture workspace page", () => {
   it("adds Architecture as a first-class tab type", () => {
     const tabsSource = readFileSync(tabsPath, "utf8");
     const tabBarSource = readFileSync(tabBarPath, "utf8");
-    const appSource = readFileSync(appPath, "utf8");
+    const appSource = readFileSync(surfacePath, "utf8");
     const stackSource = readFileSync(stackPath, "utf8");
     const canvasSource = readFileSync(canvasPath, "utf8");
 
@@ -91,7 +91,7 @@ describe("Architecture workspace page", () => {
     expect(tabBarSource).not.toContain("AiNetworkIcon");
     expect(appSource).toContain("<ArchitectureStack");
     expect(appSource).toContain("canvasFocused={canvasFocused}");
-    expect(appSource).toContain("onToggleCanvasFocus={toggleCanvasFocus}");
+    expect(appSource).toContain("onToggleCanvasFocus={onToggleCanvasFocus}");
     expect(stackSource).toContain("onToggleCanvasFocus");
     expect(canvasSource).toContain("function CanvasFocusIcon");
     expect(canvasSource).toContain('"Focus canvas"');

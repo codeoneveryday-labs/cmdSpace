@@ -8,8 +8,11 @@ describe("workspace session import wiring", () => {
   it("lists native sessions and resumes the selected one in the active workspace", () => {
     const dialog = readFileSync(path.join(here, "ImportSessionDialog.tsx"), "utf8");
     const panel = readFileSync(path.join(here, "WorkspacesPanel.tsx"), "utf8");
-    const app = readFileSync(path.join(here, "../../app/App.tsx"), "utf8");
-    const tauri = readFileSync(path.join(here, "../../../src-tauri/src/lib.rs"), "utf8");
+    const workspaceController = readFileSync(
+      path.join(here, "../../app/lib/useWorkspaceController.ts"),
+      "utf8",
+    );
+    const tauri = readFileSync(path.join(here, "../../../src-tauri/src/commands.rs"), "utf8");
     const extendedDiscovery = readFileSync(
       path.join(
         here,
@@ -50,9 +53,9 @@ describe("workspace session import wiring", () => {
     expect(panel).toContain("onImportMany={selectImportSessions}");
     expect(panel).toContain("<ImportSessionDialog");
     expect(panel).toContain("buildSessionResumeCommand");
-    expect(app).toContain("buildSessionResumeCommand");
-    expect(app).toContain("appendTerminalPane");
-    expect(app).toContain("handleArchitectureDiagramChange(tab.id, nextDiagram)");
+    expect(workspaceController).toContain("buildSessionResumeCommand");
+    expect(workspaceController).toContain("appendTerminalPane");
+    expect(workspaceController).toContain("input.updateCanvasDiagram(tab.id, nextDiagram)");
     expect(tauri).toContain("pty::list_agent_sessions");
     expect(extendedDiscovery).not.toContain("amp threads list");
     expect(extendedDiscovery).not.toContain("qwen sessions list");
