@@ -9,7 +9,7 @@
   </p>
 </div>
 
-cmdSpace is an open-source desktop development workspace built with Tauri 2, Rust, React 19, and a native PTY backend. It combines real terminals, AI coding agents, a code editor, file navigation, source control, local web previews, and a spatial Canvas for arranging development work visually.
+cmdSpace is an open-source desktop development workspace built with Tauri 2, Rust, React 19, and a native PTY backend. It combines real terminals, AI coding agents, CLI agent chat workspaces, a code editor, file navigation, source control, local web previews, a spatial Canvas for arranging development work visually, and remote access from a mobile browser.
 
 No account is required. There is no telemetry. AI can use your own provider keys or local models.
 
@@ -41,9 +41,10 @@ No account is required. There is no telemetry. AI can use your own provider keys
 - xterm.js with WebGL rendering, true color, search, links, and background streaming.
 - Multi-tab terminals with horizontal and vertical splits.
 - Shell support for zsh, bash, fish, PowerShell, pwsh, WSL, and cmd.exe.
+- Shell integration via OSC 7 (cwd) and OSC 133 (prompt boundaries and exit codes).
 - Workspace-specific working directories and terminal environments.
 - Clickable folders and Git branches for fast navigation.
-- Copy-on-select, keyboard shortcuts, restored sessions, and scrollback.
+- Copy-on-select, keyboard shortcuts, and scrollback.
 - Windows WSL environments are first-class workspaces rather than wrapped subprocesses.
 
 ### Canvas mode
@@ -62,9 +63,9 @@ No account is required. There is no telemetry. AI can use your own provider keys
 ### AI coding agents
 
 - Agentic workflows with plans, sub-agents, project memory, file read/write/edit, multi-edit, grep, glob, and approved shell commands.
-- OpenAI Codex, Anthropic, Google Gemini, Groq, xAI, Cerebras, OpenRouter, DeepSeek, Mistral, and other OpenAI-compatible endpoints.
-- Local inference through LM Studio, MLX, and Ollama.
-- Custom agents with separate prompts and tool permissions.
+- OpenAI, Anthropic, Google, Groq, xAI, Cerebras, and OpenAI-compatible endpoints (including LM Studio for local/offline inference).
+- BYOK CLI agents running in real terminal sessions — Codex, Claude Code, Gemini, OpenCode, Copilot, Cursor, Aider, OMP, and more.
+- Dedicated agent chat workspaces with a calm timeline, model/effort/permission controls, resumable native sessions, and voice input.
 - Composer prompts with `@` file references, `#` snippets, slash commands, and attach-from-selection or file explorer.
 - Reviewable code edits with accept/reject controls and plan mode.
 - Standard and Canvas terminals can start configured CLI agents in the selected working directory.
@@ -97,6 +98,12 @@ No account is required. There is no telemetry. AI can use your own provider keys
 - Open external URLs in a native child webview.
 - Light and dark themes with independent editor themes.
 - Custom themes, background images, opacity, blur, and workspace panel collapse.
+
+### Remote access
+
+- Pair a phone or tablet by scanning a QR code and control your terminals from a mobile browser.
+- A WebSocket + localhost tunnel exposes the paired workspace without an account.
+- Remote sessions are scoped to the paired device and respect the same workspace authorization as the desktop app.
 
 ## Install
 
@@ -148,7 +155,7 @@ GitHub Actions builds macOS, Windows, and Linux artifacts. macOS release jobs fa
 
 ## Tech stack
 
-Tauri 2, Rust, `portable-pty`, React 19, TypeScript, Vite, xterm.js, CodeMirror 6, Vercel AI SDK, Tailwind CSS, shadcn/ui, and Zustand.
+Tauri 2, Rust (`portable-pty`, `rusqlite`, `keyring`, `tungstenite`, `reqwest`), React 19, TypeScript, Vite, xterm.js, CodeMirror 6, Vercel AI SDK, Tailwind CSS v4, shadcn/ui, and Zustand.
 
 ## Contributing
 

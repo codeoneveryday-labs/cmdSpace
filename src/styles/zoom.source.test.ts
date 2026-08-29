@@ -6,14 +6,14 @@ const here = path.dirname(new URL(import.meta.url).pathname);
 const globalsPath = path.join(here, "globals.css");
 const useZoomPath = path.join(here, "../lib/useZoom.ts");
 const zoomConstantsPath = path.join(here, "../lib/zoomConstants.ts");
-const appPath = path.join(here, "../app/App.tsx");
+const appChromePath = path.join(here, "../app/AppChrome.tsx");
 
 describe("app zoom hit testing", () => {
   it("uses transform scaling instead of CSS zoom so hover regions stay aligned", () => {
     const globals = readFileSync(globalsPath, "utf8");
     const useZoom = readFileSync(useZoomPath, "utf8");
     const zoomConstants = readFileSync(zoomConstantsPath, "utf8");
-    const app = readFileSync(appPath, "utf8");
+    const appChrome = readFileSync(appChromePath, "utf8");
 
     expect(globals).toContain("--app-zoom-inverse");
     expect(globals).toContain("transform: scale(var(--app-zoom));");
@@ -25,10 +25,10 @@ describe("app zoom hit testing", () => {
     );
     expect(useZoom).toContain("APP_ZOOM_INVERSE_CSS_VAR");
     expect(useZoom).toContain("String(1 / z)");
-    expect(app).toContain(
+    expect(appChrome).toContain(
       '<main className="relative min-h-0 flex-1 overflow-hidden">',
     );
-    expect(app).toContain(
+    expect(appChrome).toContain(
       '<div className="zoom-content absolute left-0 top-0 flex min-h-0">',
     );
   });

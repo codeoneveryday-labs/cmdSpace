@@ -2,8 +2,20 @@
 
 The iOS app is cmdSpace-owned SwiftUI source. Its visual language is terminal
 first: near-black canvas, compact mono metadata, a thin workspace drawer, and
-the existing cmdSpace application icon. It does not reuse Zedra source,
-logo, or artwork.
+the existing cmdSpace application icon. It does not reuse Zedra source, logo, or
+artwork.
+
+## Structure
+
+- `CmdSpaceMobileApp/` — SwiftUI application host. `RemoteStore.swift` owns the
+  single WebSocket and published connection/workspace/session state;
+  `RootView.swift` contains the Home, workspace, terminal, file, and import
+  screens.
+- `CmdSpaceMobileCore/` — Swift Package with the typed pairing payload, device
+  identity, wire envelopes, terminal display normalization, and terminal input
+  detection.
+- `project.yml` — `xcodegen` specification. Generates `CmdSpaceMobile.xcodeproj`
+  and links the app target to the `CmdSpaceMobileCore` framework.
 
 ## Pairing protocol
 
@@ -18,6 +30,18 @@ logo, or artwork.
 
 The app uses Apple's `VisionKit` for QR scanning; it falls back to a paste
 field when camera scanning is unavailable (including some Simulator setups).
+
+## Mobile workspaces
+
+A paired device owns an independent set of mobile workspaces. Each mobile
+workspace is persisted by the desktop host and scoped to that device, storing
+only user-facing metadata and an authorized working directory. It is never
+created from, hydrated by, or replayed as a desktop workspace pane.
+
+Mobile terminals are child runtimes of a mobile workspace. Their PTYs are
+ephemeral: a desktop host restart stops them rather than replaying commands.
+Importing an agent session starts a new mobile PTY with a resume command; it
+does not attach an already-running desktop agent process.
 
 ## Local source checks
 
@@ -36,5 +60,5 @@ xcodebuild -project mobile/ios/CmdSpaceMobile.xcodeproj -scheme CmdSpaceMobile \
   -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
-Do not add an Apple team ID, provisioning profile, archive, IPA, or generated
-Xcode artifacts to source control.
+Do not add an Apple team ID, provisioning profile, archive, IPA, generated
+Xcode project, or signing identity to source control.

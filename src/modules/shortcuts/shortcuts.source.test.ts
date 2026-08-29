@@ -119,10 +119,10 @@ describe("workspace navigation shortcuts", () => {
     const appSource = readFileSync(appPath, "utf8");
 
     expect(appSource).toContain(
-      "const currentIdx = workspaces.findIndex((w) => w.id === activeWorkspaceId)",
+      "const index = workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId)",
     );
     expect(appSource).toContain(
-      "handleSelectWorkspace(workspaces[nextIdx].id)",
+      "handleSelectWorkspace(workspaces[nextIndex].id)",
     );
   });
 });

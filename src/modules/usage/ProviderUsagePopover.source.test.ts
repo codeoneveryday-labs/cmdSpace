@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const sourcePath = path.join(here, "ProviderUsagePopover.tsx");
-const tauriLibPath = path.join(here, "../../../src-tauri/src/lib.rs");
+const tauriLibPath = path.join(here, "../../../src-tauri/src/commands.rs");
 
 describe("ProviderUsagePopover", () => {
   it("loads each provider independently and skeletonizes only pending cards", () => {
