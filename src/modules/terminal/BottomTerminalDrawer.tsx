@@ -19,15 +19,20 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { TerminalNavigationControls } from "./TerminalNavigationControls";
 import { TerminalPane, type TerminalPaneHandle } from "./TerminalPane";
 import { disposeSession } from "./lib/useTerminalSession";
+import {
+  MAX_BOTTOM_TERMINAL_HEIGHT,
+  MIN_BOTTOM_TERMINAL_HEIGHT,
+  useBottomTerminalResize,
+} from "./useBottomTerminalResize";
+import { useBottomTerminalTabDrag } from "./useBottomTerminalTabDrag";
 
 const DEFAULT_HEIGHT = 240;
-const MIN_HEIGHT = 160;
-const MAX_HEIGHT = 560;
+const MIN_HEIGHT = MIN_BOTTOM_TERMINAL_HEIGHT;
+const MAX_HEIGHT = MAX_BOTTOM_TERMINAL_HEIGHT;
 
 type BottomTerminalTab = {
   id: number;
@@ -66,78 +71,27 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
 
     const terminalRefs = useRef(new Map<number, TerminalPaneHandle>());
     const tabIdsRef = useRef<number[]>([]);
-    const resizeRef = useRef<{
-      pointerId: number;
-      startY: number;
-      startHeight: number;
-    } | null>(null);
     const tabDragRef = useRef<{
       id: number;
       pointerId: number;
       startX: number;
       dragging: boolean;
     } | null>(null);
-    const resizeFrameRef = useRef<number | null>(null);
-    const pendingHeightRef = useRef<number | null>(null);
     const [tabs, setTabs] = useState<BottomTerminalTab[]>(() => [firstTabRef.current!]);
     const [activeTabId, setActiveTabId] = useState(firstTabRef.current.id);
     const [height, setHeight] = useState(DEFAULT_HEIGHT);
-    const [resizing, setResizing] = useState(false);
-    const [draggingTabId, setDraggingTabId] = useState<number | null>(null);
-
     tabIdsRef.current = tabs.map((tab) => tab.id);
 
     const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
 
     useEffect(() => {
       return () => {
-        if (resizeFrameRef.current !== null) {
-          cancelAnimationFrame(resizeFrameRef.current);
-        }
         tabIdsRef.current.forEach(disposeSession);
       };
     }, []);
 
-    const flushResize = () => {
-      resizeFrameRef.current = null;
-      const nextHeight = pendingHeightRef.current;
-      pendingHeightRef.current = null;
-      if (nextHeight !== null) setHeight(nextHeight);
-    };
-
-    const handleResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      resizeRef.current = {
-        pointerId: event.pointerId,
-        startY: event.clientY,
-        startHeight: height,
-      };
-      setResizing(true);
-    };
-
-    const handleResizeMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-      const resize = resizeRef.current;
-      if (!resize || resize.pointerId !== event.pointerId) return;
-      const viewportMax = Math.max(MIN_HEIGHT, window.innerHeight - 140);
-      pendingHeightRef.current = Math.min(
-        Math.min(MAX_HEIGHT, viewportMax),
-        Math.max(MIN_HEIGHT, resize.startHeight + resize.startY - event.clientY),
-      );
-      if (resizeFrameRef.current === null) {
-        resizeFrameRef.current = requestAnimationFrame(flushResize);
-      }
-    };
-
-    const handleResizeEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (resizeRef.current?.pointerId !== event.pointerId) return;
-      if (resizeFrameRef.current !== null) {
-        cancelAnimationFrame(resizeFrameRef.current);
-        flushResize();
-      }
-      resizeRef.current = null;
-      setResizing(false);
-    };
+    const { resizing, handleResizeStart, handleResizeMove, handleResizeEnd } =
+      useBottomTerminalResize({ height, onHeightChange: setHeight });
 
     const addTerminalTab = () => {
       const tab = createTerminalTab(activeTab?.cwd ?? initialCwd ?? undefined);
@@ -185,45 +139,14 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
       [],
     );
 
-    useEffect(() => {
-      const onPointerMove = (event: PointerEvent) => {
-        const drag = tabDragRef.current;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        if (Math.abs(event.clientX - drag.startX) > 4) drag.dragging = true;
-        if (drag.dragging) setDraggingTabId(drag.id);
-      };
-
-      const onPointerUp = (event: PointerEvent) => {
-        const drag = tabDragRef.current;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        tabDragRef.current = null;
-        setDraggingTabId(null);
-
-        if (!drag.dragging) {
-          setActiveTabId(drag.id);
-          requestAnimationFrame(() => terminalRefs.current.get(drag.id)?.focus());
-          return;
-        }
-
-        const target = document.elementFromPoint(event.clientX, event.clientY);
-        const targetTab = target instanceof Element
-          ? target.closest<HTMLElement>("[data-bottom-terminal-tab]")
-          : null;
-        const targetId = Number(targetTab?.dataset.bottomTerminalTab);
-        if (!Number.isInteger(targetId) || targetId === drag.id || !targetTab) return;
-        const rect = targetTab.getBoundingClientRect();
-        reorderTabs(drag.id, targetId, event.clientX < rect.left + rect.width / 2 ? "before" : "after");
-      };
-
-      window.addEventListener("pointermove", onPointerMove);
-      window.addEventListener("pointerup", onPointerUp);
-      window.addEventListener("pointercancel", onPointerUp);
-      return () => {
-        window.removeEventListener("pointermove", onPointerMove);
-        window.removeEventListener("pointerup", onPointerUp);
-        window.removeEventListener("pointercancel", onPointerUp);
-      };
-    }, [reorderTabs]);
+    const { draggingTabId, beginDrag } = useBottomTerminalTabDrag({
+      tabRef: tabDragRef,
+      focusTab: (id) => {
+        setActiveTabId(id);
+        requestAnimationFrame(() => terminalRefs.current.get(id)?.focus());
+      },
+      reorderTabs,
+    });
 
     const updateTabCwd = (tabId: number, cwd: string) => {
       setTabs((current) => current.map((tab) => (tab.id === tabId ? { ...tab, cwd } : tab)));
@@ -233,16 +156,6 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
       if (!activeTab) return;
       terminalRefs.current.get(activeTab.id)?.write(`cd '${path.replace(/'/g, "'\\''")}'\r`);
       terminalRefs.current.get(activeTab.id)?.focus();
-    };
-
-    const handleTabPointerDown = (event: ReactPointerEvent<HTMLElement>, tabId: number) => {
-      if (event.button !== 0) return;
-      tabDragRef.current = {
-        id: tabId,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        dragging: false,
-      };
     };
 
     const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLElement>, tabId: number) => {
@@ -287,7 +200,7 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
                   aria-selected={isActive}
                   tabIndex={0}
                   data-bottom-terminal-tab={tab.id}
-                  onPointerDown={(event) => handleTabPointerDown(event, tab.id)}
+                  onPointerDown={(event) => beginDrag(event, tab.id)}
                   onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
                   className={cn(
                     "flex h-8 max-w-72 shrink-0 cursor-grab items-center gap-2 rounded-xl px-3 text-sm transition-colors active:cursor-grabbing",

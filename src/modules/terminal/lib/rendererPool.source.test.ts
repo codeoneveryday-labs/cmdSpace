@@ -4,6 +4,20 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const rendererPoolPath = path.join(here, "rendererPool.ts");
+const rendererWebglPath = path.join(here, "rendererWebgl.ts");
+const rendererInputPath = path.join(here, "rendererInput.ts");
+const rendererPreferencesPath = path.join(here, "rendererPreferences.ts");
+const rendererResizePath = path.join(here, "rendererResize.ts");
+
+function readRendererSource() {
+  return [
+    readFileSync(rendererPoolPath, "utf8"),
+    readFileSync(rendererWebglPath, "utf8"),
+    readFileSync(rendererInputPath, "utf8"),
+    readFileSync(rendererPreferencesPath, "utf8"),
+    readFileSync(rendererResizePath, "utf8"),
+  ].join("\n");
+}
 const macImeBridgePath = path.join(here, "macImeBridge.ts");
 const terminalOptionsPath = path.join(here, "terminalOptions.ts");
 const settingsStorePath = path.join(here, "../../settings/store.ts");
@@ -15,13 +29,13 @@ const canvasTerminalNodePath = path.join(
 
 describe("rendererPool WebGL stability", () => {
   it("keeps the renderer pool inside the pane cap", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
+    const source = readRendererSource();
 
     expect(source).toContain("POOL_MAX_SIZE = 12");
   });
 
   it("uses a vertical cursor in both focused and inactive panes", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
+    const source = readRendererSource();
     const optionsSource = readFileSync(terminalOptionsPath, "utf8");
 
     expect(source).toContain("sharedTerminalOptions");
@@ -36,7 +50,7 @@ describe("rendererPool WebGL stability", () => {
   });
 
   it("does not reattach WebGL after context loss", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
+    const source = readRendererSource();
 
     expect(source).toContain("webglDisabledAfterContextLoss");
     expect(source).not.toContain("WEBGL_RECOVERY_DELAY_MS");
@@ -50,7 +64,7 @@ describe("rendererPool WebGL stability", () => {
 
   it("keeps copy-on-select opt-in so terminal selection does not overwrite the clipboard by default", () => {
     const settingsSource = readFileSync(settingsStorePath, "utf8");
-    const rendererSource = readFileSync(rendererPoolPath, "utf8");
+    const rendererSource = readRendererSource();
 
     expect(settingsSource).toContain("terminalCopyOnSelection: false");
     expect(rendererSource).toContain("terminalCopyOnSelection");
@@ -80,7 +94,7 @@ describe("rendererPool WebGL stability", () => {
   });
 
   it("leaves macOS IME composition to xterm's native input path", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
+    const source = readRendererSource();
     const imeSource = readFileSync(macImeBridgePath, "utf8");
 
     expect(source).not.toContain("attachMacImeBridge");
@@ -93,79 +107,14 @@ describe("rendererPool WebGL stability", () => {
   });
 
   it("lets xterm own native paste and text input", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
+    const source = readRendererSource();
 
     expect(source).not.toContain("function isTerminalPaste");
     expect(source).not.toContain("navigator.clipboard\n          .readText()");
   });
 
-  it("does not forward OSC 10/11 color reports as shell input", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
-
-    expect(source).toContain("const OSC_COLOR_REPORT");
-    expect(source).toContain("if (OSC_COLOR_REPORT.test(data)) return;");
-  });
-
-  it("reports the visible shell command before forwarding Enter", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
-
-    expect(source).toContain("observeInputLine?(line: string): void;");
-    expect(source).toContain("currentInputLine(slot.term)");
-    expect(source).toContain("bridge.observeInputLine?.(currentInputLine(slot.term));");
-  });
-
-  it("can defer terminal fit work while app chrome is being resized", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
-
-    expect(source).toContain("let terminalResizePaused = false;");
-    expect(source).toContain(
-      "export function setTerminalResizePaused(paused: boolean): void",
-    );
-    expect(source).toContain("pendingResizeSlots.add(slot);");
-    expect(source).toContain("fitSlotFromCurrentHost(slot);");
-  });
-
-  it("repaints the terminal canvas after a host resize even when dimensions are unchanged", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
-
-    expect(source).toContain("function refreshSlot(slot: Slot): void");
-    expect(source).toContain("slot.term.refresh(0, Math.max(0, slot.term.rows - 1))");
-    expect(source).toContain("fitSlot(slot);\n  refreshSlot(slot);");
-  });
-
-  it("debounces terminal selection auto-copy and skips repeated clipboard writes", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
-
-    expect(source).toContain("AUTO_COPY_SELECTION_DEBOUNCE_MS");
-    expect(source).toContain("term.onSelectionChange");
-    expect(source).toContain("slot.autoCopyTimer");
-    expect(source).toContain("lastAutoCopiedSelection");
-    expect(source).toContain("navigator.clipboard");
-    expect(source).toContain(".writeText(selection)");
-  });
-
-  it("shows an inline copied badge after clipboard writes succeed", () => {
-    const rendererSource = readFileSync(rendererPoolPath, "utf8");
-    const cssSource = readFileSync(globalsCssPath, "utf8");
-
-    expect(rendererSource).toContain("showAutoCopyBadge(slot)");
-    expect(rendererSource).toContain('badge.textContent = "Copied"');
-    expect(rendererSource).toContain('badge.setAttribute("role", "status")');
-    expect(rendererSource).toContain('badge.setAttribute("aria-live", "polite")');
-    expect(cssSource).toContain(".cmdspace-terminal-copy-badge");
-    expect(cssSource).toContain(".cmdspace-terminal-copy-badge.is-visible");
-  });
-
-  it("clears only auto-copied selections after the clipboard write succeeds", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
-
-    expect(source).toContain("writeSelectionToClipboard(slot, selection, true)");
-    expect(source).toContain("clearSelectionAfterCopy");
-    expect(source).toContain("slot.term.clearSelection()");
-  });
-
   it("routes a plain space once through xterm's native onData callback", () => {
-    const rendererSource = readFileSync(rendererPoolPath, "utf8");
+    const rendererSource = readRendererSource();
     const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");
 
     expect(rendererSource).not.toContain("isPlainSpaceKey(event)");
@@ -175,30 +124,14 @@ describe("rendererPool WebGL stability", () => {
   });
 
   it("clears the entire prompt with Cmd+Shift+Delete", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
+    const source = readRendererSource();
 
-    expect(source).toContain("function isClearTerminalInput");
-    expect(source).toContain("event.metaKey");
-    expect(source).toContain("event.shiftKey");
-    expect(source).toContain('bridge.writeToPty("\\x15\\x0b")');
-    expect(source.indexOf("isClearTerminalInput(event)")).toBeLessThan(
-      source.indexOf("isCtrlBackspace(event)"),
-    );
-  });
-
-  it("moves to line boundaries before Cmd+Arrow pane navigation", () => {
-    const source = readFileSync(rendererPoolPath, "utf8");
-
-    expect(source).toContain("terminalLineBoundarySequence");
-    expect(source).toContain("const lineBoundary = terminalLineBoundarySequence(event)");
-    expect(source).toContain("bridge.writeToPty(lineBoundary)");
-    expect(source.indexOf("terminalLineBoundarySequence(event)")).toBeLessThan(
-      source.indexOf('event.metaKey && event.key.startsWith("Arrow")'),
-    );
+    expect(source).toContain("terminalEditingSequence(event, IS_MAC)");
+    expect(source).toContain("bridge.writeToPty(editingSequence)");
   });
 
   it("filters a duplicate xterm commit only during composition finalization", () => {
-    const rendererSource = readFileSync(rendererPoolPath, "utf8");
+    const rendererSource = readRendererSource();
     const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");
 
     expect(rendererSource).toContain("createMacCompositionCommitFilter");

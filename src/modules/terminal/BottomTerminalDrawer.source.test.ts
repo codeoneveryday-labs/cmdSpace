@@ -4,6 +4,15 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const source = readFileSync(path.join(here, "BottomTerminalDrawer.tsx"), "utf8");
+const resizeSource = readFileSync(
+  path.join(here, "useBottomTerminalResize.ts"),
+  "utf8",
+);
+const tabDragSource = readFileSync(
+  path.join(here, "useBottomTerminalTabDrag.ts"),
+  "utf8",
+);
+const drawerInteractionSource = `${source}\n${resizeSource}\n${tabDragSource}`;
 
 describe("BottomTerminalDrawer", () => {
   it("uses the shared terminal lifecycle for every bottom tab", () => {
@@ -17,15 +26,16 @@ describe("BottomTerminalDrawer", () => {
   });
 
   it("focuses on demand and exposes a smooth vertical resize handle", () => {
-    expect(source).toContain("focus: () => terminalRefs.current.get(activeTabId)?.focus()");
-    expect(source).toContain('aria-label="Resize bottom terminal"');
-    expect(source).toContain("cursor-row-resize");
-    expect(source).toContain("requestAnimationFrame(flushResize)");
-    expect(source).not.toContain(
+    const resizeAwareSource = `${source}\n${resizeSource}`;
+    expect(resizeAwareSource).toContain("focus: () => terminalRefs.current.get(activeTabId)?.focus()");
+    expect(resizeAwareSource).toContain('aria-label="Resize bottom terminal"');
+    expect(resizeAwareSource).toContain("cursor-row-resize");
+    expect(resizeAwareSource).toContain("requestAnimationFrame(flushResize)");
+    expect(resizeAwareSource).not.toContain(
       "relative flex flex-col overflow-hidden rounded-xl",
     );
-    expect(source).not.toContain("shadow-[0_-16px_36px_-18px_rgba(0,0,0,0.45)]");
-    expect(source).toContain("dark:bg-zinc-950/95");
+    expect(resizeAwareSource).not.toContain("shadow-[0_-16px_36px_-18px_rgba(0,0,0,0.45)]");
+    expect(resizeAwareSource).toContain("dark:bg-zinc-950/95");
   });
 
   it("shares the standard folder and branch controls with the active tab", () => {
@@ -43,18 +53,18 @@ describe("BottomTerminalDrawer", () => {
   });
 
   it("keeps independent draggable terminal tabs inside the Cmd+I drawer", () => {
-    expect(source).toContain("type BottomTerminalTab");
-    expect(source).toContain("const createTerminalTab");
-    expect(source).toContain("const addTerminalTab");
-    expect(source).toContain("const reorderTabs");
-    expect(source).toContain("setDraggingTabId");
-    expect(source).toContain("cursor-grabbing");
-    expect(source).toContain('data-bottom-terminal-tab={tab.id}');
-    expect(source).toContain("onPointerMove");
-    expect(source).toContain("onSelect={() => addTerminalTab()}");
-    expect(source).toContain("<TerminalPane");
-    expect(source).toContain("contentTopPadding={false}");
-    expect(source).toContain('className="absolute inset-0"');
+    expect(drawerInteractionSource).toContain("type BottomTerminalTab");
+    expect(drawerInteractionSource).toContain("const createTerminalTab");
+    expect(drawerInteractionSource).toContain("const addTerminalTab");
+    expect(drawerInteractionSource).toContain("const reorderTabs");
+    expect(drawerInteractionSource).toContain("setDraggingTabId");
+    expect(drawerInteractionSource).toContain("cursor-grabbing");
+    expect(drawerInteractionSource).toContain('data-bottom-terminal-tab={tab.id}');
+    expect(drawerInteractionSource).toContain("onPointerMove");
+    expect(drawerInteractionSource).toContain("onSelect={() => addTerminalTab()}");
+    expect(drawerInteractionSource).toContain("<TerminalPane");
+    expect(drawerInteractionSource).toContain("contentTopPadding={false}");
+    expect(drawerInteractionSource).toContain('className="absolute inset-0"');
   });
 
   it("shows the active workspace coding-agent count in the drawer header", () => {

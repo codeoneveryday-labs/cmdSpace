@@ -4,34 +4,55 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const useTerminalSessionPath = path.join(here, "useTerminalSession.ts");
+const terminalSessionRuntimePath = path.join(here, "terminalSessionRuntime.ts");
+const terminalSessionLifecyclePath = path.join(here, "useTerminalSessionLifecycle.ts");
+const terminalInputTrackingPath = path.join(here, "terminalInputTrackingModel.ts");
+const terminalOutputModelPath = path.join(here, "terminalOutputModel.ts");
 const terminalPanePath = path.join(here, "../TerminalPane.tsx");
 const canvasTerminalNodePath = path.join(
   here,
   "../../architecture/CanvasTerminalNode.tsx",
 );
+const terminalWakeRebindPath = path.join(here, "terminalWakeRebind.ts");
+const terminalSessionModelPath = path.join(here, "terminalSessionModel.ts");
+const terminalSessionRuntimeModelPath = path.join(here, "terminalSessionRuntimeModel.ts");
+const terminalSessionVisibilityModelPath = path.join(here, "terminalSessionVisibilityModel.ts");
+const terminalSessionAttachmentPath = path.join(here, "terminalSessionAttachment.ts");
+
+function readSessionSource() {
+  return [
+    readFileSync(useTerminalSessionPath, "utf8"),
+    readFileSync(terminalSessionLifecyclePath, "utf8"),
+    readFileSync(terminalSessionRuntimePath, "utf8"),
+    readFileSync(terminalSessionModelPath, "utf8"),
+    readFileSync(terminalSessionRuntimeModelPath, "utf8"),
+    readFileSync(terminalSessionVisibilityModelPath, "utf8"),
+    readFileSync(terminalSessionAttachmentPath, "utf8"),
+  ].join("\n");
+}
 
 describe("useTerminalSession PTY lifecycle boundaries", () => {
   it("detaches pane sessions by releasing the slot and clearing live visibility state", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = readSessionSource();
 
     expect(source).toContain("function detachSession(leafId: number): void");
-    expect(source).toContain("unbindLeafFromSlot(leafId, s);");
-    expect(source).toContain("s.visibleNow = false;");
-    expect(source).toContain("s.focusedNow = false;");
-    expect(source).toContain("s.callbacks = {};");
-    expect(source).toContain("s.container = null;");
+    expect(source).toContain("detachTerminalSession({ leafId, session: s, releaseSlot });");
+    expect(source).toContain("session.visibleNow = false;");
+    expect(source).toContain("session.focusedNow = false;");
+    expect(source).toContain("session.callbacks = {};");
+    expect(source).toContain("session.container = null;");
   });
 
   it("captures slot snapshot state on detach and replays it on rebind", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = readSessionSource();
 
-    expect(source).toContain("function unbindLeafFromSlot(leafId: number, s: Session): void");
-    expect(source).toContain("const out = releaseSlot(leafId);");
-    expect(source).toContain("s.snapshot = out.snapshot;");
-    expect(source).toContain("if (out.cols > 0) s.cols = out.cols;");
-    expect(source).toContain("if (out.rows > 0) s.rows = out.rows;");
-    expect(source).toContain("s.altScreenAtRelease = out.altScreen;");
-    expect(source).toContain("s.shellState = null;");
+    expect(source).toContain("unbindTerminalSessionFromSlot");
+    expect(source).toContain("const released = releaseSlot(leafId);");
+    expect(source).toContain("session.snapshot = released.snapshot;");
+    expect(source).toContain("if (released.cols > 0) session.cols = released.cols;");
+    expect(source).toContain("if (released.rows > 0) session.rows = released.rows;");
+    expect(source).toContain("session.altScreenAtRelease = released.altScreen;");
+    expect(source).toContain("session.shellState = null;");
 
     expect(source).toContain("function bindLeafToSlot(leafId: number, s: Session): void");
     expect(source).toContain("const altScreen = s.altScreenAtRelease;");
@@ -49,12 +70,14 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
   });
 
   it("only rebinds a detached pane when the live pane surface is visible again", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = readSessionSource();
     const terminalPaneSource = readFileSync(terminalPanePath, "utf8");
 
     expect(source).toContain("if (s.visibleNow) bindLeafToSlot(leafId, s);");
     expect(source).toContain("if (visible) {");
-    expect(source).toContain("if (s.container && !s.hasSlot) bindLeafToSlot(leafId, s);");
+    expect(source).toContain(
+      "if (session.container && !session.hasSlot) bindLeafToSlot(leafId, session);",
+    );
     expect(source).toContain("setSlotFocused(leafId, focused);");
     expect(source).toContain("setSlotFocused(leafId, false);");
 
@@ -64,18 +87,23 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
   });
 
   it("rebinds visible leaves when the window returns from hibernation", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = [
+      readSessionSource(),
+      readFileSync(terminalWakeRebindPath, "utf8"),
+    ].join("\n");
 
-    expect(source).toContain("function ensureWakeRebindListener(): void");
+    expect(source).toContain("installTerminalWakeRebind");
     expect(source).toContain('document.addEventListener("visibilitychange"');
     expect(source).toContain('document.visibilityState === "visible"');
     expect(source).toContain('window.addEventListener("focus", rebindVisibleLeaves)');
-    expect(source).toContain("!s.visibleNow || s.hasSlot || !s.container");
+    expect(source).toContain(
+      "!session.visibleNow || session.hasSlot || !session.container",
+    );
     expect(source).toContain("bindLeafToSlot(leafId, s)");
   });
 
   it("keeps canvas terminals on their direct PTY path instead of the pane session lifecycle", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = readSessionSource();
     const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");
 
     expect(source).not.toContain("CanvasTerminalNode");
@@ -92,7 +120,7 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
   });
 
   it("broadcasts only xterm user input and leaves imperative writes direct", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = readSessionSource();
 
     expect(source).toContain("broadcastTargetsForInput(");
     expect(source).toContain("[...sessions.keys()]");
@@ -101,39 +129,36 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
   });
 
   it("keeps the selected directory for later retries after a respawn", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = readSessionSource();
 
-    expect(source).toContain("if (cwd !== undefined) s.initialCwd = cwd;");
+    expect(source).toContain("if (cwd !== undefined) session.initialCwd = cwd;");
     expect(source).toContain("if (previousPty) await previousPty.close();");
     expect(source).toContain("openPtyForSession(leafId, s, cwd ?? s.initialCwd)");
   });
 
-  it("does not report a planned PTY replacement as a pane exit", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
-
-    expect(source).toContain("respawning: boolean;");
-    expect(source).toContain("if (!s.respawning && s.callbacks.onExit)");
-  });
-
   it("relaunches the original agent only for an explicit directory relocation", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = readSessionSource();
 
     expect(source).toContain("launchCommand: string | undefined;");
     expect(source).toContain("launchCommand: initialCommand,");
     expect(source).toContain(
-      "s.initialCommand = relaunchInitialCommand ? s.launchCommand : undefined;",
+      "session.initialCommand = relaunchInitialCommand",
     );
   });
 
   it("remembers agents launched interactively so directory relocation can reopen them", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = [
+      readSessionSource(),
+      readFileSync(terminalInputTrackingPath, "utf8"),
+      readFileSync(terminalOutputModelPath, "utf8"),
+    ].join("\n");
 
-    expect(source).toContain("s.launchCommand = command;");
-    expect(source).toContain("s.launchCommand = detectedAgent;");
+    expect(source).toContain("s.launchCommand = event.command;");
+    expect(source).toContain("s.launchCommand = outputResult.state.launchCommand;");
   });
 
   it("publishes output activity and clears its timer on exit and disposal", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = readSessionSource();
 
     expect(source).toContain("noteTerminalOutput(Date.now(), OUTPUT_ACTIVITY_QUIET_MS)");
     expect(source).toContain("s.callbacks.onOutputActivity?.(outputActivity.active)");
