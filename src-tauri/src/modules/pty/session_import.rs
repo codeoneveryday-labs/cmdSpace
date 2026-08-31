@@ -1,14 +1,20 @@
-use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
-use serde_json::Value;
-use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::Path;
 
 mod extended;
+#[path = "session_import_native.rs"]
+mod native;
+#[path = "session_import_normalization.rs"]
+mod normalization;
+#[path = "session_import_opencode.rs"]
+mod opencode;
+#[path = "session_import_scan.rs"]
+mod scan;
+pub(super) use native::{parse_claude_session, parse_codex_session, parse_pi_session};
+pub(super) use normalization::{fallback_title, non_empty_preview, preview_text, string_field};
+pub(super) use scan::{file_mtime_ms, jsonl_values};
 
-const PROVIDER_LIMIT: usize = 50;
+pub(super) const PROVIDER_LIMIT: usize = 50;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,290 +33,21 @@ pub fn list_agent_sessions(
     workspace_cwd: Option<String>,
 ) -> Result<Vec<ImportableAgentSession>, String> {
     let home = dirs::home_dir().ok_or_else(|| "could not resolve home directory".to_string())?;
-    Ok(list_agent_sessions_in(
+    Ok(scan::list_agent_sessions_in(
         &home,
         workspace_cwd.as_deref().map(Path::new),
         limit.unwrap_or(100).clamp(1, 500),
     ))
 }
 
-fn list_agent_sessions_in(
-    home: &Path,
-    workspace_cwd: Option<&Path>,
-    limit: usize,
-) -> Vec<ImportableAgentSession> {
-    let mut sessions = Vec::new();
-    sessions.extend(list_jsonl_sessions(
-        "claude",
-        &home.join(".claude/projects"),
-        parse_claude_session,
-    ));
-    sessions.extend(list_jsonl_sessions(
-        "codex",
-        &home.join(".codex/sessions"),
-        parse_codex_session,
-    ));
-    sessions.extend(list_jsonl_sessions(
-        "pi",
-        &home.join(".pi/agent/sessions"),
-        parse_pi_session,
-    ));
-    sessions.extend(list_opencode_sessions(
-        &home.join(".local/share/opencode/opencode.db"),
-    ));
-    sessions.extend(extended::list_extended_sessions(home, workspace_cwd));
-    sessions.sort_by_key(|session| std::cmp::Reverse(session.last_activity_at));
-    sessions.truncate(limit);
-    sessions
-}
-
-fn list_jsonl_sessions(
-    provider: &'static str,
-    root: &Path,
-    parse: fn(&Path, u64) -> Option<ImportableAgentSession>,
-) -> Vec<ImportableAgentSession> {
-    let mut files = Vec::new();
-    collect_jsonl_files(root, &mut files);
-    files.sort_by_key(|path| std::cmp::Reverse(file_mtime_ms(path)));
-    files
-        .into_iter()
-        .take(PROVIDER_LIMIT * 4)
-        .filter_map(|path| parse(&path, file_mtime_ms(&path)))
-        .filter(|session| session.provider == provider)
-        .take(PROVIDER_LIMIT)
-        .collect()
-}
-
-fn collect_jsonl_files(root: &Path, files: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
-        if file_type.is_dir() {
-            collect_jsonl_files(&path, files);
-        } else if file_type.is_file() && path.extension().is_some_and(|ext| ext == "jsonl") {
-            files.push(path);
-        }
-    }
-}
-
-fn file_mtime_ms(path: &Path) -> u64 {
-    fs::metadata(path)
-        .and_then(|metadata| metadata.modified())
-        .unwrap_or(SystemTime::UNIX_EPOCH)
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .try_into()
-        .unwrap_or(u64::MAX)
-}
-
-fn jsonl_values(path: &Path) -> impl Iterator<Item = Value> {
-    File::open(path)
-        .ok()
-        .into_iter()
-        .flat_map(|file| BufReader::new(file).lines().map_while(Result::ok))
-        .filter_map(|line| serde_json::from_str(&line).ok())
-}
-
-fn string_field<'a>(value: &'a Value, field: &str) -> Option<&'a str> {
-    value
-        .get(field)?
-        .as_str()
-        .filter(|value| !value.trim().is_empty())
-}
-
-fn preview_text(value: &Value) -> Option<String> {
-    let content = value.get("message")?.get("content")?;
-    if let Some(text) = content.as_str() {
-        return non_empty_preview(text);
-    }
-    content.as_array()?.iter().find_map(|part| {
-        (part.get("type").and_then(Value::as_str) == Some("text"))
-            .then(|| part.get("text").and_then(Value::as_str))
-            .flatten()
-            .and_then(non_empty_preview)
-    })
-}
-
-fn non_empty_preview(text: &str) -> Option<String> {
-    let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    if collapsed.is_empty() {
-        None
-    } else {
-        Some(collapsed.chars().take(160).collect())
-    }
-}
-
-fn fallback_title(provider: &str, session_id: &str) -> String {
-    format!(
-        "{} session {}",
-        provider,
-        session_id.chars().take(8).collect::<String>()
-    )
-}
-
-fn codex_session_is_active(home: &Path, session_id: &str) -> bool {
-    let lock_path = home
-        .join(".codex/thread-writer-locks")
-        .join(format!("{session_id}.lock"));
-    let Ok(lock) = File::options().read(true).write(true).open(lock_path) else {
-        return false;
-    };
-    match lock.try_lock() {
-        Ok(()) => {
-            let _ = lock.unlock();
-            false
-        }
-        Err(std::fs::TryLockError::WouldBlock) => true,
-        Err(_) => false,
-    }
-}
-
-fn parse_claude_session(path: &Path, mtime: u64) -> Option<ImportableAgentSession> {
-    let mut session_id = None;
-    let mut cwd = None;
-    let mut preview = None;
-    for entry in jsonl_values(path) {
-        session_id = session_id.or_else(|| string_field(&entry, "sessionId").map(str::to_owned));
-        cwd = cwd.or_else(|| string_field(&entry, "cwd").map(str::to_owned));
-        if preview.is_none() && string_field(&entry, "type") == Some("user") {
-            preview = preview_text(&entry);
-        }
-        if session_id.is_some() && cwd.is_some() && preview.is_some() {
-            break;
-        }
-    }
-    let session_id = session_id?;
-    Some(ImportableAgentSession {
-        provider: "claude",
-        cwd: cwd?,
-        title: preview
-            .clone()
-            .unwrap_or_else(|| fallback_title("Claude", &session_id)),
-        preview,
-        session_id,
-        last_activity_at: mtime,
-        active: false,
-    })
-}
-
-fn parse_codex_session(path: &Path, mtime: u64) -> Option<ImportableAgentSession> {
-    let mut session_id = None;
-    let mut cwd = None;
-    let mut preview = None;
-    for entry in jsonl_values(path) {
-        if string_field(&entry, "type") == Some("session_meta") {
-            let payload = entry.get("payload")?;
-            session_id = session_id.or_else(|| string_field(payload, "id").map(str::to_owned));
-            cwd = cwd.or_else(|| string_field(payload, "cwd").map(str::to_owned));
-        } else if string_field(&entry, "type") == Some("event_msg") {
-            let payload = entry.get("payload")?;
-            if preview.is_none() && string_field(payload, "type") == Some("user_message") {
-                preview = string_field(payload, "message").and_then(non_empty_preview);
-            }
-        }
-        if session_id.is_some() && cwd.is_some() && preview.is_some() {
-            break;
-        }
-    }
-    let session_id = session_id?;
-    let active = path
-        .ancestors()
-        .find(|ancestor| ancestor.file_name().is_some_and(|name| name == ".codex"))
-        .and_then(Path::parent)
-        .is_some_and(|home| codex_session_is_active(home, &session_id));
-    Some(ImportableAgentSession {
-        provider: "codex",
-        cwd: cwd?,
-        title: preview
-            .clone()
-            .unwrap_or_else(|| fallback_title("Codex", &session_id)),
-        preview,
-        active,
-        session_id,
-        last_activity_at: mtime,
-    })
-}
-
-fn parse_pi_session(path: &Path, mtime: u64) -> Option<ImportableAgentSession> {
-    let mut values = jsonl_values(path);
-    let header = values.next()?;
-    if string_field(&header, "type") != Some("session") {
-        return None;
-    }
-    let cwd = string_field(&header, "cwd")?.to_owned();
-    let mut title = None;
-    let mut preview = None;
-    for entry in values {
-        if title.is_none() && string_field(&entry, "type") == Some("session_info") {
-            title = string_field(&entry, "name").map(str::to_owned);
-        }
-        if preview.is_none()
-            && string_field(&entry, "type") == Some("message")
-            && entry.get("message")?.get("role").and_then(Value::as_str) == Some("user")
-        {
-            let content = entry.get("message")?.get("content")?;
-            preview = content.as_str().and_then(non_empty_preview).or_else(|| {
-                content.as_array()?.iter().find_map(|part| {
-                    part.get("text")
-                        .and_then(Value::as_str)
-                        .and_then(non_empty_preview)
-                })
-            });
-        }
-        if title.is_some() && preview.is_some() {
-            break;
-        }
-    }
-    let session_id = path.to_string_lossy().into_owned();
-    Some(ImportableAgentSession {
-        provider: "pi",
-        cwd,
-        title: title
-            .or_else(|| preview.clone())
-            .unwrap_or_else(|| fallback_title("Pi", &session_id)),
-        preview,
-        session_id,
-        last_activity_at: mtime,
-        active: false,
-    })
-}
-
-fn list_opencode_sessions(db_path: &Path) -> Vec<ImportableAgentSession> {
-    let Ok(connection) = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-    else {
-        return Vec::new();
-    };
-    let Ok(mut statement) = connection.prepare(
-        "SELECT id, directory, title, time_updated FROM session \
-         WHERE time_archived IS NULL ORDER BY time_updated DESC LIMIT ?1",
-    ) else {
-        return Vec::new();
-    };
-    let Ok(rows) = statement.query_map([PROVIDER_LIMIT as i64], |row| {
-        Ok(ImportableAgentSession {
-            provider: "opencode",
-            session_id: row.get(0)?,
-            cwd: row.get(1)?,
-            title: row.get(2)?,
-            preview: None,
-            last_activity_at: row.get::<_, i64>(3)?.max(0) as u64,
-            active: false,
-        })
-    }) else {
-        return Vec::new();
-    };
-    rows.filter_map(Result::ok).collect()
-}
+pub(super) use opencode::list_sessions as list_opencode_sessions;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::native::codex_session_is_active;
+    use super::scan::list_agent_sessions_in;
+    use rusqlite::Connection;
+    use std::fs::{self, File};
     use std::io::Write;
 
     #[test]
