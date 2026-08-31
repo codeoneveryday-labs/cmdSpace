@@ -6,9 +6,9 @@ use std::{
     },
     time::Duration,
 };
-use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::State;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
-use tauri::{LogicalPosition, LogicalSize};
+use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 #[derive(Clone, Default)]

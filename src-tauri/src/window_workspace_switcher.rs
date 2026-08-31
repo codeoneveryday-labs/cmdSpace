@@ -1,7 +1,8 @@
+use tauri::{Emitter, Manager};
 #[cfg(target_os = "macos")]
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder,
+    PhysicalPosition, WebviewUrl, WebviewWindowBuilder,
 };
 
 pub(crate) const WORKSPACE_SWITCHER_LABEL: &str = "tray";
