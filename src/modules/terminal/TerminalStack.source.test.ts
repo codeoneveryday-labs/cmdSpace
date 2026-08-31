@@ -7,7 +7,22 @@ const terminalStackPath = path.join(here, "TerminalStack.tsx");
 const paneTreePath = path.join(here, "PaneTreeView.tsx");
 const terminalPanePath = path.join(here, "TerminalPane.tsx");
 const useTerminalSessionPath = path.join(here, "lib/useTerminalSession.ts");
+const terminalSessionRuntimePath = path.join(here, "lib/terminalSessionRuntime.ts");
+const terminalSessionSource = [
+  readFileSync(useTerminalSessionPath, "utf8"),
+  readFileSync(terminalSessionRuntimePath, "utf8"),
+].join("\n");
+const terminalCommandLifecyclePath = path.join(here, "lib/terminalSessionCommandLifecycle.ts");
+const terminalVisibilityModelPath = path.join(here, "lib/terminalSessionVisibilityModel.ts");
+const terminalAttachmentPath = path.join(here, "lib/terminalSessionAttachment.ts");
+const terminalInputModelPath = path.join(here, "lib/terminalInputModel.ts");
+const terminalOutputModelPath = path.join(here, "lib/terminalOutputModel.ts");
+const rendererPreferencesPath = path.join(here, "lib/useTerminalRendererPreferences.ts");
 const rendererPoolPath = path.join(here, "lib/rendererPool.ts");
+const paneResizeControllerPath = path.join(
+  here,
+  "lib/usePaneResizeController.ts",
+);
 const terminalOptionsPath = path.join(here, "lib/terminalOptions.ts");
 
 describe("TerminalStack lazy renderer restore", () => {
@@ -36,42 +51,59 @@ describe("TerminalStack lazy renderer restore", () => {
   });
 
   it("marks detached terminal sessions invisible so hidden panes are poor eviction candidates", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = [
+      terminalSessionSource,
+      readFileSync(terminalVisibilityModelPath, "utf8"),
+      readFileSync(terminalAttachmentPath, "utf8"),
+    ].join("\n");
 
-    expect(source).toContain("s.visibleNow = false;");
-    expect(source).toContain("s.focusedNow = false;");
+    expect(source).toContain("session.visibleNow = false;");
+    expect(source).toContain("session.focusedNow = false;");
   });
 
   it("waits for the first shell prompt before sending an initial command", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = [
+      terminalSessionSource,
+      readFileSync(terminalCommandLifecyclePath, "utf8"),
+    ].join("\n");
 
     expect(source).toContain("function flushInitialCommand");
-    expect(source).toContain('s.pty.write(command + "\\r")');
+    expect(source).toContain('session.pty.write(command + "\\r")');
     expect(source).not.toContain('s.pty.write(command + "\\n")');
     expect(source).toContain("scheduleInitialCommandFallback");
     expect(source).toContain("registerPromptTracker(term, shellState, () =>");
-    expect(source).toContain("s.callbacks.onCommand?.(command);");
+    expect(source).toContain("session.callbacks.onCommand?.(command);");
     expect(source).not.toContain(
       "if (s.initialCommand) {\n          pty.write",
     );
   });
 
   it("allows Voice to write into an active coding CLI but not a normal busy shell command", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = [
+      terminalSessionSource,
+      readFileSync(terminalInputModelPath, "utf8"),
+      readFileSync(path.join(here, "lib/terminalInputTrackingModel.ts"), "utf8"),
+      readFileSync(terminalOutputModelPath, "utf8"),
+      readFileSync(terminalCommandLifecyclePath, "utf8"),
+    ].join("\n");
 
     expect(source).toContain("interactiveCodingAgent: boolean");
     expect(source).toContain("isInteractiveCodingAgentCommand,");
-    expect(source).toContain("s.interactiveCodingAgent = isInteractiveCodingAgentCommand(command);");
-    expect(source).toContain("s.shellState?.inCommand && !s.interactiveCodingAgent");
-    expect(source).toContain("function trackAgentLaunchInput");
-    expect(source).toContain("detectCodingAgentBanner,");
+    expect(source).toContain("state.interactiveCodingAgent = interactive;");
+    expect(source).toContain("state.inCommand && !state.interactiveCodingAgent");
+    expect(source).toContain("trackInputAndApplyEvents");
+    expect(source).toContain("detectCodingAgentBanner");
     expect(source).toContain("if (isInteractiveCodingAgentCommand(command))");
-    expect(source).toContain("s.callbacks.onCommand?.(command);");
+    expect(source).toContain("session.callbacks.onCommand?.(command);");
   });
 
   it("keeps CLI agent chrome when a user starts an agent after pane creation", () => {
     const treeSource = readFileSync(paneTreePath, "utf8");
-    const sessionSource = readFileSync(useTerminalSessionPath, "utf8");
+    const sessionSource = [
+      terminalSessionSource,
+      readFileSync(rendererPreferencesPath, "utf8"),
+      readFileSync(terminalOutputModelPath, "utf8"),
+    ].join("\n");
 
     expect(treeSource).toContain("const [detectedAgentCommand, setDetectedAgentCommand]");
     expect(treeSource).toContain("useAgentCliCommand");
@@ -79,8 +111,8 @@ describe("TerminalStack lazy renderer restore", () => {
     expect(treeSource).toContain("if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);");
     expect(treeSource).toContain("agentCommand={detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand}");
     expect(sessionSource).toContain("setAgentCliCommand(leafId, initialCommand);");
-    expect(sessionSource).toContain("if (detectedAgent) {");
-    expect(sessionSource).toContain("setAgentCliCommand(leafId, detectedAgent);");
+    expect(sessionSource).toContain("if (outputResult.detectedAgent) {");
+    expect(sessionSource).toContain("setAgentCliCommand(leafId, outputResult.detectedAgent);");
   });
 
   it("only runs a persisted pane command when it is an explicit launch command", () => {
@@ -92,23 +124,37 @@ describe("TerminalStack lazy renderer restore", () => {
   });
 
   it("tracks coding-agent response output without requiring shell OSC command markers", () => {
-    const source = readFileSync(useTerminalSessionPath, "utf8");
+    const source = [
+      terminalSessionSource,
+      readFileSync(path.join(here, "lib/terminalInputTrackingModel.ts"), "utf8"),
+      readFileSync(terminalOutputModelPath, "utf8"),
+    ].join("\n");
 
-    expect(source).toContain("if (s.interactiveCodingAgent) {");
+    expect(source).toContain("state.interactiveCodingAgent");
     expect(source).not.toContain(
       "s.interactiveCodingAgent && s.shellState?.inCommand && !outputIsUserEcho",
     );
   });
 
   it("keeps terminal split geometry in the same zoom coordinate space as its handles", () => {
-    const treeSource = readFileSync(paneTreePath, "utf8");
+    const treeSource = [
+      readFileSync(paneTreePath, "utf8"),
+      readFileSync(paneResizeControllerPath, "utf8"),
+    ].join("\n");
+    const resizeModelSource = readFileSync(
+      path.join(here, "lib/paneResizeModel.ts"),
+      "utf8",
+    );
     const paneSource = readFileSync(terminalPanePath, "utf8");
-    const sessionSource = readFileSync(useTerminalSessionPath, "utf8");
+    const sessionSource = [
+      terminalSessionSource,
+      readFileSync(rendererPreferencesPath, "utf8"),
+    ].join("\n");
     const rendererSource = readFileSync(rendererPoolPath, "utf8");
 
     expect(treeSource).toContain("groupRef={groupRef}");
     expect(treeSource).toContain("disabled");
-    expect(treeSource).toContain("startZoomAwarePaneResize");
+    expect(treeSource).toContain("startPaneResize");
     expect(treeSource).toContain(
       "const zoomLevel = usePreferencesStore.getState().zoomLevel || 1;",
     );
@@ -121,8 +167,9 @@ describe("TerminalStack lazy renderer restore", () => {
     expect(treeSource).toContain("commitSplitLayout(latestLayout);");
     expect(treeSource).toContain("defaultLayout={getDefaultLayout()}");
     expect(treeSource).toContain(
-      "onPaneTreeChange({ ...splitNode, children: nextChildren });",
+      "onPaneTreeChange({ ...node, children });",
     );
+    expect(resizeModelSource).toContain("commitPaneLayout");
     expect(treeSource).toContain(
       'ownerDocument.addEventListener("pointermove", handlePointerMove);',
     );

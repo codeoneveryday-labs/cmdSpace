@@ -1,3 +1,8 @@
+import {
+  matchCliAgentBannerPattern,
+  matchCliAgentByExecutable,
+} from "./cliAgentDetectionModel";
+
 export const CLI_AGENT_IDS = [
   "claude",
   "codex",
@@ -388,46 +393,9 @@ export function filterCliAgentCatalog(
   );
 }
 
-function segmentExecutable(segment: string): string | null {
-  const words = segment.trim().split(/\s+/);
-  let index = 0;
-  while (
-    words[index] === "command" ||
-    words[index] === "exec" ||
-    words[index] === "sudo" ||
-    words[index]?.includes("=")
-  ) {
-    index += 1;
-  }
-  return words[index]?.replace(/^['"]|['"]$/g, "") ?? null;
-}
-
-/** True for a segment that launches the Command Code CLI. On cmdSpace's
- *  Unix hosts, bare `cmd` is the configured Command Code executable; explicit
- *  Windows shell switches remain excluded. */
-function isCommandCodeSegment(segment: string): boolean {
-  const words = segment.trim().split(/\s+/);
-  if (words[0] !== "cmd") return false;
-  const arg = words[1];
-  if (!arg) return true;
-  return arg.startsWith("--");
-}
-
 export function detectCliAgent(command?: string): CliAgent | null {
   if (!command) return null;
-  const segments = command
-    .split(/&&|\|\||[;|\n]/)
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-  return (
-    CLI_AGENT_DEFINITIONS.find(({ executable, id }) =>
-      segments.some((segment) => {
-        if (segmentExecutable(segment) !== executable) return false;
-        if (id === "cmd") return isCommandCodeSegment(segment);
-        return true;
-      }),
-    )?.id ?? null
-  );
+  return matchCliAgentByExecutable(command, CLI_AGENT_DEFINITIONS);
 }
 
 export function detectTrackedCliAgent(
@@ -448,9 +416,5 @@ export function isInteractiveCodingAgentCommand(command?: string): boolean {
 }
 
 export function detectCodingAgentBanner(text: string): CliAgent | null {
-  return (
-    CLI_AGENT_DEFINITIONS.find(({ bannerPatterns }) =>
-      bannerPatterns.some((pattern) => pattern.test(text)),
-    )?.id ?? null
-  );
+  return matchCliAgentBannerPattern(text, CLI_AGENT_DEFINITIONS);
 }
