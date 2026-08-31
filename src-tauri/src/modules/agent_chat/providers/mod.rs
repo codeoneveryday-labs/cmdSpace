@@ -4,14 +4,17 @@ pub(crate) mod claude;
 pub(crate) mod cmd;
 pub(crate) mod codex;
 pub(crate) mod gemini;
-pub(crate) mod opencode;
 pub(crate) mod omp;
+pub(crate) mod opencode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ModelDiscovery {
     CodexAppServer,
     Command(&'static [&'static str]),
-    InteractiveSlash { command: &'static str, args: &'static [&'static str] },
+    InteractiveSlash {
+        command: &'static str,
+        args: &'static [&'static str],
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

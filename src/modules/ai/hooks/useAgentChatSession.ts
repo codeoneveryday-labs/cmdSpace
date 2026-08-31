@@ -9,8 +9,18 @@ import {
   type AgentChatTimelineState,
 } from "../lib/agentChatTimeline";
 import { createAgentChatRuntime } from "../lib/agentChatRuntime";
+import { createAgentChatStartup } from "../lib/agentChatStartup";
 
 const claimedNativeSessions = new Map<string, string>();
+
+// How long steer waits for the backend's post-interrupt Done before submitting
+// anyway (the provider guard then surfaces any readiness error honestly).
+const STEER_DONE_TIMEOUT_MS = 5000;
+
+function isMissingAgentChatRuntime(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.startsWith("unknown agent chat session '");
+}
 
 export function useAgentChatSession(input: {
   provider: string;
@@ -31,7 +41,6 @@ export function useAgentChatSession(input: {
   const timelineRef = useRef(timeline);
   timelineRef.current = timeline;
   const submitInFlightRef = useRef(false);
-  const bootstrapKeyRef = useRef<string | null>(null);
   const historyKeyRef = useRef<string | null>(null);
   const nativeSessionIdRef = useRef(input.initialNativeSessionId);
   nativeSessionIdRef.current = timeline.nativeSessionId;
@@ -39,10 +48,15 @@ export function useAgentChatSession(input: {
   onNativeSessionIdRef.current = input.onNativeSessionId;
   const runtimeRef = useRef<ReturnType<typeof createAgentChatRuntime> | null>(null);
   const runtimeEpochRef = useRef(0);
+  const doneWaiterRef = useRef<(() => void) | null>(null);
   const createRuntimeForCurrentEpoch = () => {
     const epoch = runtimeEpochRef.current;
     return createAgentChatRuntime((event) => {
       if (epoch !== runtimeEpochRef.current) return;
+      if (event.type === "done") {
+        doneWaiterRef.current?.();
+        doneWaiterRef.current = null;
+      }
       setTimeline((current) => {
         const next = applyAgentChatEvent(current, event);
         timelineRef.current = next;
@@ -53,8 +67,35 @@ export function useAgentChatSession(input: {
   if (runtimeRef.current === null) {
     runtimeRef.current = createRuntimeForCurrentEpoch();
   }
+  const startupRef = useRef<{
+    key: string;
+    startup: ReturnType<typeof createAgentChatStartup>;
+  } | null>(null);
+  const getStartup = () => {
+    const key = `${input.chatId}:${input.provider}:${input.cwd}:${input.initialNativeSessionId ?? "new"}`;
+    if (startupRef.current?.key === key) return startupRef.current.startup;
+    const nativeSessionId = input.initialNativeSessionId &&
+      (!claimedNativeSessions.has(input.initialNativeSessionId) ||
+        claimedNativeSessions.get(input.initialNativeSessionId) === input.chatId)
+      ? input.initialNativeSessionId
+      : null;
+    if (nativeSessionId) claimedNativeSessions.set(nativeSessionId, input.chatId);
+    const startup = createAgentChatStartup({
+      runtime: runtimeRef.current!,
+      chatId: input.chatId,
+      provider: input.provider,
+      cwd: input.cwd,
+      nativeSessionId,
+    });
+    startupRef.current = { key, startup };
+    return startup;
+  };
   const runtimeSessionIdRef = useRef(timeline.runtimeSessionId);
   runtimeSessionIdRef.current = timeline.runtimeSessionId;
+  const attachmentRef = useRef<{
+    sessionId: string;
+    attachmentToken: string;
+  } | null>(null);
   const notifiedNativeSessionIdRef = useRef(input.initialNativeSessionId);
 
   useEffect(() => {
@@ -68,36 +109,27 @@ export function useAgentChatSession(input: {
   }, [timeline.nativeSessionId]);
 
   useEffect(() => {
-    const bootstrapKey = `${input.provider}:${input.cwd}:${input.initialNativeSessionId ?? "new"}`;
     if (
       !hydrated ||
       !input.active ||
-      (input.provider === "cmd" || input.provider === "claude") ||
-      runtimeSessionIdRef.current ||
-      submitInFlightRef.current ||
-      bootstrapKeyRef.current === bootstrapKey
+      attachmentRef.current
     ) {
       return;
     }
 
     let cancelled = false;
-    const nativeSessionId = input.initialNativeSessionId &&
-      (!claimedNativeSessions.has(input.initialNativeSessionId) ||
-        claimedNativeSessions.get(input.initialNativeSessionId) === input.chatId)
-      ? input.initialNativeSessionId
-      : null;
-    if (nativeSessionId) claimedNativeSessions.set(nativeSessionId, input.chatId);
-    bootstrapKeyRef.current = bootstrapKey;
-    submitInFlightRef.current = true;
-    void runtimeRef.current!
-      .start({
-        provider: input.provider,
-        cwd: input.cwd,
-        prompt: "",
-        nativeSessionId,
-      })
+    const runtime = runtimeRef.current!;
+    void getStartup()
+      .attachResident()
       .then((result) => {
-        if (cancelled) return;
+        if (cancelled) {
+          void runtime.detach(input.chatId, result.sessionId, result.attachmentToken);
+          return;
+        }
+        attachmentRef.current = {
+          sessionId: result.sessionId,
+          attachmentToken: result.attachmentToken,
+        };
         runtimeSessionIdRef.current = result.sessionId;
         setTimeline((current) => {
           const next = setAgentChatRuntimeSession(current, result.sessionId);
@@ -105,20 +137,7 @@ export function useAgentChatSession(input: {
           return next;
         });
       })
-      .catch((error) => {
-        if (cancelled) return;
-        setTimeline((current) => {
-          const next = applyAgentChatEvent(current, {
-            type: "error",
-            message: error instanceof Error ? error.message : String(error),
-          });
-          timelineRef.current = next;
-          return next;
-        });
-      })
-      .finally(() => {
-        submitInFlightRef.current = false;
-      });
+      .catch(() => undefined);
 
     return () => {
       cancelled = true;
@@ -175,21 +194,47 @@ export function useAgentChatSession(input: {
       setTimeline(submitted);
       try {
         if (runtimeSessionIdRef.current) {
-          await runtimeRef.current!.send(runtimeSessionIdRef.current, runtimePrompt, model);
+          try {
+            await runtimeRef.current!.send(runtimeSessionIdRef.current, runtimePrompt, model);
+          } catch (error) {
+            if (!isMissingAgentChatRuntime(error)) throw error;
+            attachmentRef.current = null;
+            runtimeSessionIdRef.current = null;
+            setTimeline((currentTimeline) => {
+              const next = { ...currentTimeline, runtimeSessionId: null };
+              timelineRef.current = next;
+              return next;
+            });
+            const result = await getStartup().recoverFirstPrompt(runtimePrompt, model);
+            attachmentRef.current = {
+              sessionId: result.sessionId,
+              attachmentToken: result.attachmentToken,
+            };
+            runtimeSessionIdRef.current = result.sessionId;
+            setTimeline((currentTimeline) => {
+              const next = setAgentChatRuntimeSession(currentTimeline, result.sessionId);
+              timelineRef.current = next;
+              return next;
+            });
+            if (!result.started) {
+              await runtimeRef.current!.send(result.sessionId, runtimePrompt, model);
+            }
+          }
         } else {
-          const result = await runtimeRef.current!.start({
-            provider: input.provider,
-            cwd: input.cwd,
-            prompt: runtimePrompt,
-            model,
-            nativeSessionId: nativeSessionIdRef.current,
-          });
+          const result = await getStartup().admitFirstPrompt(runtimePrompt, model);
+          attachmentRef.current = {
+            sessionId: result.sessionId,
+            attachmentToken: result.attachmentToken,
+          };
           runtimeSessionIdRef.current = result.sessionId;
           setTimeline((currentTimeline) => {
             const next = setAgentChatRuntimeSession(currentTimeline, result.sessionId);
             timelineRef.current = next;
             return next;
           });
+          if (!result.started) {
+            await runtimeRef.current!.send(result.sessionId, runtimePrompt, model);
+          }
         }
         return true;
       } catch (error) {
@@ -206,22 +251,18 @@ export function useAgentChatSession(input: {
         submitInFlightRef.current = false;
       }
     },
-    [hydrated, input.cwd, input.provider],
+    [hydrated, input.chatId, input.cwd, input.initialNativeSessionId, input.provider],
   );
 
+  // Interrupting a turn must not tear the resident runtime down: the backend
+  // emits Done once the turn aborts (interrupt or child kill) and the session
+  // stays attached for the next prompt. Only rewrite (branch reset) closes it.
   const cancel = useCallback(async () => {
     const runtimeSessionId = runtimeSessionIdRef.current;
     if (!runtimeSessionId) return;
     await runtimeRef.current!.cancel(runtimeSessionId).catch(() => undefined);
-    await runtimeRef.current!.close(runtimeSessionId).catch(() => undefined);
-    runtimeEpochRef.current += 1;
-    runtimeRef.current = createRuntimeForCurrentEpoch();
-    runtimeSessionIdRef.current = null;
     setTimeline((current) => {
-      const next = {
-        ...applyAgentChatEvent(current, { type: "done" }),
-        runtimeSessionId: null,
-      };
+      const next = applyAgentChatEvent(current, { type: "done" });
       timelineRef.current = next;
       return next;
     });
@@ -234,8 +275,25 @@ export function useAgentChatSession(input: {
       displayText = rawPrompt,
       attachments: AgentChatHistoryAttachment[] = [],
     ) => {
-      await cancel();
-      return submit(rawPrompt, model, displayText, attachments);
+      if (!runtimeSessionIdRef.current) {
+        return submit(rawPrompt, model, displayText, attachments);
+      }
+      let resolveTurnEnded: (() => void) | null = null;
+      const turnEnded = new Promise<void>((resolve) => {
+        resolveTurnEnded = resolve;
+      });
+      doneWaiterRef.current = () => resolveTurnEnded?.();
+      const pending = { rawPrompt, model, displayText, attachments };
+      try {
+        await cancel();
+        await Promise.race([
+          turnEnded,
+          new Promise((resolve) => setTimeout(resolve, STEER_DONE_TIMEOUT_MS)),
+        ]);
+      } finally {
+        doneWaiterRef.current = null;
+      }
+      return submit(pending.rawPrompt, pending.model, pending.displayText, pending.attachments);
     },
     [cancel, submit],
   );
@@ -247,7 +305,18 @@ export function useAgentChatSession(input: {
       const itemIndex = current.items.findIndex((candidate) => candidate.id === itemId);
       const item = current.items[itemIndex];
       if (!prompt || item?.kind !== "user" || itemIndex < 0) return false;
+      // A rewritten branch must not resume the native session that still
+      // contains the abandoned branch, so unlike cancel/steer the runtime is
+      // fully closed and replaced before replaying the truncated prompt.
+      const runtimeSessionId = runtimeSessionIdRef.current;
       await cancel();
+      if (runtimeSessionId) {
+        attachmentRef.current = null;
+        await runtimeRef.current!.close(runtimeSessionId).catch(() => undefined);
+      }
+      runtimeEpochRef.current += 1;
+      runtimeRef.current = createRuntimeForCurrentEpoch();
+      startupRef.current = null;
       const base = {
         ...timelineRef.current,
         runtimeSessionId: null,
@@ -269,8 +338,13 @@ export function useAgentChatSession(input: {
 
   useEffect(() => {
     return () => {
-      if (runtimeSessionIdRef.current) {
-        void runtimeRef.current?.close(runtimeSessionIdRef.current);
+      const attachment = attachmentRef.current;
+      if (attachment) {
+        void runtimeRef.current?.detach(
+          input.chatId,
+          attachment.sessionId,
+          attachment.attachmentToken,
+        );
       }
     };
   }, []);

@@ -1,5 +1,5 @@
-use super::{ControlDiscovery, ModelDiscovery, ProviderProfile};
 use super::super::adapter::AdapterKind;
+use super::{ControlDiscovery, ModelDiscovery, ProviderProfile};
 
 pub(crate) const PROFILE: ProviderProfile = ProviderProfile {
     adapter: AdapterKind::OpenCodeJson,
