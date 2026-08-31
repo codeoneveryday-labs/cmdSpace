@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
-const workspacePath = path.join(here, "src/modules/workspace.rs");
+const workspacePath = path.join(here, "src/modules/workspace_wsl.rs");
 const shellInitPath = path.join(here, "src/modules/pty/shell_init.rs");
 
 describe("Rust Windows path helper boundaries", () => {

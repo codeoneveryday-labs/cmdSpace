@@ -1,5 +1,5 @@
-mod modules;
 mod commands;
+mod modules;
 mod window_commands;
 
 use modules::{
@@ -8,9 +8,7 @@ use modules::{
 };
 use std::sync::Mutex;
 #[cfg(target_os = "macos")]
-use tauri::{
-    menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem},
-};
+use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem};
 #[cfg(target_os = "macos")]
 use tauri::Emitter;
 use tauri_plugin_window_state::StateFlags;
@@ -21,10 +19,10 @@ mod desktop_blur_tests {
 
     #[test]
     fn desktop_blur_cold_start_does_not_block_on_frontend_ready() {
-        let source = include_str!("window_commands.rs");
+        let source = include_str!("window_desktop_blur.rs");
         let focus_mode = source
-            .split_once("async fn set_desktop_blur(\n")
-            .expect("set_desktop_blur must exist")
+            .split_once("async fn set_desktop_blur_impl(\n")
+            .expect("set_desktop_blur_impl must exist")
             .1;
         assert!(
             !focus_mode.contains("wait_for_overlay_ready("),
@@ -34,10 +32,10 @@ mod desktop_blur_tests {
 
     #[test]
     fn desktop_blur_does_not_activate_or_focus_windows() {
-        let source = include_str!("window_commands.rs");
+        let source = include_str!("window_desktop_blur.rs");
         let focus_mode = source
-            .split_once("async fn set_desktop_blur(\n")
-            .expect("set_desktop_blur must exist")
+            .split_once("async fn set_desktop_blur_impl(\n")
+            .expect("set_desktop_blur_impl must exist")
             .1;
 
         assert!(
@@ -58,10 +56,10 @@ mod desktop_blur_tests {
 
     #[test]
     fn desktop_blur_keeps_main_window_managed_by_stage_manager() {
-        let source = include_str!("window_commands.rs");
+        let source = include_str!("window_desktop_blur.rs");
         let focus_mode = source
-            .split_once("async fn set_desktop_blur(\n")
-            .expect("set_desktop_blur must exist")
+            .split_once("async fn set_desktop_blur_impl(\n")
+            .expect("set_desktop_blur_impl must exist")
             .1;
         let compact: String = focus_mode.split_whitespace().collect();
 
@@ -82,7 +80,7 @@ mod desktop_blur_tests {
 mod windows_focus_mode_tests {
     #[test]
     fn focus_mode_uses_an_acrylic_non_activating_overlay_on_windows() {
-        let source = include_str!("window_commands.rs");
+        let source = include_str!("window_desktop_blur.rs");
         assert!(source.contains("Effect::Acrylic"));
         assert!(source.contains("set_windows_window_alpha(&window, 0)"));
         assert!(source.contains("order_windows_overlay_below(&window, &main_window)"));

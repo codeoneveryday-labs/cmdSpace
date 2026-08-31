@@ -9,371 +9,18 @@ use tauri::AppHandle;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use tauri::Emitter;
 
-/// Returns the locales that macOS Speech currently makes available to this app.
-///
-/// The frontend keeps a small fallback list for non-macOS builds or transient
-/// native failures, but this command is the source of truth on a Mac.
-#[tauri::command]
-pub fn speech_supported_locales() -> Result<Vec<String>, String> {
-    #[cfg(target_os = "macos")]
-    {
-        Ok(macos::supported_locales())
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        windows::supported_locales()
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        Ok(Vec::new())
-    }
-}
-
-#[tauri::command]
-pub fn speech_start(app: AppHandle, language: Option<String>) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        macos::start(app, language)
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        windows::start(app, language)
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        let _ = (app, language);
-        Err(
-            "Native speech recognition is currently available on macOS and Windows only."
-                .to_string(),
-        )
-    }
-}
-
-#[tauri::command]
-pub fn speech_stop(app: AppHandle) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        macos::stop(app)
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        windows::stop(app)
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        let _ = app;
-        Err(
-            "Native speech recognition is currently available on macOS and Windows only."
-                .to_string(),
-        )
-    }
-}
-
-/// Windows Speech Recognition is exposed through the desktop SAPI/.NET
-/// `System.Speech` runtime. Unlike the newer WinRT recognizer, it works when
-/// cmdSpace is unpackaged (development and NSIS builds), so it is the correct
-/// native backend for the existing Tauri distribution.
+#[path = "speech_commands.rs"]
+mod commands;
 #[cfg(target_os = "windows")]
-mod windows {
-    use super::emit_error;
-    use std::{
-        io::{BufRead, BufReader},
-        process::{Child, Command, Stdio},
-        sync::{
-            atomic::{AtomicU64, Ordering},
-            Mutex, OnceLock,
-        },
-    };
-    use tauri::{AppHandle, Emitter};
-
-    static SESSION: OnceLock<Mutex<Option<SpeechSession>>> = OnceLock::new();
-    static REQUEST_ID: AtomicU64 = AtomicU64::new(0);
-
-    struct SpeechSession {
-        id: u64,
-        child: Child,
-    }
-
-    fn session() -> &'static Mutex<Option<SpeechSession>> {
-        SESSION.get_or_init(|| Mutex::new(None))
-    }
-
-    pub fn supported_locales() -> Result<Vec<String>, String> {
-        let output = Command::new("powershell.exe")
-            .args([
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                INSTALLED_LOCALES_SCRIPT,
-            ])
-            .output()
-            .map_err(|error| format!("Could not query Windows Speech languages: {error}"))?;
-
-        if !output.status.success() {
-            return Err("Windows Speech Recognition is unavailable. Install a Speech language in Windows Settings, then try again.".to_string());
-        }
-
-        let mut locales = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(str::trim)
-            .filter(|locale| !locale.is_empty())
-            .map(|locale| locale.replace('_', "-"))
-            .collect::<Vec<_>>();
-        locales.sort_unstable();
-        locales.dedup();
-        Ok(locales)
-    }
-
-    pub fn start(app: AppHandle, language: Option<String>) -> Result<(), String> {
-        cancel_active_session();
-
-        let id = REQUEST_ID
-            .fetch_add(1, Ordering::Relaxed)
-            .wrapping_add(1)
-            .max(1);
-        let mut child = Command::new("powershell.exe")
-            .args([
-                "-Sta",
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                RECOGNIZER_SCRIPT,
-            ])
-            .env("CMDSPACE_SPEECH_LANGUAGE", language.unwrap_or_default())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|error| format!("Could not start Windows Speech Recognition: {error}"))?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            "Windows Speech Recognition did not expose its output stream.".to_string()
-        })?;
-
-        {
-            let mut active = session()
-                .lock()
-                .map_err(|_| "Windows Speech Recognition session lock was poisoned.".to_string())?;
-            *active = Some(SpeechSession { id, child });
-        }
-
-        let app_for_events = app.clone();
-        std::thread::spawn(move || forward_events(app_for_events, id, stdout));
-        let _ = app.emit("cmdspace:speech-started", ());
-        Ok(())
-    }
-
-    pub fn stop(app: AppHandle) -> Result<(), String> {
-        stop_active_session();
-        let _ = app.emit("cmdspace:speech-stopped", ());
-        Ok(())
-    }
-
-    fn cancel_active_session() {
-        if let Ok(mut active) = session().lock() {
-            if let Some(mut previous) = active.take() {
-                let _ = previous.child.kill();
-                let _ = previous.child.wait();
-            }
-        }
-    }
-
-    fn stop_active_session() {
-        cancel_active_session();
-    }
-
-    fn forward_events(app: AppHandle, id: u64, stdout: impl std::io::Read) {
-        let mut saw_result = false;
-        let mut saw_error = false;
-        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) else {
-                continue;
-            };
-            match event.get("type").and_then(serde_json::Value::as_str) {
-                Some("level") => {
-                    let level = event
-                        .get("level")
-                        .and_then(serde_json::Value::as_f64)
-                        .unwrap_or_default()
-                        .clamp(0.0, 1.0) as f32;
-                    let _ = app.emit("cmdspace:speech-level", level);
-                }
-                Some("result") => {
-                    let Some(text) = event
-                        .get("text")
-                        .and_then(serde_json::Value::as_str)
-                        .map(str::trim)
-                        .filter(|text| !text.is_empty())
-                    else {
-                        continue;
-                    };
-                    let final_result = event
-                        .get("final")
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(true);
-                    if final_result {
-                        saw_result = true;
-                    }
-                    let _ = app.emit(
-                        "cmdspace:speech-result",
-                        serde_json::json!({ "text": text, "final": final_result }),
-                    );
-                }
-                Some("error") => {
-                    saw_error = true;
-                    emit_error(
-                        &app,
-                        event
-                            .get("message")
-                            .and_then(serde_json::Value::as_str)
-                            .unwrap_or("Windows Speech Recognition could not complete. Try again."),
-                    );
-                }
-                _ => {}
-            }
-        }
-
-        if finish_session(id) {
-            if !saw_result && !saw_error {
-                emit_error(&app, "No speech was detected. Try again.");
-            }
-            let _ = app.emit("cmdspace:speech-stopped", ());
-        }
-    }
-
-    fn finish_session(id: u64) -> bool {
-        let Ok(mut active) = session().lock() else {
-            return false;
-        };
-        let Some(current) = active.as_ref() else {
-            return false;
-        };
-        if current.id != id {
-            return false;
-        }
-        active.take();
-        true
-    }
-
-    const INSTALLED_LOCALES_SCRIPT: &str = r#"
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Speech
-[System.Speech.Recognition.SpeechRecognitionEngine]::InstalledRecognizers() |
-    ForEach-Object { $_.Culture.Name } |
-    Sort-Object -Unique
-"#;
-
-    const RECOGNIZER_SCRIPT: &str = r#"
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Speech
-$SpeechAssembly = [System.Speech.Recognition.SpeechRecognitionEngine].Assembly.Location
-Add-Type -ReferencedAssemblies $SpeechAssembly -TypeDefinition @'
-using System;
-using System.Globalization;
-using System.Linq;
-using System.Speech.Recognition;
-using System.Threading;
-
-public static class CmdSpaceSpeech {
-    private static string Escape(string value) {
-        return (value ?? string.Empty)
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n");
-    }
-
-    private static void Emit(string type, string body) {
-        Console.Out.WriteLine("{\\\"type\\\":\\\"" + type + "\\\"" + body + "}");
-        Console.Out.Flush();
-    }
-
-    private static void EmitError(string message) {
-        Emit("error", ",\\\"message\\\":\\\"" + Escape(message) + "\\\"");
-    }
-
-    private static void EmitResult(string text, bool finalResult) {
-        Emit("result", ",\\\"text\\\":\\\"" + Escape(text) + "\\\",\\\"final\\\":" + (finalResult ? "true" : "false"));
-    }
-
-    private static void EmitLevel(int level) {
-        var normalized = Math.Max(0, Math.Min(100, level)) / 100.0;
-        Emit("level", ",\\\"level\\\":" + normalized.ToString(CultureInfo.InvariantCulture));
-    }
-
-    public static int Run(string requestedLanguage) {
-        try {
-            var requested = (requestedLanguage ?? string.Empty).Replace('_', '-');
-            var recognizerInfo = SpeechRecognitionEngine.InstalledRecognizers()
-                .FirstOrDefault(info => string.IsNullOrWhiteSpace(requested) ||
-                    string.Equals(info.Culture.Name, requested, StringComparison.OrdinalIgnoreCase));
-            if (recognizerInfo == null) {
-                EmitError("The selected speech language is unavailable. Install its Speech package in Windows Settings → Time & language → Language & region, then try again.");
-                return 2;
-            }
-
-            using (var recognizer = new SpeechRecognitionEngine(recognizerInfo))
-            using (var completed = new ManualResetEvent(false)) {
-                var recognized = false;
-                var failed = false;
-                recognizer.LoadGrammar(new DictationGrammar());
-                recognizer.AudioLevelUpdated += delegate(object sender, AudioLevelUpdatedEventArgs args) {
-                    EmitLevel(args.AudioLevel);
-                };
-                recognizer.SpeechHypothesized += delegate(object sender, SpeechHypothesizedEventArgs args) {
-                    var text = (args.Result.Text ?? string.Empty).Trim();
-                    if (!string.IsNullOrWhiteSpace(text)) {
-                        EmitResult(text, false);
-                    }
-                };
-                recognizer.SpeechRecognized += delegate(object sender, SpeechRecognizedEventArgs args) {
-                    var text = (args.Result.Text ?? string.Empty).Trim();
-                    if (!string.IsNullOrWhiteSpace(text)) {
-                        recognized = true;
-                        EmitResult(text, true);
-                    }
-                    completed.Set();
-                };
-                recognizer.SpeechRecognitionRejected += delegate {
-                    failed = true;
-                    EmitError("No speech was detected. Try again.");
-                    completed.Set();
-                };
-                recognizer.RecognizeCompleted += delegate(object sender, RecognizeCompletedEventArgs args) {
-                    if (args.Error != null) {
-                        failed = true;
-                        EmitError("Speech recognition could not complete. Check Windows microphone privacy and your Speech language, then try again.");
-                    } else if (!recognized && !failed && !args.Cancelled) {
-                        failed = true;
-                        EmitError("No speech was detected. Try again.");
-                    }
-                    completed.Set();
-                };
-                recognizer.SetInputToDefaultAudioDevice();
-                recognizer.RecognizeAsync();
-                completed.WaitOne();
-                recognizer.RecognizeAsyncCancel();
-            }
-            return 0;
-        } catch (Exception error) {
-            EmitError("Could not start Windows Speech Recognition: " + error.Message);
-            return 1;
-        }
-    }
-}
-'@
-exit [CmdSpaceSpeech]::Run($env:CMDSPACE_SPEECH_LANGUAGE)
-"#;
-}
+#[path = "speech_windows.rs"]
+mod windows;
+#[cfg(any(target_os = "windows", test))]
+#[path = "speech_windows_lifecycle.rs"]
+mod windows_lifecycle;
+pub use commands::{
+    __cmd__speech_start, __cmd__speech_stop, __cmd__speech_supported_locales, speech_start,
+    speech_stop, speech_supported_locales,
+};
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn emit_error(app: &AppHandle, message: impl Into<String>) {
@@ -381,40 +28,42 @@ fn emit_error(app: &AppHandle, message: impl Into<String>) {
 }
 
 #[cfg(target_os = "macos")]
+#[path = "speech_macos_lifecycle.rs"]
+mod macos_lifecycle;
+#[cfg(target_os = "macos")]
+#[path = "speech_macos_state.rs"]
+mod macos_state;
+#[cfg(target_os = "macos")]
+#[path = "speech_macos_support.rs"]
+mod macos_support;
+#[cfg(target_os = "macos")]
 mod macos {
     use super::emit_error;
     use block2::RcBlock;
-    use objc2::{rc::Retained, runtime::Bool, AnyThread};
+    use objc2::{runtime::Bool, AnyThread};
     use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
-    use objc2_avf_audio::{AVAudioEngine, AVAudioInputNode, AVAudioPCMBuffer, AVAudioTime};
+    use objc2_avf_audio::{AVAudioEngine, AVAudioPCMBuffer, AVAudioTime};
     use objc2_foundation::{NSError, NSLocale, NSString};
     use objc2_speech::{
-        SFSpeechAudioBufferRecognitionRequest, SFSpeechRecognitionResult, SFSpeechRecognitionTask,
-        SFSpeechRecognizer, SFSpeechRecognizerAuthorizationStatus,
+        SFSpeechAudioBufferRecognitionRequest, SFSpeechRecognitionResult, SFSpeechRecognizer,
+        SFSpeechRecognizerAuthorizationStatus,
     };
-    use std::cell::{Cell, RefCell};
-    use std::path::Path;
     use std::ptr::NonNull;
     use std::slice;
     use std::time::Duration;
     use tauri::{AppHandle, Emitter};
 
+    use super::macos_state::{
+        activate_session, begin_finish_active_session, complete_request, invalidate_request,
+        is_current_request, should_deliver_event, start_request, with_active_session,
+        SpeechSession,
+    };
+    use super::macos_support::{
+        microphone_permission_message, runs_from_macos_app_bundle, should_retry_audio_start,
+        speech_error_message,
+    };
+
     const AUDIO_START_RETRY_DELAY: Duration = Duration::from_millis(350);
-    const MAX_AUDIO_START_ATTEMPTS: u8 = 2;
-
-    struct SpeechSession {
-        id: u64,
-        engine: Retained<AVAudioEngine>,
-        input: Retained<AVAudioInputNode>,
-        request: Retained<SFSpeechAudioBufferRecognitionRequest>,
-        _recognizer: Retained<SFSpeechRecognizer>,
-        _task: Retained<SFSpeechRecognitionTask>,
-    }
-
-    thread_local! {
-        static SESSION: RefCell<Option<SpeechSession>> = const { RefCell::new(None) };
-        static REQUEST_ID: Cell<u64> = const { Cell::new(0) };
-    }
 
     pub fn supported_locales() -> Vec<String> {
         let locales = unsafe { SFSpeechRecognizer::supportedLocales() };
@@ -457,14 +106,12 @@ mod macos {
     }
 
     fn start_on_main(app: AppHandle, language: Option<String>) {
-        let request_id = REQUEST_ID.with(|current| {
-            let next = current.get().wrapping_add(1).max(1);
-            current.set(next);
-            next
-        });
-        cancel_session_on_main();
+        let started = start_request();
+        if let Some(session) = started.cancelled_session {
+            dispose_session(session, true);
+        }
 
-        request_microphone_permission(app, request_id, language);
+        request_microphone_permission(app, started.request_id, language);
     }
 
     fn request_microphone_permission(app: AppHandle, request_id: u64, language: Option<String>) {
@@ -530,19 +177,8 @@ mod macos {
         unsafe { SFSpeechRecognizer::requestAuthorization(&authorization) };
     }
 
-    fn microphone_permission_message() -> &'static str {
-        "Microphone access is blocked. Allow cmdSpace in macOS Settings → Privacy & Security → Microphone, then try again."
-    }
-
-    fn is_current_request(request_id: u64) -> bool {
-        REQUEST_ID.with(|current| current.get() == request_id)
-    }
-
     fn invalidate_request_on_main() {
-        REQUEST_ID.with(|current| {
-            let next = current.get().wrapping_add(1).max(1);
-            current.set(next);
-        });
+        invalidate_request();
     }
 
     fn begin_session(app: AppHandle, request_id: u64, language: Option<String>, attempt: u8) {
@@ -588,8 +224,11 @@ mod macos {
         let tap = RcBlock::new(
             move |buffer: NonNull<AVAudioPCMBuffer>, _when: NonNull<AVAudioTime>| unsafe {
                 request_for_tap.appendAudioPCMBuffer(buffer.as_ref());
-                let _ =
-                    app_for_levels.emit("cmdspace:speech-level", microphone_level(buffer.as_ref()));
+                emit_level_for_active_request(
+                    app_for_levels.clone(),
+                    request_id,
+                    microphone_level(buffer.as_ref()),
+                );
             },
         );
         unsafe {
@@ -606,8 +245,11 @@ mod macos {
             move |result: *mut SFSpeechRecognitionResult, error: *mut NSError| {
                 if !error.is_null() {
                     let error = unsafe { &*error };
-                    emit_error(&app_for_results, speech_error_message(error));
-                    clear_session_for_result(&app_for_results, request_id);
+                    handle_recognition_error(
+                        app_for_results.clone(),
+                        request_id,
+                        speech_error_message(error),
+                    );
                     return;
                 }
                 let Some(result) = (unsafe { result.as_ref() }) else {
@@ -620,13 +262,12 @@ mod macos {
                     return;
                 }
                 let final_result = unsafe { result.isFinal() };
-                let _ = app_for_results.emit(
-                    "cmdspace:speech-result",
-                    serde_json::json!({ "text": transcript, "final": final_result }),
+                handle_recognition_result(
+                    app_for_results.clone(),
+                    request_id,
+                    transcript.to_string(),
+                    final_result,
                 );
-                if final_result {
-                    clear_session_for_result(&app_for_results, request_id);
-                }
             },
         );
         let task = unsafe {
@@ -649,75 +290,18 @@ mod macos {
             return;
         }
 
-        SESSION.with(|session| {
-            *session.borrow_mut() = Some(SpeechSession {
-                id: request_id,
-                engine,
-                input,
-                request,
-                _recognizer: recognizer,
-                _task: task,
-            });
-        });
-        let _ = app.emit("cmdspace:speech-started", ());
-    }
-
-    fn should_retry_audio_start(attempt: u8) -> bool {
-        attempt < MAX_AUDIO_START_ATTEMPTS
-    }
-
-    fn runs_from_macos_app_bundle() -> bool {
-        std::env::current_exe()
-            .ok()
-            .is_some_and(|path| is_macos_app_bundle_executable(&path))
-    }
-
-    fn is_macos_app_bundle_executable(path: &Path) -> bool {
-        path.parent()
-            .zip(path.parent().and_then(Path::parent))
-            .is_some_and(|(macos_dir, contents_dir)| {
-                macos_dir.file_name().is_some_and(|name| name == "MacOS")
-                    && contents_dir
-                        .file_name()
-                        .is_some_and(|name| name == "Contents")
-            })
-    }
-
-    fn speech_error_message(error: &NSError) -> String {
-        speech_error_message_parts(
-            &error.domain().to_string(),
-            error.code(),
-            &error.localizedDescription().to_string(),
-        )
-    }
-
-    fn speech_error_message_parts(domain: &str, code: isize, description: &str) -> String {
-        match (domain, code) {
-            ("kLSRErrorDomain", 102) => {
-                "Speech assets for this language are not installed. Add the Dictation language in macOS Settings → Keyboard → Dictation, then try again.".to_string()
-            }
-            ("kLSRErrorDomain", 201) => {
-                "Siri or Dictation is disabled. Enable Dictation in macOS Settings → Keyboard → Dictation, then try again.".to_string()
-            }
-            ("kLSRErrorDomain", 300) => {
-                "macOS could not initialize speech recognition. Restart cmdSpace and verify Dictation is enabled.".to_string()
-            }
-            ("kAFAssistantErrorDomain", 1100) => {
-                "A previous speech request is still stopping. Wait a moment, then try again.".to_string()
-            }
-            ("kAFAssistantErrorDomain", 1101 | 1107) => {
-                "The macOS speech service was interrupted. Check your network and try again.".to_string()
-            }
-            ("kAFAssistantErrorDomain", 1110) => {
-                "No speech was detected. Check the selected microphone and try again.".to_string()
-            }
-            ("kAFAssistantErrorDomain", 1700) => {
-                "Speech Recognition permission is not authorized. Allow cmdSpace in macOS Settings → Privacy & Security → Speech Recognition.".to_string()
-            }
-            _ => format!(
-                "Speech recognition could not complete. {description} ({domain} {code})"
-            ),
+        let session = SpeechSession {
+            engine,
+            input,
+            request,
+            _recognizer: recognizer,
+            _task: task,
+        };
+        if let Err(stale_session) = activate_session(request_id, session) {
+            dispose_session(stale_session, true);
+            return;
         }
+        let _ = app.emit("cmdspace:speech-started", ());
     }
 
     fn schedule_audio_start_retry(
@@ -804,41 +388,65 @@ mod macos {
     /// End audio input but retain the task until Speech emits its final result.
     /// Dropping the request or task here loses the final words the user spoke.
     fn finish_on_main(app: &AppHandle) {
-        SESSION.with(|session| {
-            if let Some(session) = session.borrow().as_ref() {
-                unsafe {
-                    session.input.removeTapOnBus(0);
-                    session.engine.stop();
-                    session.request.endAudio();
-                    session._task.finish();
-                }
-            }
+        if !begin_finish_active_session() {
+            return;
+        }
+        with_active_session(|session| unsafe {
+            session.input.removeTapOnBus(0);
+            session.engine.stop();
+            session.request.endAudio();
+            session._task.finish();
         });
         let _ = app.emit("cmdspace:speech-stopped", ());
     }
 
-    fn cancel_session_on_main() {
-        let stopped = SESSION.with(|session| session.borrow_mut().take());
-        if let Some(session) = stopped {
-            dispose_session(session, true);
-        }
-    }
-
-    fn clear_session_for_result(app: &AppHandle, request_id: u64) {
+    fn emit_level_for_active_request(app: AppHandle, request_id: u64, level: f32) {
         let app_for_main = app.clone();
         let _ = app.run_on_main_thread(move || {
-            let completed = SESSION.with(|session| {
-                let should_clear = session
-                    .borrow()
-                    .as_ref()
-                    .is_some_and(|active| active.id == request_id);
-                should_clear.then(|| session.borrow_mut().take()).flatten()
-            });
-            if let Some(session) = completed {
-                dispose_session(session, false);
+            if should_deliver_event(request_id) {
+                let _ = app_for_main.emit("cmdspace:speech-level", level);
             }
-            let _ = app_for_main.emit("cmdspace:speech-stopped", ());
         });
+    }
+
+    fn handle_recognition_error(app: AppHandle, request_id: u64, message: String) {
+        let app_for_main = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if should_deliver_event(request_id) {
+                emit_error(&app_for_main, message);
+            }
+            clear_session_for_result_on_main(&app_for_main, request_id);
+        });
+    }
+
+    fn handle_recognition_result(
+        app: AppHandle,
+        request_id: u64,
+        transcript: String,
+        final_result: bool,
+    ) {
+        let app_for_main = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if should_deliver_event(request_id) {
+                let _ = app_for_main.emit(
+                    "cmdspace:speech-result",
+                    serde_json::json!({ "text": transcript, "final": final_result }),
+                );
+            }
+            if final_result {
+                clear_session_for_result_on_main(&app_for_main, request_id);
+            }
+        });
+    }
+
+    fn clear_session_for_result_on_main(app: &AppHandle, request_id: u64) {
+        let completed = complete_request(request_id);
+        if let Some(session) = completed.session {
+            dispose_session(session, false);
+        }
+        if completed.emit_stopped {
+            let _ = app.emit("cmdspace:speech-stopped", ());
+        }
     }
 
     fn dispose_session(session: SpeechSession, cancel_task: bool) {
@@ -854,58 +462,16 @@ mod macos {
 
     #[cfg(test)]
     mod tests {
-        use super::{
-            invalidate_request_on_main, is_current_request, is_macos_app_bundle_executable,
-            microphone_permission_message, should_retry_audio_start, speech_error_message_parts,
-            REQUEST_ID,
-        };
-        use std::path::Path;
-
-        #[test]
-        fn retries_audio_start_once() {
-            assert!(should_retry_audio_start(1));
-            assert!(!should_retry_audio_start(2));
-        }
+        use super::{invalidate_request_on_main, is_current_request, start_request};
 
         #[test]
         fn invalidated_request_cannot_restart_after_retry_delay() {
-            let previous_request_id = REQUEST_ID.with(|current| {
-                let previous = current.get();
-                current.set(42);
-                previous
-            });
-            assert!(is_current_request(42));
+            let request_id = start_request().request_id;
+            assert!(is_current_request(request_id));
 
             invalidate_request_on_main();
 
-            assert!(!is_current_request(42));
-            REQUEST_ID.with(|current| current.set(previous_request_id));
-        }
-
-        #[test]
-        fn only_runs_native_voice_from_a_macos_app_bundle() {
-            assert!(is_macos_app_bundle_executable(Path::new(
-                "/Applications/cmdSpace.app/Contents/MacOS/cmdspace"
-            )));
-            assert!(!is_macos_app_bundle_executable(Path::new(
-                "/Users/me/dev/cmdspace/target/debug/cmdspace"
-            )));
-        }
-
-        #[test]
-        fn explains_the_dictation_setting_error() {
-            assert_eq!(
-                speech_error_message_parts("kLSRErrorDomain", 201, "ignored"),
-                "Siri or Dictation is disabled. Enable Dictation in macOS Settings → Keyboard → Dictation, then try again."
-            );
-        }
-
-        #[test]
-        fn explains_how_to_restore_microphone_access() {
-            assert_eq!(
-                microphone_permission_message(),
-                "Microphone access is blocked. Allow cmdSpace in macOS Settings → Privacy & Security → Microphone, then try again."
-            );
+            assert!(!is_current_request(request_id));
         }
     }
 }
