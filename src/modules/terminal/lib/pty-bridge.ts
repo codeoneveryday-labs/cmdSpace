@@ -48,24 +48,21 @@ export async function openPty(
   const id = await invoke<number>("pty_open", {
     cols,
     rows,
-    cwd: cwd ?? null,
-    initialCommand: initialCommand ?? null,
+    cwd,
+    initialCommand,
     shell: usePreferencesStore.getState().terminalShell,
     workspace: currentWorkspaceEnv(),
     onData,
     onExit,
   });
-  void invoke("pty_register_metadata", {
-    id,
-    cwd: cwd ?? null,
-  });
+  void invoke("pty_register_metadata", { id, cwd: cwd ?? null });
 
   let closed = false;
 
   return {
     id,
     write: (data) => invoke("pty_write", { id, data }),
-    resize: (c, r) => invoke("pty_resize", { id, cols: c, rows: r }),
+    resize: (cols, rows) => invoke("pty_resize", { id, cols, rows }),
     setMetadata: (metadata) =>
       invoke("pty_register_metadata", {
         id,
