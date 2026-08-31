@@ -7,17 +7,38 @@ const source = readFileSync(
   path.join(here, "ArchitectureCanvas.tsx"),
   "utf8",
 );
-const terminalInteractionSource = readFileSync(
-  path.join(here, "lib/useCanvasTerminalInteractions.ts"),
+const terminalInteractionModelSource = readFileSync(
+  path.join(here, "lib/canvasTerminalInteractionModel.ts"),
   "utf8",
 );
+const terminalInteractionCommitSource = readFileSync(
+  path.join(here, "lib/canvasTerminalInteractionCommit.ts"),
+  "utf8",
+);
+const terminalTabStateSource = readFileSync(
+  path.join(here, "lib/useCanvasTerminalTabState.ts"),
+  "utf8",
+);
+const terminalLayerSource = readFileSync(
+  path.join(here, "components/CanvasTerminalLayer.tsx"),
+  "utf8",
+);
+const terminalLayerActionsSource = readFileSync(
+  path.join(here, "lib/useCanvasTerminalLayerActions.ts"),
+  "utf8",
+);
+const sourceWithTerminalLayer = [
+  source,
+  terminalLayerSource,
+  terminalLayerActionsSource,
+].join("\n");
 
 describe("ArchitectureCanvas terminal activation integration", () => {
   it("delegates active-terminal state and tab callbacks to the extracted module", () => {
-    expect(source).toContain("./lib/useCanvasTerminalInteractions");
-    expect(source).toContain("useCanvasTerminalInteractions");
+    expect(source).toContain("./lib/useCanvasTerminalTabState");
+    expect(source).toContain("useCanvasTerminalTabState");
     expect(source).toContain(
-      "const terminalInteractions = useCanvasTerminalInteractions({",
+      "const terminalInteractions = useCanvasTerminalTabState({",
     );
     expect(source).not.toContain(
       'const [activeTerminalId, setActiveTerminalId] = useState("")',
@@ -26,20 +47,26 @@ describe("ArchitectureCanvas terminal activation integration", () => {
       "onActiveTerminalChange?.(tabId, activeTerminalId || null)",
     );
 
-    expect(terminalInteractionSource).toContain(
-      "export function useCanvasTerminalInteractions",
+    expect(terminalTabStateSource).toContain(
+      "export function useCanvasTerminalTabState",
     );
-    expect(terminalInteractionSource).toContain(
+    expect(terminalInteractionModelSource).toContain(
       "export function resolveTerminalDropResult",
+    );
+    expect(terminalInteractionCommitSource).toContain(
+      "export function commitTerminalDropResult",
     );
   });
 
   it("routes terminal activation, tab switching, and drag-end drop resolution through the extracted module", () => {
-    expect(source).toContain("terminalInteractions.activateTerminal(node.id)");
-    expect(source).toContain(
-      "terminalInteractions.activateTerminalTab({",
+    expect(sourceWithTerminalLayer).toContain(
+      "onActivateTerminal: terminalInteractions.activateTerminal",
     );
-    expect(source).toContain("terminalInteractions.closeTerminalTab({");
-    expect(source).toContain("resolveTerminalDropResult({");
+    expect(sourceWithTerminalLayer).toContain(
+      "onActivateTab: terminalInteractions.activateTerminalTab",
+    );
+    expect(sourceWithTerminalLayer).toContain("terminalInteractions.closeTerminalTab(args)");
+    expect(terminalInteractionModelSource).toContain("resolveTerminalDropResult({");
+    expect(terminalTabStateSource).toContain("activateTerminalTab");
   });
 });

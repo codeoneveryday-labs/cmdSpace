@@ -3,7 +3,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
-const source = readFileSync(path.join(here, "ArchitectureCanvas.tsx"), "utf8");
+const source = [
+  readFileSync(path.join(here, "ArchitectureCanvas.tsx"), "utf8"),
+  readFileSync(path.join(here, "lib/useCanvasNodePointerDown.ts"), "utf8"),
+  readFileSync(path.join(here, "lib/useCanvasTerminalLayerActions.ts"), "utf8"),
+].join("\n");
 
 describe("ArchitectureCanvas camera seam", () => {
   it("delegates camera state and pointer math to the extracted camera hook", () => {
@@ -11,9 +15,9 @@ describe("ArchitectureCanvas camera seam", () => {
       'import { useCanvasCamera } from "./lib/useCanvasCamera";',
     );
     expect(source).toContain("const camera = useCanvasCamera({");
-    expect(source).toContain("camera.startPan(event);");
+    expect(source).toContain("startPan(event);");
     expect(source).toContain("camera.handleWheel(");
-    expect(source).toContain("camera.svgPointFromClient(event)");
+    expect(source).toContain("svgPointFromClient: camera.svgPointFromClient");
   });
 
   it("keeps camera implementation details out of the canvas coordinator", () => {
