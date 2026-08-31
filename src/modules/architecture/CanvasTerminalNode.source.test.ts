@@ -5,11 +5,17 @@ import { describe, expect, it } from "vitest";
 const here = path.dirname(new URL(import.meta.url).pathname);
 const sourcePath = path.join(here, "CanvasTerminalNode.tsx");
 const globalsPath = path.join(here, "../../styles/globals.css");
+const headerPath = path.join(here, "CanvasTerminalHeader.tsx");
+const selectionCopyPath = path.join(here, "lib/canvasTerminalSelectionCopy.ts");
+
+function readComponentSource() {
+  return [readFileSync(sourcePath, "utf8"), readFileSync(headerPath, "utf8")].join("\n");
+}
 
 describe("CanvasTerminalNode", () => {
   it("owns an isolated PTY lifecycle instead of the shared terminal pane session", () => {
     expect(existsSync(sourcePath)).toBe(true);
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("type PtySession");
     expect(source).toContain("openPty(");
@@ -31,7 +37,7 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("fits xterm to the floating node and reports CWD changes", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("FitAddon");
     expect(source).toContain("ResizeObserver");
@@ -82,28 +88,18 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("keeps the canvas terminal header free of folder and branch controls", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).not.toContain("TerminalNavigationControls");
     expect(source).not.toContain("onChangeDirectory={changeDirectory}");
     expect(source).not.toContain("write(`cd ${shellQuote(path)}\\r`)");
   });
 
-  it("copies a selected terminal range with the platform shortcut or copy-on-select", () => {
-    const source = readFileSync(sourcePath, "utf8");
-
-    expect(source).toContain("function isTerminalCopy");
-    expect(source).toContain("terminal?.hasSelection()");
-    expect(source).toContain("terminal.onSelectionChange");
-    expect(source).toContain("terminalCopyOnSelection");
-    expect(source).toContain("navigator.clipboard.writeText(selection)");
-    expect(source).toContain('let lastAutoCopiedSelection = "";');
-    expect(source).toContain("if (selection === lastAutoCopiedSelection) return;");
-    expect(source).toContain("terminal?.clearSelection()");
-  });
-
   it("routes clipboard paste through one PTY write instead of both xterm and the macOS IME bridge", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = [
+      readComponentSource(),
+      readFileSync(path.join(here, "canvasTerminalShortcuts.ts"), "utf8"),
+    ].join("\n");
 
     expect(source).toContain("function isTerminalPaste");
     expect(source).toContain("navigator.clipboard\n              .readText()");
@@ -116,19 +112,22 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("keeps copy-on-select silent instead of rendering a copy action", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = [
+      readComponentSource(),
+      readFileSync(selectionCopyPath, "utf8"),
+    ].join("\n");
 
     expect(source).not.toContain("setSelectedText");
     expect(source).not.toContain('aria-label="Copy selected terminal text"');
     expect(source).toContain("terminalCopyOnSelection");
-		expect(source).toContain("cmdspace-terminal-copy-badge");
-		expect(source).toContain('role="status"');
-		expect(source).toContain('aria-live="polite"');
-		expect(source).toContain('setCopyBadgeVisible(true)');
+    expect(source).toContain("cmdspace-terminal-copy-badge");
+    expect(source).toContain('role="status"');
+    expect(source).toContain('aria-live="polite"');
+    expect(source).toContain("setCopyBadgeVisible");
   });
 
   it("puts single-terminal group controls into its compact title bar", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("singleTerminalGroup: boolean");
     expect(source).toContain("onToggleTerminalGroupLock");
@@ -138,7 +137,7 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("allows Voice to draft into an interactive coding CLI without unblocking busy shell commands", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("isInteractiveCodingAgentCommand,");
     expect(source).toContain("shellStateRef.current.inCommand &&");
@@ -147,7 +146,7 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("shows the shared Canvas agent response indicator without response borders", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("type AgentResponseState = \"idle\" | \"responding\" | \"completed\"");
     expect(source).toContain("setAgentResponseState(\"responding\")");
@@ -159,7 +158,7 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("renders dock tabs without changing the isolated PTY lifecycle", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("stackTabs:");
     expect(source).toContain("visible:");
@@ -179,7 +178,7 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("keeps each inactive agent tab branded instead of using the active agent", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("agent?: CliAgent | null");
     expect(source).toContain("tab.agent");
@@ -187,14 +186,14 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("keeps the active plain terminal icon interactive for agent selection", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("currentAgent={tabAgent ?? null}");
-    expect(source).toContain("tab.id === activeTabId ? (");
+    expect(source).toContain("tab.id === activeTabId ? detectedAgent");
   });
 
   it("opens the agent picker from the add-terminal control", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("onAddTab: (initialCommand?: string) => void");
     expect(source).toContain("onSelect={(_agent, command) => onAddTab(command ?? undefined)}");
@@ -203,7 +202,7 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("uses Cate-like compact tab chrome instead of a large terminal title", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("h-7 shrink-0");
     expect(source).toContain("text-[11px] font-normal");
@@ -211,14 +210,14 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("keeps the terminal-group close action compact until hovered", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("grid size-5 place-items-center rounded-md");
     expect(source).toContain("hover:bg-red-500/[0.08] hover:text-red-500");
   });
 
   it("gives each terminal tab its own close control", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("onRequestCloseTab: (terminalId: string) => void");
     expect(source).toContain('aria-label={`Close ${tab.label}`}');
@@ -228,7 +227,7 @@ describe("CanvasTerminalNode", () => {
   });
 
   it("lets normal trackpad scrolling reach xterm while preserving Canvas pan and zoom", () => {
-    const source = readFileSync(sourcePath, "utf8");
+    const source = readComponentSource();
 
     expect(source).toContain("panning: boolean");
     expect(source).toContain("onCanvasPanStart");

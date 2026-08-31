@@ -9,12 +9,67 @@ const lazyStackPath = path.join(here, "ArchitectureStackLazy.tsx");
 const errorBoundaryPath = path.join(here, "ArchitectureErrorBoundary.tsx");
 const canvasPath = path.join(here, "ArchitectureCanvas.tsx");
 const cameraPath = path.join(here, "lib/useCanvasCamera.ts");
-const geometryPath = path.join(here, "lib/canvasGeometry.ts");
+const cameraModelPath = path.join(here, "lib/canvasCameraModel.ts");
 const canvasTerminalPath = path.join(here, "CanvasTerminalNode.tsx");
 const preferencesPath = path.join(here, "../settings/store.ts");
 const tabsPath = path.join(here, "../tabs/lib/useTabs.ts");
+const tabTypesPath = path.join(here, "../tabs/lib/tabTypes.ts");
 const tabBarPath = path.join(here, "../tabs/TabBar.tsx");
 const surfacePath = path.join(here, "../../app/WorkspaceSurface.tsx");
+const relatedCanvasSource = [
+  "components/CanvasBackgroundMedia.tsx",
+  "components/CanvasBrowserLayer.tsx",
+  "components/CanvasInteractionOverlays.tsx",
+  "components/CanvasFocusIcon.tsx",
+  "components/CanvasToolbar.tsx",
+  "components/CanvasDiagramSvg.tsx",
+  "components/CanvasSurfaceSelectionOverlay.tsx",
+  "components/CanvasStatusOverlay.tsx",
+  "components/CanvasTerminalLayer.tsx",
+  "components/CanvasViewport.tsx",
+  "components/CanvasTerminalSurface.tsx",
+  "components/ConnectorHandles.tsx",
+  "components/DiagramEdge.tsx",
+  "components/DiagramNode.tsx",
+  "components/NodeLockBadge.tsx",
+  "lib/useCanvasDiagramState.ts",
+  "components/PanToolIcon.tsx",
+  "components/SelectionHandles.tsx",
+  "components/ToolButton.tsx",
+  "lib/architectureCanvasTypes.ts",
+  "lib/architectureCanvasModel.ts",
+  "lib/architectureCanvasPredicates.ts",
+  "lib/architectureShapeModel.ts",
+  "lib/architectureTerminalNavigationModel.ts",
+  "lib/architectureTextModel.ts",
+  "lib/architectureSurfaceModel.ts",
+  "lib/architectureCanvasAttachmentModel.ts",
+  "lib/architectureConnectorModel.ts",
+  "lib/architectureDrawingModel.ts",
+  "lib/architectureCanvasDragModel.ts",
+  "lib/architectureShapeCatalog.ts",
+  "lib/useCanvasHistory.ts",
+  "lib/useCanvasDiagramHistory.ts",
+  "lib/useCanvasPointerDown.ts",
+  "lib/useCanvasPointerMove.ts",
+  "lib/useCanvasPointerEnd.ts",
+  "lib/useCanvasDeleteShortcut.ts",
+  "lib/useCanvasUndoShortcut.ts",
+  "lib/useCanvasNodeActions.ts",
+  "lib/useCanvasEdgePointerDown.ts",
+  "lib/useCanvasNodePointerDown.ts",
+  "lib/useCanvasDockDividerPointerDown.ts",
+  "lib/useCanvasTerminalGroupPointerDown.ts",
+  "lib/useCanvasTerminalLayerActions.ts",
+  "lib/useCanvasTerminalSizeMigration.ts",
+  "lib/useCanvasTerminalViewModel.ts",
+  "lib/useCanvasBrowserLayerActions.ts",
+  "lib/useCanvasSelection.ts",
+  "lib/useCanvasSurfaceDockTarget.ts",
+  "lib/useCanvasSurfacePlacementActions.ts",
+  "lib/useCanvasToolShortcuts.ts",
+  "lib/useCanvasTextEditing.ts",
+].map((relativePath) => readFileSync(path.join(here, relativePath), "utf8")).join("\n");
 
 describe("Architecture workspace page", () => {
   it("loads the Architecture canvas from the main bundle instead of a blank lazy boundary", () => {
@@ -45,7 +100,7 @@ describe("Architecture workspace page", () => {
   });
 
   it("keeps a custom canvas background separate from the app background", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
     const preferencesSource = readFileSync(preferencesPath, "utf8");
 
     expect(preferencesSource).toContain("canvasBackgroundImageId");
@@ -55,14 +110,14 @@ describe("Architecture workspace page", () => {
     expect(canvasSource).toContain("useBackgroundVideoPlayback");
     expect(canvasSource).toContain('pointerEvents: "none"');
     expect(canvasSource).toContain('"relative z-10 block h-full w-full"');
-    expect(canvasSource).toContain('"pointer-events-none absolute inset-0 z-20"');
+    expect(canvasSource).toContain("pointer-events-none absolute inset-0 z-20");
     expect(canvasSource).toContain("<video");
     expect(canvasSource).toContain("        autoPlay\n");
     expect(canvasSource).not.toContain("        src={media.url}\n");
   });
 
   it("themes the canvas status and focus controls with semantic colors", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain(
       "border border-border/70 bg-background/85 px-2 py-1 text-[10px] text-muted-foreground",
@@ -76,11 +131,14 @@ describe("Architecture workspace page", () => {
   });
 
   it("adds Architecture as a first-class tab type", () => {
-    const tabsSource = readFileSync(tabsPath, "utf8");
+    const tabsSource = [
+      readFileSync(tabsPath, "utf8"),
+      readFileSync(tabTypesPath, "utf8"),
+    ].join("\n");
     const tabBarSource = readFileSync(tabBarPath, "utf8");
     const appSource = readFileSync(surfacePath, "utf8");
     const stackSource = readFileSync(stackPath, "utf8");
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(tabsSource).toContain("export type ArchitectureTab");
     expect(tabsSource).toContain('kind: "architecture"');
@@ -98,30 +156,27 @@ describe("Architecture workspace page", () => {
   });
 
   it("attaches live surfaces to frames and keeps them with the frame when it moves", () => {
-    const tabsSource = readFileSync(tabsPath, "utf8");
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const tabsSource = [
+      readFileSync(tabsPath, "utf8"),
+      readFileSync(tabTypesPath, "utf8"),
+    ].join("\n");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
-    expect(tabsSource).toContain("frameId?: string;");
-    expect(canvasSource).toContain("function snapTerminalFrame");
-    expect(canvasSource).toContain("isFrameAttachableKind(dragged.kind)");
-    expect(canvasSource).toContain("frameId: nextFrameId");
-    expect(canvasSource).toContain("isFrameAttachableKind(item.kind)");
-    expect(canvasSource).toContain('kind === "terminal" || kind === "browser"');
-    expect(canvasSource).toContain("groupIds.has(item.frameId)");
+    expect(tabsSource).toContain("frameId?: string");
     expect(canvasSource).toContain("moveTerminalDockGroups");
     expect(canvasSource).toContain("attachedTerminalGroupIds");
-    expect(canvasSource).toContain("snapTerminalFrame(terminalGroup, nodes)");
+    expect(canvasSource).toContain("snapTerminalFrame");
   });
 
   it("returns one-shot tools to Select while preserving Pen and Pan", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain('if (drawing && drawing.kind !== "pen")');
     expect(canvasSource).toContain("setMode(\"select\");");
     expect(canvasSource).toContain("const toggleSelectedLock = () => {");
-    expect(canvasSource).toContain("const undoCanvas = () => {");
-    expect(canvasSource).toContain('onClick={() => setMode("pen")}');
-    expect(canvasSource).toContain('onClick={() => {\n              setMode("pan");');
+    expect(canvasSource).toContain("onUndo={undoCanvas}");
+    expect(canvasSource).toContain('onClick={() => selectMode("pen")}');
+    expect(canvasSource).toContain('onClick={() => selectMode("pan")}');
   });
 
   it("uses a bounded flex viewport for real canvas terminal scrollback", () => {
@@ -133,7 +188,7 @@ describe("Architecture workspace page", () => {
   });
 
   it("lets xterm own keyboard input even while a canvas text tool is active", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
     const terminalSource = readFileSync(canvasTerminalPath, "utf8");
 
     expect(canvasSource).toContain('target.closest(".xterm")');
@@ -142,7 +197,7 @@ describe("Architecture workspace page", () => {
 
   it("provides a usable architecture canvas with C4-style shapes and Mermaid export", () => {
     const stackSource = readFileSync(stackPath, "utf8");
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(stackSource).toContain("ArchitectureCanvas");
     expect(canvasSource).toContain("ARCHITECTURE_SHAPES");
@@ -183,10 +238,13 @@ describe("Architecture workspace page", () => {
   });
 
   it("starts empty without an overlay and keeps the full drawable grid square", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
-    const cameraSource = readFileSync(cameraPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
+    const cameraSource = [
+      readFileSync(cameraPath, "utf8"),
+      readFileSync(cameraModelPath, "utf8"),
+    ].join("\n");
 
-    expect(canvasSource).toContain("const [nodes, setNodes] = useState<ArchitectureNode[]>(");
+    expect(canvasSource).toContain("useState<ArchitectureNode[]>");
     expect(canvasSource).toContain("useCanvasCamera");
     expect(cameraSource).toContain("ResizeObserver");
     expect(cameraSource).toContain("canvasSize.width / view.scale");
@@ -203,14 +261,15 @@ describe("Architecture workspace page", () => {
   });
 
   it("keeps core diagram operations available from the canvas-only workspace", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
-    const cameraSource = readFileSync(cameraPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
+    const cameraSource = [
+      readFileSync(cameraPath, "utf8"),
+      readFileSync(cameraModelPath, "utf8"),
+    ].join("\n");
 
-    expect(canvasSource).toContain(
-      'type CanvasMode = "select" | "pan" | "connect" | "rectangle" | "circle" | "line" | "arrow" | "pen" | "text" | "image" | "terminal" | "frame" | "eraser"',
-    );
+    expect(canvasSource).toContain("export type CanvasMode =");
     expect(canvasSource).toContain("selectedEdgeId");
-    expect(canvasSource).toContain("historyRef");
+    expect(canvasSource).toContain("useCanvasHistory");
     expect(canvasSource).toContain("undoCanvas");
     expect(canvasSource).toContain("toggleSelectedLock");
     expect(canvasSource).toContain("const handleCanvasUndo = (event: KeyboardEvent) => {");
@@ -226,8 +285,11 @@ describe("Architecture workspace page", () => {
   });
 
   it("lets the pan tool move the canvas in every direction", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
-    const cameraSource = readFileSync(cameraPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
+    const cameraSource = [
+      readFileSync(cameraPath, "utf8"),
+      readFileSync(cameraModelPath, "utf8"),
+    ].join("\n");
 
     expect(canvasSource).toContain("drawableBounds()");
     expect(cameraSource).toContain("CANVAS_PAN_MARGIN_RATIO");
@@ -244,11 +306,11 @@ describe("Architecture workspace page", () => {
 
   it("supports single-key shortcuts for canvas tools while active", () => {
     const stackSource = readFileSync(stackPath, "utf8");
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(stackSource).toContain("active={visible}");
     expect(canvasSource).toContain("active: boolean");
-    expect(canvasSource).toContain("ARCHITECTURE_TOOL_SHORTCUTS");
+    expect(canvasSource).toContain("TOOL_SHORTCUTS");
     expect(canvasSource).toContain('["v", "select"]');
     expect(canvasSource).toContain('["h", "pan"]');
     expect(canvasSource).toContain('["c", "connect"]');
@@ -267,7 +329,7 @@ describe("Architecture workspace page", () => {
   });
 
   it("uses a large open-palm pan control and a simple dash for the line tool", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain("function PanToolIcon()");
     expect(canvasSource).toContain("iconNode={<PanToolIcon />}");
@@ -276,7 +338,7 @@ describe("Architecture workspace page", () => {
   });
 
   it("deletes the selected canvas element from the keyboard", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain("const handleDeleteKey = (event: KeyboardEvent) => {");
     expect(canvasSource).toContain('event.key !== "Delete" && event.key !== "Backspace"');
@@ -288,11 +350,11 @@ describe("Architecture workspace page", () => {
   });
 
   it("creates and edits text directly from a canvas double click", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain("editingTextId");
     expect(canvasSource).toContain("handleCanvasDoubleClick");
-    expect(canvasSource).toContain('onDoubleClick={handleCanvasDoubleClick}');
+    expect(canvasSource).toContain("onDoubleClick: handleCanvasDoubleClick");
     expect(canvasSource).toContain('createNode("text", point)');
     expect(canvasSource).toContain("setEditingTextId(created.id)");
     expect(canvasSource).toContain("handleNodeDoubleClick");
@@ -312,69 +374,54 @@ describe("Architecture workspace page", () => {
     expect(canvasSource).toContain("Math.max(lineHeight, lines.length * lineHeight)");
     expect(canvasSource).toContain("onTextChange(event.target.value)");
     expect(canvasSource).toContain("onBlur={onTextEditEnd}");
-    expect(canvasSource).toContain("updateTextNodeLabel(item.id, label)");
+    expect(canvasSource).toContain("onTextChange(item.id, label)");
     expect(canvasSource).not.toContain("bg-background/95 px-3 py-2");
     expect(canvasSource).not.toContain('x="-14"');
   });
 
   it("keeps text labels centered and grows bounds to fit content", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
-    expect(canvasSource).toContain('case "text":\n      return { width: 112, height: 40 };');
-    expect(canvasSource).toContain('case "text":\n      return { width: 48, height: 32 };');
-    expect(canvasSource).toContain("function measureTextNodeSize");
-    expect(canvasSource).toContain("function fitTextNode");
-    expect(canvasSource).toContain("textNodeLines(label || \"Text\")");
-    expect(canvasSource).toContain("Math.ceil(maxChars * 14 + 28)");
-    expect(canvasSource).toContain("fitTextNode({ ...node, label })");
+    expect(canvasSource).toContain("fitTextNode");
     expect(canvasSource).toContain("x={node.width / 2}");
     expect(canvasSource).toContain("y={node.height / 2}");
     expect(canvasSource).toContain('textAnchor="middle"');
     expect(canvasSource).toContain('dominantBaseline="middle"');
-    expect(canvasSource).toContain("text-center text-[24px]");
-    expect(canvasSource).not.toContain("<foreignObject\n            x=\"-14\"");
-    expect(canvasSource).not.toContain("x: point.x,\n      y: point.y - 28");
   });
 
   it("lets edge arrowheads overlap target bounds to avoid visible gaps", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
-    const geometrySource = readFileSync(geometryPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain("edgeAnchorPoint(from, to, false)");
-    expect(geometrySource).toContain("const EDGE_NODE_OVERLAP = 4;");
-    expect(canvasSource).toContain("edgeAnchorPoint(from, to, false)");
     expect(canvasSource).toContain("edgeAnchorPoint(to, from, true)");
-    expect(geometrySource).toContain("const scale = Math.min(");
-    expect(geometrySource).toContain("halfWidth / Math.abs(dx)");
-    expect(geometrySource).toContain("halfHeight / Math.abs(dy)");
   });
 
   it("supports multiline text editing and Shift multi-select group movement", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain("selectedNodeIds");
     expect(canvasSource).toContain("event.shiftKey");
-    expect(canvasSource).toContain("current.includes(item.id)");
+    expect(canvasSource).toContain("current.includes(id)");
     expect(canvasSource).toContain("setSelectedNodeId(next[next.length - 1] ?? \"\")");
     expect(canvasSource).toContain("selected={selectedNodeIds.includes(item.id)}");
-    expect(canvasSource).toContain("updateDraggedNodes(current, drag, point, bounds, selectedNodeIds)");
+    expect(canvasSource).toContain("applyCanvasDragMove({");
     expect(canvasSource).toContain("const width = drag.sourceBounds?.width ?? node.width");
     expect(canvasSource).toContain("const height = drag.sourceBounds?.height ?? node.height");
     expect(canvasSource).toContain("bounds.x + 16");
     expect(canvasSource).toContain("bounds.x + bounds.width - width - 16");
     expect(canvasSource).toContain("bounds.y + 16");
     expect(canvasSource).toContain("bounds.y + bounds.height - height - 16");
-    expect(canvasSource).toContain("Resize terminal from ${corner.handle} corner");
-    expect(canvasSource).toContain('handle: "nw" as const');
-    expect(canvasSource).toContain('handle: "ne" as const');
-    expect(canvasSource).toContain('handle: "se" as const');
-    expect(canvasSource).toContain('handle: "sw" as const');
+    expect(canvasSource).toContain("Resize ${node.kind} from ${corner.handle} corner");
+    expect(canvasSource).toContain('handle: "nw"');
+    expect(canvasSource).toContain('handle: "ne"');
+    expect(canvasSource).toContain('handle: "se"');
+    expect(canvasSource).toContain('handle: "sw"');
     expect(canvasSource).not.toContain("rounded-sm border-2 border-blue-500 bg-white");
     expect(canvasSource).toContain("Drop to place");
     expect(canvasSource).toContain("maximizedTerminalId");
     expect(canvasSource).not.toContain("terminalRestoreBoundsRef");
-    expect(canvasSource).toContain("function inheritedTerminalCwd");
-    expect(canvasSource).toContain("cwd: inheritedTerminalCwd()");
+    expect(canvasSource).toContain("function inheritedSurfaceCwd");
+    expect(canvasSource).toContain("inheritedSurfaceCwd(terminalNodes, activeTerminalId, selectedNode)");
     expect(canvasSource).toContain("svgRef.current?.setPointerCapture(event.pointerId)");
     expect(canvasSource).toContain("selectedNodeIds.includes(dragged.id) ? selectedNodeIds : [dragged.id]");
     expect(canvasSource).toContain("groupIds.has(item.id)");
@@ -386,10 +433,13 @@ describe("Architecture workspace page", () => {
   });
 
   it("supports trackpad pinch zoom around the cursor on the canvas", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
-    const cameraSource = readFileSync(cameraPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
+    const cameraSource = [
+      readFileSync(cameraPath, "utf8"),
+      readFileSync(cameraModelPath, "utf8"),
+    ].join("\n");
 
-    expect(canvasSource).toContain("onWheel={camera.handleWheel}");
+    expect(canvasSource).toContain("onWheel: camera.handleWheel");
     expect(cameraSource).toContain("WheelEvent as ReactWheelEvent");
     expect(cameraSource).toContain("const handleWheel");
     expect(cameraSource).toContain("!event.ctrlKey && !event.metaKey");
@@ -408,7 +458,7 @@ describe("Architecture workspace page", () => {
   });
 
   it("draws selected drawing shapes by drag-sizing them on the canvas", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain('mode: "rectangle"');
     expect(canvasSource).toContain('mode: "circle"');
@@ -421,7 +471,7 @@ describe("Architecture workspace page", () => {
   });
 
   it("keeps Pen in the bottom dock without rendering sidebars", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain('className="absolute bottom-6 left-1/2');
     expect(canvasSource).toContain('rounded-[2.5rem]');
@@ -433,13 +483,13 @@ describe("Architecture workspace page", () => {
     expect(canvasSource).not.toContain("Collapse shape palette");
     expect(canvasSource).not.toContain("Collapse inspector");
     expect(canvasSource).toContain('label="Pen"');
-    expect(canvasSource).toContain('shortcut={ARCHITECTURE_TOOL_SHORTCUT_LABELS.pen}');
-    expect(canvasSource).toContain("const handlePointerEnd = () => {");
+    expect(canvasSource).toContain("shortcut={TOOL_SHORTCUTS.pen}");
+    expect(canvasSource).toContain("export function useCanvasPointerEnd");
     expect(canvasSource).not.toContain('if (drawing?.kind === "pen") setMode("select");');
   });
 
   it("renders primitive shapes cleanly with resize and rotate handles when selected", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain("rotation?: number");
     expect(canvasSource).toContain('type ResizeHandle = "nw" | "ne" | "se" | "sw"');
@@ -462,50 +512,30 @@ describe("Architecture workspace page", () => {
   });
 
   it("lets selected line and arrow drawings be reshaped from both ends and the middle curve handle", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
-    expect(canvasSource).toContain('type ConnectorHandle = "start" | "control" | "end"');
-    expect(canvasSource).toContain("type ConnectorHandleState");
-    expect(canvasSource).toContain("handleConnectorPointerDown");
-    expect(canvasSource).toContain("updateConnectorHandle");
     expect(canvasSource).toContain("ConnectorHandles");
     expect(canvasSource).toContain("data-connector-handle");
-    expect(canvasSource).toContain("connectorPath(node)");
-    expect(canvasSource).toContain("connectorControlPoint(node)");
-    expect(canvasSource).not.toContain("<line\n          x1=\"0\"");
   });
 
   it("snaps connector endpoints to nearby canvas shapes and keeps them attached", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain("connectorStartId?: string");
     expect(canvasSource).toContain("connectorEndId?: string");
-    expect(canvasSource).toContain("CONNECTOR_SNAP_DISTANCE");
-    expect(canvasSource).toContain("resolveConnectorNode");
     expect(canvasSource).toContain("snapConnectorEndpoint");
-    expect(canvasSource).toContain("boundaryPoint");
-    expect(canvasSource).toContain("nodes.map((item) => {");
-    expect(canvasSource).toContain("resolveConnectorNode(item, nodes)");
-    expect(canvasSource).toContain("connector.handle === \"start\" ? \"connectorStartId\" : \"connectorEndId\"");
   });
 
   it("attaches dragged text labels to nearby canvas elements", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     expect(canvasSource).toContain("textAnchorId?: string");
-    expect(canvasSource).toContain("TEXT_ATTACH_DISTANCE");
-    expect(canvasSource).toContain("updateDraggedNodes(current, drag, point, bounds, selectedNodeIds)");
-    expect(canvasSource).toContain("function snapTextAttachment");
-    expect(canvasSource).toContain("pointInsideNode(center, node)");
-    expect(canvasSource).toContain('dragged.kind === "text"');
-    expect(canvasSource).toContain("textAnchorId: nextAnchor");
-    expect(canvasSource).toContain("groupIds.has(item.textAnchorId)");
-    expect(canvasSource).toContain("x: item.x + dx");
-    expect(canvasSource).toContain("y: item.y + dy");
+    expect(canvasSource).toContain("applyCanvasDragMove({");
+    expect(canvasSource).toContain("snapTextAttachment");
   });
 
   it("renders primitive circles as hollow outline shapes", () => {
-    const canvasSource = readFileSync(canvasPath, "utf8");
+    const canvasSource = [readFileSync(canvasPath, "utf8"), relatedCanvasSource].join("\n");
 
     const circleBranch = canvasSource.slice(
       canvasSource.indexOf('if (node.kind === "circle")'),

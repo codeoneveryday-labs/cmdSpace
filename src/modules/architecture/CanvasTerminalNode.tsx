@@ -1,15 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  Add01Icon,
-  Cancel01Icon,
-  Globe02Icon,
-  LockIcon,
-  SquareUnlock01Icon,
-  TerminalIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { ensureMonoFontsLoaded } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/modules/settings/preferences";
@@ -35,20 +26,25 @@ import {
 } from "@/modules/terminal/lib/osc-handlers";
 import { sharedTerminalOptions } from "@/modules/terminal/lib/terminalOptions";
 import {
-  detectCodingAgentBanner,
   detectCliAgent,
   type CliAgent,
   isInteractiveCodingAgentCommand,
 } from "@/modules/terminal/lib/cliAgents";
-import { AgentStateDot } from "@/modules/terminal/AgentStateDot";
-import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
-import { TerminalAgentSwitcher } from "@/modules/terminal/TerminalAgentSwitcher";
+import { processTerminalOutput } from "@/modules/terminal/lib/terminalOutputModel";
+import { tailTerminalLines } from "@/modules/terminal/lib/terminalBufferModel";
 import { useTheme } from "@/modules/theme";
+import { CanvasTerminalHeader } from "./CanvasTerminalHeader";
+import { installCanvasTerminalSelectionCopy } from "./lib/canvasTerminalSelectionCopy";
+import {
+  isDeletePreviousWord,
+  isDeleteToEndOfLine,
+  isTerminalCopy,
+  isTerminalPaste,
+} from "./canvasTerminalShortcuts";
 
 type AgentResponseState = "idle" | "responding" | "completed";
 
 const AGENT_RESPONSE_IDLE_MS = 900;
-const LOCAL_INPUT_ECHO_GRACE_MS = 180;
 
 type Props = {
   terminalId: string;
@@ -104,37 +100,6 @@ function isRejectedCwdError(error: unknown): boolean {
     message.includes("cwd is not a directory") ||
     message.includes("cwd is outside the authorized workspace")
   );
-}
-
-function isTerminalCopy(event: KeyboardEvent): boolean {
-  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-  const hasCopyModifier = isMac
-    ? event.metaKey && !event.ctrlKey && !event.altKey
-    : event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey;
-  return hasCopyModifier && (event.code === "KeyC" || event.key === "c" || event.key === "C");
-}
-
-function isTerminalPaste(event: KeyboardEvent): boolean {
-  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-  const hasPasteModifier = isMac
-    ? (event.metaKey || event.ctrlKey) && !event.altKey
-    : event.ctrlKey && !event.altKey && !event.metaKey;
-  return hasPasteModifier && (event.code === "KeyV" || event.key === "v" || event.key === "V");
-}
-
-/** Cmd+Backspace (macOS) / Ctrl+Backspace (elsewhere): delete previous word. */
-function isDeletePreviousWord(event: KeyboardEvent): boolean {
-  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-  const mod = isMac ? event.metaKey : event.ctrlKey;
-  return mod && !event.shiftKey && !event.altKey && (event.key === "Backspace" || event.code === "Backspace");
-}
-
-/** Cmd+Delete (macOS) / Ctrl+Delete (elsewhere): delete from the cursor to
- *  the end of the line, like Ctrl+K in readline/vim. Sends `\x0b`. */
-function isDeleteToEndOfLine(event: KeyboardEvent): boolean {
-  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-  const mod = isMac ? event.metaKey : event.ctrlKey;
-  return mod && !event.shiftKey && !event.altKey && (event.key === "Delete" || event.code === "Delete");
 }
 
 function copySelection(selection: string): Promise<void> {
@@ -268,8 +233,7 @@ export function CanvasTerminalNode({
         for (let index = start; index < buffer.length; index += 1) {
           lines.push(buffer.getLine(index)?.translateToString(true) ?? "");
         }
-        while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-        return lines.join("\n");
+        return tailTerminalLines(lines, maxLines);
       },
     };
     handleChangeRef.current?.(handle);
@@ -291,26 +255,26 @@ export function CanvasTerminalNode({
     let terminal: Terminal | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let fitFrame: number | null = null;
-		let copyOnSelectionTimer: ReturnType<typeof setTimeout> | null = null;
-		let copyBadgeTimer: ReturnType<typeof setTimeout> | null = null;
-		let lastAutoCopiedSelection = "";
+    let disposeSelectionCopy: (() => void) | null = null;
     let disposeCwdHandler: (() => void) | null = null;
     let disposePromptTracker: (() => void) | null = null;
     let disposeCompositionFocusListeners: (() => void) | null = null;
     const outputDecoder = new TextDecoder();
 
     const trackAgentResponse = (bytes: Uint8Array) => {
-      const output = agentOutputTailRef.current + outputDecoder.decode(bytes);
-      agentOutputTailRef.current = output.slice(-512);
-      if (detectCodingAgentBanner(output)) {
-        interactiveCodingAgentRef.current = true;
-      }
-      if (
-        !interactiveCodingAgentRef.current ||
-        Date.now() - lastLocalInputAtRef.current < LOCAL_INPUT_ECHO_GRACE_MS
-      ) {
-        return;
-      }
+      const result = processTerminalOutput(
+        {
+          agentOutputTail: agentOutputTailRef.current,
+          interactiveCodingAgent: interactiveCodingAgentRef.current,
+          launchCommand: undefined,
+        },
+        outputDecoder.decode(bytes),
+        Date.now(),
+        lastLocalInputAtRef.current,
+      );
+      agentOutputTailRef.current = result.state.agentOutputTail;
+      interactiveCodingAgentRef.current = result.state.interactiveCodingAgent;
+      if (!interactiveCodingAgentRef.current || result.outputIsUserEcho) return;
 
       setAgentResponseState("responding");
       if (agentActivityTimerRef.current !== null) {
@@ -441,34 +405,11 @@ export function CanvasTerminalNode({
         }
         return true;
       });
-		terminal.onSelectionChange(() => {
-			if (copyOnSelectionTimer) clearTimeout(copyOnSelectionTimer);
-			copyOnSelectionTimer = setTimeout(() => {
-				copyOnSelectionTimer = null;
-				if (!usePreferencesStore.getState().terminalCopyOnSelection) return;
-				const selection = terminal?.getSelection() ?? "";
-				if (!selection) {
-					lastAutoCopiedSelection = "";
-					return;
-				}
-				if (selection === lastAutoCopiedSelection) return;
-
-				lastAutoCopiedSelection = selection;
-				void copySelection(selection)
-					.then(() => {
-						setCopyBadgeVisible(true);
-						if (copyBadgeTimer) clearTimeout(copyBadgeTimer);
-						copyBadgeTimer = setTimeout(() => {
-							setCopyBadgeVisible(false);
-							copyBadgeTimer = null;
-						}, 1_200);
-						terminal?.clearSelection();
-					})
-					.catch(() => {
-						lastAutoCopiedSelection = "";
-					});
-			}, 120);
-      });
+      disposeSelectionCopy = installCanvasTerminalSelectionCopy(
+        terminal,
+        copySelection,
+        setCopyBadgeVisible,
+      );
       terminal.onData((data) => {
         const normalized = IS_MAC_TEXT_INPUT_PLATFORM
           ? normalizeMacTerminalInput(data)
@@ -539,8 +480,7 @@ export function CanvasTerminalNode({
       disposePromptTracker?.();
       disposeCompositionFocusListeners?.();
       if (fitFrame !== null) cancelAnimationFrame(fitFrame);
-      if (copyOnSelectionTimer) clearTimeout(copyOnSelectionTimer);
-			if (copyBadgeTimer) clearTimeout(copyBadgeTimer);
+      disposeSelectionCopy?.();
       if (agentActivityTimerRef.current !== null) {
         window.clearTimeout(agentActivityTimerRef.current);
         agentActivityTimerRef.current = null;
@@ -635,229 +575,28 @@ export function CanvasTerminalNode({
         event.stopPropagation();
       }}
     >
-      <div className="relative z-20 flex h-7 shrink-0 items-center gap-0.5 border-b border-border/60 bg-white/95 px-1 text-muted-foreground shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300">
-        <div
-          role="tablist"
-          aria-label="Canvas terminal tabs"
-          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
-        >
-          {stackTabs.map((tab) => (
-            <div
-              key={tab.id}
-              data-canvas-surface-tab-kind={tab.kind}
-              className={cn(
-                "flex max-w-52 shrink-0 items-center rounded-full py-0.5 pr-1 text-[11px] font-normal transition-colors",
-                tab.id === activeTabId
-                  ? "bg-muted text-foreground shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:hover:bg-zinc-800/70",
-              )}
-            >
-              {(() => {
-                const tabAgent =
-                  tab.id === activeTabId ? detectedAgent ?? tab.agent : tab.agent;
-
-                return (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab.id === activeTabId}
-                className="flex min-w-0 items-center gap-1 px-2"
-              onPointerDown={(event) => {
-                 event.preventDefault();
-                 event.stopPropagation();
-                 onActivateTab(tab.id);
-                 onTabPointerDown(tab.id, event);
-              }}
-              onClick={(event) => {
-                event.stopPropagation();
-                onActivateTab(tab.id);
-              }}
-              >
-                {tab.kind === "browser" ? (
-                  <HugeiconsIcon icon={Globe02Icon} size={12} strokeWidth={1.8} className="shrink-0" />
-                ) : tab.id === activeTabId ? (
-                  <TerminalAgentSwitcher
-                    currentAgent={tabAgent ?? null}
-                    onSelect={(_agent, command) => {
-                      if (!command) return;
-                      rememberDetectedAgentCommand(command);
-                      setLaunchCommand(command);
-                    }}
-                    trigger={
-                      <span
-                        className="inline-flex shrink-0 cursor-pointer"
-                        aria-label="Switch coding agent"
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        {tabAgent ? (
-                          <AgentCliIcon agent={tabAgent} size="sm" />
-                        ) : (
-                          <HugeiconsIcon
-                            icon={TerminalIcon}
-                            size={12}
-                            strokeWidth={1.8}
-                          />
-                        )}
-                      </span>
-                    }
-                  />
-                ) : tabAgent ? (
-                  <AgentCliIcon agent={tabAgent} size="sm" />
-                ) : (
-                  <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} className={cn("shrink-0", tab.id === activeTabId && "text-emerald-500")} />
-                )}
-                <span className="truncate">
-                  {tab.id === activeTabId ? tabLabel : tab.label}
-                </span>
-              </button>
-                );
-              })()}
-              <button
-                type="button"
-                aria-label={`Close ${tab.label}`}
-                title={`Close ${tab.label}`}
-                className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground/70 transition-colors hover:bg-foreground/10 hover:text-foreground"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onRequestCloseTab(tab.id);
-                }}
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={1.8} />
-              </button>
-            </div>
-          ))}
-        </div>
-        {agentResponseState === "responding" ? <AgentStateDot state="working" /> : null}
-        {agentResponseState === "completed" ? <AgentStateDot state="done" /> : null}
-        <div className="flex shrink-0 items-center gap-0.5">
-          <TerminalAgentSwitcher
-            currentAgent={null}
-            onSelect={(_agent, command) => onAddTab(command ?? undefined)}
-            trigger={
-              <button
-                type="button"
-                aria-label="Add terminal tab"
-                title="Add terminal tab or agent"
-                className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.8} />
-              </button>
-            }
-          />
-          <button
-            type="button"
-            aria-label="Split terminal right"
-            title="Split terminal right"
-            className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            onClick={onSplitRight}
-          >
-            <svg
-              aria-hidden="true"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-              <path d="M12 4v16" />
-            </svg>
-          </button>
-          {singleTerminalGroup ? (
-            <>
-              <button
-                type="button"
-                aria-label={
-                  terminalGroupLocked
-                    ? "Unlock terminal group"
-                    : "Lock terminal group"
-                }
-                title={
-                  terminalGroupLocked
-                    ? "Unlock terminal group"
-                    : "Lock terminal group"
-                }
-                className={cn(
-                  "grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white",
-                  terminalGroupLocked && "text-primary hover:text-primary",
-                )}
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={onToggleTerminalGroupLock}
-              >
-                <HugeiconsIcon
-                  icon={terminalGroupLocked ? LockIcon : SquareUnlock01Icon}
-                  size={13}
-                  strokeWidth={1.8}
-                />
-              </button>
-              <button
-                type="button"
-                aria-label={
-                  maximized
-                    ? "Restore terminal group"
-                    : "Maximize terminal group"
-                }
-                title={
-                  maximized
-                    ? "Restore terminal group"
-                    : "Maximize terminal group"
-                }
-                className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={onToggleTerminalGroupMaximize}
-              >
-                {maximized ? (
-                  <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 14h6v6" />
-                    <path d="M10 14l-6 6" />
-                    <path d="M20 10h-6V4" />
-                    <path d="M14 10l6-6" />
-                  </svg>
-                ) : (
-                  <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15 3h6v6" />
-                    <path d="M9 21H3v-6" />
-                    <path d="M21 3l-7 7" />
-                    <path d="M3 21l7-7" />
-                  </svg>
-                )}
-              </button>
-              <button
-                type="button"
-                aria-label="Close terminal group"
-                title="Close terminal group"
-                className="grid size-5 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-red-500/[0.08] hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:text-zinc-400 dark:hover:bg-red-500/15 dark:hover:text-red-400"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={onRequestCloseTerminalGroup}
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={13} strokeWidth={1.8} />
-              </button>
-            </>
-          ) : null}
-        </div>
-      </div>
+      <CanvasTerminalHeader
+        stackTabs={stackTabs}
+        activeTabId={activeTabId}
+        tabLabel={tabLabel}
+        detectedAgent={detectedAgent}
+        agentResponseState={agentResponseState}
+        onActivateTab={onActivateTab}
+        onTabPointerDown={onTabPointerDown}
+        onRequestCloseTab={onRequestCloseTab}
+        onAgentCommandChange={(command) => {
+          rememberDetectedAgentCommand(command);
+          setLaunchCommand(command);
+        }}
+        onAddTab={onAddTab}
+        onSplitRight={onSplitRight}
+        singleTerminalGroup={singleTerminalGroup}
+        terminalGroupLocked={terminalGroupLocked}
+        maximized={maximized}
+        onToggleTerminalGroupLock={onToggleTerminalGroupLock}
+        onToggleTerminalGroupMaximize={onToggleTerminalGroupMaximize}
+        onRequestCloseTerminalGroup={onRequestCloseTerminalGroup}
+      />
       <div
         ref={viewportRef}
         className="cmdspace-terminal-viewport cmdspace-canvas-terminal-viewport min-h-0 min-w-0 flex-1 overflow-hidden"
