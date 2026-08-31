@@ -26,7 +26,7 @@ fn is_safe_distro_name(name: &str) -> bool {
 }
 
 #[cfg(windows)]
-pub(crate) fn validate_wsl_distro_name(distro: &str) -> Result<(), String> {
+pub fn validate_wsl_distro_name(distro: &str) -> Result<(), String> {
     if is_safe_distro_name(distro) {
         Ok(())
     } else {
@@ -129,7 +129,7 @@ fn run_wsl(args: &[&str]) -> Result<String, String> {
 }
 
 #[cfg(windows)]
-pub(crate) fn wsl_exec_capture(
+pub fn wsl_exec_capture(
     distro: &str,
     program: &str,
     args: &[&str],
@@ -158,7 +158,7 @@ fn run_wsl_sh(distro: &str, script: &str) -> Result<String, String> {
 }
 
 #[cfg(windows)]
-pub(crate) fn normalize_wsl_value(output: String, fallback: &str) -> String {
+pub fn normalize_wsl_value(output: String, fallback: &str) -> String {
     let value = output
         .lines()
         .rev()
