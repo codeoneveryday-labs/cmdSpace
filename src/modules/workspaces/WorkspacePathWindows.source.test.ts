@@ -3,11 +3,15 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
-const panelPath = path.join(here, "WorkspacesPanel.tsx");
+const panelPaths = [
+  path.join(here, "WorkspacesPanel.tsx"),
+  path.join(here, "WorkspaceSetupView.tsx"),
+  path.join(here, "lib/workspaceSetupModel.ts"),
+];
 
 describe("workspace path Windows normalization boundaries", () => {
   it("keeps home expansion, drive detection, and slash normalization wired in the setup path helpers", () => {
-    const source = readFileSync(panelPath, "utf8");
+    const source = panelPaths.map((filePath) => readFileSync(filePath, "utf8")).join("\n");
 
     expect(source).toContain(
       'target === "~" || target.startsWith("~/") || target.startsWith("~\\\\")',

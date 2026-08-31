@@ -14,27 +14,116 @@ const workspaceSelectionPath = path.join(
   here,
   "../../app/lib/useWorkspaceSelection.ts",
 );
+const workspaceSelectionRestorationPath = path.join(
+  here,
+  "../../app/lib/workspaceSelectionRestoration.ts",
+);
 const headerPath = path.join(here, "../header/Header.tsx");
 const useTabsPath = path.join(here, "../tabs/lib/useTabs.ts");
+const tabPaneModelPath = path.join(here, "../tabs/lib/tabPaneModel.ts");
+const tabCreationActionsPath = path.join(
+  here,
+  "../tabs/lib/useTabCreationActions.ts",
+);
 const rendererPoolPath = path.join(here, "../terminal/lib/rendererPool.ts");
-const dbPath = path.join(here, "../../../src-tauri/src/modules/db.rs");
+const dbSchemaPath = path.join(
+  here,
+  "../../../src-tauri/src/modules/db/schema.rs",
+);
+const dbWorkspacesPath = path.join(
+  here,
+  "../../../src-tauri/src/modules/db/workspaces.rs",
+);
 const cliAgentsPath = path.join(here, "../terminal/lib/cliAgents.ts");
 const agentCliIconPath = path.join(here, "../terminal/AgentCliIcon.tsx");
+const workspaceItemsModelPath = path.join(
+  here,
+  "../../app/lib/workspaceItemsModel.ts",
+);
+const workspaceCreationModelPath = path.join(
+  here,
+  "../../app/lib/workspaceCreationModel.ts",
+);
+const workspaceCreationActionPath = path.join(
+  here,
+  "../../app/lib/workspaceCreationAction.ts",
+);
+const workspaceSetupActionsPath = path.join(
+  here,
+  "../../app/lib/useWorkspaceSetupActions.ts",
+);
 
 describe("WorkspacesPanel", () => {
   it("provides the left workspaces surface shown in the app shell", () => {
     expect(existsSync(panelPath), "WorkspacesPanel.tsx exists").toBe(true);
 
-    const panelSource = readFileSync(panelPath, "utf8");
-    const appSource = readFileSync(appPath, "utf8");
+    const panelSource = [
+      readFileSync(panelPath, "utf8"),
+      readFileSync(path.join(here, "WorkspaceTerminalList.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspacePanelHeader.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceList.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceRow.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceRowPrimitives.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceSetupView.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceSetupLayoutStep.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceAgentSelectionGrid.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceAgentAssignmentSummary.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceSetupFooter.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceForkSetup.tsx"), "utf8"),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupAgentCapacity.ts"),
+        "utf8",
+      ),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupCommandPersistence.ts"),
+        "utf8",
+      ),
+      readFileSync(path.join(here, "lib/useWorkspaceSetupFolder.ts"), "utf8"),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupKeyboardShortcuts.ts"),
+        "utf8",
+      ),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupOpenWorkspace.ts"),
+        "utf8",
+      ),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupAgentSelectionSync.ts"),
+        "utf8",
+      ),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupImportSelection.ts"),
+        "utf8",
+      ),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupIdentitySync.ts"),
+        "utf8",
+      ),
+      readFileSync(path.join(here, "lib/workspaceSetupModel.ts"), "utf8"),
+    ].join("\n");
+    const appSource = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(workspaceSetupActionsPath, "utf8"),
+    ].join("\n");
+    const workspaceItemsModelSource = readFileSync(workspaceItemsModelPath, "utf8");
+    const workspaceCreationModelSource = readFileSync(workspaceCreationModelPath, "utf8");
     const appChromeSource = readFileSync(
       path.join(here, "../../app/AppChrome.tsx"),
       "utf8",
     );
-    const workspaceControllerSource = readFileSync(
-      path.join(here, "../../app/lib/useWorkspaceController.ts"),
+    const workspaceControllerSource = [
+      readFileSync(path.join(here, "../../app/lib/useWorkspaceController.ts"), "utf8"),
+      readFileSync(path.join(here, "../../app/lib/workspaceControllerTypes.ts"), "utf8"),
+      readFileSync(workspaceCreationActionPath, "utf8"),
+    ].join("\n");
+    const workspaceHydrationSource = readFileSync(
+      path.join(here, "../../app/lib/useWorkspaceHydration.ts"),
       "utf8",
     );
+    const workspaceControllerContract = [
+      workspaceControllerSource,
+      workspaceHydrationSource,
+    ].join("\n");
     const terminalPaneActionsSource = readFileSync(
       path.join(here, "../../app/lib/useTerminalPaneActions.ts"),
       "utf8",
@@ -48,9 +137,16 @@ describe("WorkspacesPanel", () => {
       workspacePersistencePath,
       "utf8",
     );
-    const workspaceSelectionSource = readFileSync(workspaceSelectionPath, "utf8");
+    const workspaceSelectionSource = [
+      readFileSync(workspaceSelectionPath, "utf8"),
+      readFileSync(workspaceSelectionRestorationPath, "utf8"),
+    ].join("\n");
     const headerSource = readFileSync(headerPath, "utf8");
-    const useTabsSource = readFileSync(useTabsPath, "utf8");
+    const useTabsSource = [
+      readFileSync(useTabsPath, "utf8"),
+      readFileSync(tabPaneModelPath, "utf8"),
+      readFileSync(tabCreationActionsPath, "utf8"),
+    ].join("\n");
     const rendererPoolSource = readFileSync(rendererPoolPath, "utf8");
     const cliAgentsSource = readFileSync(cliAgentsPath, "utf8");
     const agentCliIconSource = readFileSync(agentCliIconPath, "utf8");
@@ -64,8 +160,8 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("canCreate={");
     expect(panelSource).not.toContain('workspace.workspaceMode !== "agent"');
     expect(panelSource).not.toContain('workspace.workspaceMode !== "canvas"');
-    expect(appSource).toContain('workspace.workspaceMode === "agent"');
-    expect(appSource).toContain('workspace.workspaceMode === "canvas"');
+    expect(workspaceItemsModelSource).toContain('workspace.workspaceMode === "agent"');
+    expect(workspaceItemsModelSource).toContain('workspace.workspaceMode === "canvas"');
     expect(appSource).toContain("canvasTerminalCreatorRef");
     expect(workspaceControllerSource).toContain("Failed to persist created workspace terminal");
     expect(panelSource).toContain("Set up your workspace");
@@ -306,18 +402,18 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("compact={workspacesPanelCompact}");
     expect(appChromeSource).toContain('"flex min-h-0 min-w-0 flex-1"');
     expect(appSource).toContain("newWorkspaceTab");
-    expect(appSource).toContain("formatWorkspaceName");
-    expect(appSource).toContain("workspace-");
+    expect(workspaceCreationModelSource).toContain("nextWorkspaceName");
+    expect(workspaceCreationModelSource).toContain("workspace-");
     expect(workspaceControllerSource).toContain("workspace-tab-");
-    expect(appSource).toContain("workspace.id, workspace.name");
+    expect(workspaceCreationModelSource).toContain("workspace.id, workspace.name");
     expect(appConstantsSource).toContain("WORKSPACE_LIMIT = 99");
     expect(appSource).toContain("setWorkspaces");
     expect(appSource).toContain("workspaceItems");
     expect(terminalPaneActionsSource).toContain("leafIds(tab.paneTree).length");
     expect(appSource).toContain("handleOpenWorkspaceWithoutAi");
     expect(appSource).toContain("workspaceMode: WorkspaceMode = \"standard\"");
-    expect(appSource).toContain("function canvasWorkspaceDiagram");
-    expect(appSource).toContain("canvasWorkspaceDiagram(");
+    expect(workspaceCreationModelSource).toContain("buildCanvasWorkspaceDiagram");
+    expect(appSource).toContain("buildCanvasWorkspaceDiagram,");
     expect(workspacePersistenceSource).toContain(
       "item.canvasTabId === currentTabId",
     );
@@ -331,25 +427,25 @@ describe("WorkspacesPanel", () => {
     expect(workspaceControllerSource).toContain("initialCommands?: string[]");
     expect(workspaceControllerSource).toContain("requestedName?: string");
     expect(workspaceControllerSource).toContain("requestedColor?: string");
-    expect(workspaceControllerSource).toContain("input.requestedName?.trim() || fallbackName");
+    expect(workspaceCreationModelSource).toContain("requestedName?.trim() || fallbackName");
     expect(appSource).toContain("suggestedWorkspaceName={");
     expect(appSource).toContain(
       "suggestedWorkspaceColor={workspaceAccentForIndex",
     );
     expect(workspaceControllerSource).toContain("normalizeWorkspaceAccentColor(");
-    expect(workspaceControllerSource).toContain("const paneLaunchPlan");
-    expect(workspaceControllerSource).toContain(
+    expect(workspaceCreationModelSource).toContain("const paneLaunchPlan");
+    expect(workspaceCreationModelSource).toContain(
       "lastCommand: initialCommands[paneIndex] ?? null",
     );
-    expect(workspaceControllerSource).toContain(
+    expect(workspaceCreationModelSource).toContain(
       "autoLaunch: Boolean(initialCommands[paneIndex])",
     );
-    expect(workspaceControllerSource).toContain("paneLaunchPlan");
+    expect(workspaceCreationModelSource).toContain("paneLaunchPlan");
     expect(workspaceControllerSource).toContain("persistPaneRecord");
     expect(workspaceControllerSource).toContain("db_save_pane");
     expect(appSource).toContain("workspaceSetupOpen");
     expect(appSource).toContain("setWorkspaceSetupOpen(true)");
-    expect(workspaceControllerSource).toContain("setWorkspacesHydrated(true);");
+    expect(workspaceControllerContract).toContain("setWorkspacesHydrated(true);");
     expect(appSource).toContain("workspacesHydrated");
     expect(appSource).toContain("const handleWorkspaceSetupCancel");
     expect(appSource).toContain("<WorkspaceSetupView");
@@ -364,7 +460,7 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("recentWorkspaces={recentWorkspaces}");
     expect(appSource).toContain("workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}");
     expect(appSource).toContain("forkContext={workspaceForkContext}");
-    expect(workspaceControllerSource).toContain("db_list_recent_workspaces");
+    expect(workspaceControllerContract).toContain("db_list_recent_workspaces");
     expect(workspaceControllerSource).toContain("db_save_recent_workspace");
     expect(workspaceControllerSource).toContain("saveRecentWorkspace(workspace)");
     expect(appSource).toMatch(
@@ -396,7 +492,8 @@ describe("WorkspacesPanel", () => {
       path.join(here, "../../app/lib/useTerminalWorkspaceActions.ts"),
       "utf8",
     );
-    const dbSource = readFileSync(dbPath, "utf8");
+    const dbSchemaSource = readFileSync(dbSchemaPath, "utf8");
+    const dbWorkspacesSource = readFileSync(dbWorkspacesPath, "utf8");
 
     expect(appSource).not.toContain("setLeafLastCommand(leafId, command)");
     expect(terminalActionsSource).toContain(
@@ -406,15 +503,19 @@ describe("WorkspacesPanel", () => {
     expect(terminalActionsSource).toContain("const configuredCommand = isCliAgent");
     expect(terminalActionsSource).toContain(": autoLaunch");
     expect(terminalActionsSource).toContain("autoLaunch,");
-    expect(dbSource).toContain("auto_launch INTEGER NOT NULL DEFAULT 0");
-    expect(dbSource).toContain(
+    expect(dbSchemaSource).toContain("auto_launch INTEGER NOT NULL DEFAULT 0");
+    expect(dbSchemaSource).toContain(
       "ALTER TABLE workspace_panes ADD COLUMN auto_launch INTEGER NOT NULL DEFAULT 0",
     );
-    expect(dbSource).toContain("auto_launch: row.get(4)?");
+    expect(dbWorkspacesSource).toContain("auto_launch: row.get(4)?");
   });
 
   it("nests terminal navigation under expandable workspace rows", () => {
-    const source = readFileSync(panelPath, "utf8");
+    const source = [
+      readFileSync(panelPath, "utf8"),
+      readFileSync(path.join(here, "WorkspaceRow.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceList.tsx"), "utf8"),
+    ].join("\n");
 
     expect(source).toContain("expandedWorkspaceIds");
     expect(source).toContain("toggleWorkspaceExpanded");
@@ -427,7 +528,10 @@ describe("WorkspacesPanel", () => {
   });
 
   it("supports swapping terminal positions from the sidebar", () => {
-    const panelSource = readFileSync(panelPath, "utf8");
+    const panelSource = [
+      readFileSync(panelPath, "utf8"),
+      readFileSync(path.join(here, "lib/useWorkspaceTerminalDrag.ts"), "utf8"),
+    ].join("\n");
     const appSource = readFileSync(appPath, "utf8");
     const paneActionsSource = readFileSync(
       path.join(here, "../../app/lib/useTerminalPaneActions.ts"),
@@ -442,7 +546,10 @@ describe("WorkspacesPanel", () => {
   });
 
   it("renders the terminal drag preview outside the transformed zoom container", () => {
-    const source = readFileSync(panelPath, "utf8");
+    const source = [
+      readFileSync(panelPath, "utf8"),
+      readFileSync(path.join(here, "WorkspaceDragOverlays.tsx"), "utf8"),
+    ].join("\n");
 
     expect(source).toContain('import { createPortal } from "react-dom";');
     expect(source).toContain("createPortal(");
@@ -450,7 +557,10 @@ describe("WorkspacesPanel", () => {
   });
 
   it("keeps the dragged terminal's agent logo in the preview", () => {
-    const source = readFileSync(panelPath, "utf8");
+    const source = [
+      readFileSync(panelPath, "utf8"),
+      readFileSync(path.join(here, "WorkspaceDragOverlays.tsx"), "utf8"),
+    ].join("\n");
 
     expect(source).toContain("draggedTerminal?.agent");
     expect(source).toContain(
