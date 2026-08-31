@@ -7,7 +7,33 @@ const here = path.dirname(new URL(import.meta.url).pathname);
 describe("workspace session import wiring", () => {
   it("lists native sessions and resumes the selected one in the active workspace", () => {
     const dialog = readFileSync(path.join(here, "ImportSessionDialog.tsx"), "utf8");
-    const panel = readFileSync(path.join(here, "WorkspacesPanel.tsx"), "utf8");
+    const dialogModel = readFileSync(
+      path.join(here, "lib/importSessionDialogModel.ts"),
+      "utf8",
+    );
+    const panel = [
+      readFileSync(path.join(here, "WorkspacesPanel.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspacePanelHeader.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceSetupView.tsx"), "utf8"),
+      readFileSync(path.join(here, "WorkspaceSetupAgentsStep.tsx"), "utf8"),
+      readFileSync(
+        path.join(here, "WorkspaceAgentAssignmentSummary.tsx"),
+        "utf8",
+      ),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupAgentCapacity.ts"),
+        "utf8",
+      ),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupCommandPersistence.ts"),
+        "utf8",
+      ),
+      readFileSync(path.join(here, "lib/workspaceSetupModel.ts"), "utf8"),
+      readFileSync(
+        path.join(here, "lib/useWorkspaceSetupImportSelection.ts"),
+        "utf8",
+      ),
+    ].join("\n");
     const workspaceController = readFileSync(
       path.join(here, "../../app/lib/useWorkspaceController.ts"),
       "utf8",
@@ -32,10 +58,12 @@ describe("workspace session import wiring", () => {
     expect(dialog).toContain("aria-pressed={selected}");
     expect(dialog).toContain("selectedSessionLabel");
     expect(dialog).toContain('aria-label="Filter sessions by agent"');
-    expect(dialog).toContain("sessionProviderCounts");
-    expect(dialog).toContain("filterImportableSessions");
+    expect(dialog).toContain("deriveImportSessionDialogModel");
+    expect(dialog).toContain("importSessionKey");
+    expect(dialogModel).toContain("sessionProviderCounts");
+    expect(dialogModel).toContain("filterImportableSessions");
     expect(dialog).toContain("getEnabledCliAgentDefinitions");
-    expect(dialog).toContain("sessionsForEnabledProviders");
+    expect(dialogModel).toContain("sessionsForEnabledProviders");
     expect(dialog).toContain("disabledCliAgentIds");
     expect(dialog).toContain("All agents");
     expect(dialog).toContain("Add ${selectedSessions.length} ${selectedSessionLabel}");
@@ -50,7 +78,7 @@ describe("workspace session import wiring", () => {
     expect(panel).toContain("Regular terminals");
     expect(panel).toContain("selectImportSessions");
     expect(panel).toContain("multiple");
-    expect(panel).toContain("onImportMany={selectImportSessions}");
+    expect(panel).toContain("onImportMany: selectImportSessions");
     expect(panel).toContain("<ImportSessionDialog");
     expect(panel).toContain("buildSessionResumeCommand");
     expect(workspaceController).toContain("buildSessionResumeCommand");

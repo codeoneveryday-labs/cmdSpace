@@ -29,13 +29,16 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  filterImportableSessions,
-  formatRelativeActivity,
-  sessionProviderCounts,
-  sessionsForEnabledProviders,
-  sessionsForWorkspace,
   type AgentSessionProvider,
   type ImportableAgentSession,
+} from "./lib/importSessions";
+import {
+  deriveImportSessionDialogModel,
+  importSessionKey,
+} from "./lib/importSessionDialogModel";
+import {
+  formatRelativeActivity,
+  sessionsForWorkspace,
 } from "./lib/importSessions";
 
 type Props = {
@@ -110,57 +113,35 @@ export function ImportSessionDialog({
       ).map((agent) => agent.id),
     [configuredCliAgentIds, disabledCliAgentIds],
   );
-  const enabledSessions = useMemo(
-    () => sessionsForEnabledProviders(sessions, enabledProviders),
-    [enabledProviders, sessions],
-  );
-
   useEffect(() => {
     if (provider !== "all" && !enabledProviders.includes(provider)) {
       setProvider("all");
     }
   }, [enabledProviders, provider]);
-
-  const scopedSessions = useMemo(
+  const dialogModel = useMemo(
     () =>
-      filterImportableSessions(
-        enabledSessions,
-        workspaceCwd,
-        scope,
-        "all",
-        "",
-      ),
-    [enabledSessions, scope, workspaceCwd],
-  );
-  const providerOptions = useMemo(
-    () => sessionProviderCounts(scopedSessions, enabledProviders),
-    [enabledProviders, scopedSessions],
-  );
-  const visibleSessions = useMemo(
-    () =>
-      filterImportableSessions(
-        enabledSessions,
+      deriveImportSessionDialogModel({
+        sessions,
+        enabledProviders,
         workspaceCwd,
         scope,
         provider,
         query,
-      ),
-    [enabledSessions, provider, query, scope, workspaceCwd],
+        selectedSessionKeys,
+      }),
+    [enabledProviders, provider, query, scope, selectedSessionKeys, sessions, workspaceCwd],
   );
-
-  const selectedSessions = useMemo(
-    () =>
-      enabledSessions.filter((session) =>
-        selectedSessionKeys.has(`${session.provider}:${session.sessionId}`),
-      ),
-    [enabledSessions, selectedSessionKeys],
-  );
-  const selectedSessionLabel =
-    selectedSessions.length === 1 ? "session" : "sessions";
+  const {
+    provider: activeProvider,
+    providerOptions,
+    visibleSessions,
+    selectedSessions,
+    selectedSessionLabel,
+  } = dialogModel;
 
   const importSession = async (session: ImportableAgentSession) => {
     if (session.active) return;
-    const key = `${session.provider}:${session.sessionId}`;
+    const key = importSessionKey(session);
     setImporting(key);
     setError(null);
     try {
@@ -174,7 +155,7 @@ export function ImportSessionDialog({
 
   const toggleSession = (session: ImportableAgentSession) => {
     if (session.active) return;
-    const key = `${session.provider}:${session.sessionId}`;
+    const key = importSessionKey(session);
     setSelectedSessionKeys((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
@@ -256,7 +237,7 @@ export function ImportSessionDialog({
             />
           </div>
           <Select
-            value={provider}
+            value={activeProvider}
             onValueChange={(value) =>
               setProvider(value as AgentSessionProvider | "all")
             }
@@ -268,9 +249,9 @@ export function ImportSessionDialog({
             >
               <SelectValue>
                 <span className="truncate">
-                  {provider === "all"
+                  {activeProvider === "all"
                     ? "All agents"
-                    : CLI_AGENT_BY_ID[provider].name}
+                    : CLI_AGENT_BY_ID[activeProvider].name}
                 </span>
               </SelectValue>
             </SelectTrigger>
@@ -303,8 +284,8 @@ export function ImportSessionDialog({
           ) : visibleSessions.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
               <span>
-                {provider !== "all"
-                  ? `No ${CLI_AGENT_BY_ID[provider].name} sessions found${scope === "workspace" ? " for this workspace" : ""}.`
+                {activeProvider !== "all"
+                  ? `No ${CLI_AGENT_BY_ID[activeProvider].name} sessions found${scope === "workspace" ? " for this workspace" : ""}.`
                   : scope === "workspace"
                     ? "No sessions found for this workspace."
                     : "No native CLI sessions found."}
