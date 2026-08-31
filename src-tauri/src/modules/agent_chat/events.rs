@@ -1,12 +1,24 @@
 use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum AgentChatEvent {
-    Session { native_id: String },
-    User { text: String },
-    Assistant { text: String },
-    Reasoning { text: String },
+    Session {
+        native_id: String,
+    },
+    User {
+        text: String,
+    },
+    Assistant {
+        text: String,
+    },
+    Reasoning {
+        text: String,
+    },
     Tool {
         id: String,
         name: String,
@@ -17,6 +29,8 @@ pub enum AgentChatEvent {
         input_tokens: u64,
         output_tokens: u64,
     },
-    Error { message: String },
+    Error {
+        message: String,
+    },
     Done,
 }

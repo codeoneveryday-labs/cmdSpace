@@ -1,15 +1,13 @@
+use super::agent_chat::commands::parse_native_history;
 use super::agent_chat::{
     adapter::{build_launch, parse_structured_line, AdapterKind, AgentChatError},
-    codex::CodexProtocol,
     claude::build_contextual_prompt,
+    codex::CodexProtocol,
     events::AgentChatEvent,
-    find_resumable_session_file,
-    parse_native_history,
-    providers,
-    AgentChatRuntime,
+    find_resumable_session_file, providers, AgentChatRuntime,
 };
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 #[test]
 fn adapters_build_protocol_native_launches() {
@@ -33,7 +31,16 @@ fn adapters_build_protocol_native_launches() {
     assert_eq!(omp.args, ["--mode", "rpc"]);
 
     let gemini = build_launch("gemini", cwd).unwrap();
-    assert_eq!(gemini.args, ["--skip-trust", "--yolo", "--output-format", "stream-json", "--prompt"]);
+    assert_eq!(
+        gemini.args,
+        [
+            "--skip-trust",
+            "--yolo",
+            "--output-format",
+            "stream-json",
+            "--prompt"
+        ]
+    );
     let opencode = build_launch("opencode", cwd).unwrap();
     assert_eq!(opencode.args, ["run", "--format", "json", "--auto"]);
     let command_code = build_launch("cmd", cwd).unwrap();
@@ -63,7 +70,12 @@ fn codex_and_claude_output_normalize_to_shared_events() {
         AdapterKind::CodexAppServer,
         r#"{"method":"item/agentMessage/delta","params":{"delta":"hello"}}"#,
     );
-    assert_eq!(codex, vec![AgentChatEvent::Assistant { text: "hello".into() }]);
+    assert_eq!(
+        codex,
+        vec![AgentChatEvent::Assistant {
+            text: "hello".into()
+        }]
+    );
 
     let claude = parse_structured_line(
         AdapterKind::ClaudeJson,
@@ -72,8 +84,12 @@ fn codex_and_claude_output_normalize_to_shared_events() {
     assert_eq!(
         claude,
         vec![
-            AgentChatEvent::Session { native_id: "claude-session".into() },
-            AgentChatEvent::Assistant { text: "done".into() },
+            AgentChatEvent::Session {
+                native_id: "claude-session".into()
+            },
+            AgentChatEvent::Assistant {
+                text: "done".into()
+            },
         ]
     );
 }
@@ -88,8 +104,12 @@ fn claude_usage_error_is_not_rendered_as_an_assistant_reply() {
     assert_eq!(
         events,
         vec![
-            AgentChatEvent::Session { native_id: "claude-session".into() },
-            AgentChatEvent::Error { message: "Credit balance is too low".into() },
+            AgentChatEvent::Session {
+                native_id: "claude-session".into()
+            },
+            AgentChatEvent::Error {
+                message: "Credit balance is too low".into()
+            },
         ],
     );
 }
@@ -100,7 +120,12 @@ fn omp_rpc_output_normalizes_to_shared_events() {
         AdapterKind::OmpRpc,
         r#"{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"hello"}}"#,
     );
-    assert_eq!(events, vec![AgentChatEvent::Assistant { text: "hello".into() }]);
+    assert_eq!(
+        events,
+        vec![AgentChatEvent::Assistant {
+            text: "hello".into()
+        }]
+    );
     assert_eq!(
         parse_structured_line(AdapterKind::OmpRpc, r#"{"type":"agent_end"}"#),
         vec![AgentChatEvent::Done]
@@ -115,7 +140,9 @@ fn print_adapters_normalize_headless_errors_and_nested_events() {
             r#"{"type":"result","error":{"message":"API key invalid"}}"#,
         ),
         vec![
-            AgentChatEvent::Error { message: "API key invalid".into() },
+            AgentChatEvent::Error {
+                message: "API key invalid".into()
+            },
             AgentChatEvent::Done,
         ]
     );
@@ -124,28 +151,36 @@ fn print_adapters_normalize_headless_errors_and_nested_events() {
             AdapterKind::OpenCodeJson,
             r#"{"type":"event","event":{"type":"text","part":{"text":"hello"}}}"#,
         ),
-        vec![AgentChatEvent::Assistant { text: "hello".into() }]
+        vec![AgentChatEvent::Assistant {
+            text: "hello".into()
+        }]
     );
     assert_eq!(
         parse_structured_line(
             AdapterKind::OpenCodeJson,
             r#"{"type":"error","error":{"data":{"message":"provider key missing"}}}"#,
         ),
-        vec![AgentChatEvent::Error { message: "provider key missing".into() }]
+        vec![AgentChatEvent::Error {
+            message: "provider key missing".into()
+        }]
     );
     assert_eq!(
         parse_structured_line(
             AdapterKind::CommandCodeJson,
             r#"{"type":"result","subtype":"error","error":{"message":"not authenticated"},"finalText":""}"#,
         ),
-        vec![AgentChatEvent::Error { message: "not authenticated".into() }]
+        vec![AgentChatEvent::Error {
+            message: "not authenticated".into()
+        }]
     );
     assert_eq!(
         parse_structured_line(
             AdapterKind::CommandCodeJson,
             r#"{"type":"result","subtype":"success","sessionId":"cmd-session","finalText":"hello"}"#,
         ),
-        vec![AgentChatEvent::Assistant { text: "hello".into() }]
+        vec![AgentChatEvent::Assistant {
+            text: "hello".into()
+        }]
     );
 }
 
@@ -154,8 +189,10 @@ fn command_code_history_replays_durable_transcript_messages() {
     let events = parse_native_history(
         "cmd",
         concat!(
-            r#"{"type":"session","id":"cmd-session"}"#, "\n",
-            r#"{"type":"message","message":{"role":"user","content":[{"text":"hello"}]}}"#, "\n",
+            r#"{"type":"session","id":"cmd-session"}"#,
+            "\n",
+            r#"{"type":"message","message":{"role":"user","content":[{"text":"hello"}]}}"#,
+            "\n",
             r#"{"type":"message","message":{"role":"assistant","content":[{"text":"hi"}]}}"#,
         ),
     );
@@ -163,7 +200,9 @@ fn command_code_history_replays_durable_transcript_messages() {
     assert_eq!(
         events,
         vec![
-            AgentChatEvent::User { text: "hello".into() },
+            AgentChatEvent::User {
+                text: "hello".into()
+            },
             AgentChatEvent::Assistant { text: "hi".into() },
         ]
     );
@@ -174,7 +213,8 @@ fn claude_history_replays_durable_transcript_messages() {
     let events = parse_native_history(
         "claude",
         concat!(
-            r#"{"type":"user","message":{"role":"user","content":"hello"}}"#, "\n",
+            r#"{"type":"user","message":{"role":"user","content":"hello"}}"#,
+            "\n",
             r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi"}]}}"#,
         ),
     );
@@ -182,7 +222,9 @@ fn claude_history_replays_durable_transcript_messages() {
     assert_eq!(
         events,
         vec![
-            AgentChatEvent::User { text: "hello".into() },
+            AgentChatEvent::User {
+                text: "hello".into()
+            },
             AgentChatEvent::Assistant { text: "hi".into() },
         ],
     );
@@ -434,7 +476,9 @@ fn codex_protocol_accepts_resumed_thread_notification() {
 
     assert_eq!(
         events,
-        vec![AgentChatEvent::Session { native_id: "thread-existing".into() }]
+        vec![AgentChatEvent::Session {
+            native_id: "thread-existing".into()
+        }]
     );
 }
 
@@ -458,7 +502,10 @@ fn codex_protocol_surfaces_resume_errors_to_the_chat() {
 fn claude_follow_up_includes_prior_structured_turns() {
     let history = vec![
         ("user".to_string(), "inspect the repo".to_string()),
-        ("assistant".to_string(), "I found the workspace module".to_string()),
+        (
+            "assistant".to_string(),
+            "I found the workspace module".to_string(),
+        ),
     ];
     assert_eq!(
         build_contextual_prompt(&history, "add a test"),

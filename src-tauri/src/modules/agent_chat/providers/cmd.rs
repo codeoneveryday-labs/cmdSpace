@@ -1,5 +1,5 @@
-use super::{ControlDiscovery, ModelDiscovery, ProviderProfile};
 use super::super::adapter::AdapterKind;
+use super::{ControlDiscovery, ModelDiscovery, ProviderProfile};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -34,7 +34,8 @@ pub(crate) fn materialize_headless_transcript(
     cwd: &Path,
     line: &str,
 ) -> Result<Option<String>, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Unable to locate the Command Code home directory".to_string())?;
+    let home = dirs::home_dir()
+        .ok_or_else(|| "Unable to locate the Command Code home directory".to_string())?;
     materialize_headless_transcript_in(&home.join(".commandcode").join("projects"), cwd, line)
 }
 
@@ -57,7 +58,9 @@ pub(crate) fn materialize_headless_transcript_in(
         return Ok(None);
     };
     let Some(path) = find_transcript(sessions_root, session_id)? else {
-        return Err(format!("Command Code transcript for session '{session_id}' was not created"));
+        return Err(format!(
+            "Command Code transcript for session '{session_id}' was not created"
+        ));
     };
     if std::fs::metadata(&path)
         .map_err(|error| error.to_string())?

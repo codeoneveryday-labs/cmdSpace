@@ -32,6 +32,15 @@ export type AgentChatConfig = {
   planMode: boolean;
 };
 
+export type AgentChatRuntimeStatus = {
+  residentCount: number;
+  attachedCount: number;
+  detachedCount: number;
+  replayEventCount: number;
+  lastColdStartMs: number | null;
+  lastWarmAttachMs: number | null;
+};
+
 export function loadAgentChatConfig(chatId: string) {
   return invoke<AgentChatConfig | null>("db_load_agent_chat_config", { chatId });
 }
@@ -86,14 +95,28 @@ export function createAgentChatRuntime(onEvent: (event: AgentChatEvent) => void)
       provider: string;
       cwd: string;
       prompt: string;
+      chatId: string;
       model?: string;
       nativeSessionId: string | null;
     }) {
-      return invoke<{ sessionId: string }>("agent_chat_start", {
+      return invoke<{ sessionId: string; attachmentToken: string }>("agent_chat_start", {
         ...input,
+        chatId: input.chatId,
         workspace: currentWorkspaceEnv(),
         onEvent: channel,
       });
+    },
+    attach(chatId: string) {
+      return invoke<{ sessionId: string; attachmentToken: string }>("agent_chat_attach", {
+        chatId,
+        onEvent: channel,
+      });
+    },
+    detach(chatId: string, sessionId: string, attachmentToken: string) {
+      return invoke<void>("agent_chat_detach", { chatId, sessionId, attachmentToken });
+    },
+    status() {
+      return invoke<AgentChatRuntimeStatus>("agent_chat_runtime_status");
     },
     send(sessionId: string, prompt: string, model?: string) {
       return invoke<void>("agent_chat_send", { sessionId, prompt, model, onEvent: channel });

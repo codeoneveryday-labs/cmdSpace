@@ -1,40 +1,35 @@
-pub mod adapter;
-pub mod claude;
-mod claude_turn;
-pub mod codex;
-mod codex_launch;
-pub mod commands;
-mod daemon;
-mod event_parsers;
-mod event_sink;
-pub mod events;
-mod history;
-mod launch;
-mod launch_print;
-mod launch_protocol;
-mod lifecycle;
-mod model_commands;
-pub mod models;
-mod omp_launch;
-mod print_turn;
-pub mod providers;
-mod runtime;
-mod session_commands;
-mod sessions;
-
 #[cfg(test)]
-pub(crate) use lifecycle::stop_session;
-pub(crate) use lifecycle::{cancel_session, send_message};
-pub(crate) use runtime::{
-    agent_turn_events_include_done, command_code_result_session_id, find_native_session_file,
-    find_resumable_session_file, native_session_path, send_event, AgentChatBackend,
-    AgentChatSession,
+pub(crate) use super::history::parse_native_history;
+pub use super::model_commands::{
+    __cmd__agent_chat_list_models, __cmd__agent_chat_list_slash_options, agent_chat_list_models,
+    agent_chat_list_slash_options,
 };
-pub use runtime::{AgentChatRuntime, AgentChatRuntimeStatus, AgentChatStartResult};
+pub use super::session_commands::{
+    __cmd__agent_chat_attach, __cmd__agent_chat_cancel, __cmd__agent_chat_close,
+    __cmd__agent_chat_detach, __cmd__agent_chat_runtime_status, __cmd__agent_chat_send,
+    __cmd__agent_chat_start, agent_chat_attach, agent_chat_cancel, agent_chat_close,
+    agent_chat_detach, agent_chat_runtime_status, agent_chat_send, agent_chat_start,
+};
+use super::{events::AgentChatEvent, history};
+use crate::modules::workspace::{authorize_spawn_cwd, WorkspaceEnv, WorkspaceRegistry};
+
+#[tauri::command]
+pub fn agent_chat_load_history(
+    registry: tauri::State<'_, WorkspaceRegistry>,
+    provider: String,
+    cwd: String,
+    native_session_id: String,
+    workspace: Option<WorkspaceEnv>,
+) -> Result<Vec<AgentChatEvent>, String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    let _cwd = authorize_spawn_cwd(&registry, Some(&cwd), &workspace)?
+        .ok_or_else(|| "Agent history requires a working folder".to_string())?;
+    history::load_native_history(&provider, &native_session_id)
+}
 
 #[cfg(test)]
 mod resident_runtime_tests {
-    use super::AgentChatRuntime;
+    use super::super::AgentChatRuntime;
 
     #[test]
     fn durable_chat_mapping_is_removed_when_a_runtime_closes() {
@@ -46,6 +41,7 @@ mod resident_runtime_tests {
             runtime.daemon.session_id("chat-1").unwrap().as_deref(),
             Some("runtime-1")
         );
+
         runtime.forget_session("runtime-1").unwrap();
         assert_eq!(runtime.daemon.session_id("chat-1").unwrap(), None);
     }
@@ -62,8 +58,8 @@ mod resident_runtime_tests {
 
     #[test]
     fn cancel_marks_the_flag_but_keeps_the_runtime_resident() {
-        use super::event_sink::AgentChatEventSink;
-        use super::{cancel_session, AgentChatBackend, AgentChatSession};
+        use super::super::event_sink::AgentChatEventSink;
+        use super::super::{cancel_session, AgentChatBackend, AgentChatSession};
         use std::sync::{
             atomic::{AtomicBool, Ordering},
             Arc, Mutex,

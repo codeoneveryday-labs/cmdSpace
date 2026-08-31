@@ -52,20 +52,24 @@ impl CodexProtocol {
             }),
             json!({ "method": "initialized", "params": {} }),
             self.resume_thread_id.as_ref().map_or_else(
-                || json!({
-                    "id": 2,
-                    "method": "thread/start",
-                    "params": {
-                        "cwd": self.cwd.to_string_lossy(),
-                        "approvalPolicy": "on-request",
-                        "sandbox": "workspace-write"
-                    }
-                }),
-                |thread_id| json!({
-                    "id": 2,
-                    "method": "thread/resume",
-                    "params": { "threadId": thread_id }
-                }),
+                || {
+                    json!({
+                        "id": 2,
+                        "method": "thread/start",
+                        "params": {
+                            "cwd": self.cwd.to_string_lossy(),
+                            "approvalPolicy": "on-request",
+                            "sandbox": "workspace-write"
+                        }
+                    })
+                },
+                |thread_id| {
+                    json!({
+                        "id": 2,
+                        "method": "thread/resume",
+                        "params": { "threadId": thread_id }
+                    })
+                },
             ),
         ]
     }
@@ -130,7 +134,9 @@ impl CodexProtocol {
             .turn_id
             .as_deref()
             .ok_or_else(|| "Codex turn is not running".to_string())?;
-        Ok(json!({ "method": "turn/interrupt", "params": { "threadId": thread_id, "turnId": turn_id } }))
+        Ok(
+            json!({ "method": "turn/interrupt", "params": { "threadId": thread_id, "turnId": turn_id } }),
+        )
     }
 
     pub fn handle_message(&mut self, value: &Value) -> Vec<AgentChatEvent> {
@@ -159,11 +165,18 @@ impl CodexProtocol {
                         .or_else(|| result.get("threadId"))
                         .or_else(|| result.get("id"))
                 })
-                .or_else(|| value.get("params").and_then(|params| params.get("thread")).and_then(|thread| thread.get("id")))
+                .or_else(|| {
+                    value
+                        .get("params")
+                        .and_then(|params| params.get("thread"))
+                        .and_then(|thread| thread.get("id"))
+                })
                 .and_then(Value::as_str);
             if let Some(thread_id) = thread_id {
                 self.thread_id = Some(thread_id.to_string());
-                return vec![AgentChatEvent::Session { native_id: thread_id.to_string() }];
+                return vec![AgentChatEvent::Session {
+                    native_id: thread_id.to_string(),
+                }];
             }
         }
         if value.get("method").and_then(Value::as_str) == Some("turn/started") {
