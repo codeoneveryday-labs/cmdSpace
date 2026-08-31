@@ -16,11 +16,25 @@ import {
   revealInFinder,
 } from "./lib/contextActions";
 import { fileIconUrl, folderIconUrl } from "./lib/iconResolver";
-import { hasExceededDragThreshold } from "./lib/internalDrag";
 import { COMPACT_CONTENT, COMPACT_ITEM } from "./lib/menuItemClass";
+import {
+  advanceDeleteConfirmation,
+  beginPointerDrag,
+  cancelPointerDrag,
+  finishPointerDrag,
+  updatePointerDrag,
+  type PointerDragState,
+} from "./lib/treeRowInteractions";
 import type { useFileTree } from "./lib/useFileTree";
 
 type Tree = ReturnType<typeof useFileTree>;
+
+export {
+  advanceDeleteConfirmation,
+  beginPointerDrag,
+  cancelPointerDrag,
+  updatePointerDrag,
+} from "./lib/treeRowInteractions";
 
 export type EntryRowProps = {
   path: string;
@@ -71,12 +85,7 @@ function EntryRowImpl(props: EntryRowProps) {
 
   const [isConfirming, setIsConfirming] = useState(false);
   const [isPointerDragging, setIsPointerDragging] = useState(false);
-  const pointerDragRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    dragging: boolean;
-  } | null>(null);
+  const pointerDragRef = useRef<PointerDragState | null>(null);
   const suppressClickRef = useRef(false);
   const iconUrl = isDir ? folderIconUrl(name, isExpanded) : fileIconUrl(name);
   const createTarget = isDir ? path : path.slice(0, path.lastIndexOf("/")) || rootPath;
@@ -105,52 +114,52 @@ function EntryRowImpl(props: EntryRowProps) {
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0) return;
-    pointerDragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      dragging: false,
-    };
+    const dragState = beginPointerDrag(
+      event.button,
+      event.pointerId,
+      event.clientX,
+      event.clientY,
+    );
+    if (!dragState) return;
+    pointerDragRef.current = dragState;
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const drag = pointerDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (
-      !drag.dragging &&
-      !hasExceededDragThreshold(
-        { x: drag.startX, y: drag.startY },
-        { x: event.clientX, y: event.clientY },
-      )
-    ) {
-      return;
-    }
-    if (!drag.dragging) {
-      drag.dragging = true;
+    const result = updatePointerDrag(
+      pointerDragRef.current,
+      event.pointerId,
+      event.clientX,
+      event.clientY,
+    );
+    if (!result.handled) return;
+    pointerDragRef.current = result.state;
+    if (result.didStartDragging) {
       setIsPointerDragging(true);
     }
+    if (!result.shouldNotifyMove) return;
     event.preventDefault();
     onInternalDragMove(dragPaths, event.clientX, event.clientY);
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const drag = pointerDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (drag.dragging) {
+    const result = finishPointerDrag(pointerDragRef.current, event.pointerId);
+    if (!result.handled) return;
+    if (result.shouldSuppressClick) {
       suppressClickRef.current = true;
       event.preventDefault();
       event.stopPropagation();
+    }
+    if (result.shouldEnd) {
       onInternalDragEnd(dragPaths, event.clientX, event.clientY);
     }
     clearPointerDrag(event);
   };
 
   const handlePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const drag = pointerDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (drag.dragging) onInternalDragCancel();
+    const result = cancelPointerDrag(pointerDragRef.current, event.pointerId);
+    if (!result.handled) return;
+    if (result.shouldCancel) onInternalDragCancel();
     clearPointerDrag(event);
   };
 
@@ -293,10 +302,10 @@ function EntryRowImpl(props: EntryRowProps) {
           variant="destructive"
           onSelect={(e) => {
             e.preventDefault();
-            if (isConfirming) {
+            const next = advanceDeleteConfirmation(isConfirming);
+            setIsConfirming(next.isConfirming);
+            if (next.shouldDelete) {
               void tree.deletePath(path);
-            } else {
-              setIsConfirming(true);
             }
           }}
           onMouseLeave={() => setTimeout(() => setIsConfirming(false), 1500)}

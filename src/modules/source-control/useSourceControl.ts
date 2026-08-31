@@ -11,23 +11,24 @@ import {
 import { useWorkspaceEnvStore, workspaceScopeKey } from "@/modules/workspace";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  getContextualRemoteAction,
+  performSourceControlRemoteAction,
+  type SourceControlRemoteAction,
+  type SourceControlRemoteActionMode,
+  type SourceControlRemoteActionResult,
+} from "./sourceControlRemoteActionExecution";
 
 const AUTO_FETCH_THROTTLE_MS = 5 * 60_000;
 const AUTO_FETCH_LRU_LIMIT = 16;
 const FOCUS_REFRESH_MIN_INTERVAL_MS = 1500;
 
 export type SourceControlRefreshMode = "auto" | "always" | "never";
-export type SourceControlRemoteAction = "fetch" | "pull" | "push";
-export type SourceControlRemoteActionMode =
-  | "contextual"
-  | SourceControlRemoteAction;
-
-export type SourceControlRemoteActionResult = {
-  ok: boolean;
-  action: SourceControlRemoteAction | null;
-  error?: string;
-  blocked?: "diverged" | "missing-upstream" | "no-repo";
-};
+export type {
+  SourceControlRemoteAction,
+  SourceControlRemoteActionMode,
+  SourceControlRemoteActionResult,
+} from "./sourceControlRemoteActionExecution";
 
 export type SourceControlSummary = {
   repo: GitRepoInfo | null;
@@ -77,16 +78,6 @@ function normalizeError(error: unknown): string {
     if (typeof message === "string") return message;
   }
   return "Unknown source control error";
-}
-
-function getContextualAction(
-  status: GitStatusSnapshot | null,
-): SourceControlRemoteAction | null {
-  if (!status?.upstream) return null;
-  if (status.ahead > 0 && status.behind > 0) return null;
-  if (status.behind > 0) return "pull";
-  if (status.ahead > 0) return "push";
-  return "fetch";
 }
 
 export function getSourceControlRemoteIndicator(
@@ -383,7 +374,7 @@ export function useSourceControl(
         return { ok: false, action: null, blocked: "missing-upstream" };
       }
 
-      const action = mode === "contextual" ? getContextualAction(status) : mode;
+      const action = mode === "contextual" ? getContextualRemoteAction(status) : mode;
       if (!action) {
         return { ok: false, action: null, blocked: "diverged" };
       }
@@ -391,24 +382,29 @@ export function useSourceControl(
       setState((current) => ({ ...current, busyAction: action }));
 
       try {
-        if (action === "fetch") {
-          await native.gitFetch(repo.repoRoot);
-          touchAutoFetch(autoFetchByRepoRef.current, repo.repoRoot);
-        } else if (action === "pull") {
-          await native.gitFetch(repo.repoRoot);
-          touchAutoFetch(autoFetchByRepoRef.current, repo.repoRoot);
-          await native.gitPullFfOnly(repo.repoRoot);
-        } else {
-          await native.gitPush(repo.repoRoot);
-        }
-        setState((current) => ({ ...current, lastRemoteError: null }));
-        await refresh({ remote: "never" });
-        return { ok: true, action };
-      } catch (error) {
-        const message = normalizeError(error);
-        setState((current) => ({ ...current, lastRemoteError: message }));
-        await refresh({ remote: "never" }).catch(() => {});
-        return { ok: false, action, error: message };
+        const result = await performSourceControlRemoteAction({
+          repo,
+          status,
+          mode: action,
+          fetch: async () => {
+            await native.gitFetch(repo.repoRoot);
+            touchAutoFetch(autoFetchByRepoRef.current, repo.repoRoot);
+          },
+          pull: async () => {
+            await native.gitFetch(repo.repoRoot);
+            touchAutoFetch(autoFetchByRepoRef.current, repo.repoRoot);
+            await native.gitPullFfOnly(repo.repoRoot);
+          },
+          push: async () => {
+            await native.gitPush(repo.repoRoot);
+          },
+          refresh: () => refresh({ remote: "never" }),
+        });
+        setState((current) => ({
+          ...current,
+          lastRemoteError: result.ok ? null : result.error ?? null,
+        }));
+        return result;
       } finally {
         setState((current) => ({ ...current, busyAction: null }));
       }

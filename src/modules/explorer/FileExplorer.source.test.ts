@@ -30,6 +30,19 @@ const useFileTreeSource = readFileSync(
   resolve(process.cwd(), "src/modules/explorer/lib/useFileTree.ts"),
   "utf8",
 );
+const nativeDropSource = readFileSync(
+  resolve(process.cwd(), "src/modules/explorer/lib/useFileExplorerNativeDrop.ts"),
+  "utf8",
+);
+const clipboardSource = readFileSync(
+  resolve(process.cwd(), "src/modules/explorer/lib/useFileExplorerClipboard.ts"),
+  "utf8",
+);
+const internalDropSource = readFileSync(
+  resolve(process.cwd(), "src/modules/explorer/lib/useFileExplorerInternalDrag.ts"),
+  "utf8",
+);
+const explorerTransferSource = `${explorerSource}\n${nativeDropSource}\n${clipboardSource}\n${internalDropSource}`;
 
 describe("Explorer file transfer integration", () => {
   it("filters configured folder names and refreshes loaded directories", () => {
@@ -43,10 +56,16 @@ describe("Explorer file transfer integration", () => {
     );
   });
 
+  it("keeps stale directory response fencing in the tree lifecycle owner", () => {
+    expect(useFileTreeSource).toContain("createDirectoryRequestTracker");
+    expect(useFileTreeSource).toContain("requestTrackerRef.current.reset()");
+    expect(useFileTreeSource).toContain("isCurrent(request)");
+  });
+
   it("imports native dropped paths and browser clipboard files", () => {
-    expect(explorerSource).toContain("onDragDropEvent");
+    expect(explorerTransferSource).toContain("onDragDropEvent");
     expect(explorerSource).toContain("acceptExternalDrops");
-    expect(explorerSource).toContain("tree.importPaths(payload.paths, destination)");
+    expect(explorerTransferSource).toContain("importPaths(payload.paths, destination)");
     expect(explorerSource).toContain("tree.importClipboardFile(");
     expect(explorerSource).toContain("onPaste={handlePaste}");
   });
@@ -71,28 +90,28 @@ describe("Explorer file transfer integration", () => {
 
   it("copies and pastes the selected Explorer paths with platform shortcuts", () => {
     expect(explorerSource).toContain("onCopy={handleCopy}");
-    expect(explorerSource).toContain("event.clipboardData.setData(");
-    expect(explorerSource).toContain("readInternalPaths(event.clipboardData)");
-    expect(explorerSource).toContain("tree.importPaths(internalPaths, dropDestination())");
+    expect(explorerTransferSource).toContain("event.clipboardData.setData(");
+    expect(explorerTransferSource).toContain("readInternalPaths(event.clipboardData)");
+    expect(explorerTransferSource).toContain("importPaths(internalPaths, resolveDestination())");
   });
 
   it("falls back to native Finder paths when WebKit exposes no pasted files", () => {
-    expect(explorerSource).toContain('invoke<string[]>("fs_clipboard_paths")');
+    expect(explorerTransferSource).toContain('invoke<string[]>("fs_clipboard_paths")');
     expect(tauriSource).toContain("fs::mutate::fs_clipboard_paths");
   });
 
   it("accepts native drops over Explorer independently of the active editor tab", () => {
     expect(explorerSource).not.toContain("if (!acceptExternalDrops) return");
-    expect(explorerSource).toContain('getCurrentWebview } from "@tauri-apps/api/webview"');
-    expect(explorerSource).toContain("appWebview.onDragDropEvent");
-    expect(explorerSource).not.toContain("getCurrentWindow().onDragDropEvent");
-    expect(explorerSource).toContain("overExplorer || overEditor");
-    expect(explorerSource).toContain("[data-editor-file-drop-region]");
+    expect(explorerTransferSource).toContain('getCurrentWebview } from "@tauri-apps/api/webview"');
+    expect(explorerTransferSource).toContain("appWebview.onDragDropEvent");
+    expect(explorerTransferSource).not.toContain("getCurrentWindow().onDragDropEvent");
+    expect(explorerTransferSource).toContain("overExplorer || overEditor");
+    expect(explorerTransferSource).toContain("[data-editor-file-drop-region]");
     expect(appSource).toContain("data-editor-file-drop-region");
   });
 
   it("moves internal drags dropped on empty Explorer space", () => {
-    expect(explorerSource).toContain("resolveInternalDropTarget");
-    expect(explorerSource).toContain("scrollRef.current?.getBoundingClientRect()");
+    expect(explorerTransferSource).toContain("resolveTarget");
+    expect(explorerTransferSource).toContain("scrollRef.current?.getBoundingClientRect()");
   });
 });
