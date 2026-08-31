@@ -5,51 +5,42 @@ import {
   type GitRepoInfo,
   type GitStatusSnapshot,
 } from "@/modules/ai/lib/native";
-import {
-  invalidateDiff,
-  invalidateRepoDiffs,
-  workingDiffKey,
-} from "@/modules/editor/lib/diffCache";
+import { invalidateRepoDiffs } from "@/modules/editor/lib/diffCache";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SourceControlSummary } from "./useSourceControl";
+import {
+  buildSourceControlEntries,
+  type CheckState,
+  type DiffMode,
+  type SourceControlEntry,
+  type SourceControlFileEntry,
+} from "./sourceControlEntriesModel";
+import {
+  optimisticDiscard,
+  optimisticStage,
+  optimisticUnstage,
+} from "./sourceControlStatusMutations";
+import {
+  reconcileDiffSelection,
+  sameDiffSelection,
+  type DiffSelection,
+  type SelectionTransition,
+} from "./sourceControlSelectionModel";
+import {
+  normalizeSourceControlError,
+  useSourceControlMutation,
+} from "./useSourceControlMutation";
+export type {
+  CheckState,
+  DiffMode,
+  SourceControlEntry,
+  SourceControlFileEntry,
+} from "./sourceControlEntriesModel";
+export type { DiffSelection } from "./sourceControlSelectionModel";
 
 type PanelState = "closed" | "loading" | "no-repo" | "ready" | "error";
-type DiffMode = "+" | "-";
-type SelectionTransition = "none" | "moved-group" | "reset";
 
 const RECONCILE_DEBOUNCE_MS = 180;
-
-export type DiffSelection = {
-  path: string;
-  mode: DiffMode;
-};
-
-export type SourceControlEntry = {
-  key: string;
-  path: string;
-  mode: DiffMode;
-  indexStatus: string;
-  worktreeStatus: string;
-  statusLabel: string;
-  statusCode: string;
-  originalPath: string | null;
-  untracked: boolean;
-};
-
-export type CheckState = "checked" | "indeterminate" | "unchecked";
-
-/** One row per changed file (flat list) — merges the staged/unstaged split. */
-export type SourceControlFileEntry = {
-  key: string;
-  path: string;
-  originalPath: string | null;
-  statusCode: string;
-  statusLabel: string;
-  checkState: CheckState;
-  staged: boolean;
-  unstaged: boolean;
-  untracked: boolean;
-};
 
 export type PendingDiscard = {
   scope: "single" | "all";
@@ -98,174 +89,6 @@ type SourceControlPanelState = {
   push: () => Promise<void>;
 };
 
-function normalizeError(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string") return message;
-  }
-  return "Unknown source control error";
-}
-
-function normalizeStatusCode(status: string): string {
-  const code = status.trim().toUpperCase();
-  switch (code) {
-    case "?":
-      return "U";
-    case "A":
-      return "A";
-    case "M":
-      return "M";
-    case "D":
-      return "D";
-    case "R":
-    case "C":
-      return "R";
-    case "U":
-      return "U";
-    default:
-      return code || "M";
-  }
-}
-
-function statusCodeForMode(mode: DiffMode, file: GitChangedFile): string {
-  if (mode === "-" && file.untracked) return "U";
-  const primary = mode === "+" ? file.indexStatus : file.worktreeStatus;
-  const fallback = mode === "+" ? file.worktreeStatus : file.indexStatus;
-  return normalizeStatusCode(primary !== " " ? primary : fallback);
-}
-
-function makeEntry(
-  path: string,
-  mode: DiffMode,
-  file: GitChangedFile,
-): SourceControlEntry {
-  return {
-    key: `${mode}:${path}`,
-    path,
-    mode,
-    indexStatus: file.indexStatus,
-    worktreeStatus: file.worktreeStatus,
-    statusLabel: file.statusLabel,
-    statusCode: statusCodeForMode(mode, file),
-    originalPath: file.originalPath,
-    untracked: file.untracked,
-  };
-}
-
-function sameSelection(
-  a: DiffSelection | null,
-  b: DiffSelection | null,
-): boolean {
-  return !!a && !!b && a.path === b.path && a.mode === b.mode;
-}
-
-
-
-function optimisticStage(
-  status: GitStatusSnapshot,
-  paths: Set<string>,
-): GitStatusSnapshot {
-  let changed = false;
-  const next = status.changedFiles.map((file) => {
-    if (!paths.has(file.path)) return file;
-    if (file.staged && !file.unstaged) return file;
-    changed = true;
-    const wt = file.worktreeStatus !== " " ? file.worktreeStatus : file.indexStatus;
-    return {
-      ...file,
-      indexStatus: wt,
-      worktreeStatus: " ",
-      staged: true,
-      unstaged: false,
-      untracked: false,
-    };
-  });
-  if (!changed) return status;
-  return { ...status, changedFiles: next };
-}
-
-function optimisticUnstage(
-  status: GitStatusSnapshot,
-  paths: Set<string>,
-): GitStatusSnapshot {
-  let changed = false;
-  const next: GitChangedFile[] = [];
-  for (const file of status.changedFiles) {
-    if (!paths.has(file.path)) {
-      next.push(file);
-      continue;
-    }
-    if (!file.staged && file.unstaged) {
-      next.push(file);
-      continue;
-    }
-    changed = true;
-    const idx = file.indexStatus !== " " ? file.indexStatus : file.worktreeStatus;
-    if (idx === "R" && file.originalPath) {
-      next.push({
-        path: file.originalPath,
-        originalPath: null,
-        indexStatus: " ",
-        worktreeStatus: "D",
-        staged: false,
-        unstaged: true,
-        untracked: false,
-        statusLabel: "Deleted",
-      });
-      next.push({
-        path: file.path,
-        originalPath: null,
-        indexStatus: " ",
-        worktreeStatus: "?",
-        staged: false,
-        unstaged: true,
-        untracked: true,
-        statusLabel: "Untracked",
-      });
-      continue;
-    }
-    next.push({
-      ...file,
-      originalPath: null,
-      indexStatus: " ",
-      worktreeStatus: idx === "A" ? "?" : idx,
-      staged: false,
-      unstaged: true,
-      untracked: idx === "A",
-    });
-  }
-  if (!changed) return status;
-  return { ...status, changedFiles: next };
-}
-
-function optimisticDiscard(
-  status: GitStatusSnapshot,
-  paths: Set<string>,
-): GitStatusSnapshot {
-  let changed = false;
-  const next: GitChangedFile[] = [];
-  for (const file of status.changedFiles) {
-    if (!paths.has(file.path)) {
-      next.push(file);
-      continue;
-    }
-    if (file.staged) {
-      changed = true;
-      next.push({
-        ...file,
-        worktreeStatus: " ",
-        unstaged: false,
-        untracked: false,
-      });
-    } else {
-      changed = true;
-    }
-  }
-  if (!changed) return status;
-  return { ...status, changedFiles: next };
-}
-
 export function useSourceControlPanel(
   isOpen: boolean,
   summary: SourceControlSummary,
@@ -301,61 +124,13 @@ export function useSourceControlPanel(
     selectedRef.current = selected;
   }, [selected]);
 
-  const stagedEntries = useMemo(
-    () =>
-      (status?.changedFiles ?? [])
-        .filter((file) => file.staged)
-        .map((file) => makeEntry(file.path, "+", file)),
-    [status],
-  );
-
-  const unstagedEntries = useMemo(
-    () =>
-      (status?.changedFiles ?? [])
-        .filter((file) => file.unstaged)
-        .map((file) => makeEntry(file.path, "-", file)),
-    [status],
-  );
-
-  const fileEntries = useMemo<SourceControlFileEntry[]>(() => {
-    const seen = new Set<string>();
-    const out: SourceControlFileEntry[] = [];
-    for (const file of status?.changedFiles ?? []) {
-      if (seen.has(file.path)) continue;
-      seen.add(file.path);
-      const checkState: CheckState =
-        file.staged && file.unstaged
-          ? "indeterminate"
-          : file.staged
-            ? "checked"
-            : "unchecked";
-      const statusCode = file.unstaged
-        ? statusCodeForMode("-", file)
-        : statusCodeForMode("+", file);
-      out.push({
-        key: file.path,
-        path: file.path,
-        originalPath: file.originalPath,
-        statusCode,
-        statusLabel: file.statusLabel,
-        checkState,
-        staged: file.staged,
-        unstaged: file.unstaged,
-        untracked: file.untracked,
-      });
-    }
-    return out;
-  }, [status]);
-
-  const headerCheckState = useMemo<CheckState>(() => {
-    if (fileEntries.length === 0) return "unchecked";
-    const allChecked = fileEntries.every((e) => e.checkState === "checked");
-    if (allChecked) return "checked";
-    const anyStaged = fileEntries.some((e) => e.staged);
-    return anyStaged ? "indeterminate" : "unchecked";
-  }, [fileEntries]);
-
-  const allClean = stagedEntries.length === 0 && unstagedEntries.length === 0;
+  const {
+    stagedEntries,
+    unstagedEntries,
+    fileEntries,
+    headerCheckState,
+    allClean,
+  } = useMemo(() => buildSourceControlEntries(status), [status]);
   const canPush = !!status?.upstream && status.behind === 0;
   const pushHint = useMemo(() => {
     if (!status) return null;
@@ -449,34 +224,14 @@ export function useSourceControlPanel(
     setStatus(summary.status);
     setPanelState("ready");
 
-    const current = selectedRef.current;
-    const exists =
-      !!current &&
-      summary.status.changedFiles.some((file) => {
-        if (file.path !== current.path) return false;
-        return current.mode === "+" ? file.staged : file.unstaged;
-      });
-
-    if (!exists && current) {
-      const samePathOtherMode = summary.status.changedFiles.find(
-        (file) =>
-          file.path === current.path &&
-          (current.mode === "+" ? file.unstaged : file.staged),
-      );
-      if (samePathOtherMode) {
-        const moved: DiffSelection = {
-          path: samePathOtherMode.path,
-          mode: current.mode === "+" ? "-" : "+",
-        };
-        setSelected(moved);
-        setSelectionTransition("moved-group");
-      } else {
-        setSelected(null);
-        setSelectionTransition("reset");
-      }
-    } else {
-      setSelectionTransition("none");
+    const reconciliation = reconcileDiffSelection(
+      selectedRef.current,
+      summary.status.changedFiles,
+    );
+    if (reconciliation.selection !== selectedRef.current) {
+      setSelected(reconciliation.selection);
     }
+    setSelectionTransition(reconciliation.transition);
   }, [
     isOpen,
     summary.hasRepo,
@@ -490,7 +245,7 @@ export function useSourceControlPanel(
     async (entry: SourceControlEntry) => {
       if (!repo) return;
       const nextSelection: DiffSelection = { path: entry.path, mode: entry.mode };
-      if (sameSelection(selected, nextSelection)) {
+      if (sameDiffSelection(selected, nextSelection)) {
         setActionError(null);
         setActionMessage(null);
         setSelectionTransition("none");
@@ -506,35 +261,15 @@ export function useSourceControlPanel(
     [openSelection, repo, selected, status],
   );
 
-  const runMutation = useCallback(
-    async (
-      busyKey: string,
-      optimistic: ((status: GitStatusSnapshot) => GitStatusSnapshot) | null,
-      ipc: () => Promise<void>,
-      affected: string[],
-    ) => {
-      if (!repo || summary.busyAction) return;
-      setLocalActionBusy(busyKey);
-      setActionMessage(null);
-      setActionError(null);
-      if (optimistic) summary.applyStatus(optimistic);
-      for (const path of affected) {
-        invalidateDiff(workingDiffKey(repo.repoRoot, path, "+"));
-        invalidateDiff(workingDiffKey(repo.repoRoot, path, "-"));
-      }
-      try {
-        await ipc();
-        scheduleReconcile();
-      } catch (error) {
-        setActionError(normalizeError(error));
-        cancelReconcile();
-        await summary.refresh({ remote: "never" }).catch(() => {});
-      } finally {
-        setLocalActionBusy(null);
-      }
-    },
-    [cancelReconcile, repo, scheduleReconcile, summary],
-  );
+  const runMutation = useSourceControlMutation({
+    repo,
+    summary,
+    setBusy: setLocalActionBusy,
+    setActionError,
+    setActionMessage,
+    cancelReconcile,
+    scheduleReconcile,
+  });
 
   const stageEntry = useCallback(
     async (entry: SourceControlEntry) => {
@@ -630,7 +365,7 @@ export function useSourceControlPanel(
       if (!repo) return;
       const mode: DiffMode = entry.unstaged ? "-" : "+";
       const nextSelection: DiffSelection = { path: entry.path, mode };
-      if (sameSelection(selected, nextSelection)) {
+      if (sameDiffSelection(selected, nextSelection)) {
         setActionError(null);
         setActionMessage(null);
         setSelectionTransition("none");
@@ -709,7 +444,7 @@ export function useSourceControlPanel(
       invalidateRepoDiffs(repo.repoRoot);
       await summary.refresh({ remote: "never" });
     } catch (error) {
-      setActionError(normalizeError(error));
+      setActionError(normalizeSourceControlError(error));
     } finally {
       setLocalActionBusy(null);
     }

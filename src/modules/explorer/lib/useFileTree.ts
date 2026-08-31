@@ -1,45 +1,27 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import {
+  createFileTreeMutations,
+  type DeletedPath,
+} from "./fileTreeMutations";
+import { dirname, joinPath } from "./fileTreePaths";
+import {
+  emptyFileTreeState,
+  loadedDirectoryPaths,
+  type DirEntry,
+  type PendingCreate,
+  type TreeState,
+} from "./fileTreeState";
 import { filterExcludedFolders } from "./excludedFolders";
-import { canMovePathsTo, removeDescendants } from "./selection";
+import { createDirectoryRequestTracker } from "./directoryRequestTracker";
 
-export type DirEntry = {
-  name: string;
-  kind: "file" | "dir" | "symlink";
-  size: number;
-  mtime: number;
-};
+export type { DirEntry, PendingCreate } from "./fileTreeState";
 
-type ChildrenState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "loaded"; entries: DirEntry[] }
-  | { status: "error"; message: string };
+export type { DeletedPath } from "./fileTreeMutations";
 
-type TreeState = Record<string, ChildrenState>;
-
-export type PendingCreate = {
-  parentPath: string;
-  kind: "file" | "dir";
-};
-
-export type DeletedPath = {
-  path: string;
-  token: string;
-};
-
-export function joinPath(parent: string, name: string): string {
-  if (parent.endsWith("/")) return `${parent}${name}`;
-  return `${parent}/${name}`;
-}
-
-export function dirname(path: string): string {
-  const i = path.lastIndexOf("/");
-  if (i <= 0) return "/";
-  return path.slice(0, i);
-}
+export { dirname, joinPath } from "./fileTreePaths";
 
 type Options = {
   onPathRenamed?: (from: string, to: string) => void;
@@ -54,6 +36,7 @@ export function useFileTree(rootPath: string | null, options?: Options) {
   );
   const showHiddenRef = useRef(showHidden);
   const excludedFolderNamesRef = useRef(explorerExcludedFolderNames);
+  const requestTrackerRef = useRef(createDirectoryRequestTracker());
   const [nodes, setNodes] = useState<TreeState>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(
@@ -67,6 +50,7 @@ export function useFileTree(rootPath: string | null, options?: Options) {
   }, [showHidden, explorerExcludedFolderNames]);
 
   const fetchChildren = useCallback(async (path: string) => {
+    const request = requestTrackerRef.current.begin(path);
     setNodes((s) => ({ ...s, [path]: { status: "loading" } }));
     try {
       const entries = await invoke<DirEntry[]>("fs_read_dir", {
@@ -78,11 +62,13 @@ export function useFileTree(rootPath: string | null, options?: Options) {
         entries,
         excludedFolderNamesRef.current,
       );
+      if (!requestTrackerRef.current.isCurrent(request)) return;
       setNodes((s) => ({
         ...s,
         [path]: { status: "loaded", entries: visibleEntries },
       }));
     } catch (e) {
+      if (!requestTrackerRef.current.isCurrent(request)) return;
       setNodes((s) => ({
         ...s,
         [path]: { status: "error", message: String(e) },
@@ -92,31 +78,45 @@ export function useFileTree(rootPath: string | null, options?: Options) {
 
   // Root change → reset state.
   useEffect(() => {
+    requestTrackerRef.current.reset();
     if (!rootPath) {
-      setNodes({});
-      setExpanded(new Set());
-      setPendingCreate(null);
-      setRenaming(null);
+      const reset = emptyFileTreeState();
+      setNodes(reset.nodes);
+      setExpanded(reset.expanded);
+      setPendingCreate(reset.pendingCreate);
+      setRenaming(reset.renaming);
       return;
     }
-    setPendingCreate(null);
-    setRenaming(null);
-    setExpanded(new Set());
-    setNodes({});
+    const reset = emptyFileTreeState();
+    setNodes(reset.nodes);
+    setExpanded(reset.expanded);
+    setPendingCreate(reset.pendingCreate);
+    setRenaming(reset.renaming);
     void fetchChildren(rootPath);
   }, [rootPath, fetchChildren]);
 
   useEffect(() => {
     if (!rootPath) return;
-    const loadedPaths = Object.entries(nodes)
-      .filter(([, state]) => state.status === "loaded")
-      .map(([path]) => path);
+    const loadedPaths = loadedDirectoryPaths(nodes);
     for (const path of loadedPaths) void fetchChildren(path);
     // Re-list loaded directories when visibility preferences change.
     // `nodes` is intentionally omitted so ordinary tree edits don't refetch
     // every expanded directory.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showHidden, explorerExcludedFolderNames, rootPath, fetchChildren]);
+
+  const mutations = useMemo(
+    () =>
+      createFileTreeMutations({
+        invoke,
+        refresh: fetchChildren,
+        workspace: currentWorkspaceEnv,
+        onPathRenamed: options?.onPathRenamed,
+        onPathDeleted: options?.onPathDeleted,
+        onDeleteCommitted: options?.onDeleteCommitted,
+      }),
+    [fetchChildren, options],
+  );
 
   const toggle = useCallback(
     (path: string) => {
@@ -192,19 +192,17 @@ export function useFileTree(rootPath: string | null, options?: Options) {
         setPendingCreate(null);
         return;
       }
-      const path = joinPath(pendingCreate.parentPath, trimmed);
-      const cmd =
-        pendingCreate.kind === "dir" ? "fs_create_dir" : "fs_create_file";
       try {
-        await invoke(cmd, { path, workspace: currentWorkspaceEnv() });
-        await fetchChildren(pendingCreate.parentPath);
-      } catch (e) {
-        console.error(`${cmd} failed:`, e);
+        await mutations.create(
+          pendingCreate.parentPath,
+          pendingCreate.kind,
+          trimmed,
+        );
       } finally {
         setPendingCreate(null);
       }
     },
-    [pendingCreate, fetchChildren],
+    [mutations, pendingCreate],
   );
 
   const beginRename = useCallback((path: string) => {
@@ -224,133 +222,45 @@ export function useFileTree(rootPath: string | null, options?: Options) {
         setRenaming(null);
         return;
       }
-      const to = joinPath(parent, trimmed);
       try {
-        await invoke("fs_rename", {
-          from: renaming,
-          to,
-          workspace: currentWorkspaceEnv(),
-        });
-        options?.onPathRenamed?.(renaming, to);
-        await fetchChildren(parent);
-      } catch (e) {
-        console.error("fs_rename failed:", e);
+        await mutations.rename(renaming, trimmed);
       } finally {
         setRenaming(null);
       }
     },
-    [renaming, fetchChildren, options],
+    [mutations, renaming],
   );
 
   const deletePath = useCallback(
-    async (path: string) => {
-      try {
-        const record = await invoke<DeletedPath>("fs_delete", {
-          path,
-          workspace: currentWorkspaceEnv(),
-        });
-        options?.onPathDeleted?.(path);
-        options?.onDeleteCommitted?.([record]);
-        await fetchChildren(dirname(path));
-      } catch (e) {
-        console.error("fs_delete failed:", e);
-      }
-    },
-    [fetchChildren, options],
+    async (path: string) => mutations.deletePath(path),
+    [mutations],
   );
 
   const deletePaths = useCallback(
-    async (paths: string[]) => {
-      const targets = removeDescendants(paths);
-      const parents = new Set<string>();
-      const records: DeletedPath[] = [];
-      for (const path of targets) {
-        try {
-          const record = await invoke<DeletedPath>("fs_delete", {
-            path,
-            workspace: currentWorkspaceEnv(),
-          });
-          options?.onPathDeleted?.(path);
-          records.push(record);
-          parents.add(dirname(path));
-        } catch (e) {
-          console.error("fs_delete failed:", e);
-        }
-      }
-      if (records.length > 0) options?.onDeleteCommitted?.(records);
-      await Promise.all([...parents].map((parent) => fetchChildren(parent)));
-    },
-    [fetchChildren, options],
+    async (paths: string[]) => mutations.deletePaths(paths),
+    [mutations],
   );
 
   const movePaths = useCallback(
-    async (paths: string[], destination: string) => {
-      const sources = removeDescendants(paths);
-      if (!canMovePathsTo(sources, destination)) {
-        throw new Error("A folder cannot be moved into itself.");
-      }
-      const refreshPaths = new Set<string>([destination]);
-      for (const from of sources) {
-        const to = joinPath(destination, from.slice(from.lastIndexOf("/") + 1));
-        await invoke("fs_rename", {
-          from,
-          to,
-          workspace: currentWorkspaceEnv(),
-        });
-        options?.onPathRenamed?.(from, to);
-        refreshPaths.add(dirname(from));
-      }
-      await Promise.all([...refreshPaths].map((path) => fetchChildren(path)));
-    },
-    [fetchChildren, options],
+    async (paths: string[], destination: string) => mutations.movePaths(paths, destination),
+    [mutations],
   );
 
   const importPaths = useCallback(
-    async (sources: string[], destination: string) => {
-      const imported = await invoke<string[]>("fs_import_paths", {
-        sources,
-        destination,
-        workspace: currentWorkspaceEnv(),
-      });
-      await fetchChildren(destination);
-      return imported;
-    },
-    [fetchChildren],
+    async (sources: string[], destination: string) =>
+      mutations.importPaths(sources, destination),
+    [mutations],
   );
 
   const importClipboardFile = useCallback(
-    async (name: string, dataBase64: string, destination: string) => {
-      const imported = await invoke<string>("fs_import_clipboard_file", {
-        name,
-        dataBase64,
-        destination,
-        workspace: currentWorkspaceEnv(),
-      });
-      await fetchChildren(destination);
-      return imported;
-    },
-    [fetchChildren],
+    async (name: string, dataBase64: string, destination: string) =>
+      mutations.importClipboardFile(name, dataBase64, destination),
+    [mutations],
   );
 
   const restorePaths = useCallback(
-    async (records: DeletedPath[]) => {
-      const parents = new Set<string>();
-      const ordered = [...records].sort((a, b) => a.path.length - b.path.length);
-      for (const record of ordered) {
-        try {
-          await invoke("fs_restore", {
-            path: record.path,
-            token: record.token,
-            workspace: currentWorkspaceEnv(),
-          });
-          parents.add(dirname(record.path));
-        } catch (e) {
-          console.error("fs_restore failed:", e);
-        }
-      }
-      await Promise.all([...parents].map((parent) => fetchChildren(parent)));
-    },
-    [fetchChildren],
+    async (records: DeletedPath[]) => mutations.restorePaths(records),
+    [mutations],
   );
 
   return {

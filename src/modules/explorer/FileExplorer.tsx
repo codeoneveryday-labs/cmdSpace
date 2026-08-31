@@ -1,8 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { invoke, isTauri } from "@tauri-apps/api/core";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isTauri } from "@tauri-apps/api/core";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -11,11 +8,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
-  FileAddIcon,
   Folder01Icon,
-  FolderAddIcon,
-  Refresh01Icon,
-  Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -29,22 +22,22 @@ import {
   useState,
 } from "react";
 import { ExplorerSearch, type ExplorerSearchHandle } from "./ExplorerSearch";
-import {
-  EntryRow,
-  PendingRow,
-  StatusRow,
-} from "./TreeRow";
+import { FileExplorerHeader } from "./FileExplorerHeader";
 import { InlineInput } from "./InlineInput";
+import { FileExplorerRow } from "./FileExplorerRow";
 import { copyToClipboard, revealInFinder } from "./lib/contextActions";
 import { fileIconUrl, folderIconUrl } from "./lib/iconResolver";
-import {
-  INTERNAL_PATHS_MIME,
-  readInternalPaths,
-} from "./lib/internalDrag";
+import { useFileExplorerClipboard } from "./lib/useFileExplorerClipboard";
 import { COMPACT_CONTENT, COMPACT_ITEM } from "./lib/menuItemClass";
-import { dirname, useFileTree, type DeletedPath } from "./lib/useFileTree";
-import { canMovePathsTo, getSelectionRange, removeDescendants } from "./lib/selection";
+import { useFileTree, type DeletedPath } from "./lib/useFileTree";
 import { useGlobalShortcuts } from "@/modules/shortcuts";
+import { buildRows, type Row } from "./lib/fileExplorerRows";
+import { prepareMovePaths } from "./lib/fileMoveModel";
+import { resolveDropDestination } from "./lib/fileDropModel";
+import { useFileExplorerNativeDrop } from "./lib/useFileExplorerNativeDrop";
+import { useFileExplorerKeyboard } from "./lib/useFileExplorerKeyboard";
+import { useFileExplorerInternalDrag } from "./lib/useFileExplorerInternalDrag";
+import { useFileExplorerSelection } from "./lib/useFileExplorerSelection";
 
 export type FileExplorerHandle = {
   focus: () => void;
@@ -61,35 +54,8 @@ type Props = {
   onOpenMarkdownPreview?: (path: string) => void;
 };
 
-type Row =
-  | {
-      kind: "entry";
-      key: string;
-      path: string;
-      name: string;
-      isDir: boolean;
-      isExpanded: boolean;
-      depth: number;
-    }
-  | { kind: "rename"; key: string; path: string; name: string; isDir: boolean; depth: number }
-  | { kind: "pending"; key: string; depth: number; pendingKind: "file" | "dir" }
-  | { kind: "status"; key: string; depth: number; tone: "muted" | "error"; message: string };
-
-type InternalDropTarget = {
-  path: string;
-  isDir: boolean;
-};
-
 const ROW_HEIGHT = 24;
 const OVERSCAN = 8;
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  const element = target as HTMLElement | null;
-  return Boolean(
-    element?.isContentEditable ||
-      element?.closest("input, textarea, [contenteditable=true]"),
-  );
-}
 
 async function fileToBase64(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -98,84 +64,6 @@ async function fileToBase64(file: File): Promise<string> {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
   }
   return btoa(binary);
-}
-
-function basename(path: string): string {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : path;
-}
-
-function buildRows(
-  rootPath: string,
-  tree: ReturnType<typeof useFileTree>,
-): { rows: Row[]; entryIndexByPath: Map<string, number> } {
-  const rows: Row[] = [];
-  const entryIndexByPath = new Map<string, number>();
-
-  const walk = (parent: string, depth: number) => {
-    const node = tree.nodes[parent];
-    if (!node || node.status !== "loaded") return;
-    for (const entry of node.entries) {
-      const path = tree.joinPath(parent, entry.name);
-      const isDir = entry.kind === "dir";
-      const expanded = isDir && tree.expanded.has(path);
-      const isRenaming = tree.renaming === path;
-      if (isRenaming) {
-        rows.push({
-          kind: "rename",
-          key: `rename:${path}`,
-          path,
-          name: entry.name,
-          isDir,
-          depth,
-        });
-      } else {
-        entryIndexByPath.set(path, rows.length);
-        rows.push({
-          kind: "entry",
-          key: path,
-          path,
-          name: entry.name,
-          isDir,
-          isExpanded: expanded,
-          depth,
-        });
-      }
-      if (isDir && expanded) {
-        const child = tree.nodes[path];
-        if (tree.pendingCreate?.parentPath === path) {
-          rows.push({
-            kind: "pending",
-            key: `pending:${path}`,
-            depth: depth + 1,
-            pendingKind: tree.pendingCreate.kind,
-          });
-        }
-        if (child?.status === "loading") {
-          rows.push({
-            kind: "status",
-            key: `loading:${path}`,
-            depth: depth + 1,
-            tone: "muted",
-            message: "Loading…",
-          });
-        } else if (child?.status === "error") {
-          rows.push({
-            kind: "status",
-            key: `error:${path}`,
-            depth: depth + 1,
-            tone: "error",
-            message: child.message,
-          });
-        } else if (child?.status === "loaded") {
-          walk(path, depth + 1);
-        }
-      }
-    }
-  };
-
-  walk(rootPath, 0);
-  return { rows, entryIndexByPath };
 }
 
 export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
@@ -201,14 +89,9 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
       onPathDeleted,
       onDeleteCommitted: handleDeleteCommitted,
     });
-    const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
-    const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
-    const [focusedPath, setFocusedPath] = useState<string | null>(null);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isDroppingFiles, setIsDroppingFiles] = useState(false);
-    const [internalDropTarget, setInternalDropTarget] =
-      useState<InternalDropTarget | null>(null);
     const searchRef = useRef<ExplorerSearchHandle>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -224,24 +107,16 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
       return out;
     }, [rows]);
 
+    const {
+      selectedPaths,
+      selectedPathSet,
+      focusedPath,
+      selectPath,
+      clearSelection,
+    } = useFileExplorerSelection({ rootPath, entryPaths, entryIndexByPath });
     useEffect(() => {
-      setSelectedPaths((current) => {
-        const next = current.filter((path) => entryIndexByPath.has(path));
-        return next.length === current.length ? current : next;
-      });
-      if (focusedPath && !entryIndexByPath.has(focusedPath)) {
-        setFocusedPath(null);
-      }
-    }, [entryIndexByPath, focusedPath]);
-
-    useEffect(() => {
-      setSelectedPaths([]);
-      setSelectionAnchor(null);
-      setFocusedPath(null);
       setUndoRecords([]);
     }, [rootPath]);
-
-    const selectedPathSet = useMemo(() => new Set(selectedPaths), [selectedPaths]);
     const entryByPath = useMemo(() => {
       const entries = new Map<string, Extract<Row, { kind: "entry" }>>();
       for (const row of rows) {
@@ -249,25 +124,6 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
       }
       return entries;
     }, [rows]);
-    const selectPath = useCallback(
-      (path: string, extend: boolean) => {
-        if (extend && selectionAnchor && entryPaths.includes(selectionAnchor)) {
-          setSelectedPaths(getSelectionRange(entryPaths, selectionAnchor, path));
-        } else {
-          setSelectedPaths([path]);
-          setSelectionAnchor(path);
-        }
-        setFocusedPath(path);
-      },
-      [entryPaths, selectionAnchor],
-    );
-
-    const clearSelection = useCallback(() => {
-      setSelectedPaths([]);
-      setSelectionAnchor(null);
-      setFocusedPath(null);
-    }, []);
-
     const undoDelete = useCallback(async () => {
       if (undoRecords.length === 0) return;
       await tree.restorePaths(undoRecords);
@@ -283,14 +139,14 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
     }, [clearSelection, selectedPaths, tree]);
 
     const dropDestination = useCallback(
-      (targetPath?: string, targetIsDir?: boolean) => {
-        if (targetPath) return targetIsDir ? targetPath : dirname(targetPath);
-        if (focusedPath) {
-          const entry = entryByPath.get(focusedPath);
-          if (entry) return entry.isDir ? entry.path : dirname(entry.path);
-        }
-        return rootPath ?? "";
-      },
+      (targetPath?: string, targetIsDir?: boolean) =>
+        resolveDropDestination(
+          targetPath,
+          targetIsDir,
+          focusedPath,
+          entryByPath,
+          rootPath,
+        ),
       [entryByPath, focusedPath, rootPath],
     );
 
@@ -310,11 +166,8 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
     const movePaths = useCallback(
       (paths: string[], targetPath: string, targetIsDir: boolean) => {
         const destination = dropDestination(targetPath, targetIsDir);
-        const sources = removeDescendants(paths).filter(
-          (source) => dirname(source) !== destination,
-        );
-        if (sources.length === 0) return;
-        if (!canMovePathsTo(sources, destination)) return;
+        const sources = prepareMovePaths(paths, destination);
+        if (!sources) return;
         void tree.movePaths(sources, destination).catch((error) => {
           console.error("move files failed:", error);
         });
@@ -322,112 +175,32 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
       [dropDestination, tree],
     );
 
-    const resolveInternalDropTarget = useCallback(
-      (clientX: number, clientY: number): InternalDropTarget | null => {
-        const scrollElement = scrollRef.current;
-        const rect = scrollElement?.getBoundingClientRect();
-        if (
-          !scrollElement ||
-          !rect ||
-          clientX < rect.left ||
-          clientX > rect.right ||
-          clientY < rect.top ||
-          clientY > rect.bottom
-        ) {
-          return null;
-        }
-        const row = document
-          .elementFromPoint(clientX, clientY)
-          ?.closest<HTMLElement>("[data-fs-path]");
-        if (row && scrollElement.contains(row)) {
-          return {
-            path: row.dataset.fsPath ?? rootPath ?? "",
-            isDir: row.dataset.fsIsDir === "true",
-          };
-        }
-        return { path: rootPath ?? "", isDir: true };
-      },
-      [rootPath],
-    );
+    const {
+      dropTarget: internalDropTarget,
+      handleDragMove: handleInternalDragMove,
+      handleDragEnd: handleInternalDragEnd,
+      clearDropTarget: clearInternalDropTarget,
+    } = useFileExplorerInternalDrag({
+      scrollRef,
+      rootPath,
+      resolveDestination: dropDestination,
+      movePaths,
+    });
 
-    const handleInternalDragMove = useCallback(
-      (paths: string[], clientX: number, clientY: number) => {
-        const target = resolveInternalDropTarget(clientX, clientY);
-        if (!target) {
-          setInternalDropTarget(null);
-          return;
-        }
-        const destination = dropDestination(target.path, target.isDir);
-        setInternalDropTarget(
-          canMovePathsTo(removeDescendants(paths), destination) ? target : null,
-        );
-      },
-      [dropDestination, resolveInternalDropTarget],
-    );
+    useFileExplorerNativeDrop({
+      acceptExternalDrops,
+      scrollRef,
+      onDroppingChange: setIsDroppingFiles,
+      resolveDestination: dropDestination,
+      importPaths: tree.importPaths,
+    });
 
-    const handleInternalDragEnd = useCallback(
-      (paths: string[], clientX: number, clientY: number) => {
-        const target = resolveInternalDropTarget(clientX, clientY);
-        setInternalDropTarget(null);
-        if (target) movePaths(paths, target.path, target.isDir);
-      },
-      [movePaths, resolveInternalDropTarget],
-    );
-
-    useEffect(() => {
-      if (!isTauri()) return;
-      const appWindow = getCurrentWindow();
-      const appWebview = getCurrentWebview();
-      let disposed = false;
-      let unlisten: (() => void) | undefined;
-      void (async () => {
-        const scaleFactor = await appWindow.scaleFactor();
-        if (disposed) return;
-        const stop = await appWebview.onDragDropEvent(({ payload }) => {
-          if (disposed) return;
-          if (payload.type === "leave") {
-            setIsDroppingFiles(false);
-            return;
-          }
-          const position = payload.position.toLogical(scaleFactor);
-          const pointTarget = document.elementFromPoint(position.x, position.y);
-          const rect = scrollRef.current?.getBoundingClientRect();
-          const overExplorer = Boolean(
-            rect &&
-              position.x >= rect.left &&
-              position.x <= rect.right &&
-              position.y >= rect.top &&
-              position.y <= rect.bottom,
-          );
-          const overEditor = Boolean(
-            acceptExternalDrops &&
-              pointTarget?.closest("[data-editor-file-drop-region]"),
-          );
-          setIsDroppingFiles(overExplorer);
-          if (payload.type !== "drop" || !(overExplorer || overEditor)) return;
-
-          setIsDroppingFiles(false);
-          const target = overExplorer
-            ? pointTarget?.closest<HTMLElement>("[data-fs-path]")
-            : null;
-          const destination = dropDestination(
-            target?.dataset.fsPath,
-            target?.dataset.fsIsDir === "true",
-          );
-          void tree.importPaths(payload.paths, destination).catch((error) => {
-            console.error("import dropped paths failed:", error);
-          });
-        });
-        if (disposed) stop();
-        else unlisten = stop;
-      })().catch((error) => {
-        console.error("register native file drop failed:", error);
-      });
-      return () => {
-        disposed = true;
-        unlisten?.();
-      };
-    }, [acceptExternalDrops, dropDestination, tree.importPaths]);
+    const { handleCopy, handlePaste } = useFileExplorerClipboard({
+      selectedPaths,
+      resolveDestination: () => dropDestination(),
+      importPaths: tree.importPaths,
+      importBrowserFiles,
+    });
 
     const virtualizer = useVirtualizer({
       count: rows.length,
@@ -445,6 +218,22 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
       },
       [entryIndexByPath, virtualizer],
     );
+
+    const handleKeyDown = useFileExplorerKeyboard({
+      tree,
+      isSearchOpen,
+      focusedPath,
+      entryPaths,
+      rows,
+      rootPath: rootPath ?? "",
+      selectedCount: selectedPaths.length,
+      onUndoDelete: () => void undoDelete(),
+      onClearSelection: clearSelection,
+      onDeleteSelected: () => void deleteSelected(),
+      onOpenFile,
+      onSelectPath: selectPath,
+      onScrollEntryIntoView: scrollEntryIntoView,
+    });
 
     useImperativeHandle(
       ref,
@@ -498,182 +287,6 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
     const pendingAtRoot =
       tree.pendingCreate?.parentPath === rootPath ? tree.pendingCreate : null;
 
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (tree.renaming || tree.pendingCreate || isSearchOpen) return;
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      )
-        return;
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        !e.shiftKey &&
-        e.key.toLowerCase() === "z"
-      ) {
-        e.preventDefault();
-        void undoDelete();
-        return;
-      }
-      if (entryPaths.length === 0) return;
-
-      const currentIdx = focusedPath ? entryPaths.indexOf(focusedPath) : -1;
-      const move = (next: number, extend: boolean) => {
-        const clamped = Math.max(0, Math.min(entryPaths.length - 1, next));
-        const path = entryPaths[clamped];
-        selectPath(path, extend);
-        requestAnimationFrame(() => scrollEntryIntoView(path));
-      };
-
-      if (e.key === "Escape") {
-        e.preventDefault();
-        clearSelection();
-        return;
-      }
-
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          move(currentIdx < 0 ? 0 : currentIdx + 1, e.shiftKey);
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          move(currentIdx < 0 ? entryPaths.length - 1 : currentIdx - 1, e.shiftKey);
-          break;
-        case "ArrowRight": {
-          if (currentIdx < 0) return;
-          e.preventDefault();
-          const path = entryPaths[currentIdx];
-          const idx = entryIndexByPath.get(path);
-          if (idx === undefined) break;
-          const row = rows[idx];
-          if (row.kind !== "entry") break;
-          if (row.isDir) {
-            if (!row.isExpanded) tree.toggle(row.path);
-            else move(currentIdx + 1, e.shiftKey);
-          }
-          break;
-        }
-        case "ArrowLeft": {
-          if (currentIdx < 0) return;
-          e.preventDefault();
-          const path = entryPaths[currentIdx];
-          const idx = entryIndexByPath.get(path);
-          if (idx === undefined) break;
-          const row = rows[idx];
-          if (row.kind !== "entry") break;
-          if (row.isDir && row.isExpanded) {
-            tree.toggle(row.path);
-          } else {
-            const parent = row.path.slice(0, row.path.lastIndexOf("/"));
-            if (parent && parent !== rootPath) selectPath(parent, false);
-          }
-          break;
-        }
-        case "Enter": {
-          if (currentIdx < 0) return;
-          e.preventDefault();
-          const path = entryPaths[currentIdx];
-          const idx = entryIndexByPath.get(path);
-          if (idx === undefined) break;
-          const row = rows[idx];
-          if (row.kind !== "entry") break;
-          if (row.isDir) tree.toggle(row.path);
-          else onOpenFile(row.path);
-          break;
-        }
-        case "Delete":
-          if (selectedPaths.length > 0) {
-            e.preventDefault();
-            void deleteSelected();
-          }
-          break;
-      }
-    };
-
-    const handleCopy = (event: React.ClipboardEvent<HTMLDivElement>) => {
-      if (isEditableTarget(event.target) || selectedPaths.length === 0) return;
-      const paths = removeDescendants(selectedPaths);
-      event.preventDefault();
-      event.clipboardData.setData(INTERNAL_PATHS_MIME, JSON.stringify(paths));
-      event.clipboardData.setData("text/plain", paths.join("\n"));
-    };
-
-    const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
-      if (isEditableTarget(event.target)) return;
-      const internalPaths = readInternalPaths(event.clipboardData);
-      if (internalPaths.length > 0) {
-        event.preventDefault();
-        void tree.importPaths(internalPaths, dropDestination()).catch((error) => {
-          console.error("copy files failed:", error);
-        });
-        return;
-      }
-      const files = Array.from(event.clipboardData.files);
-      if (files.length > 0) {
-        event.preventDefault();
-        void importBrowserFiles(files, dropDestination()).catch((error) => {
-          console.error("paste files failed:", error);
-        });
-        return;
-      }
-      if (!isTauri()) return;
-      event.preventDefault();
-      const destination = dropDestination();
-      void invoke<string[]>("fs_clipboard_paths")
-        .then((paths) => {
-          if (paths.length === 0) return;
-          return tree.importPaths(paths, destination);
-        })
-        .catch((error) => {
-          console.error("paste native files failed:", error);
-        });
-    };
-
-    const renderRow = (row: Row) => {
-      switch (row.kind) {
-        case "entry":
-        case "rename": {
-          return (
-            <EntryRow
-              path={row.path}
-              name={row.name}
-              isDir={row.isDir}
-              isExpanded={row.kind === "entry" ? row.isExpanded : false}
-              depth={row.depth}
-              rootPath={rootPath}
-              tree={tree}
-              isSelected={selectedPathSet.has(row.path)}
-              isRenaming={row.kind === "rename"}
-              onOpenFile={onOpenFile}
-              onSelectPath={selectPath}
-              onRevealInTerminal={onRevealInTerminal}
-              onOpenMarkdownPreview={onOpenMarkdownPreview}
-              dragPaths={selectedPathSet.has(row.path) ? selectedPaths : [row.path]}
-              isDropTarget={internalDropTarget?.path === row.path}
-              onInternalDragMove={handleInternalDragMove}
-              onInternalDragEnd={handleInternalDragEnd}
-              onInternalDragCancel={() => setInternalDropTarget(null)}
-            />
-          );
-        }
-        case "pending":
-          return (
-            <PendingRow
-              depth={row.depth}
-              kind={row.pendingKind}
-              onCommit={tree.commitCreate}
-              onCancel={tree.cancelCreate}
-            />
-          );
-        case "status":
-          return (
-            <StatusRow depth={row.depth} message={row.message} tone={row.tone} />
-          );
-      }
-    };
-
     return (
       <div
         ref={containerRef}
@@ -683,60 +296,13 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
         onCopy={handleCopy}
         onPaste={handlePaste}
       >
-        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border/60 px-2">
-          <span
-            className="flex flex-1 items-center truncate text-xs font-medium text-foreground/80"
-            title={rootPath}
-          >
-            <img
-              src={folderIconUrl(basename(rootPath), false)}
-              alt=""
-              height={15}
-              width={15}
-              className="mx-1.5"
-            />
-            {basename(rootPath)}
-          </span>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6 text-muted-foreground hover:text-foreground"
-            onClick={() => setIsSearchOpen((v) => !v)}
-            title="Search files"
-            aria-label="Search files"
-          >
-            <HugeiconsIcon icon={Search01Icon} size={13} strokeWidth={2} />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6 text-muted-foreground hover:text-foreground"
-            onClick={() => tree.beginCreate(rootPath, "file")}
-            title="New file"
-          >
-            <HugeiconsIcon icon={FileAddIcon} size={13} strokeWidth={2} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6 text-muted-foreground hover:text-foreground"
-            onClick={() => tree.beginCreate(rootPath, "dir")}
-            title="New folder"
-          >
-            <HugeiconsIcon icon={FolderAddIcon} size={13} strokeWidth={2} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6 text-muted-foreground hover:text-foreground"
-            onClick={() => tree.refresh(rootPath)}
-            title="Refresh"
-          >
-            <HugeiconsIcon icon={Refresh01Icon} size={12} strokeWidth={2} />
-          </Button>
-        </div>
+        <FileExplorerHeader
+          rootPath={rootPath}
+          onToggleSearch={() => setIsSearchOpen((v) => !v)}
+          onCreateFile={() => tree.beginCreate(rootPath, "file")}
+          onCreateFolder={() => tree.beginCreate(rootPath, "dir")}
+          onRefresh={() => tree.refresh(rootPath)}
+        />
 
         <ExplorerSearch
           ref={searchRef}
@@ -851,7 +417,21 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
                             transform: `translateY(${virtualRow.start}px)`,
                           }}
                         >
-                          {renderRow(row)}
+                          <FileExplorerRow
+                            row={row}
+                            rootPath={rootPath}
+                            tree={tree}
+                            selectedPathSet={selectedPathSet}
+                            selectedPaths={selectedPaths}
+                            onOpenFile={onOpenFile}
+                            onSelectPath={selectPath}
+                            onRevealInTerminal={onRevealInTerminal}
+                            onOpenMarkdownPreview={onOpenMarkdownPreview}
+                            dropTargetPath={internalDropTarget?.path ?? null}
+                            onInternalDragMove={handleInternalDragMove}
+                            onInternalDragEnd={handleInternalDragEnd}
+                            onInternalDragCancel={clearInternalDropTarget}
+                          />
                         </div>
                       );
                     })}
