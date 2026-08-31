@@ -258,12 +258,12 @@ pub(crate) async fn set_desktop_blur_impl(
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        return set_macos_desktop_blur(app, state, enabled).await;
+        set_macos_desktop_blur(app, state, enabled).await
     }
 
     #[cfg(target_os = "windows")]
     {
-        return set_windows_desktop_blur(app, state, enabled);
+        set_windows_desktop_blur(app, state, enabled)
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]

@@ -18,8 +18,8 @@ pub use auth::{
 pub use wsl::{__cmd__wsl_default_distro, __cmd__wsl_home, __cmd__wsl_list_distros};
 #[cfg(windows)]
 pub use wsl::{
-    decode_command_output, normalize_wsl_value, validate_wsl_distro_name, wsl_exec_capture,
-    wsl_login_shell, wsl_path_to_host, wsl_path_to_unc,
+    normalize_wsl_value, validate_wsl_distro_name, wsl_exec_capture, wsl_login_shell,
+    wsl_path_to_host, wsl_path_to_unc,
 };
 pub use wsl::{wsl_default_distro, wsl_home, wsl_list_distros};
 // Keep the DTO available at its historical facade path for downstream imports.
