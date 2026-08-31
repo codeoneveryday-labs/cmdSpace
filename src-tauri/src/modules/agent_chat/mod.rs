@@ -23,6 +23,7 @@ mod session_commands;
 mod sessions;
 
 #[cfg(test)]
+#[allow(unused_imports)]
 pub(crate) use lifecycle::stop_session;
 pub(crate) use lifecycle::{cancel_session, send_message};
 pub(crate) use runtime::{
