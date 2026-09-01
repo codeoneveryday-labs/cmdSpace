@@ -169,6 +169,9 @@ impl RemoteClient {
                 self.workspaces = workspaces;
                 vec![RemoteClientAction::WorkspacesChanged]
             }
+            // Provider discovery is currently consumed by the browser remote
+            // UI; the platform-neutral native client has no provider state.
+            ServerMessage::ProvidersSnapshot { .. } => Vec::new(),
             // Importable CLI sessions are only surfaced in the browser remote
             // UI today; the native client ignores them.
             ServerMessage::ImportableSessions { .. } => Vec::new(),

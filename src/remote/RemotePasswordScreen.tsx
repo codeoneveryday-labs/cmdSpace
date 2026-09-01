@@ -1,26 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { remoteApiPath } from "./lib/remoteUtils";
+import {
+  readRemoteBootstrapSecretFromUrl,
+  scrubRemoteBootstrapUrl,
+} from "./lib/remoteBootstrapUrl";
 
 export function readRemoteBootstrapSecret(): string {
   if (typeof window === "undefined") return "";
-  const url = new URL(window.location.href);
-  const hashParams = new URLSearchParams(url.hash.slice(1));
-  const pathMatch = url.pathname.match(/^\/setup\/([^/]+)\/?$/);
-  let pathSecret = "";
-  if (pathMatch?.[1]) {
-    try {
-      pathSecret = decodeURIComponent(pathMatch[1]);
-    } catch {
-      pathSecret = "";
-    }
-  }
-  return (
-    pathSecret ||
-    url.searchParams.get("bootstrap") ||
-    hashParams.get("bootstrap") ||
-    ""
-  );
+  return readRemoteBootstrapSecretFromUrl(new URL(window.location.href));
 }
 
 type RemotePasswordScreenProps = {
@@ -38,14 +26,7 @@ export function RemotePasswordScreen({ onAuthenticated }: RemotePasswordScreenPr
   useEffect(() => {
     if (!bootstrapSecret || typeof window === "undefined") return;
     const url = new URL(window.location.href);
-    url.pathname = "/";
-    url.searchParams.delete("bootstrap");
-    url.hash = "";
-    window.history.replaceState(
-      null,
-      "",
-      `${url.pathname}${url.search}${url.hash}`,
-    );
+    window.history.replaceState(null, "", scrubRemoteBootstrapUrl(url));
   }, [bootstrapSecret]);
 
   useEffect(() => {

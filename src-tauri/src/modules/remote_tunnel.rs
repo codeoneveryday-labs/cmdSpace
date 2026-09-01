@@ -2,7 +2,6 @@ use serde::Serialize;
 use std::{
     ffi::OsString,
     io::{BufRead, BufReader, Read},
-    net::ToSocketAddrs,
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -34,7 +33,7 @@ pub struct TunnelSnapshot {
 }
 
 #[derive(Clone)]
-struct TunnelCommand {
+pub(crate) struct TunnelCommand {
     program: OsString,
     args: Vec<OsString>,
     requires_origin_registration: bool,
@@ -45,6 +44,18 @@ pub struct LocalhostRunTunnel {
     snapshot: Arc<Mutex<TunnelSnapshot>>,
     supervisor: Option<JoinHandle<()>>,
 }
+
+#[path = "remote_tunnel_provider.rs"]
+mod provider;
+pub(crate) use provider::{
+    cloudflared_origin_registered, cloudflared_origin_unregistered, extract_public_https_url,
+};
+// Keep provider test helpers at their historical module path.
+#[allow(unused_imports)]
+pub(crate) use provider::{
+    cloudflared_quick_tunnel_args, localhost_run_ssh_args, public_tunnel_host,
+};
+use provider::{public_tunnel_command, public_tunnel_is_resolvable};
 
 impl LocalhostRunTunnel {
     pub fn start(local_port: u16) -> Result<Self, String> {
@@ -104,102 +115,10 @@ impl LocalhostRunTunnel {
     }
 }
 
-fn public_tunnel_command(local_port: u16) -> TunnelCommand {
-    // Quick tunnels can keep their process alive after their public hostname has
-    // expired. Prefer the SSH relay when it is available so a paired phone keeps
-    // receiving a routable endpoint.
-    if command_is_available("ssh") {
-        return TunnelCommand {
-            program: OsString::from("ssh"),
-            args: localhost_run_ssh_args(local_port)
-                .into_iter()
-                .map(OsString::from)
-                .collect(),
-            requires_origin_registration: false,
-        };
-    }
-
-    if let Some(cloudflared) = find_cloudflared() {
-        return TunnelCommand {
-            program: cloudflared,
-            args: cloudflared_quick_tunnel_args(local_port)
-                .into_iter()
-                .map(OsString::from)
-                .collect(),
-            requires_origin_registration: true,
-        };
-    }
-
-    TunnelCommand {
-        program: OsString::from("ssh"),
-        args: localhost_run_ssh_args(local_port)
-            .into_iter()
-            .map(OsString::from)
-            .collect(),
-        requires_origin_registration: false,
-    }
-}
-
-fn command_is_available(program: &str) -> bool {
-    Command::new(program)
-        .arg("-V")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
-}
-
-fn find_cloudflared() -> Option<OsString> {
-    let candidates = [
-        "cloudflared",
-        "/opt/homebrew/bin/cloudflared",
-        "/usr/local/bin/cloudflared",
-    ];
-    candidates.into_iter().find_map(|candidate| {
-        command_is_available(candidate).then(|| OsString::from(candidate))
-    })
-}
-
-pub(crate) fn cloudflared_quick_tunnel_args(local_port: u16) -> Vec<String> {
-    [
-        "tunnel".to_string(),
-        "--url".to_string(),
-        format!("http://127.0.0.1:{local_port}"),
-        "--no-autoupdate".to_string(),
-    ]
-    .into_iter()
-    .collect()
-}
-
 impl Drop for LocalhostRunTunnel {
     fn drop(&mut self) {
         self.stop();
     }
-}
-
-pub(crate) fn localhost_run_ssh_args(local_port: u16) -> Vec<String> {
-    [
-        "-T".to_string(),
-        "-o".to_string(),
-        "BatchMode=yes".to_string(),
-        "-o".to_string(),
-        "ConnectTimeout=15".to_string(),
-        "-o".to_string(),
-        "ConnectionAttempts=1".to_string(),
-        "-o".to_string(),
-        "ExitOnForwardFailure=yes".to_string(),
-        "-o".to_string(),
-        "ServerAliveInterval=60".to_string(),
-        "-o".to_string(),
-        "ServerAliveCountMax=3".to_string(),
-        "-o".to_string(),
-        "StrictHostKeyChecking=accept-new".to_string(),
-        "-R".to_string(),
-        format!("80:127.0.0.1:{local_port}"),
-        "nokey@localhost.run".to_string(),
-    ]
-    .into_iter()
-    .collect()
 }
 
 fn supervise(
@@ -257,8 +176,7 @@ fn supervise(
                 if let Some(url) = extract_public_https_url(&line) {
                     public_url = Some(url);
                 }
-                if command_spec.requires_origin_registration
-                    && cloudflared_origin_registered(&line)
+                if command_spec.requires_origin_registration && cloudflared_origin_registered(&line)
                 {
                     origin_registered = true;
                 }
@@ -296,7 +214,8 @@ fn supervise(
                     .as_deref()
                     .is_some_and(public_tunnel_is_resolvable)
                 {
-                    let message = "public tunnel hostname no longer resolves; recreating it".to_string();
+                    let message =
+                        "public tunnel hostname no longer resolves; recreating it".to_string();
                     log::warn!("{message}");
                     update_snapshot(&snapshot, TunnelState::Degraded, None, Some(message));
                     let _ = child.kill();
@@ -338,17 +257,6 @@ fn supervise(
     update_snapshot(&snapshot, TunnelState::Stopped, None, None);
 }
 
-pub(crate) fn cloudflared_origin_registered(line: &str) -> bool {
-    let line = line.to_ascii_lowercase();
-    line.contains("registered tunnel connection")
-        && !line.contains("unregistered tunnel connection")
-}
-
-pub(crate) fn cloudflared_origin_unregistered(line: &str) -> bool {
-    line.to_ascii_lowercase()
-        .contains("unregistered tunnel connection")
-}
-
 fn spawn_output_reader<R>(reader: R, sender: mpsc::Sender<String>)
 where
     R: Read + Send + 'static,
@@ -387,38 +295,4 @@ fn update_snapshot(
         snapshot.public_url = public_url;
         snapshot.error = error;
     }
-}
-
-pub(crate) fn extract_public_https_url(line: &str) -> Option<String> {
-    let start = line.find("https://")?;
-    let candidate = line[start..]
-        .split(|character: char| character.is_whitespace() || character.is_control())
-        .next()?
-        .trim_matches(|character: char| {
-            matches!(character, '"' | '\'' | ',' | '.' | ';' | ')' | ']' | '}')
-        });
-    let authority = candidate.strip_prefix("https://")?.split('/').next()?;
-    if authority.is_empty() || authority.contains('@') || authority.contains(':') {
-        return None;
-    }
-    let host = authority.to_ascii_lowercase();
-    if host == "admin.localhost.run" {
-        return None;
-    }
-    let trusted = host.ends_with(".localhost.run")
-        || host.ends_with(".lhr.life")
-        || host.ends_with(".lhr.rocks")
-        || host.ends_with(".trycloudflare.com");
-    trusted.then(|| candidate.to_string())
-}
-
-pub(crate) fn public_tunnel_host(url: &str) -> Option<&str> {
-    let authority = url.strip_prefix("https://")?.split('/').next()?;
-    (!authority.is_empty() && !authority.contains('@') && !authority.contains(':'))
-        .then_some(authority)
-}
-
-fn public_tunnel_is_resolvable(url: &str) -> bool {
-    public_tunnel_host(url)
-        .is_some_and(|host| format!("{host}:443").to_socket_addrs().is_ok())
 }

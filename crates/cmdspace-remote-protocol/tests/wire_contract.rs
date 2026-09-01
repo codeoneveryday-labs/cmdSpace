@@ -1,8 +1,8 @@
 use cmdspace_remote_protocol::{
     ClientMessage, DeviceClientMessage, DeviceServerMessage, RemoteClientEnvelope,
     RemoteDeviceClientEnvelope, RemoteDeviceServerEnvelope, RemoteProtocolWorkspace,
-    RemoteRelayAdmission, RemoteRelayControlMessage, RemoteRelayRole, RemoteServerEnvelope, ServerMessage,
-    Utf8StreamDecoder, REMOTE_DEVICE_PROTOCOL_VERSION, REMOTE_PROTOCOL_VERSION,
+    RemoteRelayAdmission, RemoteRelayControlMessage, RemoteRelayRole, RemoteServerEnvelope,
+    ServerMessage, Utf8StreamDecoder, REMOTE_DEVICE_PROTOCOL_VERSION, REMOTE_PROTOCOL_VERSION,
     REMOTE_RELAY_PROTOCOL_VERSION,
 };
 
@@ -198,6 +198,9 @@ fn device_protocol_creates_a_workspace_with_owned_terminals() {
 
     let json = serde_json::to_value(command).unwrap();
     assert_eq!(json["message"]["command"]["type"], "createWorkspace");
-    assert_eq!(json["message"]["command"]["workspaceId"], "workspace-mobile-1");
+    assert_eq!(
+        json["message"]["command"]["workspaceId"],
+        "workspace-mobile-1"
+    );
     assert_eq!(json["message"]["command"]["terminalCount"], 2);
 }

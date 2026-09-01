@@ -119,12 +119,8 @@ describe("RemoteApp transport", () => {
   it("accepts Android-safe setup paths and scrubs the one-time secret", () => {
     const passwordScreen = readFileSync(passwordScreenPath, "utf8");
 
-    expect(passwordScreen).toContain('url.pathname.match(/^\\/setup\\/([^/]+)');
-    expect(passwordScreen).toContain("decodeURIComponent");
-    expect(passwordScreen).toContain('url.searchParams.get("bootstrap")');
-    expect(passwordScreen).toContain('hashParams.get("bootstrap")');
-    expect(passwordScreen).toContain('url.searchParams.delete("bootstrap")');
-    expect(passwordScreen).toContain('url.pathname = "/"');
+    expect(passwordScreen).toContain("readRemoteBootstrapSecretFromUrl");
+    expect(passwordScreen).toContain("scrubRemoteBootstrapUrl");
     expect(passwordScreen).toContain("window.history.replaceState");
   });
 
@@ -154,7 +150,7 @@ describe("RemoteApp transport", () => {
     const folderPicker = readFileSync(folderPickerPath, "utf8");
 
     expect(source).toContain("RemoteFolderPicker");
-    expect(folderPicker).toContain("files: RemoteFile[]");
+    expect(folderPicker).toContain("getRemoteFolderView");
     expect(folderPicker).toContain('className="remote-folder-picker"');
     expect(folderPicker).toContain('className="remote-folder-picker-scroll"');
     expect(folderPicker).toContain("Open current folder");
@@ -182,12 +178,10 @@ describe("RemoteApp transport", () => {
     expect(folderPicker).toContain("filteredFiles");
   });
 
-  it("retries a dropped terminal-create request a bounded number of times", () => {
+  it("delegates bounded terminal-create retries to the session lifecycle model", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("REMOTE_CREATE_RETRY_MAX_ATTEMPTS");
-    expect(source).toContain("REMOTE_CREATE_RETRY_INTERVAL_MS");
-    expect(source).toContain("window.clearInterval(retry)");
+    expect(source).toContain("shouldRetryRemoteSessionCreate(");
     expect(source).not.toContain("createRequestedFor");
   });
 
@@ -196,8 +190,6 @@ describe("RemoteApp transport", () => {
 
     expect(source).not.toContain("const availableSessions");
     expect(source).toContain("if (cwdSessions.length === 0)");
-    expect(source).toContain(
-      "const activeSession = cwdSessions.find((session) => session.id === activeSessionId) ?? null;",
-    );
+    expect(source).toContain("visibleRemoteSession(cwdSessions, activeSessionId)");
   });
 });

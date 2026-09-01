@@ -7,24 +7,16 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { remoteApiPath, remoteFolderName } from "./lib/remoteUtils";
+import {
+  getRemoteFolderView,
+  type RemoteFolderState,
+} from "./lib/remoteFolderPickerModel";
 
-export type RemoteFolder = {
-  name: string;
-  path: string;
-};
-
-export type RemoteFile = {
-  name: string;
-  path: string;
-  parent: string;
-};
-
-export type RemoteFolderState = {
-  current: string;
-  parent?: string | null;
-  folders: RemoteFolder[];
-  files: RemoteFile[];
-};
+export type {
+  RemoteFile,
+  RemoteFolder,
+  RemoteFolderState,
+} from "./lib/remoteFolderPickerModel";
 
 function remoteAuthorizationHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
@@ -105,15 +97,16 @@ export function RemoteFolderPicker({
     return () => requestRef.current?.abort();
   }, [load]);
 
-  const normalizedSearch = searchQuery.trim().toLowerCase();
-  const filteredFolders = useMemo(
-    () => folderState?.folders.filter((folder) => folder.name.toLowerCase().includes(normalizedSearch)) ?? [],
-    [folderState, normalizedSearch],
+  const folderView = useMemo(
+    () => getRemoteFolderView(folderState, searchQuery),
+    [folderState, searchQuery],
   );
-  const filteredFiles = useMemo(
-    () => folderState?.files.filter((file) => file.name.toLowerCase().includes(normalizedSearch)) ?? [],
-    [folderState, normalizedSearch],
-  );
+  const {
+    normalizedSearch,
+    folders: filteredFolders,
+    files: filteredFiles,
+    isEmpty: isFilteredViewEmpty,
+  } = folderView;
 
   return (
     <main className="remote-folder-picker">
@@ -173,7 +166,7 @@ export function RemoteFolderPicker({
                   <HugeiconsIcon icon={ArrowRight01Icon} size={17} />
                 </button>
               ))}
-              {filteredFolders.length === 0 && filteredFiles.length === 0 ? (
+              {isFilteredViewEmpty ? (
                 <div className="remote-folder-message">
                   {normalizedSearch ? "No matching folders or files." : "This folder is empty."}
                 </div>
