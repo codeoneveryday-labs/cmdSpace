@@ -147,7 +147,9 @@ pnpm test
 cd src-tauri && cargo check --all-targets --locked
 ```
 
-For Windows smoke testing, including native voice recognition and WSL coverage, see [Windows testing](docs/WINDOWS_TESTING.md).
+For platform smoke testing, see [Windows testing](docs/WINDOWS_TESTING.md) for
+native voice/WSL coverage and [bundled macOS speech testing](docs/MACOS_SPEECH_TESTING.md)
+for microphone and audio-engine lifecycle coverage.
 
 ## Release automation
 

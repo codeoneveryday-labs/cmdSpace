@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const sectionPath = path.join(here, "ModelsSection.tsx");
+const healthHookPath = path.join(here, "useSpeechToTextHealth.ts");
 
 describe("Voice settings section", () => {
   it("uses the CLI-agent catalog pattern for speech providers", () => {
@@ -24,11 +25,13 @@ describe("Voice settings section", () => {
 
   it("checks the selected STT provider and exposes a retryable status", () => {
     const section = readFileSync(sectionPath, "utf8");
+    const healthHook = readFileSync(healthHookPath, "utf8");
+    const source = `${section}\n${healthHook}`;
 
-    expect(section).toContain("probeSpeechToText");
-    expect(section).toContain("STT ready");
-    expect(section).toContain("Checking STT");
-    expect(section).toContain("Retry");
-    expect(section).toContain('aria-live="polite"');
+    expect(source).toContain("probeSpeechToText");
+    expect(source).toContain("STT ready");
+    expect(source).toContain("Checking STT");
+    expect(source).toContain("Retry");
+    expect(source).toContain('aria-live="polite"');
   });
 });

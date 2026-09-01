@@ -8,7 +8,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KEY_SEP } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-import { fileIconUrl } from "@/modules/explorer/lib/iconResolver";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   useAgentBlockedLeaves,
@@ -16,11 +15,8 @@ import {
   useAgentResponseLeaves,
   useAgentResponseRequestedLeaves,
 } from "@/modules/terminal/lib/agentActivity";
-import { AgentStateDot, type AgentDisplayState } from "@/modules/terminal/AgentStateDot";
-import { findLeafLastCommand, leafIds } from "@/modules/terminal/lib/panes";
-import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
-import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
-import { invoke } from "@tauri-apps/api/core";
+import { leafIds } from "@/modules/terminal/lib/panes";
+import type { AgentDisplayState } from "@/modules/terminal/AgentStateDot";
 import {
   getBindingTokens,
   SHORTCUTS,
@@ -29,11 +25,8 @@ import {
 import {
   Cancel01Icon,
   CanvasIcon,
-  AiChat01Icon,
-  Clock01Icon,
   ComputerTerminal02Icon,
   GitBranchIcon,
-  GitCompareIcon,
   Globe02Icon,
   IncognitoIcon,
   MusicNote01Icon,
@@ -41,29 +34,11 @@ import {
   PlusSignIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { EditorTab, Tab } from "./lib/useTabs";
-
-type TabPlacement = "before" | "after";
-type PointerDragState = {
-  dragging: boolean;
-  id: number;
-  pointerId: number;
-  startX: number;
-  startY: number;
-  offsetX: number;
-  offsetY: number;
-  width: number;
-  height: number;
-  x: number;
-  y: number;
-  previewIndex: number;
-};
-
-type DragVisualState = Pick<
-  PointerDragState,
-  "id" | "width" | "height" | "x" | "y" | "previewIndex"
->;
+import { useTabBarDrag, type TabPlacement } from "./useTabBarDrag";
+import { useTabBarMusicState } from "./useTabBarMusicState";
+import { TabBarTabContent } from "./TabBarTabContent";
 
 type Props = {
   tabs: Tab[];
@@ -106,15 +81,12 @@ export function TabBar({
   compact,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const pointerDragRef = useRef<PointerDragState | null>(null);
-  const [dragVisual, setDragVisual] = useState<DragVisualState | null>(null);
-  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   const respondingLeaves = useAgentResponseLeaves();
   const requestedLeaves = useAgentResponseRequestedLeaves();
   const blockedLeaves = useAgentBlockedLeaves();
   const completedLeaves = useAgentCompletedLeaves();
   const userShortcuts = usePreferencesStore((s) => s.shortcuts);
-  const hasMusicTab = tabs.some((tab) => tab.kind === "terminal" && tab.title === "Music CLI");
+  const isMusicPlaying = useTabBarMusicState(tabs);
 
   const shortcutFor = (id: ShortcutId): string => {
     const shortcut = SHORTCUTS.find((item) => item.id === id);
@@ -145,116 +117,13 @@ export function TabBar({
     active?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeId, tabs.length]);
 
-  useEffect(() => {
-    if (!hasMusicTab) {
-      setIsMusicPlaying(false);
-      return;
-    }
-
-    let disposed = false;
-    const refresh = () => {
-      void invoke<boolean>("music_is_playing")
-        .then((playing) => {
-          if (!disposed) setIsMusicPlaying(playing);
-        })
-        .catch(() => {
-          if (!disposed) setIsMusicPlaying(false);
-        });
-    };
-    refresh();
-    const intervalId = window.setInterval(refresh, 2_000);
-    return () => {
-      disposed = true;
-      window.clearInterval(intervalId);
-    };
-  }, [hasMusicTab]);
-
-  useEffect(() => {
-    const previewIndexForPointer = (drag: PointerDragState, clientX: number) => {
-      const tabCenterX = clientX - drag.offsetX + drag.width / 2;
-      const siblings = tabs.filter((tab) => tab.id !== drag.id);
-      for (let index = 0; index < siblings.length; index += 1) {
-        const sibling = scrollRef.current?.querySelector<HTMLElement>(
-          `[data-tab-id="${siblings[index].id}"]`,
-        );
-        if (!sibling) continue;
-        const bounds = sibling.getBoundingClientRect();
-        if (tabCenterX < bounds.left + bounds.width / 2) return index;
-      }
-      return siblings.length;
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      const drag = pointerDragRef.current;
-      if (!drag || e.pointerId !== drag.pointerId) return;
-      const moved =
-        Math.abs(e.clientX - drag.startX) > 4 ||
-        Math.abs(e.clientY - drag.startY) > 4;
-      if (!drag.dragging && !moved) return;
-      const dragging = drag.dragging || moved;
-      const nextDrag: PointerDragState = {
-        ...drag,
-        dragging,
-        x: e.clientX - drag.offsetX,
-        y: e.clientY - drag.offsetY,
-        previewIndex: previewIndexForPointer(drag, e.clientX),
-      };
-      pointerDragRef.current = nextDrag;
-      setDragVisual({
-        id: nextDrag.id,
-        width: nextDrag.width,
-        height: nextDrag.height,
-        x: nextDrag.x,
-        y: nextDrag.y,
-        previewIndex: nextDrag.previewIndex,
-      });
-    };
-
-    const onPointerUp = (e: PointerEvent) => {
-      const drag = pointerDragRef.current;
-      if (!drag || e.pointerId !== drag.pointerId) return;
-      if (drag.dragging) {
-        const siblings = tabs.filter((tab) => tab.id !== drag.id);
-        const target =
-          drag.previewIndex >= siblings.length
-            ? siblings[siblings.length - 1]
-            : siblings[drag.previewIndex];
-        if (target) {
-          onReorder(
-            drag.id,
-            target.id,
-            drag.previewIndex >= siblings.length ? "after" : "before",
-          );
-        }
-      } else {
-        onSelect(drag.id);
-      }
-      pointerDragRef.current = null;
-      setDragVisual(null);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-    };
-  }, [onReorder, tabs]);
-
-  const draggedTab =
-    dragVisual === null
-      ? null
-      : (tabs.find((tab) => tab.id === dragVisual.id) ?? null);
-  const renderedTabs =
-    dragVisual === null
-      ? tabs
-      : tabs.filter((tab) => tab.id !== dragVisual.id);
-  const placeholderIndex =
-    dragVisual === null
-      ? -1
-      : Math.min(Math.max(dragVisual.previewIndex, 0), renderedTabs.length);
+  const {
+    dragVisual,
+    draggedTab,
+    renderedTabs,
+    placeholderIndex,
+    beginDrag,
+  } = useTabBarDrag({ tabs, scrollRef, onSelect, onReorder });
 
   return (
     <div
@@ -301,24 +170,7 @@ export function TabBar({
                   data-tab-id={t.id}
                   onClick={() => onSelect(t.id)}
                   onPointerDown={(e) => {
-                    if (e.button !== 0) return;
-                    const target = e.target as HTMLElement | null;
-                    if (target?.closest('[aria-label="Close tab"]')) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    pointerDragRef.current = {
-                      dragging: false,
-                      id: t.id,
-                      pointerId: e.pointerId,
-                      startX: e.clientX,
-                      startY: e.clientY,
-                      offsetX: e.clientX - rect.left,
-                      offsetY: e.clientY - rect.top,
-                      width: rect.width,
-                      height: rect.height,
-                      x: rect.left,
-                      y: rect.top,
-                      previewIndex: tabs.findIndex((tab) => tab.id === t.id),
-                    };
+                    beginDrag(e, t.id);
                   }}
                   onDoubleClick={() => isPreview && onPin(t.id)}
                   className={cn(
@@ -333,7 +185,7 @@ export function TabBar({
                         : "ps-2! pe-1!",
                   )}
                 >
-                  <TabTriggerContent
+                  <TabBarTabContent
                     tab={t}
                     compact={compact}
                     musicPlaying={isMusicPlaying}
@@ -439,7 +291,7 @@ export function TabBar({
             width: dragVisual.width,
           }}
         >
-          <TabTriggerContent tab={draggedTab} compact={compact} musicPlaying={isMusicPlaying} />
+          <TabBarTabContent tab={draggedTab} compact={compact} musicPlaying={isMusicPlaying} />
         </div>
       ) : null}
     </div>
@@ -475,152 +327,4 @@ function NewTabMenuItem({
       </span>
     </DropdownMenuItem>
   );
-}
-
-function TabTriggerContent({
-  tab,
-  compact,
-  musicPlaying,
-  agentState,
-}: {
-  tab: Tab;
-  compact?: boolean;
-  musicPlaying: boolean;
-  agentState?: AgentDisplayState;
-}) {
-  const isPreview = tab.kind === "editor" && (tab as EditorTab).preview;
-  return (
-    <span
-      className={cn(
-        "flex min-w-0 items-center gap-1.5 truncate",
-        compact ? "max-w-48" : "max-w-80",
-      )}
-    >
-      {agentState ? <AgentStateDot state={agentState} /> : null}
-      <TabIcon tab={tab} musicPlaying={musicPlaying} />
-      {/* Preview tabs use italic to signal the transient state,
-          matching the visual convention from VSCode. */}
-      <span className={cn("truncate", isPreview && "italic")}>
-        {labelFor(tab)}
-      </span>
-      {tab.kind === "editor" && tab.dirty ? (
-        <span
-          aria-label="Unsaved changes"
-          className="size-1.5 shrink-0 rounded-full bg-foreground/70"
-        />
-      ) : null}
-    </span>
-  );
-}
-
-function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
-  if (tab.kind === "terminal") {
-    const agent = leafIds(tab.paneTree)
-      .map((leafId) => detectCliAgent(findLeafLastCommand(tab.paneTree, leafId) ?? undefined))
-      .find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
-    if (agent) return <AgentCliIcon agent={agent} size="xxs" className="shrink-0" />;
-  }
-  if (tab.kind === "terminal" && tab.title === "Music CLI") {
-    return (
-      <HugeiconsIcon
-        icon={MusicNote01Icon}
-        size={14}
-        strokeWidth={2}
-        className={cn("shrink-0", musicPlaying && "cmdspace-music-tab-icon")}
-      />
-    );
-  }
-  if (tab.kind === "editor" || tab.kind === "markdown") {
-    const url = fileIconUrl(tab.title);
-    return url ? <img src={url} alt="" className="size-3.5 shrink-0" /> : null;
-  }
-  if (tab.kind === "preview") {
-    return (
-      <HugeiconsIcon
-        icon={Globe02Icon}
-        size={14}
-        strokeWidth={2}
-        className="shrink-0"
-      />
-    );
-  }
-  if (tab.kind === "ai-diff") {
-    return (
-      <HugeiconsIcon
-        icon={GitCompareIcon}
-        size={14}
-        strokeWidth={2}
-        className="shrink-0"
-      />
-    );
-  }
-  if (tab.kind === "terminal" && tab.private) {
-    return (
-      <HugeiconsIcon
-        icon={IncognitoIcon}
-        size={14}
-        strokeWidth={2}
-        className="shrink-0"
-      />
-    );
-  }
-  if (tab.kind === "git-diff" || tab.kind === "git-commit-file") {
-    return (
-      <HugeiconsIcon
-        icon={GitCompareIcon}
-        size={14}
-        strokeWidth={2}
-        className="shrink-0"
-      />
-    );
-  }
-  if (tab.kind === "git-history") {
-    return (
-      <HugeiconsIcon
-        icon={Clock01Icon}
-        size={14}
-        strokeWidth={2}
-        className="shrink-0"
-      />
-    );
-  }
-  if (tab.kind === "architecture") {
-    return (
-      <HugeiconsIcon
-        icon={CanvasIcon}
-        size={14}
-        strokeWidth={2}
-        className="shrink-0"
-      />
-    );
-  }
-  if (tab.kind === "agent-chat") {
-    return <HugeiconsIcon icon={AiChat01Icon} size={14} strokeWidth={2} className="shrink-0" />;
-  }
-  return (
-    <HugeiconsIcon
-      icon={ComputerTerminal02Icon}
-      size={14}
-      strokeWidth={2}
-      className="shrink-0"
-    />
-  );
-}
-
-function labelFor(t: Tab): string {
-  if (t.kind === "editor") return t.title;
-  if (t.kind === "preview") return t.title;
-  if (t.kind === "markdown") return t.title;
-  if (t.kind === "ai-diff") return t.title;
-  if (t.kind === "git-diff") return t.title;
-  if (t.kind === "git-history") return t.title;
-  if (t.kind === "architecture") return t.title;
-  if (t.kind === "agent-chat") return t.title;
-  if (t.kind === "git-commit-file") return t.title;
-  if (t.kind === "terminal" && t.title !== "shell" && t.title !== "workspace") {
-    return t.title;
-  }
-  if (!t.cwd) return t.title;
-  const parts = t.cwd.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : "/";
 }

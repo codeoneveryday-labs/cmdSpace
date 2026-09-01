@@ -4,6 +4,23 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const appPath = path.join(here, "App.tsx");
+const runtimeBootstrapPath = path.join(here, "lib/useAppRuntimeBootstrap.ts");
+const workspaceDeleteDialogPath = path.join(here, "WorkspaceDeleteDialog.tsx");
+const shortcutCoordinationPath = path.join(here, "lib/appShortcutCoordination.ts");
+const bottomTerminalControllerPath = path.join(here, "lib/useBottomTerminalController.ts");
+const activeContextPath = path.join(here, "lib/useAppActiveContext.ts");
+const chromeActionsPath = path.join(here, "lib/useAppChromeActions.ts");
+const workspaceDeletionPath = path.join(here, "lib/useWorkspaceDeletion.ts");
+const workspaceDeleteConfirmationPath = path.join(here, "lib/useWorkspaceDeleteConfirmation.ts");
+const workspaceSetupActionsPath = path.join(here, "lib/useWorkspaceSetupActions.ts");
+const workspaceCreationActionPath = path.join(
+  here,
+  "lib/workspaceCreationAction.ts",
+);
+const workspaceRecordActionsPath = path.join(
+  here,
+  "lib/useWorkspaceRecordActions.ts",
+);
 const appConstantsPath = path.join(here, "constants.ts");
 const shortcutsPath = path.join(here, "../modules/shortcuts/shortcuts.ts");
 
@@ -19,7 +36,10 @@ describe("App sidebar toggle", () => {
 
   it("switches an agent in place and persists the pane launch plan", () => {
     const source = readFileSync(appPath, "utf8");
-    const controller = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
+    const controller = [
+      readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
+      readFileSync(workspaceCreationActionPath, "utf8"),
+    ].join("\n");
     const actions = readFileSync(path.join(here, "lib/useTerminalWorkspaceActions.ts"), "utf8");
 
     expect(source).toContain("handleSwitchTerminalAgent");
@@ -46,17 +66,28 @@ describe("App sidebar toggle", () => {
   });
 
   it("closing an agent chat tab preserves its persisted chat descriptor", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(path.join(here, "lib/workspaceAgentSessionModel.ts"), "utf8"),
+      readFileSync(workspaceDeletionPath, "utf8"),
+      readFileSync(path.join(here, "lib/workspaceOwnershipModel.ts"), "utf8"),
+    ].join("\n");
 
     expect(source).toContain("const agentTabIds = workspace.agentTabIds.filter((id) => id !== tabId);");
     expect(source).not.toContain("const agentProviders = (workspace.agentProviders ?? []).filter(");
     expect(source).not.toContain("const agentSessionIds = (workspace.agentSessionIds ?? []).filter(");
-    expect(source).toContain("const index = tabIndex;");
+    expect(source).toContain("const tabIndex =");
   });
 
   it("opens the Paseo-style draft workspace flow before creating a forked agent session", () => {
-    const source = readFileSync(appPath, "utf8");
-    const controller = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(workspaceSetupActionsPath, "utf8"),
+    ].join("\n");
+    const controller = [
+      readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
+      readFileSync(workspaceCreationActionPath, "utf8"),
+    ].join("\n");
 
     expect(source).toContain("workspaceForkContext");
     expect(source).toContain("forkContext={workspaceForkContext}");
@@ -65,29 +96,39 @@ describe("App sidebar toggle", () => {
   });
 
   it("activates a freshly created workspace instead of leaving the previous tab selected", () => {
-    const controller = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
+    const controller = [
+      readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
+      readFileSync(workspaceCreationActionPath, "utf8"),
+    ].join("\n");
 
     expect(controller).toContain("const activatedTabId = tabId ?? canvasTabId;");
     expect(controller).toContain("if (activatedTabId !== null) input.setActiveId(activatedTabId);");
   });
 
   it("deletes every agent tab owned by a workspace", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(path.join(here, "lib/workspaceAgentSessionModel.ts"), "utf8"),
+      readFileSync(workspaceDeletionPath, "utf8"),
+    ].join("\n");
     const controller = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
 
-    expect(source).toContain("...(workspace.agentTabIds ?? []),");
+    expect(source).toContain("...(workspace.agentTabIds ?? [])");
     expect(controller).toContain("for (const tabId of tabIds");
     expect(source).toContain("agentSessionIds");
   });
 
   it("auto-activates the first workspace only once so standalone tabs remain selectable", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(path.join(here, "lib/appStartupViewModel.ts"), "utf8"),
+    ].join("\n");
     const selection = readFileSync(path.join(here, "lib/useWorkspaceSelectionController.ts"), "utf8");
 
     expect(selection).toContain("setInitialActivationHandled(true)");
     expect(selection).toContain("initialActivationHandled ||");
     expect(selection).toContain("pendingBootstrapCloseRef.current = true");
-    expect(source).toContain("shouldSuppressBootstrapShell({");
+    expect(source).toContain("shouldSuppressBootstrapShell(gateInput)");
     expect(source).toContain(
       "pendingBootstrapClose: pendingBootstrapCloseRef.current",
     );
@@ -97,18 +138,24 @@ describe("App sidebar toggle", () => {
   });
 
   it("replaces the bottom AI composer with a terminal drawer", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(shortcutCoordinationPath, "utf8"),
+    ].join("\n");
 
     expect(source).toContain("BottomTerminalDrawer");
     expect(source).toContain("bottomTerminalOpen");
-    expect(source).toContain('"terminal.bottom": toggleBottomTerminal');
+    expect(source).toContain('"terminal.bottom": actions.toggleBottomTerminal');
     expect(source).not.toContain("data-ai-input-bar");
     expect(source).not.toContain("<AiInputBar />");
     expect(source).not.toContain("<AiInputBarConnect");
   });
 
   it("uses the status-bar shortcut to open the terminal drawer without AI chat controls", () => {
-    const appSource = readFileSync(appPath, "utf8");
+    const appSource = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(path.join(here, "AppOverlays.tsx"), "utf8"),
+    ].join("\n");
     const statusBarSource = readFileSync(
       path.join(here, "../modules/statusbar/StatusBar.tsx"),
       "utf8",
@@ -161,15 +208,22 @@ describe("App sidebar toggle", () => {
   });
 
   it("opens the bottom terminal from the active workspace folder", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(bottomTerminalControllerPath, "utf8"),
+      readFileSync(activeContextPath, "utf8"),
+    ].join("\n");
 
-    expect(source).toContain("const activeWorkspaceFolder =");
+    expect(source).toContain("activeWorkspaceFolder: activeWorkspace?.workingFolder ?? null");
     expect(source).toContain("activeWorkspaceFolder ??");
     expect(source).toContain("workspace.agentTabIds?.includes(activeId)");
   });
 
   it("refreshes provider keys when the main window becomes active again", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(runtimeBootstrapPath, "utf8"),
+    ].join("\n");
 
     expect(source).toContain('window.addEventListener("focus", reload)');
     expect(source).toContain(
@@ -182,7 +236,10 @@ describe("App sidebar toggle", () => {
   });
 
   it("keeps the main sidebar toggle state-driven instead of imperative panel collapse", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(chromeActionsPath, "utf8"),
+    ].join("\n");
     const layout = readFileSync(path.join(here, "lib/useAppLayout.ts"), "utf8");
     const chrome = readFileSync(path.join(here, "AppChrome.tsx"), "utf8");
 
@@ -205,7 +262,10 @@ describe("App sidebar toggle", () => {
   });
 
   it("lets the architecture canvas focus by collapsing both sidebars together", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(chromeActionsPath, "utf8"),
+    ].join("\n");
 
     expect(source).toContain("const canvasFocused = !workspacesPanelOpen && !sidebarOpen;");
     expect(source).toContain("const toggleCanvasFocus = useCallback(() => {");
@@ -269,7 +329,10 @@ describe("App sidebar toggle", () => {
   });
 
   it("defers terminal resize work during animated sidebar toggles", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(chromeActionsPath, "utf8"),
+    ].join("\n");
     const constants = readFileSync(appConstantsPath, "utf8");
     const resize = readFileSync(path.join(here, "lib/useAppLayoutResize.ts"), "utf8");
 
@@ -287,7 +350,12 @@ describe("App sidebar toggle", () => {
 
   it("persists terminal pane layouts with workspace records", () => {
     const appSource = readFileSync(appPath, "utf8");
-    const controllerSource = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
+    const controllerSource = [
+      readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
+      readFileSync(path.join(here, "lib/useWorkspaceHydration.ts"), "utf8"),
+      readFileSync(workspaceRecordActionsPath, "utf8"),
+      readFileSync(path.join(here, "lib/workspaceControllerTypes.ts"), "utf8"),
+    ].join("\n");
     const persistenceSource = readFileSync(
       path.join(here, "lib/useWorkspacePersistence.ts"),
       "utf8",
@@ -296,7 +364,10 @@ describe("App sidebar toggle", () => {
       path.join(here, "lib/workspaceLayoutPersistence.ts"),
       "utf8",
     );
-
+    const paneActionsSource = readFileSync(
+      path.join(here, "lib/useAppPaneActions.ts"),
+      "utf8",
+    );
     expect(controllerSource).toContain("paneLayout: string | null;");
     expect(controllerSource).toContain("paneLayout: workspace.paneLayout ?? null");
     expect(appSource).toContain("useWorkspacePersistence<WorkspaceRecord>({");
@@ -304,8 +375,10 @@ describe("App sidebar toggle", () => {
       'persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace })',
     );
     expect(appSource).toContain("onPaneTreeChange: handleTerminalPaneTreeChange");
-    expect(appSource).toContain("const appended = splitActivePane(activeId, dir);");
-    expect(appSource).toContain(
+    expect(paneActionsSource).toContain(
+      "const appended = splitActivePane(activeId, direction);",
+    );
+    expect(paneActionsSource).toContain(
       "persistSplitPaneTree(activeId, appended.paneTree);",
     );
     expect(persistenceSource).toContain(
@@ -324,6 +397,9 @@ describe("App sidebar toggle", () => {
     const selectionSource = readFileSync(
       path.join(here, "lib/useWorkspaceSelection.ts"),
       "utf8",
+    ) + readFileSync(
+      path.join(here, "lib/workspaceSelectionRestoration.ts"),
+      "utf8",
     );
     const selectionControllerSource = readFileSync(
       path.join(here, "lib/useWorkspaceSelectionController.ts"),
@@ -337,11 +413,14 @@ describe("App sidebar toggle", () => {
       path.join(here, "lib/workspaceLayoutPersistence.ts"),
       "utf8",
     );
+    const creationSource = readFileSync(
+      path.join(here, "lib/workspaceCreationModel.ts"),
+      "utf8",
+    );
 
     expect(selectionControllerSource).toContain("useWorkspaceSelection({");
-    expect(appSource).toContain(
-      "buildCanvasWorkspaceDiagram: canvasWorkspaceDiagram",
-    );
+    expect(appSource).toContain("buildCanvasWorkspaceDiagram,");
+    expect(creationSource).toContain("buildCanvasWorkspaceDiagram");
     expect(selectionSource).toContain(
       "parseCanvasWorkspaceDiagram(workspace.paneLayout)",
     );
@@ -361,7 +440,12 @@ describe("App sidebar toggle", () => {
   });
 
   it("deletes an active workspace through a single confirmed action", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(workspaceDeleteDialogPath, "utf8"),
+      readFileSync(workspaceDeletionPath, "utf8"),
+      readFileSync(workspaceDeleteConfirmationPath, "utf8"),
+    ].join("\n");
     const controller = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
     const constants = readFileSync(appConstantsPath, "utf8");
 
@@ -370,10 +454,10 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("pendingDeleteWorkspaceId");
     expect(source).toContain("skipWorkspaceDeleteConfirm");
     expect(source).toContain("workspaceDeleteDoNotAskAgain");
-    expect(source).toContain("const deleteWorkspace = useCallback");
+    expect(source).toContain("const deleteWorkspace = useWorkspaceDeletion");
     expect(controller).toContain("for (const tabId of tabIds");
     expect(controller).toContain('invoke("db_delete_workspace", { id: workspaceId })');
-    expect(source).toContain("setPendingDeleteWorkspaceId(workspaceId);");
+    expect(source).toContain("setPendingWorkspaceId(workspaceId);");
     expect(source).not.toContain("handleClose(workspace.tabId);");
     expect(source).toContain("Delete02Icon");
     expect(source).toContain("This will permanently remove");
@@ -384,19 +468,30 @@ describe("App sidebar toggle", () => {
   });
 
   it("replaces the final workspace tab with an unowned shell before deleting it", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(workspaceDeletionPath, "utf8"),
+    ].join("\n");
     const controller = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
 
-    expect(source).toContain("const workspaceTabIds = new Set(");
+    expect(source).toContain("const tabIds = new Set(");
     expect(source).toContain("wouldLeaveNoTabs:");
-    expect(source).toContain("fallbackCwd: launchCwd ?? home ?? undefined");
+    expect(source).toContain("fallbackCwd,");
     expect(controller).toContain("if (wouldLeaveNoTabs) resetWorkspace(fallbackCwd);");
   });
 
   it("persists workspace accent colors for the workspace list", () => {
-    const source = readFileSync(appPath, "utf8");
+    const source = [
+      readFileSync(appPath, "utf8"),
+      readFileSync(path.join(here, "lib/workspaceCreationModel.ts"), "utf8"),
+      readFileSync(workspaceSetupActionsPath, "utf8"),
+    ].join("\n");
     const surface = readFileSync(path.join(here, "WorkspaceSurface.tsx"), "utf8");
-    const controller = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
+    const controller = [
+      readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
+      readFileSync(path.join(here, "lib/useWorkspaceHydration.ts"), "utf8"),
+      readFileSync(workspaceRecordActionsPath, "utf8"),
+    ].join("\n");
 
     expect(controller).toContain("accentColor?: string | null");
     expect(source).toContain("WORKSPACE_ACCENT_COLORS");
@@ -461,6 +556,7 @@ describe("App sidebar toggle", () => {
   it("keeps the right sidebar content mounted across toggle cycles", () => {
     const source = readFileSync(path.join(here, "AppChrome.tsx"), "utf8");
     const appSource = readFileSync(appPath, "utf8");
+    const sidebarSource = readFileSync(path.join(here, "AppSidebar.tsx"), "utf8");
     const sidebarAside = source.match(
       /<aside[\s\S]*?style=\{\{ width: sidebarOpen \? sidebarWidth : 0 \}\}[\s\S]*?<\/aside>/,
     )?.[0];
@@ -471,8 +567,8 @@ describe("App sidebar toggle", () => {
     expect(sidebarAside).toContain('!sidebarOpen && "pointer-events-none"');
     expect(sidebarAside).toContain("style={{ width: sidebarWidth }}");
     expect(appSource).toContain("const sidebar = (");
-    expect(appSource).toContain("SidebarBrowserPane");
-    expect(appSource).toContain("resizing={sidebarResizing}");
+    expect(sidebarSource).toContain("SidebarBrowserPane");
+    expect(appSource).toContain("resizing: sidebarResizing");
   });
 
   it("keeps the right sidebar free of helper chat surfaces", () => {

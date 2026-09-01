@@ -12,8 +12,6 @@ import { getProvider, PROVIDERS, type ProviderId } from "@/modules/ai/config";
 import { clearKey, getAllKeys, setKey } from "@/modules/ai/lib/keyring";
 import {
   DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
-  getSpeechToTextRequest,
-  probeSpeechToText,
   SPEECH_TO_TEXT_MODELS,
 } from "@/modules/ai/lib/speechToText";
 import { usePreferencesStore } from "@/modules/settings/preferences";
@@ -32,6 +30,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { ProviderKeyCard } from "../components/ProviderKeyCard";
 import { SectionHeader } from "../components/SectionHeader";
+import { useSpeechToTextHealth } from "./useSpeechToTextHealth";
 
 type KeysMap = Awaited<ReturnType<typeof getAllKeys>>;
 
@@ -340,75 +339,19 @@ function SpeechToTextRow({
     )!;
   const connected = !!keys[currentModel.provider];
   const providerLabel = getProvider(currentModel.provider).label;
-  const request = useMemo(
-    () => getSpeechToTextRequest(currentModel.modelId, keys),
-    [currentModel.modelId, keys],
-  );
   const fallbackModel = enabledProviders
     .flatMap((provider) =>
       SPEECH_TO_TEXT_MODELS.filter((model) => model.provider === provider.id),
     )
     .find((model) => !model.developmentOnly && !!keys[model.provider]);
-  const [health, setHealth] = useState<
-    | { state: "checking" }
-    | { state: "ready" }
-    | { state: "unavailable"; message: string }
-  >({ state: "checking" });
-  const [healthCheckAttempt, setHealthCheckAttempt] = useState(0);
-
-  useEffect(() => {
-    if (currentModel.developmentOnly && fallbackModel) {
-      void setSpeechToTextModelId(fallbackModel.modelId);
-    }
-  }, [currentModel.developmentOnly, fallbackModel]);
-
-  useEffect(() => {
-    let disposed = false;
-    const unavailable = (message: string) => {
-      if (!disposed) setHealth({ state: "unavailable", message });
-    };
-
-    if (currentModel.developmentOnly) {
-      unavailable("This STT provider is not available yet.");
-      return () => {
-        disposed = true;
-      };
-    }
-    if (!configured.has(currentModel.provider) || disabled.has(currentModel.provider)) {
-      unavailable("Enable this provider to check STT.");
-      return () => {
-        disposed = true;
-      };
-    }
-    if (!request) {
-      unavailable(`${providerLabel} needs an API key.`);
-      return () => {
-        disposed = true;
-      };
-    }
-
-    setHealth({ state: "checking" });
-    void probeSpeechToText(request).then(
-      () => {
-        if (!disposed) setHealth({ state: "ready" });
-      },
-      (error: unknown) => {
-        if (!disposed) {
-          setHealth({
-            state: "unavailable",
-            message:
-              error instanceof Error && error.message
-                ? error.message
-                : "Could not reach the STT service.",
-          });
-        }
-      },
-    );
-
-    return () => {
-      disposed = true;
-    };
-  }, [configured, currentModel, disabled, healthCheckAttempt, providerLabel, request]);
+  const { health, request, retry } = useSpeechToTextHealth({
+    currentModel,
+    fallbackModel,
+    configured,
+    disabled,
+    keys,
+    providerLabel,
+  });
 
   return (
     <>
@@ -511,7 +454,7 @@ function SpeechToTextRow({
                 variant="ghost"
                 size="sm"
                 className="h-6 shrink-0 px-1.5 text-[10.5px]"
-                onClick={() => setHealthCheckAttempt((attempt) => attempt + 1)}
+                onClick={retry}
               >
                 Retry
               </Button>

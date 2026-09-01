@@ -7,6 +7,9 @@ const generalSectionPath = path.join(here, "GeneralSection.tsx");
 const remoteHubPath = path.join(here, "RemoteAccessHub.tsx");
 const remoteAccessPath = path.join(here, "../../modules/settings/remoteAccess.ts");
 const settingsStorePath = path.join(here, "../../modules/settings/store.ts");
+const pairingHookPath = path.join(here, "useRemoteDevicePairing.ts");
+const tunnelHookPath = path.join(here, "useRemoteTunnelSettings.ts");
+const terminalSettingsPath = path.join(here, "TerminalPreferencesSection.tsx");
 
 describe("GeneralSection terminal settings", () => {
   it("delegates Remote presentation to the compact access hub", () => {
@@ -29,7 +32,7 @@ describe("GeneralSection terminal settings", () => {
   });
 
   it("persists a shell choice for newly created terminals", () => {
-    const source = readFileSync(generalSectionPath, "utf8");
+    const source = `${readFileSync(generalSectionPath, "utf8")}\n${readFileSync(terminalSettingsPath, "utf8")}`;
     const store = readFileSync(settingsStorePath, "utf8");
 
     expect(source).toContain('title="Default shell"');
@@ -59,24 +62,24 @@ describe("GeneralSection terminal settings", () => {
   });
 
   it("exposes copy-on-select as an explicit terminal preference", () => {
-    const source = readFileSync(generalSectionPath, "utf8");
+    const source = `${readFileSync(generalSectionPath, "utf8")}\n${readFileSync(terminalSettingsPath, "utf8")}`;
 
     expect(source).toContain("terminalCopyOnSelection");
     expect(source).toContain("setTerminalCopyOnSelection");
     expect(source).toContain("Copy selected text");
     expect(source).toContain(
-      "onCheckedChange={(v) => void setTerminalCopyOnSelection(v)}",
+      "onCheckedChange={(value) => void setTerminalCopyOnSelection(value)}",
     );
   });
 
   it("lets the user opt into Space", () => {
-    const source = readFileSync(generalSectionPath, "utf8");
+    const source = `${readFileSync(generalSectionPath, "utf8")}\n${readFileSync(terminalSettingsPath, "utf8")}`;
 
     expect(source).toContain("floatingVoiceAgentEnabled");
     expect(source).toContain("setFloatingVoiceAgentEnabled");
     expect(source).toContain('title="Space"');
     expect(source).toContain(
-      "onCheckedChange={(v) => void setFloatingVoiceAgentEnabled(v)}",
+      "onCheckedChange={(value) => void setFloatingVoiceAgentEnabled(value)}",
     );
   });
 
@@ -108,11 +111,12 @@ describe("GeneralSection terminal settings", () => {
 
   it("uses cmdSpace's self-hosted remote UI instead of a project port", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const tunnel = readFileSync(tunnelHookPath, "utf8");
     const hub = readFileSync(remoteHubPath, "utf8");
     const remoteSource = readFileSync(remoteAccessPath, "utf8");
 
     expect(remoteSource).toContain("export function remoteAccessStart()");
-    expect(source).toContain("remoteAccessStart()");
+    expect(`${source}\n${tunnel}`).toContain("remoteAccessStart()");
     expect(hub).toContain("Public connection");
     expect(hub).toContain("Turn on Remote access");
     expect(source).not.toContain("Local app source");
@@ -132,10 +136,11 @@ describe("GeneralSection terminal settings", () => {
 
   it("shows a bootstrap QR without exposing pairing-code controls", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const tunnel = readFileSync(tunnelHookPath, "utf8");
     const remoteSource = readFileSync(remoteAccessPath, "utf8");
 
     expect(remoteSource).toContain("bootstrapSecret?: string");
-    expect(source).toContain("remoteBootstrapSecret");
+    expect(`${source}\n${tunnel}`).toContain("bootstrapSecret");
     expect(source).toContain("remoteQrUrl");
     expect(source).not.toContain("Pairing code");
     expect(source).not.toContain("PAIRING_CODE_VISIBLE_MS");
@@ -159,29 +164,34 @@ describe("GeneralSection terminal settings", () => {
 
   it("clears a native pairing QR when the public tunnel hostname changes", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const pairing = readFileSync(pairingHookPath, "utf8");
 
-    expect(source).toContain("setDevicePairing(null);\n  }, [remotePublicUrl]);");
+    expect(`${source}\n${pairing}`).toContain("setPairing(null);");
+    expect(pairing).toContain("[publicUrl]");
   });
 
   it("renders an Android-safe setup path with the first-setup bootstrap secret", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const tunnel = readFileSync(tunnelHookPath, "utf8");
     const hub = readFileSync(remoteHubPath, "utf8");
 
     expect(hub).toContain('import QRCode from "react-qr-code"');
     expect(hub).toContain("Scan to connect");
     expect(hub).toContain("value={setupQrUrl}");
-    expect(source).toContain('url.pathname = `/setup/${encodeURIComponent(bootstrapSecret)}`');
+    expect(`${source}\n${tunnel}`).toContain('url.pathname = `/setup/${encodeURIComponent(bootstrapSecret)}`');
     expect(source).not.toContain("value={remoteBootstrapSecret}");
   });
 
   it("lets the Mac owner reset a forgotten remote password", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const tunnel = readFileSync(tunnelHookPath, "utf8");
+    const remoteSource = `${source}\n${tunnel}`;
 
     expect(source).toContain("Reset remote password");
-    expect(source).toContain("remoteAccessResetPassword()");
+    expect(`${source}\n${tunnel}`).toContain("remoteAccessResetPassword()");
     expect(source).toContain("<AlertDialog open={remoteResetDialogOpen}");
     expect(source).toContain("setRemoteResetDialogOpen(true)");
-    expect(source).toContain("Password reset. Scan the new QR");
+    expect(remoteSource).toContain("Password reset. Scan the new QR");
     expect(source).toContain("sign out every connected device");
     expect(source).not.toContain("Signs out every connected device and creates a new setup QR.");
     expect(source).not.toContain("Remote web UI is running from cmdSpace. No separate app port is");
@@ -200,16 +210,17 @@ describe("GeneralSection terminal settings", () => {
 
   it("confirms copied remote links and keeps the reset action visually separate without a divider", () => {
     const source = readFileSync(generalSectionPath, "utf8");
+    const tunnel = readFileSync(tunnelHookPath, "utf8");
     const hub = readFileSync(remoteHubPath, "utf8");
 
-    expect(source).toContain('setCopiedRemoteLink] = useState<');
-    expect(source).toContain('"public" | "lan" | "device" | null');
-    expect(source).toContain("setCopiedRemoteLink(kind)");
+    expect(tunnel).toContain('setCopiedLink] = useState<');
+    expect(tunnel).toContain('"public" | "lan" | "device" | null');
+    expect(tunnel).toContain("setCopiedLink(kind)");
     expect(hub).toContain('copiedLink === "public"');
     expect(hub).toContain('copiedLink === "lan"');
     expect(hub).toContain("CheckmarkCircle01Icon");
     expect(hub).toContain('title={copiedLink === "public" ? "Copied" : "Copy public link"}');
-    expect(source).toContain('"public" | "lan" | "device" | null');
+    expect(tunnel).toContain('"public" | "lan" | "device" | null');
     expect(hub).toContain("Copy pairing link");
     expect(source).toContain("pairingUrl={nativeDevicePairingUrl}");
     expect(hub).toContain('copiedLink === "device"');

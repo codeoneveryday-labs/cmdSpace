@@ -45,8 +45,21 @@ before staging and committing.
   is, module map, Rust command map, how to add a feature, how to debug, how to
   ship. Read it once before working.
 - [`CMDSPACE.md`](CMDSPACE.md) — the authoritative living architecture doc.
+- [`docs/architecture/design-patterns.md`](docs/architecture/design-patterns.md)
+  — mandatory pattern contract. Before coding, identify the applicable pattern
+  seam and preserve its invariants; report affected patterns and verification.
 
 ## cmdSpace Project Guidance
+
+### Design pattern contract
+
+All coding agents MUST follow
+[`docs/architecture/design-patterns.md`](docs/architecture/design-patterns.md)
+for every applicable change. Reuse its existing seams and sources of truth.
+Do not introduce, remove, or bypass an architectural pattern or invariant
+without documenting the reason and updating an ADR when the decision is
+durable. “100% follow” applies to applicable code; it does not justify forcing
+an unrelated pattern into a simple implementation.
 
 - The desktop app is React 19 + Vite + TypeScript under `src/`; native and
   privileged behavior lives in the Tauri/Rust crate under `src-tauri/`. Keep

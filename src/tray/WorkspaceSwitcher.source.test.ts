@@ -21,10 +21,10 @@ describe("menu bar workspace switcher wiring", () => {
   });
 
   it("refreshes SQLite workspaces whenever the native popup opens", () => {
-    const source = readFileSync(
-      path.join(root, "src/tray/WorkspaceSwitcher.tsx"),
-      "utf8",
-    );
+    const source = [
+      readFileSync(path.join(root, "src/tray/WorkspaceSwitcher.tsx"), "utf8"),
+      readFileSync(path.join(root, "src/tray/useTrayWorkspaceData.ts"), "utf8"),
+    ].join("\n");
 
     expect(source).toContain('invoke<TrayWorkspace[]>("db_list_workspaces")');
     expect(source).toContain('listen("cmdspace:tray-opened"');
@@ -36,10 +36,10 @@ describe("menu bar workspace switcher wiring", () => {
   });
 
   it("shows compact usage only for enabled providers that report data", () => {
-    const source = readFileSync(
-      path.join(root, "src/tray/WorkspaceSwitcher.tsx"),
-      "utf8",
-    );
+    const source = [
+      readFileSync(path.join(root, "src/tray/WorkspaceSwitcher.tsx"), "utf8"),
+      readFileSync(path.join(root, "src/tray/useTrayProviderUsage.ts"), "utf8"),
+    ].join("\n");
 
     expect(source).toContain("getEnabledCliAgentDefinitions");
     expect(source).toContain("loadPreferences");
@@ -98,7 +98,10 @@ describe("menu bar workspace switcher wiring", () => {
       path.join(root, "src/app/lib/useWorkspaceSelectionController.ts"),
       "utf8",
     );
-    const tauri = readFileSync(path.join(root, "src-tauri/src/window_commands.rs"), "utf8");
+    const tauri = readFileSync(
+      path.join(root, "src-tauri/src/window_workspace_switcher.rs"),
+      "utf8",
+    );
 
     expect(selection).toContain("selectionRequestRef");
     expect(selection).toContain("selectWorkspaceRef.current(event.payload)");
@@ -110,7 +113,10 @@ describe("menu bar workspace switcher wiring", () => {
   });
 
   it("uses the transparent monochrome menu bar asset instead of the app icon", () => {
-    const tauri = readFileSync(path.join(root, "src-tauri/src/window_commands.rs"), "utf8");
+    const tauri = readFileSync(
+      path.join(root, "src-tauri/src/window_workspace_switcher.rs"),
+      "utf8",
+    );
 
     expect(existsSync(path.join(root, "src-tauri/icons/trayTemplate.png"))).toBe(
       true,

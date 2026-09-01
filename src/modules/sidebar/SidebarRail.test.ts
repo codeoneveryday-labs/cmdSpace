@@ -4,15 +4,15 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const sidebarRailPath = path.join(here, "SidebarRail.tsx");
-const appPath = path.join(here, "../../app/App.tsx");
+const appSidebarPath = path.join(here, "../../app/AppSidebar.tsx");
 
 describe("sidebar rails", () => {
   it("does not duplicate the main sidebar rail at the bottom", () => {
-    const appSource = readFileSync(appPath, "utf8");
-    const mainRailUses = appSource.match(/<SidebarRail\b/g) ?? [];
+    const sidebarSource = readFileSync(appSidebarPath, "utf8");
+    const mainRailUses = sidebarSource.match(/<SidebarRail\b/g) ?? [];
     expect(mainRailUses).toHaveLength(1);
-    expect(appSource).toContain("<EditorSidebarRail");
-    expect(appSource).toContain("<SourceControlPanel");
+    expect(sidebarSource).toContain("<EditorSidebarRail");
+    expect(sidebarSource).toContain("<SourceControlPanel");
   });
 
   it("uses Files and Source Control as the editor bottom rail", () => {
