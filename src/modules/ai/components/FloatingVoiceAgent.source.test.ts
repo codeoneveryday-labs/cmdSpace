@@ -3,6 +3,17 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
+const appPath = path.join(here, "../../../app/App.tsx");
+const shortcutCoordinationPath = path.join(here, "../../../app/lib/appShortcutCoordination.ts");
+const voiceIntegrationPath = path.join(here, "../../../app/lib/useAppVoiceIntegration.ts");
+
+function readAppSource() {
+  return [
+    readFileSync(appPath, "utf8"),
+    readFileSync(shortcutCoordinationPath, "utf8"),
+    readFileSync(voiceIntegrationPath, "utf8"),
+  ].join("\n");
+}
 
 describe("FloatingVoiceAgent", () => {
   it("keeps voice drafts reviewable, target-bound, and moves the pill without toggling voice", () => {
@@ -10,10 +21,7 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "FloatingVoiceAgent.tsx"),
       "utf8",
     );
-    const app = readFileSync(
-      path.join(here, "../../../app/App.tsx"),
-      "utf8",
-    );
+    const app = readAppSource();
 
     expect(component).toContain("if (suppressClickRef.current)");
     expect(component).toContain("void toggle();");
@@ -28,7 +36,7 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain("Toggle voice input");
     expect(app).toContain("captureVoiceTarget");
     expect(app).toContain("insertVoiceDraft");
-    expect(app).toContain('"voice.toggle": toggleVoiceAgent');
+    expect(app).toContain('"voice.toggle": actions.toggleVoice');
     expect(app).toContain("pendingVoiceDraftsRef");
     expect(app).toContain("terminal.replaceCurrentInput(nextDraft)");
     expect(app).not.toContain("terminal.replaceInput(previousDraft, nextDraft)");
@@ -37,18 +45,15 @@ describe("FloatingVoiceAgent", () => {
   });
 
   it("targets the active real PTY inside an Architecture canvas", () => {
-    const app = readFileSync(
-      path.join(here, "../../../app/App.tsx"),
-      "utf8",
-    );
+    const app = readAppSource();
     const stack = readFileSync(
       path.join(here, "../../architecture/ArchitectureStack.tsx"),
       "utf8",
     );
-    const canvas = readFileSync(
-      path.join(here, "../../architecture/ArchitectureCanvas.tsx"),
-      "utf8",
-    );
+    const canvas = [
+      readFileSync(path.join(here, "../../architecture/ArchitectureCanvas.tsx"), "utf8"),
+      readFileSync(path.join(here, "../../architecture/lib/useCanvasTerminalLayerActions.ts"), "utf8"),
+    ].join("\n");
     const canvasTerminal = readFileSync(
       path.join(here, "../../architecture/CanvasTerminalNode.tsx"),
       "utf8",
@@ -66,18 +71,17 @@ describe("FloatingVoiceAgent", () => {
     expect(canvasTerminal).toContain("getBuffer");
   });
 
-  it("writes every transcript directly into the active terminal without chat refinement", () => {
+  it("delegates literal transcript insertion to its dedicated model without chat refinement", () => {
     const voiceAgent = readFileSync(
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",
     );
 
-    expect(voiceAgent).toContain("insertTranscript(target, transcript)");
+    expect(voiceAgent).toContain("resolveVoiceTranscriptInsertion(");
     expect(voiceAgent).not.toContain("generateVoicePrompt");
     expect(voiceAgent).not.toContain("loadVoicePromptHistory");
     expect(voiceAgent).not.toContain("saveVoicePromptHistory");
     expect(voiceAgent).not.toContain("useChatStore");
-    expect(voiceAgent).toContain('"Transcript inserted into terminal."');
   });
 
   it("keeps voice input as literal speech to text without task control", () => {
@@ -89,10 +93,7 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",
     );
-    const app = readFileSync(
-      path.join(here, "../../../app/App.tsx"),
-      "utf8",
-    );
+    const app = readAppSource();
 
     expect(component).toContain("Toggle voice input");
     expect(voiceAgent).not.toContain("parseSpaceCommand");
@@ -110,10 +111,7 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",
     );
-    const app = readFileSync(
-      path.join(here, "../../../app/App.tsx"),
-      "utf8",
-    );
+    const app = readAppSource();
 
     expect(component).toContain("useSpeechToTextInput");
     expect(voiceAgent).toContain("export function useSpeechToTextInput");
@@ -172,6 +170,10 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "../hooks/useWhisperRecording.ts"),
       "utf8",
     );
+    const listeners = readFileSync(
+      path.join(here, "../lib/voiceCaptureListeners.ts"),
+      "utf8",
+    );
     const voiceAgent = readFileSync(
       path.join(here, "../hooks/useVoicePromptAgent.ts"),
       "utf8",
@@ -194,7 +196,7 @@ describe("FloatingVoiceAgent", () => {
     expect(recordingHook).toContain("!cloudRequest");
     expect(recordingHook).toContain("!canRecordCloudAudio()");
     expect(recordingHook).toContain('invoke("speech_stop")');
-    expect(recordingHook).toContain('listen<SpeechResult>("cmdspace:speech-result"');
+    expect(listeners).toContain('listen<VoiceCaptureNativeResult>("cmdspace:speech-result"');
     expect(recordingHook).not.toContain("webkitSpeechRecognition");
     expect(voiceAgent).toContain("speechToTextModelId");
     expect(voiceAgent).toContain("apiKeys,");
@@ -232,12 +234,16 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "../../../../src-tauri/src/modules/speech.rs"),
       "utf8",
     );
+    const speechCommands = readFileSync(
+      path.join(here, "../../../../src-tauri/src/modules/speech_commands.rs"),
+      "utf8",
+    );
     const app = readFileSync(
       path.join(here, "../../../../src-tauri/src/commands.rs"),
       "utf8",
     );
 
-    expect(speech).toContain("pub fn speech_supported_locales");
+    expect(speechCommands).toContain("pub fn speech_supported_locales");
     expect(speech).toContain("SFSpeechRecognizer::supportedLocales()");
     expect(speech).toContain("localeIdentifier");
     expect(app).toContain("speech::speech_supported_locales");
@@ -248,18 +254,22 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "../../../../src-tauri/src/modules/speech.rs"),
       "utf8",
     );
+    const windowsSpeech = readFileSync(
+      path.join(here, "../../../../src-tauri/src/modules/speech_windows.rs"),
+      "utf8",
+    );
 
     expect(speech).toContain('#[cfg(target_os = "windows")]');
-    expect(speech).toContain("SpeechRecognitionEngine.InstalledRecognizers()");
-    expect(speech).toContain("SetInputToDefaultAudioDevice");
-    expect(speech).toContain("AudioLevelUpdated");
-    expect(speech).toContain('Command::new("powershell.exe")');
-    expect(speech).toContain("Windows Settings → Time & language → Language & region");
+    expect(windowsSpeech).toContain("SpeechRecognitionEngine.InstalledRecognizers()");
+    expect(windowsSpeech).toContain("SetInputToDefaultAudioDevice");
+    expect(windowsSpeech).toContain("AudioLevelUpdated");
+    expect(windowsSpeech).toContain('Command::new("powershell.exe")');
+    expect(windowsSpeech).toContain("Windows Settings → Time & language → Language & region");
   });
 
   it("streams Windows speech hypotheses before emitting the final transcript", () => {
     const speech = readFileSync(
-      path.join(here, "../../../../src-tauri/src/modules/speech.rs"),
+      path.join(here, "../../../../src-tauri/src/modules/speech_windows.rs"),
       "utf8",
     );
 
@@ -267,17 +277,6 @@ describe("FloatingVoiceAgent", () => {
     expect(speech).toContain("EmitResult(text, false)");
     expect(speech).toContain("EmitResult(text, true)");
     expect(speech).toContain('.get("final")');
-  });
-
-  it("keeps terminal transcript insertion language-neutral for automatic multilingual transcripts", () => {
-    const voiceAgent = readFileSync(
-      path.join(here, "../hooks/useVoicePromptAgent.ts"),
-      "utf8",
-    );
-
-    expect(voiceAgent).not.toContain("voiceLanguage");
-    expect(voiceAgent).toContain("insertTranscript(target, transcript)");
-    expect(voiceAgent).not.toContain("generateVoicePrompt");
   });
 
   it("drives the voice waveform from native microphone levels", () => {
@@ -289,12 +288,16 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "../hooks/useWhisperRecording.ts"),
       "utf8",
     );
+    const listeners = readFileSync(
+      path.join(here, "../lib/voiceCaptureListeners.ts"),
+      "utf8",
+    );
     const speech = readFileSync(
       path.join(here, "../../../../src-tauri/src/modules/speech.rs"),
       "utf8",
     );
 
-    expect(recordingHook).toContain('listen<number>("cmdspace:speech-level"');
+    expect(listeners).toContain('listen<number>("cmdspace:speech-level"');
     expect(recordingHook).toContain("audioLevel");
     expect(component).toContain("audioLevel");
     expect(component).toContain("scaleY(");

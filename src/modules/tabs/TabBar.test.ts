@@ -4,19 +4,32 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const tabBarPath = path.join(here, "TabBar.tsx");
+const tabBarDragPath = path.join(here, "useTabBarDrag.ts");
 const useTabsPath = path.join(here, "lib/useTabs.ts");
+const tabTransitionsPath = path.join(here, "lib/tabTransitions.ts");
 const headerPath = path.join(here, "../header/Header.tsx");
 const appPath = path.join(here, "../../app/App.tsx");
+const appShortcutPath = path.join(here, "../../app/lib/appShortcutCoordination.ts");
+
+function readAppShortcutSource() {
+  return [readFileSync(appPath, "utf8"), readFileSync(appShortcutPath, "utf8")].join("\n");
+}
 
 describe("TabBar drag reorder", () => {
   it("keeps tabs draggable without making the tab strip a window drag region", () => {
-    const tabBarSource = readFileSync(tabBarPath, "utf8");
-    const useTabsSource = readFileSync(useTabsPath, "utf8");
+    const tabBarSource = [
+      readFileSync(tabBarPath, "utf8"),
+      readFileSync(tabBarDragPath, "utf8"),
+    ].join("\n");
+    const useTabsSource = [
+      readFileSync(useTabsPath, "utf8"),
+      readFileSync(tabTransitionsPath, "utf8"),
+    ].join("\n");
     const headerSource = readFileSync(headerPath, "utf8");
-    const appSource = readFileSync(appPath, "utf8");
+    const appSource = readAppShortcutSource();
 
     expect(useTabsSource).toContain("const reorderTab");
-    expect(useTabsSource).toContain('placement: "before" | "after" = "before"');
+    expect(useTabsSource).toContain('placement: TabPlacement = "before"');
     expect(useTabsSource).toContain("next.splice(insertAt, 0, dragged)");
     expect(tabBarSource).toContain("onPointerDown");
     expect(tabBarSource).toContain('window.addEventListener("pointermove"');
@@ -61,7 +74,7 @@ describe("TabBar drag reorder", () => {
   it("dims Git Graph when the active workspace is not a Git repository", () => {
     const tabBarSource = readFileSync(tabBarPath, "utf8");
     const headerSource = readFileSync(headerPath, "utf8");
-    const appSource = readFileSync(appPath, "utf8");
+    const appSource = readAppShortcutSource();
 
     expect(tabBarSource).toContain("canNewGitGraph: boolean");
     expect(tabBarSource).toContain("disabled={!canNewGitGraph}");
@@ -70,14 +83,18 @@ describe("TabBar drag reorder", () => {
     expect(headerSource).toContain("canNewGitGraph: boolean");
     expect(headerSource).toContain("canNewGitGraph={canNewGitGraph}");
     expect(appSource).toContain("canNewGitGraph={sourceControl.hasRepo}");
-    expect(appSource).toContain('if (id === "tab.newGitGraph")');
-    expect(appSource).toContain("return !sourceControl.hasRepo;");
+    expect(appSource).toContain("if (actions.hasGitRepository)");
+    expect(appSource).toContain("return !hasGitRepository;");
   });
 
   it("shows Music CLI in the main tab menu and animates its icon during playback", () => {
-    const tabBarSource = readFileSync(tabBarPath, "utf8");
+    const tabBarSource = [
+      readFileSync(tabBarPath, "utf8"),
+      readFileSync(path.join(here, "useTabBarMusicState.ts"), "utf8"),
+      readFileSync(path.join(here, "TabBarTabContent.tsx"), "utf8"),
+    ].join("\n");
     const headerSource = readFileSync(headerPath, "utf8");
-    const appSource = readFileSync(appPath, "utf8");
+    const appSource = readAppShortcutSource();
 
     expect(tabBarSource).toContain("onNewMusic");
     expect(tabBarSource).toContain('label="Music CLI"');
@@ -91,7 +108,10 @@ describe("TabBar drag reorder", () => {
   });
 
   it("keeps agent logos compact in tab labels", () => {
-    const tabBarSource = readFileSync(tabBarPath, "utf8");
+    const tabBarSource = [
+      readFileSync(tabBarPath, "utf8"),
+      readFileSync(path.join(here, "TabBarTabContent.tsx"), "utf8"),
+    ].join("\n");
 
     expect(tabBarSource).toContain('<AgentCliIcon agent={agent} size="xxs" className="shrink-0" />');
   });

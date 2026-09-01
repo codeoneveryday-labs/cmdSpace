@@ -1,19 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { ProviderKeys } from "../lib/keyring";
+import {
+  resolveVoiceTranscriptInsertion,
+  type SpeechInputTarget,
+} from "../lib/voiceTranscriptInsertionModel";
 import { useWhisperRecording } from "./useWhisperRecording";
 
-export type SpeechInputTarget =
-  | {
-      kind: "terminal-pane";
-      tabId: number;
-      terminalId: number;
-    }
-  | {
-      kind: "canvas-terminal";
-      tabId: number;
-      terminalId: string;
-    };
+export type { SpeechInputTarget } from "../lib/voiceTranscriptInsertionModel";
 
 export type SpeechInputStatus =
   | "idle"
@@ -31,12 +25,6 @@ type Options = {
 };
 
 const READY_DURATION_MS = 2_800;
-
-function messageFor(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : "Voice transcript insertion failed. Try again.";
-}
 
 export function useSpeechToTextInput({
   apiKeys,
@@ -72,26 +60,20 @@ export function useSpeechToTextInput({
 
   const handleTranscript = useCallback(
     async (transcript: string) => {
-      const target = targetRef.current;
-      if (!target) {
-        setError("The target terminal is no longer available.");
-        return;
-      }
-
       setPhase("inserting");
       setMessage("Inserting transcript…");
-      try {
-        if (!insertTranscript(target, transcript)) {
-          throw new Error(
-            "The terminal is busy. Wait for the command to finish, then try again.",
-          );
-        }
-        setPhase("ready");
-        setMessage("Transcript inserted into terminal.");
-        clearLater();
-      } catch (error) {
-        setError(messageFor(error));
+      const outcome = resolveVoiceTranscriptInsertion(
+        targetRef.current,
+        transcript,
+        insertTranscript,
+      );
+      if (outcome.kind === "error") {
+        setError(outcome.message);
+        return;
       }
+      setPhase("ready");
+      setMessage(outcome.message);
+      clearLater();
     },
     [clearLater, insertTranscript, setError],
   );
