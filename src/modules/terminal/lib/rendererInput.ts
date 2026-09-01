@@ -1,7 +1,15 @@
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { Terminal } from "@xterm/xterm";
 import { terminalLineBoundarySequence, terminalWordNavigationSequence } from "./keymap";
-import { createMacCompositionCommitFilter, IS_MAC_TEXT_INPUT_PLATFORM, normalizeMacTerminalInput } from "./macImeBridge";
+import {
+  attachMacImeBridge,
+  createMacCompositionCommitFilter,
+  createMacTextInputDeduplicator,
+  IS_MAC_TEXT_INPUT_PLATFORM,
+  normalizeMacTerminalInput,
+  shouldIgnoreMacPrintableTerminalData,
+  shouldUseMacTextInputPath,
+} from "./macImeBridge";
 import { isTerminalCopyShortcut, terminalEditingSequence } from "./terminalInputShortcuts";
 import { traceTerminalInput } from "./terminal-native";
 import type { Slot, SlotAdapter } from "./rendererPool";
@@ -20,6 +28,15 @@ export function configureRendererInput(
   adapter: Pick<SlotAdapter, "resolveLeaf">,
 ): void {
     const compositionCommitFilter = createMacCompositionCommitFilter();
+    const macTextInput = IS_MAC_TEXT_INPUT_PLATFORM
+      ? createMacTextInputDeduplicator((data) => {
+          const leafId = slot.currentLeafId;
+          if (leafId !== null) adapter.resolveLeaf(leafId)?.writeToPty(data);
+        })
+      : null;
+    if (macTextInput) {
+      attachMacImeBridge(slot.term, (data) => macTextInput.writeBridgeData(data));
+    }
     if (IS_MAC_TEXT_INPUT_PLATFORM) {
       slot.term.textarea?.addEventListener(
         "compositionend",
@@ -44,6 +61,7 @@ export function configureRendererInput(
         }
         return true;
       }
+      if (shouldUseMacTextInputPath(event)) return false;
 
       const lineBoundary = terminalLineBoundarySequence(event);
       if (lineBoundary) {
@@ -96,6 +114,7 @@ export function configureRendererInput(
       // terminal metadata, not user input; forwarding them can corrupt zsh's
       // history recall when a report arrives alongside an arrow key sequence.
       if (OSC_COLOR_REPORT.test(data)) return;
+      if (shouldIgnoreMacPrintableTerminalData(data)) return;
 
       const bridge = adapter?.resolveLeaf(leafId);
       if (!bridge) return;
@@ -111,7 +130,8 @@ export function configureRendererInput(
       if (normalized.includes("\r") || normalized.includes("\n")) {
         bridge.observeInputLine?.(currentInputLine(slot.term));
       }
-      bridge.writeToPty(normalized);
+      if (macTextInput) macTextInput.writeXtermData(normalized);
+      else bridge.writeToPty(normalized);
     });
 
   function currentInputLine(term: Terminal): string {

@@ -21,7 +21,7 @@ import {
   prepareTerminalSessionRespawn,
   resolveTerminalExitDisposition,
 } from "./terminalSessionRuntimeModel";
-import { flushInitialCommand, scheduleInitialCommandFallback } from "./terminalSessionCommandLifecycle";
+import { flushInitialCommand } from "./terminalSessionCommandLifecycle";
 import { waitForTerminalSessionReady } from "./terminalSessionReady";
 import { resolveAgentOutputActivity } from "./terminalAgentOutputModel";
 import { detachTerminalSession, unbindTerminalSessionFromSlot } from "./terminalSessionAttachment";
@@ -266,6 +266,7 @@ async function openPtyForSession(
       },
     },
     cwd,
+    s.initialCommand,
   );
   setPtyLeaf(pty.id, leafId);
   return pty;
@@ -346,8 +347,8 @@ export function attachSession(
           return;
         }
         s.pty = pty;
+        s.initialCommand = undefined;
         if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
-        scheduleInitialCommandFallback(leafId, s);
       })
       .catch((e) => {
         s.ptyOpening = false;
