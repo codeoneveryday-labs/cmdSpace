@@ -93,17 +93,17 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain("box-shadow: none !important;");
   });
 
-  it("leaves macOS IME composition to xterm's native input path", () => {
+  it("uses a macOS IME bridge when xterm misses WebKit composition commits", () => {
     const source = readRendererSource();
     const imeSource = readFileSync(macImeBridgePath, "utf8");
 
-    expect(source).not.toContain("attachMacImeBridge");
-    expect(source).not.toContain("createMacTextInputDeduplicator");
-    expect(source).not.toContain("shouldUseMacTextInputPath");
-    expect(source).not.toContain("shouldIgnoreMacPrintableTerminalData");
-    expect(imeSource).not.toContain("stopImmediatePropagation");
+    expect(source).toContain("attachMacImeBridge");
+    expect(source).toContain("createMacTextInputDeduplicator");
+    expect(source).toContain("shouldUseMacTextInputPath");
+    expect(source).toContain("shouldIgnoreMacPrintableTerminalData");
+    expect(imeSource).toContain("stopImmediatePropagation");
     expect(imeSource).toContain("IS_MAC_TEXT_INPUT_PLATFORM");
-    expect(source).toContain("bridge.writeToPty(normalized);");
+    expect(source).toContain("macTextInput.writeXtermData(normalized);");
   });
 
   it("lets xterm own native paste and text input", () => {
@@ -113,13 +113,13 @@ describe("rendererPool WebGL stability", () => {
     expect(source).not.toContain("navigator.clipboard\n          .readText()");
   });
 
-  it("routes a plain space once through xterm's native onData callback", () => {
+  it("routes a plain space once through the shared macOS input path", () => {
     const rendererSource = readRendererSource();
     const canvasSource = readFileSync(canvasTerminalNodePath, "utf8");
 
     expect(rendererSource).not.toContain("isPlainSpaceKey(event)");
     expect(canvasSource).not.toContain("isPlainSpaceKey(event)");
-    expect(rendererSource).toContain("bridge.writeToPty(normalized);");
+    expect(rendererSource).toContain("macTextInput.writeXtermData(normalized);");
     expect(canvasSource).toContain("sessionRef.current?.write(normalized)");
   });
 

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 
 export function useWorkspaceSetupNavigation({
@@ -16,6 +16,19 @@ export function useWorkspaceSetupNavigation({
   openWorkspace: (commands: string[]) => void;
   onCancel: () => void;
 }) {
+  const latestLaunch = useRef({
+    setupStep,
+    plannedAgentCommands,
+    selectedChatAgent,
+    openWorkspace,
+  });
+  latestLaunch.current = {
+    setupStep,
+    plannedAgentCommands,
+    selectedChatAgent,
+    openWorkspace,
+  };
+
   const handleBack = useCallback(() => {
     if (setupStep === "agents") {
       setSetupStep("layout");
@@ -25,14 +38,15 @@ export function useWorkspaceSetupNavigation({
   }, [onCancel, setSetupStep, setupStep]);
 
   const handlePrimaryAction = useCallback(() => {
-    if (setupStep === "layout") {
+    const launch = latestLaunch.current;
+    if (launch.setupStep === "layout") {
       setSetupStep("agents");
       return;
     }
-    if (plannedAgentCommands.length > 0 && selectedChatAgent) {
-      openWorkspace(plannedAgentCommands);
+    if (launch.plannedAgentCommands.length > 0 && launch.selectedChatAgent) {
+      launch.openWorkspace(launch.plannedAgentCommands);
     }
-  }, [openWorkspace, plannedAgentCommands, selectedChatAgent, setSetupStep, setupStep]);
+  }, [setSetupStep]);
 
   return { handleBack, handlePrimaryAction };
 }

@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { createMacCompositionCommitFilter } from "./macImeBridge";
+import {
+  createMacCompositionCommitFilter,
+  createMacTextInputDeduplicator,
+} from "./macImeBridge";
 
 /**
  * Regression test for duplicate Telex batches and trailing spaces. xterm's
@@ -10,14 +13,25 @@ import { createMacCompositionCommitFilter } from "./macImeBridge";
  * sources and makes event-order deduplication inherently timing-dependent.
  */
 
-describe("macOS IME single-input path", () => {
-  it("does not install a second textarea writer beside xterm", () => {
+describe("macOS IME bridge", () => {
+  it("forwards one committed Telex batch when xterm reports its duplicate", async () => {
+    const writes: string[] = [];
+    const input = createMacTextInputDeduplicator((data) => writes.push(data));
+
+    input.writeBridgeData("tiếng");
+    input.writeXtermData("tiếng");
+    await Promise.resolve();
+
+    expect(writes).toEqual(["tiếng"]);
+  });
+
+  it("owns committed textarea input and suppresses xterm's duplicate", () => {
     const here = path.dirname(new URL(import.meta.url).pathname);
     const imeSource = readFileSync(path.join(here, "macImeBridge.ts"), "utf8");
 
-    expect(imeSource).not.toContain("attachMacImeBridge");
-    expect(imeSource).not.toContain("createMacTextInputDeduplicator");
-    expect(imeSource).not.toContain("stopImmediatePropagation");
+    expect(imeSource).toContain("attachMacImeBridge");
+    expect(imeSource).toContain("createMacTextInputDeduplicator");
+    expect(imeSource).toContain("stopImmediatePropagation");
   });
 
   it("renders active composition as terminal input instead of a selection block", () => {
