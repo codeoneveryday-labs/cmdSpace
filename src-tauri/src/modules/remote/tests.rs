@@ -14,9 +14,11 @@ use super::http::{
     development_remote_ui_dir, prepare_client_stream, remote_bearer_token, remote_state_response,
     remote_ui_dir_from,
 };
+#[cfg(unix)]
+use super::runtime::build_remote_shell_command;
 use super::runtime::{
-    authorize_remote_cwd, build_remote_shell_command, close_remote_session,
-    remote_folders_response, spawn_remote_terminal, strip_verbatim_prefix,
+    authorize_remote_cwd, close_remote_session, remote_folders_response, spawn_remote_terminal,
+    strip_verbatim_prefix,
 };
 use super::server::{handle_connection, select_lan_ip};
 use super::sessions::{RemoteOutput, RemoteRuntime, REMOTE_SESSION_ID_START};
