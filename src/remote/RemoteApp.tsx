@@ -13,6 +13,11 @@ import {
   type RemoteProtocolSession,
 } from "./remoteClient";
 import { remoteFolderName } from "./lib/remoteUtils";
+import {
+  sessionsForRemoteCwd,
+  shouldRetryRemoteSessionCreate,
+  visibleRemoteSession,
+} from "./lib/remoteSessionLifecycleModel";
 
 const REMOTE_TOKEN_STORAGE_KEY = "cmdspace.remote.token";
 const REMOTE_CWD_STORAGE_KEY = "cmdspace.remote.cwd";
@@ -121,13 +126,7 @@ function AuthenticatedRemoteApp({
   }, [client, remoteCwd]);
 
   const cwdSessions = useMemo(
-    () =>
-      sessions.filter(
-        (session) =>
-          session.cwd &&
-          remoteCwd &&
-          session.cwd.replace(/\/+$/, "") === remoteCwd.replace(/\/+$/, ""),
-      ),
+    () => sessionsForRemoteCwd(sessions, remoteCwd),
     [remoteCwd, sessions],
   );
 
@@ -138,7 +137,7 @@ function AuthenticatedRemoteApp({
       let attempts = 0;
       const retry = window.setInterval(() => {
         attempts += 1;
-        if (attempts >= REMOTE_CREATE_RETRY_MAX_ATTEMPTS) {
+        if (!shouldRetryRemoteSessionCreate(attempts, REMOTE_CREATE_RETRY_MAX_ATTEMPTS)) {
           window.clearInterval(retry);
           return;
         }
@@ -224,7 +223,7 @@ function AuthenticatedRemoteApp({
     );
   }
 
-  const activeSession = cwdSessions.find((session) => session.id === activeSessionId) ?? null;
+  const activeSession = visibleRemoteSession(cwdSessions, activeSessionId);
 
   return (
     <main className="remote-shell" style={{ height: `${viewportHeight}px` }}>

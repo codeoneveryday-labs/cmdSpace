@@ -29,15 +29,28 @@ pub struct RemoteRelayAdmission {
 /// Control messages used only between the durable relay and its two peers.
 /// Device payloads themselves remain the existing native v3 envelopes.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum RemoteRelayControlMessage {
-    RelayReady { connection_id: Option<String> },
+    RelayReady {
+        connection_id: Option<String>,
+    },
     Heartbeat,
     HeartbeatAck,
     DesktopOffline,
-    DeviceOpen { connection_id: String },
-    DeviceFrame { connection_id: String, payload: String },
-    DeviceClose { connection_id: String },
+    DeviceOpen {
+        connection_id: String,
+    },
+    DeviceFrame {
+        connection_id: String,
+        payload: String,
+    },
+    DeviceClose {
+        connection_id: String,
+    },
 }
 
 #[derive(Default)]

@@ -64,6 +64,17 @@ fn commands_wait_for_authentication_then_flush_in_order() {
 }
 
 #[test]
+fn provider_snapshots_are_ignored_by_the_platform_neutral_client() {
+    let mut client = RemoteClient::new("device-token");
+
+    assert!(client
+        .handle(ServerMessage::ProvidersSnapshot {
+            providers: Vec::new()
+        })
+        .is_empty());
+}
+
+#[test]
 fn output_is_deduplicated_and_runtime_restart_replays_from_zero() {
     let mut client = RemoteClient::new("device-token");
     client.connection_opened();

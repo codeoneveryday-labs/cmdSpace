@@ -1,6 +1,6 @@
 use super::remote_tunnel::{
-    cloudflared_origin_registered, cloudflared_quick_tunnel_args, extract_public_https_url,
-    cloudflared_origin_unregistered, localhost_run_ssh_args, public_tunnel_host, TunnelState,
+    cloudflared_origin_registered, cloudflared_origin_unregistered, cloudflared_quick_tunnel_args,
+    extract_public_https_url, localhost_run_ssh_args, public_tunnel_host, TunnelState,
 };
 
 #[cfg(unix)]
@@ -59,8 +59,14 @@ fn extracts_the_host_that_the_supervisor_health_checks() {
         public_tunnel_host("https://quick-tunnel.trycloudflare.com/path"),
         Some("quick-tunnel.trycloudflare.com")
     );
-    assert_eq!(public_tunnel_host("https://localhost.run"), Some("localhost.run"));
-    assert_eq!(public_tunnel_host("http://quick-tunnel.trycloudflare.com"), None);
+    assert_eq!(
+        public_tunnel_host("https://localhost.run"),
+        Some("localhost.run")
+    );
+    assert_eq!(
+        public_tunnel_host("http://quick-tunnel.trycloudflare.com"),
+        None
+    );
 }
 
 #[test]
