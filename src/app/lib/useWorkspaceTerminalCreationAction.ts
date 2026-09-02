@@ -13,6 +13,7 @@ export function useWorkspaceTerminalCreationAction({
   persistedPaneFor,
   buildPaneRecord,
   saveRecentWorkspace,
+  markWorkspacePaneLaunch,
   scheduleWorkspacePaneSessionSync,
   createWorkspaceTerminal,
 }: {
@@ -26,6 +27,7 @@ export function useWorkspaceTerminalCreationAction({
   persistedPaneFor: CreateWorkspaceTerminalInput["persistedPaneFor"];
   buildPaneRecord: CreateWorkspaceTerminalInput["buildPaneRecord"];
   saveRecentWorkspace: (workspace: WorkspaceRecord) => void;
+  markWorkspacePaneLaunch: CreateWorkspaceTerminalInput["markWorkspacePaneLaunch"];
   scheduleWorkspacePaneSessionSync: CreateWorkspaceTerminalInput["scheduleWorkspacePaneSessionSync"];
   createWorkspaceTerminal: (input: CreateWorkspaceTerminalInput) => boolean;
 }) {
@@ -43,6 +45,7 @@ export function useWorkspaceTerminalCreationAction({
         persistedPaneFor,
         buildPaneRecord,
         saveRecentWorkspace,
+        markWorkspacePaneLaunch,
         scheduleWorkspacePaneSessionSync,
         alert: (message) => window.alert(message),
       }),
@@ -51,6 +54,7 @@ export function useWorkspaceTerminalCreationAction({
       buildPaneRecord,
       canvasTerminalCreators,
       createWorkspaceTerminal,
+      markWorkspacePaneLaunch,
       newAgentChatTab,
       persistPaneRecord,
       persistedPaneFor,

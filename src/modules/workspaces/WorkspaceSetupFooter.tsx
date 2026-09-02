@@ -80,6 +80,7 @@ export function WorkspaceSetupFooter({
                   (!selectedChatAgent || !selectedFolder))
               }
               onClick={onPrimaryAction}
+              aria-label={`Launch ${plannedAgentCommands.length} configured agents in ${terminalCount} terminals`}
               className="w-full justify-center sm:w-auto"
             >
               {workspaceMode === "agent"

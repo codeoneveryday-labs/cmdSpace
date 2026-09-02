@@ -9,5 +9,6 @@ const source = readFileSync(
 describe("terminal session native bootstrap", () => {
   it("passes every pane launch command to the native PTY bootstrap", () => {
     expect(source).toContain("cwd,\n    s.initialCommand,");
+    expect(source).toContain("s.callbacks.onCommand?.(s.initialCommand)");
   });
 });

@@ -22,6 +22,10 @@ export type WorkspaceSelectionControllerInput = {
   saveRecentWorkspace: (workspace: WorkspaceRecord) => void;
   activateTab: (tabId: number) => void;
   updateTab: (tabId: number, patch: { diagram: ArchitectureDiagram }) => void;
+  replaceWorkspace?: (
+    workspaceId: string,
+    patch: Partial<Pick<WorkspaceRecord, "tabId" | "canvasTabId" | "agentTabIds" | "agentProviders" | "agentSessionIds" | "agentChatIds">>,
+  ) => void;
   persistCanvasDiagram: (tabId: number, diagram: ArchitectureDiagram) => void;
   createCanvasTab: (diagram: ArchitectureDiagram, title: string) => number;
   createAgentChatTab: (input: {
@@ -62,6 +66,7 @@ export function useWorkspaceSelectionController(
     saveRecentWorkspace,
     activateTab,
     updateTab,
+    replaceWorkspace,
     persistCanvasDiagram,
     createCanvasTab,
     createAgentChatTab,
@@ -88,7 +93,7 @@ export function useWorkspaceSelectionController(
     createCanvasTab,
     createAgentChatTab,
     createWorkspaceTab,
-    replaceWorkspace: (workspaceId, patch) => {
+    replaceWorkspace: replaceWorkspace ?? ((workspaceId, patch) => {
       workspacesRef.current = workspacesRef.current.map((workspace) =>
         workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
       );
@@ -97,7 +102,7 @@ export function useWorkspaceSelectionController(
           workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
         ),
       );
-    },
+    }),
     listWorkspacePanes: (workspaceId) =>
       invoke<WorkspaceSelectionPane[]>("db_list_panes", { workspaceId }),
     resolvePaneResumeCommands: async (workspaceId, panes, workspaceCwd) => {

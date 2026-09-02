@@ -21,6 +21,9 @@ describe("Voice settings section", () => {
     expect(section).toContain("!model.developmentOnly");
     expect(section).toContain("setSpeechToTextProviderIds");
     expect(section).toContain("setDisabledSpeechToTextProviderIds");
+    expect(section).toContain("ModelsSectionSkeleton");
+    expect(section).toContain('aria-label="Loading models"');
+    expect(section).toContain("MIN_KEYS_SKELETON_MS");
   });
 
   it("checks the selected STT provider and exposes a retryable status", () => {

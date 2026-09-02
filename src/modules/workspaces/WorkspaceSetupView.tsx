@@ -192,6 +192,10 @@ export function WorkspaceSetupView({
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
+    effectiveAgentCommands,
+    customCommand,
+    isolateAgentWorktrees,
+    agentWorktreeGroup,
     forkContext,
     forkPrompt,
     onOpenWithoutAi,
@@ -233,7 +237,7 @@ export function WorkspaceSetupView({
         forkPrompt={forkPrompt}
         setForkPrompt={setForkPrompt}
         onCancel={onCancel}
-        onCreate={() => openWorkspace([])}
+        onCreate={openWorkspace}
       />
     );
   }
@@ -337,7 +341,7 @@ export function WorkspaceSetupView({
           selectedChatAgent={selectedChatAgent}
           selectedFolder={selectedFolder}
           onBack={handleBack}
-          onOpenWorkspace={() => openWorkspace()}
+          onOpenWorkspace={openWorkspace}
           onPrimaryAction={handlePrimaryAction}
         />
       </div>

@@ -53,6 +53,7 @@ export function useWorkspaceController({
   const [workspacesHydrated, setWorkspacesHydrated] = useState(false);
   const persistedWorkspacePanesRef = useRef(persistedWorkspacePanes);
   persistedWorkspacePanesRef.current = persistedWorkspacePanes;
+  const pendingPaneWritesRef = useRef(new Set<Promise<unknown>>());
 
   const setPersistedPaneRecord = useCallback((pane: PersistedPaneRecord) => {
     const { workspaceId, ...persistedPane } = pane;
@@ -78,10 +79,22 @@ export function useWorkspaceController({
   const persistPaneRecord = useCallback(
     async (pane: PersistedPaneRecord) => {
       setPersistedPaneRecord(pane);
-      await invoke("db_save_pane", { pane });
+      const write = invoke("db_save_pane", { pane });
+      pendingPaneWritesRef.current.add(write);
+      try {
+        await write;
+      } finally {
+        pendingPaneWritesRef.current.delete(write);
+      }
     },
     [setPersistedPaneRecord],
   );
+
+  const flushPendingPaneWrites = useCallback(async () => {
+    while (pendingPaneWritesRef.current.size > 0) {
+      await Promise.all([...pendingPaneWritesRef.current]);
+    }
+  }, []);
 
   const saveRecentWorkspace = useCallback((workspace: WorkspaceItem) => {
     const recent = buildRecentWorkspaceItem(workspace as WorkspaceRecord);
@@ -194,6 +207,8 @@ export function useWorkspaceController({
         ),
       ]).catch((error) => console.error("Failed to persist created workspace terminal:", error));
       if (command && detectCliAgent(command)) {
+        const paneIndex = Math.max(0, leafIds(paneTree).length - 1);
+        input.markWorkspacePaneLaunch(workspace.id, paneIndex);
         input.scheduleWorkspacePaneSessionSync(workspace.id, workspace.workingFolder ?? tab.cwd ?? null);
       }
       return true;
@@ -333,6 +348,7 @@ export function useWorkspaceController({
     setWorkspacesHydrated,
     persistedPaneFor,
     persistPaneRecord,
+    flushPendingPaneWrites,
     saveRecentWorkspace,
     renameWorkspace,
     changeWorkspaceColor,

@@ -13,7 +13,7 @@ describe("useWorkspaceSetupNavigation contract", () => {
     expect(source).toContain("plannedAgentCommands");
     expect(source).toContain("selectedChatAgent");
     expect(source).toContain("openWorkspace");
-    expect(source).toContain("useRef");
-    expect(source).toContain("latestLaunch.current");
+    expect(source).toContain("plannedAgentCommands.length > 0");
+    expect(source).toContain("openWorkspace()");
   });
 });

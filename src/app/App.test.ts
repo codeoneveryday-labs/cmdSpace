@@ -79,6 +79,13 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("const tabIndex =");
   });
 
+  it("flushes a terminal workspace before disposing its tab", () => {
+    const source = readFileSync(appPath, "utf8");
+    expect(source).toContain("flushWorkspacePaneSessionSync(workspace.id, workspaceCwd)");
+    expect(source).toContain('workspace.workspaceMode === "canvas"');
+    expect(source).toContain("pendingTabCloseIdsRef");
+  });
+
   it("opens the Paseo-style draft workspace flow before creating a forked agent session", () => {
     const source = [
       readFileSync(appPath, "utf8"),
@@ -101,7 +108,7 @@ describe("App sidebar toggle", () => {
       readFileSync(workspaceCreationActionPath, "utf8"),
     ].join("\n");
 
-    expect(controller).toContain("const activatedTabId = tabId ?? canvasTabId;");
+    expect(controller).toContain("const activatedTabId = openedWorkspace.tabId ?? openedWorkspace.canvasTabId;");
     expect(controller).toContain("if (activatedTabId !== null) input.setActiveId(activatedTabId);");
   });
 

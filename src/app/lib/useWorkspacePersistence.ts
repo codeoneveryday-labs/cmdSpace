@@ -23,6 +23,7 @@ export type WorkspacePersistenceDependencies<
   setWorkspaces: WorkspaceStateSetter<TWorkspace>;
   persistWorkspace: (workspace: TWorkspace) => Promise<unknown> | unknown;
   persistTerminalPanes?: (workspace: TWorkspace, paneTree: PaneNode) => void;
+  persistCanvasPanes?: (workspace: TWorkspace, diagram: ArchitectureDiagram) => void;
   now?: () => number;
 };
 
@@ -74,6 +75,10 @@ function handleArchitectureDiagramChangeImpl<
   diagram: ArchitectureDiagram,
 ) {
   dependencies.updateTab(tabId, { diagram });
+  const workspace = dependencies.workspacesRef.current.find(
+    (item) => item.canvasTabId === tabId,
+  );
+  workspace && dependencies.persistCanvasPanes?.(workspace, diagram);
   persistCanvasWorkspaceLayout(
     {
       findByTerminalTabId: () => undefined,

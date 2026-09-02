@@ -12,6 +12,9 @@ describe("useWorkspaceSetupOpenWorkspace contract", () => {
     expect(source).toContain("selectedWorkspaceAgents");
     expect(source).toContain("selectedImportSessions.map");
     expect(source).toContain("onOpenWithoutAi");
+    expect(source).toContain("buildWorkspaceLaunchCommands");
+    expect(source).toContain("launchCommands");
+    expect(source).toContain("latest.current");
     expect(source).toContain("onCancel");
     expect(source).not.toContain("invoke(");
   });

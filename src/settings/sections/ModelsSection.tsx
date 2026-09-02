@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getProvider, PROVIDERS, type ProviderId } from "@/modules/ai/config";
 import { clearKey, getAllKeys, setKey } from "@/modules/ai/lib/keyring";
@@ -33,6 +34,7 @@ import { SectionHeader } from "../components/SectionHeader";
 import { useSpeechToTextHealth } from "./useSpeechToTextHealth";
 
 type KeysMap = Awaited<ReturnType<typeof getAllKeys>>;
+const MIN_KEYS_SKELETON_MS = 500;
 
 const STT_PROVIDERS = PROVIDERS.filter((provider) =>
   SPEECH_TO_TEXT_MODELS.some((model) => model.provider === provider.id),
@@ -52,7 +54,19 @@ export function ModelsSection() {
   );
 
   useEffect(() => {
-    void getAllKeys().then(setKeys);
+    let cancelled = false;
+    const startedAt = Date.now();
+    void getAllKeys().then(async (loadedKeys) => {
+      const remaining = MIN_KEYS_SKELETON_MS - (Date.now() - startedAt);
+      if (remaining > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining));
+      }
+      if (cancelled) return;
+      setKeys(loadedKeys);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const configured = useMemo(() => new Set(configuredIds), [configuredIds]);
@@ -105,7 +119,7 @@ export function ModelsSection() {
   };
 
   if (!keys) {
-    return <div className="text-[12px] text-muted-foreground">Loading…</div>;
+    return <ModelsSectionSkeleton />;
   }
 
   return (
@@ -202,6 +216,52 @@ export function ModelsSection() {
               : "All supported speech providers have been added."}
           </div>
         )}
+      </section>
+    </div>
+  );
+}
+
+function ModelsSectionSkeleton() {
+  return (
+    <div className="flex flex-col gap-7" aria-busy="true" aria-label="Loading models">
+      <SectionHeader
+        title="Voice"
+        description="Choose a cloud speech provider for the floating voice control. Native speech remains available whenever a cloud provider is unavailable."
+      />
+      <div className="flex flex-col gap-3">
+        <Label>Defaults</Label>
+        <div className="flex min-h-16 items-center gap-3 rounded-lg border border-border/60 bg-card/60 px-3 py-2.5">
+          <Skeleton className="h-3 w-16 rounded-md" aria-hidden="true" />
+          <Skeleton className="h-8 flex-1 rounded-md" aria-hidden="true" />
+        </div>
+      </div>
+      <section className="flex flex-col gap-2">
+        <div className="flex items-end justify-between gap-3">
+          <div className="space-y-1.5">
+            <Skeleton className="h-3 w-44 rounded-md" aria-hidden="true" />
+            <Skeleton className="h-2.5 w-56 rounded-md" aria-hidden="true" />
+          </div>
+          <Skeleton className="h-2.5 w-16 rounded-md" aria-hidden="true" />
+        </div>
+        <div className="overflow-hidden rounded-lg border border-border/60 bg-card/40">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div
+              key={index}
+              className={cn(
+                "flex min-h-16 items-center gap-3 px-3 py-2.5",
+                index > 0 && "border-t border-border/55",
+              )}
+            >
+              <Skeleton className="size-4 rounded-md" aria-hidden="true" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Skeleton className="h-3 w-32 rounded-md" aria-hidden="true" />
+                <Skeleton className="h-2.5 w-40 rounded-md" aria-hidden="true" />
+              </div>
+              <Skeleton className="h-7 w-14 rounded-md" aria-hidden="true" />
+              <Skeleton className="h-5 w-9 rounded-full" aria-hidden="true" />
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );

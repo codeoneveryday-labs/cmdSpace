@@ -13,6 +13,25 @@ export type SavedPaneInfo = {
   autoLaunch: boolean;
 };
 
+type SavedPaneInfoPayload = Partial<SavedPaneInfo> & {
+  pane_index?: number | string;
+  working_folder?: string | null;
+  last_command?: string | null;
+  auto_launch?: boolean;
+};
+
+function normalizeSavedPaneInfo(pane: SavedPaneInfoPayload): SavedPaneInfo | null {
+  const lastCommand = pane.lastCommand ?? pane.last_command ?? null;
+  const paneIndex = Number(pane.paneIndex ?? pane.pane_index);
+  if (!Number.isInteger(paneIndex) || paneIndex < 0) return null;
+  return {
+    paneIndex,
+    workingFolder: pane.workingFolder ?? pane.working_folder ?? null,
+    lastCommand,
+    autoLaunch: pane.autoLaunch ?? pane.auto_launch ?? Boolean(lastCommand),
+  };
+}
+
 function terminalGridShape(count: number): { columns: number; rows: number } {
   if (count <= 1) return { columns: 1, rows: 1 };
   if (count <= 2) return { columns: 2, rows: 1 };
@@ -49,6 +68,10 @@ export function createPaneTree(
   paneLayout?: string | null,
 ): { paneTree: PaneNode; activeLeafId: number } {
   const paneCount = Math.min(MAX_PANES_PER_TAB, Math.max(1, Math.floor(count)));
+  const normalizedPanes = (panes ?? [])
+    .map(normalizeSavedPaneInfo)
+    .filter((pane): pane is SavedPaneInfo => pane !== null)
+    .sort((left, right) => left.paneIndex - right.paneIndex);
   const savedLayout = parseSavedPaneLayout(paneLayout);
   if (countSavedPaneLayoutLeaves(savedLayout) === paneCount) {
     let currentPaneIdx = 0;
@@ -57,7 +80,7 @@ export function createPaneTree(
       const savedNode = value as { kind?: unknown; dir?: unknown; children?: unknown; size?: unknown };
       const size = sanitizePaneSize(savedNode.size);
       if (savedNode.kind === "leaf") {
-        const savedPane = panes?.find((pane) => pane.paneIndex === currentPaneIdx++);
+        const savedPane = normalizedPanes[currentPaneIdx++];
         return { kind: "leaf", id: nextId(), cwd: savedPane?.workingFolder ?? cwd, lastCommand: savedPane?.lastCommand ?? undefined, autoLaunch: savedPane?.autoLaunch ?? false, ...(size !== undefined && { size }) };
       }
       if (savedNode.kind !== "split" || (savedNode.dir !== "row" && savedNode.dir !== "col") || !Array.isArray(savedNode.children)) return null;
@@ -77,7 +100,7 @@ export function createPaneTree(
   const columnCounts = Array.from({ length: columns }, (_, column) => baseRows + (column < extraRows ? 1 : 0)).filter((columnCount) => columnCount > 0);
   let currentPaneIdx = 0;
   const buildColumn = (leafCount: number): PaneNode => buildStack(Array.from({ length: leafCount }, () => {
-    const savedPane = panes?.find((pane) => pane.paneIndex === currentPaneIdx++);
+    const savedPane = normalizedPanes[currentPaneIdx++];
     return { kind: "leaf", id: nextId(), cwd: savedPane?.workingFolder ?? cwd, lastCommand: savedPane?.lastCommand ?? undefined, autoLaunch: savedPane?.autoLaunch ?? false };
   }), "col");
   const paneTree = buildStack(columnCounts.map(buildColumn), "row");

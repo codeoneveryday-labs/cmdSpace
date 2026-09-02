@@ -1,7 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import type { ImportableAgentSession } from "./importSessions";
+import { buildWorkspaceLaunchCommands } from "./workspaceSetupModel";
 
 export function useWorkspaceSetupOpenWorkspace({
   terminalCount,
@@ -12,6 +13,10 @@ export function useWorkspaceSetupOpenWorkspace({
   selectedChatAgent,
   agentCounts,
   selectedImportSessions,
+  effectiveAgentCommands,
+  customCommand,
+  isolateAgentWorktrees,
+  agentWorktreeGroup,
   forkContext,
   forkPrompt,
   onOpenWithoutAi,
@@ -25,6 +30,10 @@ export function useWorkspaceSetupOpenWorkspace({
   selectedChatAgent: CliAgent | null;
   agentCounts: Record<string, number>;
   selectedImportSessions: ImportableAgentSession[];
+  effectiveAgentCommands: Record<string, string>;
+  customCommand: string;
+  isolateAgentWorktrees: boolean;
+  agentWorktreeGroup: string;
   forkContext?: { provider: CliAgent; attachment: AgentChatHistoryAttachment } | null;
   forkPrompt: string;
   onOpenWithoutAi: (
@@ -41,49 +50,88 @@ export function useWorkspaceSetupOpenWorkspace({
   ) => void;
   onCancel: () => void;
 }) {
+  const latest = useRef({
+    terminalCount,
+    selectedFolder,
+    workspaceName,
+    workspaceColor,
+    workspaceMode,
+    selectedChatAgent,
+    agentCounts,
+    selectedImportSessions,
+    effectiveAgentCommands,
+    customCommand,
+    isolateAgentWorktrees,
+    agentWorktreeGroup,
+    forkContext,
+    forkPrompt,
+    onOpenWithoutAi,
+    onCancel,
+  });
+  latest.current = {
+    terminalCount,
+    selectedFolder,
+    workspaceName,
+    workspaceColor,
+    workspaceMode,
+    selectedChatAgent,
+    agentCounts,
+    selectedImportSessions,
+    effectiveAgentCommands,
+    customCommand,
+    isolateAgentWorktrees,
+    agentWorktreeGroup,
+    forkContext,
+    forkPrompt,
+    onOpenWithoutAi,
+    onCancel,
+  };
+
   return useCallback(
-    (initialCommands?: string[]) => {
-      const selectedWorkspaceAgents = Object.entries(agentCounts).flatMap(
+    () => {
+      const current = latest.current;
+      const launchCommands = buildWorkspaceLaunchCommands({
+        agentCounts: current.agentCounts,
+        customCommand: current.customCommand,
+        effectiveCommands: current.effectiveAgentCommands,
+        selectedImportSessions: current.selectedImportSessions,
+        cliTerminalCapacity: Math.max(
+          0,
+          current.terminalCount - current.selectedImportSessions.length,
+        ),
+        isolateAgentWorktrees: current.isolateAgentWorktrees,
+        agentWorktreeGroup: current.agentWorktreeGroup,
+      });
+      const selectedWorkspaceAgents = Object.entries(current.agentCounts).flatMap(
         ([agentId, count]) =>
           agentId === "custom"
             ? []
             : Array.from({ length: count }, () => agentId as CliAgent),
       );
-      if (workspaceMode === "agent") {
+      if (current.workspaceMode === "agent") {
         selectedWorkspaceAgents.unshift(
-          ...selectedImportSessions.map((session) => session.provider),
+          ...current.selectedImportSessions.map((session) => session.provider),
         );
       }
-      const initialAgentDraft = forkContext ? forkPrompt.trim() : undefined;
-      onOpenWithoutAi(
-        terminalCount,
-        selectedFolder || null,
-        initialCommands,
-        workspaceName,
-        workspaceColor,
-        workspaceMode,
-        workspaceMode === "agent" ? selectedChatAgent : null,
-        workspaceMode === "agent"
+      const initialAgentDraft = current.forkContext
+        ? current.forkPrompt.trim()
+        : undefined;
+      current.onOpenWithoutAi(
+        current.terminalCount,
+        current.selectedFolder || null,
+        launchCommands,
+        current.workspaceName,
+        current.workspaceColor,
+        current.workspaceMode,
+        current.workspaceMode === "agent" ? current.selectedChatAgent : null,
+        current.workspaceMode === "agent"
           ? selectedWorkspaceAgents.slice(0, 12)
           : undefined,
         initialAgentDraft,
-        forkContext ? [forkContext.attachment] : undefined,
+        current.forkContext ? [current.forkContext.attachment] : undefined,
       );
-      onCancel();
+      current.onCancel();
     },
-    [
-      agentCounts,
-      forkContext,
-      forkPrompt,
-      onCancel,
-      onOpenWithoutAi,
-      selectedChatAgent,
-      selectedFolder,
-      selectedImportSessions,
-      terminalCount,
-      workspaceColor,
-      workspaceMode,
-      workspaceName,
-    ],
+    [],
   );
 }

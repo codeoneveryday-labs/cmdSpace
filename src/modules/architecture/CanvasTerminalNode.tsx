@@ -15,9 +15,13 @@ import {
   type PtySession,
 } from "@/modules/terminal/lib/pty-bridge";
 import {
+  attachMacImeBridge,
   createMacCompositionCommitFilter,
+  createMacTextInputDeduplicator,
   IS_MAC_TEXT_INPUT_PLATFORM,
   normalizeMacTerminalInput,
+  shouldIgnoreMacPrintableTerminalData,
+  shouldUseMacTextInputPath,
 } from "@/modules/terminal/lib/macImeBridge";
 import {
   createShellIntegrationState,
@@ -295,6 +299,14 @@ export function CanvasTerminalNode({
       const fitAddon = new FitAddon();
       terminal.loadAddon(fitAddon);
       terminal.open(viewport);
+      const macTextInput = IS_MAC_TEXT_INPUT_PLATFORM
+        ? createMacTextInputDeduplicator((data) => {
+            void sessionRef.current?.write(data);
+          })
+        : null;
+      if (macTextInput) {
+        attachMacImeBridge(terminal, (data) => macTextInput.writeBridgeData(data));
+      }
       const compositionCommitFilter = createMacCompositionCommitFilter();
       if (IS_MAC_TEXT_INPUT_PLATFORM) {
         terminal.textarea?.addEventListener(
@@ -403,6 +415,7 @@ export function CanvasTerminalNode({
           }
           return true;
         }
+        if (shouldUseMacTextInputPath(event)) return false;
         return true;
       });
       disposeSelectionCopy = installCanvasTerminalSelectionCopy(
@@ -414,13 +427,15 @@ export function CanvasTerminalNode({
         const normalized = IS_MAC_TEXT_INPUT_PLATFORM
           ? normalizeMacTerminalInput(data)
           : data;
+        if (shouldIgnoreMacPrintableTerminalData(normalized)) return;
         if (!compositionCommitFilter.shouldForward(normalized)) return;
         trackPromptInput(normalized);
         void invoke("pty_trace_input", {
           source: "canvas-xterm-ondata",
           data: normalized,
         });
-        void sessionRef.current?.write(normalized);
+        if (macTextInput) macTextInput.writeXtermData(normalized);
+        else void sessionRef.current?.write(normalized);
       });
       terminal.onResize(({ cols, rows }) =>
         void sessionRef.current?.resize(cols, rows),

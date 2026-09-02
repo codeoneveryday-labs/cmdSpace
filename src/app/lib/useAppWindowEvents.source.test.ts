@@ -13,5 +13,7 @@ describe("useAppWindowEvents contract", () => {
     expect(source).toContain('listen("cmdspace:open-shortcuts"');
     expect(source).toContain('listen("cmdspace:maximize-pane"');
     expect(source).toContain("unlisten.then((dispose) => dispose())");
+    expect(source).toContain('listen("cmdspace:exit-requested"');
+    expect(source).toContain('invoke("app_exit_flush_complete"');
   });
 });
