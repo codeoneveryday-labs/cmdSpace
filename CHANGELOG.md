@@ -3,6 +3,30 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.102] - 2026-09-02
+
+### Added
+
+- Added workspace-scoped session persistence with a native app-exit flush,
+  keeping standard and canvas workspaces tied to their own terminal sessions.
+- Added hydration-aware CLI settings loading with skeleton feedback and
+  incremental catalog pagination.
+
+### Changed
+
+- Preserved repeated coding-agent assignments and agent selections across
+  standard workspace creation, terminal changes, tab closes, and app restarts.
+- Hardened native speech lifecycle handling and kept Vietnamese input behavior
+  consistent across terminal surfaces.
+- Expanded CI coverage to run frontend tests and cross-platform Rust checks.
+
+### Known limitations
+
+- CLI catalog entries still require each provider's own installation and
+  credentials; adding an entry does not install or authenticate it.
+- Native speech remains subject to macOS permissions and physical-device audio
+  validation; cloud STT still requires a configured provider key.
+
 ## [0.7.101] - 2026-08-29
 
 ### Changed
