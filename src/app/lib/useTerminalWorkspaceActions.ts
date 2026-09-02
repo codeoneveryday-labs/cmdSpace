@@ -9,6 +9,7 @@ import {
 } from "@/modules/terminal";
 import type { TerminalTab, Tab } from "@/modules/tabs";
 import type { PersistedPaneRecord, WorkspaceRecord } from "./useWorkspaceController";
+import type { ExistingPanePolicy } from "./workspacePaneRecordModel";
 import type { WorkspaceSelectionPane } from "./useWorkspaceSelection";
 
 type PaneRecordBuilder = (
@@ -19,7 +20,7 @@ type PaneRecordBuilder = (
   autoLaunch: boolean,
   existingPane?: WorkspaceSelectionPane,
   explicitNativeSessionId?: string | null,
-  preserveExistingNativeSession?: boolean,
+  existingPanePolicy?: ExistingPanePolicy,
 ) => PersistedPaneRecord;
 
 export type TerminalWorkspaceActionPorts = {
@@ -125,7 +126,7 @@ export function useTerminalWorkspaceActions(ports: TerminalWorkspaceActionPorts)
             Boolean(command),
             ports.persistedPaneFor(workspace.id, paneIndex),
             null,
-            false,
+            "clear",
           );
           void ports.persistPaneRecord(pane).catch((error) =>
             console.error("Failed to save switched terminal agent:", error),
@@ -181,7 +182,7 @@ export function useTerminalWorkspaceActions(ports: TerminalWorkspaceActionPorts)
         isCliAgent || autoLaunch,
         existingPane,
         null,
-        !isCliAgent,
+        isCliAgent ? "clear" : "preserve",
       );
       void ports.persistPaneRecord(pane).catch((error) =>
         console.error("Failed to save terminal pane command to DB:", error),

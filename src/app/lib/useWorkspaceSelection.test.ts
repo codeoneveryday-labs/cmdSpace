@@ -423,10 +423,10 @@ describe("selectWorkspace", () => {
     );
     expect(updateCanvasTabDiagram).toHaveBeenCalledWith(11, persistedDiagram);
     expect(activateTab).toHaveBeenCalledWith(11);
-    expect(listWorkspacePanes).not.toHaveBeenCalled();
+    expect(listWorkspacePanes).toHaveBeenCalledWith(workspace.id);
   });
 
-  it("activates a canvas workspace from pane metadata before native-session reconciliation finishes", async () => {
+  it("reconciles canvas pane metadata before activating the workspace", async () => {
     let resolveReconciliation!: (panes: WorkspaceSelectionPane[]) => void;
     const workspace: TestWorkspace = {
       id: "ws-canvas",
@@ -449,7 +449,7 @@ describe("selectWorkspace", () => {
       lastCommand: "codex --resume native-session",
       nativeSessionId: "native-session",
     };
-    const { port, createCanvasTab, updateCanvasTabDiagram, buildCanvasWorkspaceDiagram } =
+    const { port, createCanvasTab, buildCanvasWorkspaceDiagram } =
       createPort([workspace], [], {
         listWorkspacePanes: async () => [storedPane],
         resolvePaneResumeCommands: () =>
@@ -466,30 +466,24 @@ describe("selectWorkspace", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    await vi.waitFor(() => {
-      expect(createCanvasTab).toHaveBeenCalledOnce();
-      expect(settled).toBe(true);
-    });
-    expect(buildCanvasWorkspaceDiagram).toHaveBeenNthCalledWith(1, 1, "/repo", [
-      "claude",
-    ]);
-    expect(updateCanvasTabDiagram).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(createCanvasTab).not.toHaveBeenCalled();
+    expect(settled).toBe(false);
+    expect(buildCanvasWorkspaceDiagram).not.toHaveBeenCalled();
 
     resolveReconciliation([reconciledPane]);
     await result;
-    await vi.waitFor(() => {
-      expect(updateCanvasTabDiagram).toHaveBeenCalledWith(
-        91,
-        expect.objectContaining({
-          nodes: [
-            expect.objectContaining({
-              initialCommand: "codex --resume native-session",
-            }),
-          ],
-        }),
-      );
-    });
-    expect(buildCanvasWorkspaceDiagram).toHaveBeenNthCalledWith(2, 1, "/repo", [
+    expect(createCanvasTab).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodes: [
+          expect.objectContaining({
+            initialCommand: "codex --resume native-session",
+          }),
+        ],
+      }),
+      workspace.name,
+    );
+    expect(buildCanvasWorkspaceDiagram).toHaveBeenCalledWith(1, "/repo", [
       "codex --resume native-session",
     ]);
   });
@@ -525,5 +519,105 @@ describe("selectWorkspace", () => {
     expect(replaceWorkspace).toHaveBeenCalledWith("ws-standard", {
       tabId: 42,
     });
+  });
+
+  it("activates a standard workspace with reconciled pane metadata", async () => {
+    let resolveReconciliation!: (panes: WorkspaceSelectionPane[]) => void;
+    const workspace: TestWorkspace = {
+      id: "ws-standard-instant",
+      name: "Standard Instant",
+      count: 1,
+      workingFolder: "/repo",
+      paneLayout: null,
+      tabId: null,
+      canvasTabId: null,
+      workspaceMode: "standard",
+    };
+    const storedPane: WorkspaceSelectionPane = {
+      paneIndex: 0,
+      workingFolder: "/repo",
+      autoLaunch: true,
+      lastCommand: "claude",
+    };
+    const { port, createWorkspaceTab, replaceWorkspace } = createPort(
+      [workspace],
+      [],
+      {
+        listWorkspacePanes: async () => [storedPane],
+        resolvePaneResumeCommands: vi.fn(
+          () =>
+            new Promise<WorkspaceSelectionPane[]>((resolve) => {
+              resolveReconciliation = resolve;
+            }),
+        ),
+      },
+    );
+
+    const selection = selectWorkspace(port, workspace.id);
+    await Promise.resolve();
+    resolveReconciliation([
+      {
+        ...storedPane,
+        lastCommand: "claude --resume session-123",
+        nativeSessionId: "session-123",
+      },
+    ]);
+    await selection;
+    expect(createWorkspaceTab).toHaveBeenCalledWith(
+      "/repo",
+      1,
+      [
+        {
+          ...storedPane,
+          lastCommand: "claude --resume session-123",
+          nativeSessionId: "session-123",
+        },
+      ],
+      null,
+      "Standard Instant",
+    );
+    expect(replaceWorkspace).toHaveBeenCalledWith("ws-standard-instant", {
+      tabId: 42,
+    });
+  });
+
+  it("falls back to local panes when native reconciliation exceeds its deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const workspace: TestWorkspace = {
+        id: "ws-standard-timeout",
+        name: "Standard Timeout",
+        count: 1,
+        workingFolder: "/repo",
+        paneLayout: null,
+        tabId: null,
+        canvasTabId: null,
+        workspaceMode: "standard",
+      };
+      const storedPane: WorkspaceSelectionPane = {
+        paneIndex: 0,
+        workingFolder: "/repo",
+        autoLaunch: true,
+        lastCommand: "codex",
+      };
+      const { port, createWorkspaceTab } = createPort([workspace], [], {
+        listWorkspacePanes: async () => [storedPane],
+        resolvePaneResumeCommands: () => new Promise<WorkspaceSelectionPane[]>(() => {}),
+      });
+
+      const selection = selectWorkspace(port, workspace.id);
+      await vi.advanceTimersByTimeAsync(750);
+      await selection;
+
+      expect(createWorkspaceTab).toHaveBeenCalledWith(
+        "/repo",
+        1,
+        [storedPane],
+        null,
+        "Standard Timeout",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

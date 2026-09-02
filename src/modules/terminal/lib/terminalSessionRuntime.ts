@@ -347,6 +347,11 @@ export function attachSession(
           return;
         }
         s.pty = pty;
+        if (s.initialCommand) {
+          // The native PTY bootstrap already executed this command. Publish
+          // it for workspace/session persistence without writing it again.
+          s.callbacks.onCommand?.(s.initialCommand);
+        }
         s.initialCommand = undefined;
         if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
       })

@@ -61,6 +61,22 @@ export type CreateWorkspaceInput = {
   newArchitectureTab: (diagram?: ArchitectureDiagram, title?: string) => number;
   closeTab: (tabId: number) => void;
   setActiveId: (tabId: number) => void;
+  onStandardWorkspaceReady?: (
+    workspaceId: string,
+    workingFolder: string | null,
+    panes: Array<{
+      paneIndex: number;
+      autoLaunch: boolean;
+    }>,
+  ) => void;
+  onCanvasWorkspaceReady?: (
+    workspaceId: string,
+    workingFolder: string | null,
+    panes: Array<{
+      paneIndex: number;
+      autoLaunch: boolean;
+    }>,
+  ) => void;
   closeSetup: () => void;
   alert: (message: string) => void;
 };
@@ -106,6 +122,7 @@ export type CreateWorkspaceTerminalInput = {
     existingPane?: WorkspaceSelectionPane,
   ) => PersistedPaneRecord;
   saveRecentWorkspace: (workspace: WorkspaceRecord) => void;
+  markWorkspacePaneLaunch: (workspaceId: string, paneIndex: number) => void;
   scheduleWorkspacePaneSessionSync: (workspaceId: string, cwd: string | null) => void;
   alert?: (message: string) => void;
 };

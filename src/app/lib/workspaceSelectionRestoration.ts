@@ -21,6 +21,31 @@ function selectionIsCurrent<
   return port.isSelectionCurrent?.() ?? true;
 }
 
+const PANE_RECONCILIATION_TIMEOUT_MS = 750;
+
+async function resolvePaneResumeCommandsWithTimeout<
+  TWorkspace extends WorkspaceSelectionRecord,
+  TTab extends WorkspaceSelectionTab,
+>(
+  port: WorkspaceSelectionPort<TWorkspace, TTab>,
+  workspaceId: string,
+  panes: WorkspaceSelectionPane[],
+  workspaceCwd: string | null,
+): Promise<WorkspaceSelectionPane[]> {
+  if (!port.resolvePaneResumeCommands) return panes;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      port.resolvePaneResumeCommands(workspaceId, panes, workspaceCwd),
+      new Promise<WorkspaceSelectionPane[]>((resolve) => {
+        timeoutId = setTimeout(() => resolve(panes), PANE_RECONCILIATION_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
+
 function buildCanvasDiagramFromPanes<
   TWorkspace extends WorkspaceSelectionRecord,
   TTab extends WorkspaceSelectionTab,
@@ -53,50 +78,48 @@ function updateCanvasDiagramCommands(
   return { ...diagram, nodes };
 }
 
-function reconcileCanvasDiagramInBackground<
+async function reconcileCanvasDiagram<
   TWorkspace extends WorkspaceSelectionRecord,
   TTab extends WorkspaceSelectionTab,
 >(
   port: WorkspaceSelectionPort<TWorkspace, TTab>,
   workspaceId: string,
   workspaceCwd: string | null,
-  tabId: number,
   diagram: ArchitectureDiagram,
-) {
-  if (!port.resolvePaneResumeCommands) return;
-  void port
-    .listWorkspacePanes(workspaceId)
-    .then((panes) =>
-      port.resolvePaneResumeCommands!(workspaceId, panes, workspaceCwd).then(
-        (resolvedPanes) => ({
-          panes,
-          resolvedPanes: resolvedPanes.length > 0 ? resolvedPanes : panes,
-        }),
-      ),
-    )
-    .then(({ panes, resolvedPanes }) => {
-      const nextDiagram = updateCanvasDiagramCommands(diagram, resolvedPanes);
-      const changed = nextDiagram.nodes.some((node, index) => {
-        const previous = diagram.nodes[index];
-        return node.kind === "terminal" &&
-          previous?.kind === "terminal" &&
-          node.initialCommand !== previous.initialCommand;
-      });
-      if (!changed && panes.length === 0) return;
-      port.updateCanvasTabDiagram(tabId, nextDiagram);
-      port.persistCanvasDiagram?.(tabId, nextDiagram);
-    })
-    .catch((error) => port.onLoadCanvasWorkspacePanesError(error));
+): Promise<ArchitectureDiagram> {
+  const panes = await port.listWorkspacePanes(workspaceId);
+  const resolvedPanes = await resolvePaneResumeCommandsWithTimeout(
+    port,
+    workspaceId,
+    panes,
+    workspaceCwd,
+  );
+  return updateCanvasDiagramCommands(
+    diagram,
+    resolvedPanes.length > 0 ? resolvedPanes : panes,
+  );
 }
 
-export function restoreCanvasWorkspace<
+function canvasDiagramCommandsChanged(
+  previous: ArchitectureDiagram,
+  next: ArchitectureDiagram,
+): boolean {
+  return next.nodes.some((node, index) => {
+    const prior = previous.nodes[index];
+    return node.kind === "terminal" &&
+      prior?.kind === "terminal" &&
+      node.initialCommand !== prior.initialCommand;
+  });
+}
+
+export async function restoreCanvasWorkspace<
   TWorkspace extends WorkspaceSelectionRecord,
   TTab extends WorkspaceSelectionTab,
 >(
   port: WorkspaceSelectionPort<TWorkspace, TTab>,
   workspace: TWorkspace,
   workspaceId: string,
-): Promise<void> | void {
+): Promise<void> {
   const canvasTab = port.tabs.find((tab) => tab.id === workspace.canvasTabId);
   if (
     workspace.canvasTabId !== null &&
@@ -105,16 +128,24 @@ export function restoreCanvasWorkspace<
     ) >= workspace.count
   ) {
     if (!selectionIsCurrent(port)) return;
-    port.activateTab(workspace.canvasTabId);
     if (canvasTab?.kind === "architecture" && canvasTab.diagram) {
-      reconcileCanvasDiagramInBackground(
-        port,
-        workspaceId,
-        workspace.workingFolder,
-        workspace.canvasTabId,
-        canvasTab.diagram,
-      );
+      try {
+        const reconciledDiagram = await reconcileCanvasDiagram(
+          port,
+          workspaceId,
+          workspace.workingFolder,
+          canvasTab.diagram,
+        );
+        if (!selectionIsCurrent(port)) return;
+        if (canvasDiagramCommandsChanged(canvasTab.diagram, reconciledDiagram)) {
+          port.updateCanvasTabDiagram(workspace.canvasTabId, reconciledDiagram);
+          port.persistCanvasDiagram?.(workspace.canvasTabId, reconciledDiagram);
+        }
+      } catch (error) {
+        port.onLoadCanvasWorkspacePanesError(error);
+      }
     }
+    if (selectionIsCurrent(port)) port.activateTab(workspace.canvasTabId);
     return;
   }
 
@@ -122,102 +153,77 @@ export function restoreCanvasWorkspace<
     port.parsePersistedCanvasDiagram?.(workspace.paneLayout) ??
     parseCanvasWorkspaceDiagram(workspace.paneLayout);
   if (persistedDiagram) {
-    if (!selectionIsCurrent(port)) return;
-    const canvasTabId = workspace.canvasTabId;
-    if (canvasTabId !== null) {
-      port.updateCanvasTabDiagram(canvasTabId, persistedDiagram);
-      port.activateTab(canvasTabId);
-      reconcileCanvasDiagramInBackground(
+    let reconciledDiagram = persistedDiagram;
+    try {
+      reconciledDiagram = await reconcileCanvasDiagram(
         port,
         workspaceId,
         workspace.workingFolder,
-        canvasTabId,
         persistedDiagram,
       );
+    } catch (error) {
+      port.onLoadCanvasWorkspacePanesError(error);
+    }
+    if (!selectionIsCurrent(port)) return;
+    const canvasTabId = workspace.canvasTabId;
+    if (canvasTabId !== null) {
+      port.updateCanvasTabDiagram(canvasTabId, reconciledDiagram);
+      port.activateTab(canvasTabId);
+      if (canvasDiagramCommandsChanged(persistedDiagram, reconciledDiagram)) {
+        port.persistCanvasDiagram?.(canvasTabId, reconciledDiagram);
+      }
       return;
     }
     const createdCanvasTabId = port.createCanvasTab(
-      persistedDiagram,
+      reconciledDiagram,
       workspace.name,
     );
     port.replaceWorkspace(workspaceId, { canvasTabId: createdCanvasTabId });
-    reconcileCanvasDiagramInBackground(
-      port,
-      workspaceId,
-      workspace.workingFolder,
-      createdCanvasTabId,
-      persistedDiagram,
-    );
+    port.persistCanvasDiagram?.(createdCanvasTabId, reconciledDiagram);
     return;
   }
 
-  return port
-    .listWorkspacePanes(workspaceId)
-    .then((panes) => {
-      if (!selectionIsCurrent(port)) return;
-      const diagram = buildCanvasDiagramFromPanes(port, workspace, panes);
-      const canvasTabId = workspace.canvasTabId;
-      if (canvasTabId !== null) {
-        port.updateCanvasTabDiagram(canvasTabId, diagram);
-        port.activateTab(canvasTabId);
-        if (!port.resolvePaneResumeCommands) return;
-        void port
-          .resolvePaneResumeCommands(workspaceId, panes, workspace.workingFolder)
-          .then((resolvedPanes) => {
-            const reconciledDiagram = buildCanvasDiagramFromPanes(
-              port,
-              workspace,
-              resolvedPanes.length > 0 ? resolvedPanes : panes,
-            );
-            port.updateCanvasTabDiagram(canvasTabId, reconciledDiagram);
-            port.persistCanvasDiagram?.(canvasTabId, reconciledDiagram);
-          })
-          .catch((error) => {
-            port.onLoadCanvasWorkspacePanesError(error);
-          });
-        return;
-      }
-    const createdCanvasTabId = port.createCanvasTab(
-      diagram,
-      workspace.name,
-      );
-      port.replaceWorkspace(workspaceId, { canvasTabId: createdCanvasTabId });
-      if (!port.resolvePaneResumeCommands) return;
-      void port
-        .resolvePaneResumeCommands(workspaceId, panes, workspace.workingFolder)
-        .then((resolvedPanes) => {
-          const reconciledDiagram = buildCanvasDiagramFromPanes(
-            port,
-            workspace,
-            resolvedPanes.length > 0 ? resolvedPanes : panes,
-          );
-          port.updateCanvasTabDiagram(createdCanvasTabId, reconciledDiagram);
-          port.persistCanvasDiagram?.(createdCanvasTabId, reconciledDiagram);
-        })
-        .catch((error) => {
-          port.onLoadCanvasWorkspacePanesError(error);
-        });
-    })
-    .catch((error) => {
-      if (!selectionIsCurrent(port)) return;
-      port.onLoadCanvasWorkspacePanesError(error);
-      const diagram = port.buildCanvasWorkspaceDiagram(
-        workspace.count,
+  try {
+    const panes = await port.listWorkspacePanes(workspaceId);
+    let resolvedPanes = panes;
+    if (port.resolvePaneResumeCommands) {
+      resolvedPanes = await resolvePaneResumeCommandsWithTimeout(
+        port,
+        workspaceId,
+        panes,
         workspace.workingFolder,
-        [],
       );
-      const canvasTabId = workspace.canvasTabId;
-      if (canvasTabId !== null) {
-        port.updateCanvasTabDiagram(canvasTabId, diagram);
-        port.activateTab(canvasTabId);
-        return;
-      }
-      const createdCanvasTabId = port.createCanvasTab(
-        diagram,
-        workspace.name,
-      );
-      port.replaceWorkspace(workspaceId, { canvasTabId: createdCanvasTabId });
-    });
+      if (resolvedPanes.length === 0) resolvedPanes = panes;
+    }
+    if (!selectionIsCurrent(port)) return;
+    const diagram = buildCanvasDiagramFromPanes(port, workspace, resolvedPanes);
+    const canvasTabId = workspace.canvasTabId;
+    if (canvasTabId !== null) {
+      port.updateCanvasTabDiagram(canvasTabId, diagram);
+      port.activateTab(canvasTabId);
+      port.persistCanvasDiagram?.(canvasTabId, diagram);
+      return;
+    }
+    const createdCanvasTabId = port.createCanvasTab(diagram, workspace.name);
+    port.replaceWorkspace(workspaceId, { canvasTabId: createdCanvasTabId });
+    port.persistCanvasDiagram?.(createdCanvasTabId, diagram);
+  } catch (error) {
+    if (!selectionIsCurrent(port)) return;
+    port.onLoadCanvasWorkspacePanesError(error);
+    const diagram = port.buildCanvasWorkspaceDiagram(
+      workspace.count,
+      workspace.workingFolder,
+      [],
+    );
+    const canvasTabId = workspace.canvasTabId;
+    if (canvasTabId !== null) {
+      port.updateCanvasTabDiagram(canvasTabId, diagram);
+      port.activateTab(canvasTabId);
+      return;
+    }
+    const createdCanvasTabId = port.createCanvasTab(diagram, workspace.name);
+    port.replaceWorkspace(workspaceId, { canvasTabId: createdCanvasTabId });
+  }
 }
 
 export function restoreStandardWorkspace<
@@ -238,9 +244,21 @@ export function restoreStandardWorkspace<
     .listWorkspacePanes(workspaceId)
     .then(async (panes) => {
       if (!selectionIsCurrent(port)) return;
-      const resolvedPanes = port.resolvePaneResumeCommands
-        ? await port.resolvePaneResumeCommands(workspaceId, panes, workspace.workingFolder)
-        : panes;
+      let resolvedPanes = panes;
+      if (port.resolvePaneResumeCommands) {
+        try {
+          const reconciled = await resolvePaneResumeCommandsWithTimeout(
+            port,
+            workspaceId,
+            panes,
+            workspace.workingFolder,
+          );
+          if (reconciled.length > 0) resolvedPanes = reconciled;
+        } catch (error) {
+          port.onLoadWorkspacePanesError(error);
+        }
+      }
+      if (!selectionIsCurrent(port)) return;
       const tabId = port.createWorkspaceTab(
         workspace.workingFolder ?? undefined,
         workspace.count,
@@ -364,5 +382,3 @@ export async function selectWorkspace<
 
   await restoreStandardWorkspace(selectionPort, workspace, workspaceId);
 }
-
-

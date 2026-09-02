@@ -22,6 +22,8 @@ export function useWorkspaceSetupActions({
   newArchitectureTab,
   closeTab,
   setActiveId,
+  onStandardWorkspaceReady,
+  onCanvasWorkspaceReady,
   setWorkspaceSetupOpen,
   workspacesHydrated,
   workspacesLength,
@@ -35,6 +37,8 @@ export function useWorkspaceSetupActions({
   newArchitectureTab: CreateWorkspaceInput["newArchitectureTab"];
   closeTab: CreateWorkspaceInput["closeTab"];
   setActiveId: CreateWorkspaceInput["setActiveId"];
+  onStandardWorkspaceReady?: CreateWorkspaceInput["onStandardWorkspaceReady"];
+  onCanvasWorkspaceReady?: CreateWorkspaceInput["onCanvasWorkspaceReady"];
   setWorkspaceSetupOpen: (open: boolean) => void;
   workspacesHydrated: boolean;
   workspacesLength: number;
@@ -72,6 +76,8 @@ export function useWorkspaceSetupActions({
         newArchitectureTab,
         closeTab,
         setActiveId,
+        onStandardWorkspaceReady,
+        onCanvasWorkspaceReady,
         closeSetup: () => setWorkspaceSetupOpen(false),
         alert: (message) => window.alert(message),
       }),
@@ -82,6 +88,8 @@ export function useWorkspaceSetupActions({
       newAgentChatTab,
       newArchitectureTab,
       newWorkspaceTab,
+      onStandardWorkspaceReady,
+      onCanvasWorkspaceReady,
       setActiveId,
       setWorkspaceSetupOpen,
       tabsRef,

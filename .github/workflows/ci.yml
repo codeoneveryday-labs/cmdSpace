@@ -30,6 +30,9 @@ jobs:
       - name: Type-check
         run: pnpm exec tsc --noEmit
 
+      - name: Test frontend
+        run: pnpm test
+
       - name: Build frontend
         run: pnpm build
 

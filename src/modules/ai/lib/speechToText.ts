@@ -225,6 +225,7 @@ export async function transcribeSpeechToText(
 export async function probeSpeechToText(
   request: SpeechToTextRequest,
   fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
+  signal?: AbortSignal,
 ): Promise<void> {
   const prepared = createSpeechToTextHttpRequest(
     healthCheckAudio(),
@@ -236,6 +237,7 @@ export async function probeSpeechToText(
     method: "POST",
     headers: prepared.headers,
     body: prepared.body,
+    ...(signal ? { signal } : {}),
   });
   if (!response.ok) {
     throw new Error(

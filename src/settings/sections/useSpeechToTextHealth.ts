@@ -5,7 +5,7 @@ import {
 } from "@/modules/ai/lib/speechToText";
 import type { ProviderId } from "@/modules/ai/config";
 import { setSpeechToTextModelId } from "@/modules/settings/store";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Health =
   | { state: "checking" }
@@ -27,7 +27,10 @@ export function useSpeechToTextHealth({
   keys: Record<string, string | null>;
   providerLabel: string;
 }) {
-  const request = getSpeechToTextRequest(currentModel.modelId, keys);
+  const request = useMemo(
+    () => getSpeechToTextRequest(currentModel.modelId, keys),
+    [currentModel.modelId, keys],
+  );
   const [health, setHealth] = useState<Health>({ state: "checking" });
   const [healthCheckAttempt, setHealthCheckAttempt] = useState(0);
 
@@ -39,6 +42,7 @@ export function useSpeechToTextHealth({
 
   useEffect(() => {
     let disposed = false;
+    const controller = new AbortController();
     const unavailable = (message: string) => {
       if (!disposed) setHealth({ state: "unavailable", message });
     };
@@ -47,27 +51,31 @@ export function useSpeechToTextHealth({
       unavailable("This STT provider is not available yet.");
       return () => {
         disposed = true;
+        controller.abort();
       };
     }
     if (!configured.has(currentModel.provider) || disabled.has(currentModel.provider)) {
       unavailable("Enable this provider to check STT.");
       return () => {
         disposed = true;
+        controller.abort();
       };
     }
     if (!request) {
       unavailable(`${providerLabel} needs an API key.`);
       return () => {
         disposed = true;
+        controller.abort();
       };
     }
 
     setHealth({ state: "checking" });
-    void probeSpeechToText(request).then(
+    void probeSpeechToText(request, fetch, controller.signal).then(
       () => {
         if (!disposed) setHealth({ state: "ready" });
       },
       (error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         if (!disposed) {
           setHealth({
             state: "unavailable",
@@ -82,6 +90,7 @@ export function useSpeechToTextHealth({
 
     return () => {
       disposed = true;
+      controller.abort();
     };
   }, [configured, currentModel, disabled, healthCheckAttempt, providerLabel, request]);
 

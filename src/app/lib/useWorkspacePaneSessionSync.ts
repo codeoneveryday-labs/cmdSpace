@@ -5,6 +5,8 @@ import { assignSessionsToPanes } from "@/modules/workspaces/lib/importSessions";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { WorkspaceSelectionPane } from "./useWorkspaceSelection";
 
+const SESSION_FLUSH_SETTLE_MS = 1_500;
+
 type PersistedPaneRecord = {
   workspaceId: string;
   paneIndex: number;
@@ -16,6 +18,9 @@ type PersistedPaneRecord = {
 };
 
 type WorkspacePaneSessionSyncProps = {
+  workspacesRef: MutableRefObject<
+    ReadonlyArray<{ id: string; workingFolder: string | null }>
+  >;
   persistedWorkspacePanesRef: MutableRefObject<
     Record<string, WorkspaceSelectionPane[]>
   >;
@@ -26,15 +31,34 @@ type WorkspacePaneSessionSyncProps = {
     SetStateAction<Record<string, WorkspaceSelectionPane[]>>
   >;
   persistPaneRecord: (pane: PersistedPaneRecord) => Promise<unknown>;
+  flushPendingPaneWrites: () => Promise<void>;
 };
 
+export function collectWorkspaceCwds(
+  workspaces: ReadonlyArray<{ id: string; workingFolder: string | null }>,
+  persistedWorkspacePanes: Record<string, WorkspaceSelectionPane[]>,
+): Map<string, string> {
+  const workspaceCwds = new Map<string, string>();
+  for (const workspace of workspaces) {
+    if (workspace.workingFolder) workspaceCwds.set(workspace.id, workspace.workingFolder);
+  }
+  for (const [id, panes] of Object.entries(persistedWorkspacePanes)) {
+    if (workspaceCwds.has(id)) continue;
+    const cwd = panes?.find((pane) => pane.workingFolder)?.workingFolder;
+    if (cwd) workspaceCwds.set(id, cwd);
+  }
+  return workspaceCwds;
+}
+
 export function useWorkspacePaneSessionSync({
+  workspacesRef,
   persistedWorkspacePanesRef,
   reservedNativeSessionIdsRef,
   workspacePaneLaunchAtRef,
   workspacePaneSyncTimersRef,
   setPersistedWorkspacePanes,
   persistPaneRecord,
+  flushPendingPaneWrites,
 }: WorkspacePaneSessionSyncProps) {
   const syncWorkspacePaneNativeSessions = useCallback(
     async (workspaceId: string, workspaceCwd: string | null) => {
@@ -131,14 +155,63 @@ export function useWorkspacePaneSessionSync({
     [syncWorkspacePaneNativeSessions, workspacePaneSyncTimersRef],
   );
 
+  const flushWorkspacePaneSessionSync = useCallback(
+    async (workspaceId?: string, workspaceCwd?: string | null) => {
+      if (workspaceId && workspaceCwd) {
+        const current = workspacePaneSyncTimersRef.current.get(workspaceId) ?? [];
+        for (const timer of current) window.clearTimeout(timer);
+        workspacePaneSyncTimersRef.current.delete(workspaceId);
+        await flushPendingPaneWrites();
+        const resolved = await syncWorkspacePaneNativeSessions(workspaceId, workspaceCwd);
+        await flushPendingPaneWrites();
+        await new Promise<void>((resolve) =>
+          window.setTimeout(resolve, SESSION_FLUSH_SETTLE_MS),
+        );
+        return resolved;
+      }
+      const pending: Promise<unknown>[] = [];
+      for (const [_id, timers] of workspacePaneSyncTimersRef.current.entries()) {
+        for (const timer of timers) window.clearTimeout(timer);
+      }
+      // Ensure pane commands written during the last interaction are visible
+      // to db_list_panes before reconciliation starts.
+      await flushPendingPaneWrites();
+      const workspaceCwds = collectWorkspaceCwds(
+        workspacesRef.current,
+        persistedWorkspacePanesRef.current,
+      );
+      for (const [id, cwd] of workspaceCwds) {
+        if (cwd) {
+          pending.push(syncWorkspacePaneNativeSessions(id, cwd));
+        }
+      }
+      workspacePaneSyncTimersRef.current.clear();
+      await Promise.all(pending);
+      await flushPendingPaneWrites();
+      await new Promise<void>((resolve) =>
+        window.setTimeout(resolve, SESSION_FLUSH_SETTLE_MS),
+      );
+    },
+    [flushPendingPaneWrites, persistedWorkspacePanesRef, syncWorkspacePaneNativeSessions, workspacePaneSyncTimersRef, workspacesRef],
+  );
+
   useEffect(() => {
+    const onBeforeUnload = () => {
+      void flushWorkspacePaneSessionSync();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
       for (const timers of workspacePaneSyncTimersRef.current.values()) {
         for (const timer of timers) window.clearTimeout(timer);
       }
       workspacePaneSyncTimersRef.current.clear();
     };
-  }, [workspacePaneSyncTimersRef]);
+  }, [flushWorkspacePaneSessionSync, workspacePaneSyncTimersRef]);
 
-  return { syncWorkspacePaneNativeSessions, scheduleWorkspacePaneSessionSync };
+  return {
+    syncWorkspacePaneNativeSessions,
+    scheduleWorkspacePaneSessionSync,
+    flushWorkspacePaneSessionSync,
+  };
 }

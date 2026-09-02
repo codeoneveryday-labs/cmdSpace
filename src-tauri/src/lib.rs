@@ -1,3 +1,6 @@
+mod app_exit;
+#[cfg(target_os = "macos")]
+mod app_menu;
 mod commands;
 mod modules;
 mod window_commands;
@@ -8,9 +11,7 @@ use modules::{
 };
 use std::sync::Mutex;
 #[cfg(target_os = "macos")]
-use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem};
-#[cfg(target_os = "macos")]
-use tauri::Emitter;
+use tauri::Manager;
 use tauri_plugin_window_state::StateFlags;
 
 #[cfg(all(test, target_os = "macos"))]
@@ -143,7 +144,7 @@ mod native_command_registration_tests {
 
     #[test]
     fn macos_new_tab_menu_routes_to_the_react_tab_event() {
-        let source = include_str!("lib.rs");
+        let source = include_str!("app_menu.rs");
 
         assert!(source.contains("MenuItem::with_id("));
         assert!(source.contains("\"cmdspace.new-tab\""));
@@ -154,7 +155,7 @@ mod native_command_registration_tests {
 
     #[test]
     fn macos_maximize_pane_menu_routes_to_the_react_pane_event() {
-        let source = include_str!("lib.rs");
+        let source = include_str!("app_menu.rs");
 
         assert!(source.contains("\"cmdspace.maximize-pane\""));
         assert!(source.contains("\"Maximize Pane\""));
@@ -164,7 +165,7 @@ mod native_command_registration_tests {
 
     #[test]
     fn macos_shortcuts_menu_routes_to_the_react_dialog_event() {
-        let source = include_str!("lib.rs");
+        let source = include_str!("app_menu.rs");
 
         assert!(source.contains("\"cmdspace.open-shortcuts\""));
         assert!(source.contains("\"Keyboard Shortcuts\""));
@@ -223,79 +224,13 @@ pub fn run() {
 
     let builder = tauri::Builder::default();
 
-    // Register Cmd+T with the native menu so macOS does not let WebKit handle
-    // it as a browser-style new window before the React shortcut listener runs.
+    // Register native shortcuts so WebKit does not handle them as browser actions.
     #[cfg(target_os = "macos")]
     let builder = builder
-        .menu(|app| {
-            let menu = Menu::default(app)?;
-            let app_menu_name = app.package_info().name.clone();
-            let app_menu = menu.items()?.into_iter().find_map(|item| {
-                let submenu = item.as_submenu()?.clone();
-                (submenu.text().ok()? == app_menu_name).then_some(submenu)
-            });
-            if let Some(app_menu) = app_menu {
-                // Replace Tauri's default About item so macOS uses cmdSpace's
-                // bundle artwork instead of the generic folder placeholder.
-                app_menu.remove_at(0)?;
-                let about = PredefinedMenuItem::about(
-                    app,
-                    None,
-                    Some(AboutMetadata {
-                        name: Some(app.package_info().name.clone()),
-                        version: Some(app.package_info().version.to_string()),
-                        copyright: app.config().bundle.copyright.clone(),
-                        icon: Some(tauri::include_image!("icons/about.png")),
-                        ..Default::default()
-                    }),
-                )?;
-                app_menu.prepend(&about)?;
-            }
-            let new_tab = MenuItem::with_id(
-                app,
-                "cmdspace.new-tab",
-                "New Tab",
-                true,
-                Some("CmdOrCtrl+T"),
-            )?;
-            let maximize_pane = MenuItem::with_id(
-                app,
-                "cmdspace.maximize-pane",
-                "Maximize Pane",
-                true,
-                Some("CmdOrCtrl+Shift+Period"),
-            )?;
-            let open_shortcuts = MenuItem::with_id(
-                app,
-                "cmdspace.open-shortcuts",
-                "Keyboard Shortcuts",
-                true,
-                Some("CmdOrCtrl+K"),
-            )?;
+        .menu(app_menu::build)
+        .on_menu_event(app_menu::handle);
 
-            if let Some(file_menu) = menu.get("File").and_then(|item| item.as_submenu().cloned()) {
-                file_menu.prepend(&new_tab)?;
-            }
-            if let Some(view_menu) = menu.get("View").and_then(|item| item.as_submenu().cloned()) {
-                view_menu.prepend(&maximize_pane)?;
-                view_menu.prepend(&open_shortcuts)?;
-            }
-
-            Ok(menu)
-        })
-        .on_menu_event(|app, event| {
-            if event.id() == "cmdspace.new-tab" {
-                let _ = app.emit("cmdspace:new-tab", ());
-            }
-            if event.id() == "cmdspace.maximize-pane" {
-                let _ = app.emit("cmdspace:maximize-pane", ());
-            }
-            if event.id() == "cmdspace.open-shortcuts" {
-                let _ = app.emit("cmdspace:open-shortcuts", ());
-            }
-        });
-
-    builder
+    let app = builder
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         // Skip restoring VISIBLE — frontend calls window.show() after first
@@ -330,12 +265,29 @@ pub fn run() {
         )))
         .manage(window_commands::DesktopBlurState::default())
         .manage(db::DbState(std::sync::Mutex::new(db_conn)))
+        .manage(app_exit::ExitCoordinator::default())
         .setup(|_app| {
             #[cfg(target_os = "macos")]
             window_commands::setup_workspace_tray(_app)?;
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    app_exit::request(window.app_handle());
+                }
+            }
+        })
         .invoke_handler(cmdspace_commands!())
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building application");
+    app.run(|app, event| {
+        if let tauri::RunEvent::ExitRequested { api, .. } = event {
+            if !app.state::<app_exit::ExitCoordinator>().is_exiting() {
+                api.prevent_exit();
+                app_exit::request(app);
+            }
+        }
+    });
 }

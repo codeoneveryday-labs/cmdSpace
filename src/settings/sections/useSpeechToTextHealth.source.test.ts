@@ -13,5 +13,9 @@ describe("useSpeechToTextHealth contract", () => {
     expect(source).toContain("healthCheckAttempt");
     expect(source).toContain("disposed");
     expect(source).toContain('state: "unavailable"');
+    expect(source).toContain("useMemo");
+    expect(source).toContain("const request = useMemo(");
+    expect(source).toContain("AbortController");
+    expect(source).toContain("controller.abort()");
   });
 });

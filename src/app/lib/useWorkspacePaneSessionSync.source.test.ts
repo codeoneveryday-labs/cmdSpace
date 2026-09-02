@@ -17,5 +17,9 @@ describe("useWorkspacePaneSessionSync contract", () => {
     expect(source).toContain("persistPaneRecord");
     expect(source).toContain("[1_200, 4_000]");
     expect(source).toContain("window.clearTimeout(timer)");
+    expect(source).toContain("flushWorkspacePaneSessionSync");
+    expect(source).toContain("flushPendingPaneWrites");
+    expect(source).toContain("panes?.find((pane) => pane.workingFolder)");
+    expect(source).toContain('"beforeunload"');
   });
 });

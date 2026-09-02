@@ -192,13 +192,17 @@ export function assignSessionsToPanes(
       } else {
       const persisted = sessionsById.get(pane.nativeSessionId);
       if (persisted?.active) {
-        // A live native writer cannot be resumed. Leave this pane as a shell
-        // rather than launching a second process that Codex will reject.
-        pane.autoLaunch = false;
-        pane.lastCommand = null;
+        // The session belongs to this already-running pane. Preserve its
+        // launch record so a background reconciliation cannot turn the pane
+        // into a shell while its agent is starting.
         continue;
       }
       claimed.add(pane.nativeSessionId);
+      const provider = pane.agentProvider ?? detectCliAgent(pane.lastCommand ?? undefined);
+      if (provider && pane.autoLaunch && !isResumeCommand(pane.lastCommand)) {
+        pane.agentProvider = provider;
+        pane.lastCommand = buildSessionResumeCommand(provider, pane.nativeSessionId);
+      }
       }
     }
     if (!pane.autoLaunch || !pane.lastCommand || pane.nativeSessionId) continue;
@@ -214,7 +218,7 @@ export function assignSessionsToPanes(
   for (const [provider, providerPanes] of groups) {
     const matches = sessions
       .filter((session) => {
-        if (session.active) return false;
+        if (session.active && minimumActivityAtByPane.size === 0) return false;
         if (session.provider !== provider) return false;
         if (claimed.has(session.sessionId)) return false;
         if (normalizedWorkspaceCwd === null) return true;
@@ -227,9 +231,10 @@ export function assignSessionsToPanes(
     for (let index = 0; index < panesByIndex.length; index += 1) {
       const pane = panesByIndex[index];
       const minimumActivityAt = minimumActivityAtByPane.get(pane?.paneIndex ?? -1);
+      if (minimumActivityAt === undefined) continue;
       const session = matches.find((candidate) =>
         !claimed.has(candidate.sessionId) &&
-        (minimumActivityAt === undefined || candidate.lastActivityAt >= minimumActivityAt),
+        candidate.lastActivityAt >= minimumActivityAt,
       );
       if (!pane || !session) continue;
       pane.agentProvider = provider;

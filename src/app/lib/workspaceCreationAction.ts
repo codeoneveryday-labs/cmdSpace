@@ -63,21 +63,15 @@ export async function createWorkspaceAction(
           }),
         )
       : [];
+  // A Standard workspace must not mount its terminals until the complete pane
+  // plan is durable. Mounting first lets initial PTY callbacks race the
+  // per-pane writes and can leave the workspace with only the first agent.
   const tabId =
     workspaceMode === "canvas"
       ? null
       : workspaceMode === "agent"
         ? agentTabIds[0] ?? null
-        : input.newWorkspaceTab(
-            effectiveWorkingFolder ?? undefined,
-            input.terminalCount,
-            paneLaunchPlan,
-            null,
-            name,
-          );
-  const canvasTabId = canvasDiagram
-    ? input.newArchitectureTab(canvasDiagram, name)
-    : null;
+        : null;
   const now = Date.now();
   const workspace: WorkspaceRecord = {
     id: workspaceId,
@@ -95,7 +89,7 @@ export async function createWorkspaceAction(
       ? serializeCanvasWorkspaceDiagram(canvasDiagram)
       : null,
     tabId: workspaceMode === "canvas" ? null : tabId,
-    canvasTabId,
+    canvasTabId: null,
     workspaceMode,
     agentProvider: workspaceMode === "agent" ? input.workspaceAgent ?? null : null,
     agentSessionId: null,
@@ -129,13 +123,45 @@ export async function createWorkspaceAction(
   } catch (error) {
     console.error("Failed to save workspace to SQLite:", error);
   }
-  setWorkspaces((current) => [...current, workspace]);
+  const openedWorkspace =
+    workspaceMode === "standard"
+      ? {
+          ...workspace,
+          tabId: input.newWorkspaceTab(
+            effectiveWorkingFolder ?? undefined,
+            input.terminalCount,
+            paneLaunchPlan,
+            null,
+            name,
+          ),
+        }
+      : workspaceMode === "canvas" && canvasDiagram
+        ? {
+            ...workspace,
+            canvasTabId: input.newArchitectureTab(canvasDiagram, name),
+          }
+        : workspace;
+  setWorkspaces((current) => [...current, openedWorkspace]);
+  if (workspaceMode === "standard" && paneLaunchPlan) {
+    input.onStandardWorkspaceReady?.(
+      openedWorkspace.id,
+      openedWorkspace.workingFolder,
+      paneLaunchPlan,
+    );
+  }
+  if (workspaceMode === "canvas" && paneLaunchPlan) {
+    input.onCanvasWorkspaceReady?.(
+      openedWorkspace.id,
+      openedWorkspace.workingFolder,
+      paneLaunchPlan,
+    );
+  }
   input.closeSetup();
-  const activatedTabId = tabId ?? canvasTabId;
+  const activatedTabId = openedWorkspace.tabId ?? openedWorkspace.canvasTabId;
   if (activatedTabId !== null) input.setActiveId(activatedTabId);
   const bootstrapTab = input.tabs.find(
     (tab) => tab.id === 1 && tab.title === "shell",
   );
   if (bootstrapTab && input.tabs.length > 1) input.closeTab(bootstrapTab.id);
-  return workspace;
+  return openedWorkspace;
 }

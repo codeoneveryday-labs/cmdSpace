@@ -57,7 +57,6 @@ import { invoke } from "@tauri-apps/api/core";
 import type { SearchAddon } from "@xterm/addon-search";
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -189,6 +188,7 @@ export default function App() {
   tabsRef.current = tabs;
 
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const pendingTabCloseIdsRef = useRef<Set<number>>(new Set());
 
   const activeTerminalTab = useMemo(() => {
     const t = tabs.find((x) => x.id === activeId);
@@ -319,6 +319,7 @@ export default function App() {
     workspacesHydrated,
     persistedPaneFor,
     persistPaneRecord,
+    flushPendingPaneWrites,
     saveRecentWorkspace,
     renameWorkspace,
     changeWorkspaceColor,
@@ -331,22 +332,95 @@ export default function App() {
   const reservedNativeSessionIdsRef = useRef<Map<string, string>>(new Map());
   const workspacePaneLaunchAtRef = useRef<Map<string, number>>(new Map());
   const workspacePaneSyncTimersRef = useRef<Map<string, number[]>>(new Map());
+  const workspacesRef = useRef(workspaces);
+  workspacesRef.current = workspaces;
   const {
     syncWorkspacePaneNativeSessions,
     scheduleWorkspacePaneSessionSync,
+    flushWorkspacePaneSessionSync,
   } = useWorkspacePaneSessionSync({
+    workspacesRef,
     persistedWorkspacePanesRef,
     reservedNativeSessionIdsRef,
     workspacePaneLaunchAtRef,
     workspacePaneSyncTimersRef,
     setPersistedWorkspacePanes,
     persistPaneRecord,
+    flushPendingPaneWrites,
   });
+  const markWorkspacePaneLaunch = useCallback(
+    (workspaceId: string, paneIndex: number) => {
+      workspacePaneLaunchAtRef.current.set(`${workspaceId}:${paneIndex}`, Date.now());
+    },
+    [],
+  );
+  const markWorkspacePaneLaunches = useCallback(
+    (
+      workspaceId: string,
+      workingFolder: string | null,
+      panes: Array<{ paneIndex: number; autoLaunch: boolean }>,
+    ) => {
+      const launchedAt = Date.now();
+      for (const pane of panes) {
+        if (pane.autoLaunch) {
+          workspacePaneLaunchAtRef.current.set(
+            `${workspaceId}:${pane.paneIndex}`,
+            launchedAt,
+          );
+        }
+      }
+      scheduleWorkspacePaneSessionSync(workspaceId, workingFolder);
+    },
+    [scheduleWorkspacePaneSessionSync],
+  );
+  const canvasPaneSignatureRef = useRef<Map<string, string>>(new Map());
+  const persistCanvasPanes = useCallback(
+    (workspace: WorkspaceRecord, diagram: ArchitectureDiagram) => {
+      const terminalNodes = diagram.nodes.filter((node) => node.kind === "terminal");
+      if (terminalNodes.length === 0) return;
+      const signature = JSON.stringify(
+        terminalNodes.map((node) => ({
+          cwd: node.cwd ?? null,
+          initialCommand: node.initialCommand ?? null,
+        })),
+      );
+      if (canvasPaneSignatureRef.current.get(workspace.id) === signature) return;
+      canvasPaneSignatureRef.current.set(workspace.id, signature);
+      const agentPanes: number[] = [];
+      void Promise.all(
+        terminalNodes.map((node, paneIndex) => {
+          const command = node.initialCommand?.trim() || null;
+          const pane = buildWorkspacePaneRecord(
+            workspace.id,
+            paneIndex,
+            node.cwd ?? workspace.workingFolder,
+            command,
+            Boolean(command),
+            persistedPaneFor(workspace.id, paneIndex),
+          );
+          if (pane.agentProvider && !pane.nativeSessionId) {
+            agentPanes.push(paneIndex);
+            markWorkspacePaneLaunch(workspace.id, paneIndex);
+          }
+          return persistPaneRecord(pane);
+        }),
+      )
+        .then(() => {
+          if (agentPanes.length > 0) {
+            scheduleWorkspacePaneSessionSync(workspace.id, workspace.workingFolder);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to persist Canvas pane records:", error);
+        });
+    },
+    [markWorkspacePaneLaunch, persistPaneRecord, persistedPaneFor, scheduleWorkspacePaneSessionSync],
+  );
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
+  const [savingWorkspaceSessions, setSavingWorkspaceSessions] = useState(false);
   const [workspaceForkContext, setWorkspaceForkContext] =
     useState<WorkspaceForkContext | null>(null);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
-  const workspacesRef = useRef(workspaces);
   const pendingWorkspaceTerminalRef = useRef<{ workspaceId: string; leafId: number } | null>(null);
   const persistCanvasDiagramRef = useRef<
     ((tabId: number, diagram: ArchitectureDiagram) => void) | null
@@ -354,10 +428,6 @@ export default function App() {
   const canvasTerminalCreatorRef = useRef(
     new Map<number, (initialCommand?: string) => boolean>(),
   );
-  useEffect(() => {
-    workspacesRef.current = workspaces;
-  }, [workspaces]);
-
   useWorkspaceSetupAutoOpen({
     hydrated: workspacesHydrated,
     workspaceCount: workspaces.length,
@@ -471,6 +541,31 @@ export default function App() {
 
   const disposeTab = useCallback(
     (id: number) => {
+      const tab = tabsRef.current.find((item) => item.id === id);
+      const workspace = workspacesRef.current.find(
+        (item) => item.tabId === id || item.canvasTabId === id || item.agentTabIds?.includes(id),
+      );
+      const workspaceCwd =
+        workspace?.workingFolder ??
+        (tab?.kind === "terminal" ? tab.cwd ?? null : null);
+      if (
+        workspace &&
+        (workspace.workspaceMode === "standard" || workspace.workspaceMode === "canvas") &&
+        workspaceCwd
+      ) {
+        if (pendingTabCloseIdsRef.current.has(id)) return;
+        pendingTabCloseIdsRef.current.add(id);
+        void flushWorkspacePaneSessionSync(workspace.id, workspaceCwd)
+          .catch((error) => console.error("Failed to flush workspace before tab close:", error))
+          .finally(() => {
+            editorRefs.current.delete(id);
+            previewRefs.current.delete(id);
+            clearWorkspaceTabOwnership(id);
+            closeTab(id);
+            pendingTabCloseIdsRef.current.delete(id);
+          });
+        return;
+      }
       // Terminal-leaf-keyed maps (terminalRefs/searchAddons) are pruned by
       // the effect below as the pane tree changes; only the tab-id-keyed
       // handles need explicit cleanup here.
@@ -479,7 +574,7 @@ export default function App() {
       clearWorkspaceTabOwnership(id);
       closeTab(id);
     },
-    [clearWorkspaceTabOwnership, closeTab],
+    [clearWorkspaceTabOwnership, closeTab, flushWorkspacePaneSessionSync, tabsRef, workspacesRef],
   );
 
   // Drives session disposal off the pane tree, not React lifecycles —
@@ -565,6 +660,8 @@ export default function App() {
     newArchitectureTab,
     closeTab,
     setActiveId,
+    onStandardWorkspaceReady: markWorkspacePaneLaunches,
+    onCanvasWorkspaceReady: markWorkspacePaneLaunches,
     setWorkspaceSetupOpen,
     workspacesHydrated,
     workspacesLength: workspaces.length,
@@ -594,6 +691,16 @@ export default function App() {
     saveRecentWorkspace,
     activateTab: setActiveId,
     updateTab: (tabId, patch) => updateTab(tabId, patch),
+    replaceWorkspace: (workspaceId, patch) => {
+      workspacesRef.current = workspacesRef.current.map((workspace) =>
+        workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
+      );
+      setWorkspaces((current) =>
+        current.map((workspace) =>
+          workspace.id === workspaceId ? { ...workspace, ...patch } : workspace,
+        ),
+      );
+    },
     persistCanvasDiagram: (tabId, diagram) => {
       persistCanvasDiagramRef.current?.(tabId, diagram);
     },
@@ -794,6 +901,10 @@ export default function App() {
     onNewTab: openNewTab,
     onOpenShortcuts: openShortcuts,
     onMaximizePane: maximizeActivePane,
+    onBeforeClose: async () => {
+      setSavingWorkspaceSessions(true);
+      await flushWorkspacePaneSessionSync();
+    },
   });
 
   const shortcutHandlers = useMemo(
@@ -923,6 +1034,7 @@ export default function App() {
       updateTab,
       setWorkspaces,
       persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace }),
+      persistCanvasPanes,
       persistTerminalPanes: (workspace, paneTree) => {
         const paneIds = leafIds(paneTree);
         void Promise.all(
@@ -983,6 +1095,7 @@ export default function App() {
     persistedPaneFor,
     buildPaneRecord: buildWorkspacePaneRecord,
     saveRecentWorkspace,
+    markWorkspacePaneLaunch,
     scheduleWorkspacePaneSessionSync,
     createWorkspaceTerminal,
   });
@@ -1292,6 +1405,13 @@ export default function App() {
             cancelDeleteWorkspace={cancelDeleteWorkspace}
             confirmDeleteWorkspace={confirmDeleteWorkspace}
           />
+          {savingWorkspaceSessions ? (
+            <div className="absolute inset-0 z-50 grid place-items-center bg-background/85 backdrop-blur-sm">
+              <div role="status" className="rounded-xl border border-border/60 bg-card px-4 py-3 text-sm shadow-lg">
+                Saving workspace sessions…
+              </div>
+            </div>
+          ) : null}
     </AppShell>
   );
 

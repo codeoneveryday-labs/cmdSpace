@@ -85,6 +85,7 @@ macro_rules! cmdspace_commands {
             workspace::workspace_current_dir,
             workspace::app_dev_repo_root,
             // Window surfaces
+            app_exit::app_exit_flush_complete,
             window_commands::get_launch_dir,
             window_commands::open_settings_window,
             window_commands::hide_workspace_switcher,

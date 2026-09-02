@@ -6,6 +6,12 @@ import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { PersistedPaneRecord } from "./useWorkspaceController";
 import type { WorkspaceSelectionPane } from "./useWorkspaceSelection";
 
+export type ExistingPanePolicy = "preserve" | "clear";
+
+function preserveExistingNativeSession(policy: ExistingPanePolicy): boolean {
+  return policy === "preserve";
+}
+
 export function buildWorkspacePaneRecord(
   workspaceId: string,
   paneIndex: number,
@@ -14,9 +20,20 @@ export function buildWorkspacePaneRecord(
   autoLaunch: boolean,
   existingPane?: WorkspaceSelectionPane,
   explicitNativeSessionId?: string | null,
-  preserveExistingNativeSession = true,
+  existingPanePolicy: ExistingPanePolicy = "preserve",
 ): PersistedPaneRecord {
   if (!autoLaunch || !lastCommand) {
+    if (preserveExistingNativeSession(existingPanePolicy) && existingPane?.autoLaunch && existingPane.lastCommand) {
+      return {
+        workspaceId,
+        paneIndex,
+        workingFolder,
+        lastCommand: existingPane.lastCommand,
+        autoLaunch: true,
+        agentProvider: existingPane.agentProvider ?? null,
+        nativeSessionId: existingPane.nativeSessionId ?? null,
+      };
+    }
     return {
       workspaceId,
       paneIndex,
@@ -54,7 +71,7 @@ export function buildWorkspacePaneRecord(
   }
 
   if (
-    preserveExistingNativeSession &&
+    preserveExistingNativeSession(existingPanePolicy) &&
     existingPane?.nativeSessionId &&
     existingPane.agentProvider === provider &&
     !isResumeCommand(lastCommand)

@@ -245,7 +245,13 @@ describe("workspace session imports", () => {
       },
     ];
 
-    expect(assignSessionsToPanes(panes, sessions, "/repo")).toEqual([
+    expect(assignSessionsToPanes(
+      panes,
+      sessions,
+      "/repo",
+      [],
+      new Map([[0, 0], [1, 0]]),
+    )).toEqual([
       {
         paneIndex: 0,
         workingFolder: "/repo",
@@ -294,7 +300,13 @@ describe("workspace session imports", () => {
     ];
 
     expect(
-      assignSessionsToPanes(panes, sessions, "/repo", ["claimed"]),
+      assignSessionsToPanes(
+        panes,
+        sessions,
+        "/repo",
+        ["claimed"],
+        new Map([[0, 0]]),
+      ),
     ).toEqual([
       {
         paneIndex: 0,
@@ -307,7 +319,52 @@ describe("workspace session imports", () => {
     ]);
   });
 
-  it("does not attempt to resume a session with a live native writer", () => {
+  it("records an active session launched by this workspace", () => {
+    const panes = [{
+      paneIndex: 0,
+      workingFolder: "/repo",
+      autoLaunch: true,
+      lastCommand: "codex",
+    }];
+    const sessions: ImportableAgentSession[] = [{
+      provider: "codex",
+      sessionId: "active-workspace-session",
+      cwd: "/repo",
+      title: "Active",
+      lastActivityAt: 20,
+      active: true,
+    }];
+
+    expect(
+      assignSessionsToPanes(panes, sessions, "/repo", [], new Map([[0, 10]]))[0],
+    ).toMatchObject({
+      nativeSessionId: "active-workspace-session",
+      lastCommand: "codex resume 'active-workspace-session'",
+    });
+  });
+
+  it("does not claim a recent session for a new workspace pane", () => {
+    const panes = [{
+      paneIndex: 0,
+      workingFolder: "/repo",
+      autoLaunch: true,
+      lastCommand: "codex --dangerously-bypass-approvals-and-sandbox",
+    }];
+    const sessions: ImportableAgentSession[] = [{
+      provider: "codex",
+      sessionId: "recent-session",
+      cwd: "/repo",
+      title: "Recent",
+      lastActivityAt: 20,
+      active: false,
+    }];
+
+    expect(assignSessionsToPanes(panes, sessions, "/repo")[0]).toMatchObject(
+      panes[0],
+    );
+  });
+
+  it("preserves a pane command when its native session is already live", () => {
     const panes = [{
       paneIndex: 0,
       workingFolder: "/repo",
@@ -326,8 +383,46 @@ describe("workspace session imports", () => {
     }];
 
     expect(assignSessionsToPanes(panes, sessions, "/repo")[0]).toMatchObject({
-      autoLaunch: false,
-      lastCommand: null,
+      autoLaunch: true,
+      lastCommand: "codex resume 'live'",
+    });
+  });
+
+  it("preserves recorded nativeSessionId and formats resume command even if lastCommand was not formatted", () => {
+    const panes = [{
+      paneIndex: 0,
+      workingFolder: "/repo",
+      autoLaunch: true,
+      lastCommand: "codex",
+      agentProvider: "codex" as const,
+      nativeSessionId: "workspace-a-session",
+    }];
+    const sessions: ImportableAgentSession[] = [
+      {
+        provider: "codex",
+        sessionId: "newer-global-session",
+        cwd: "/repo",
+        title: "newer",
+        lastActivityAt: 100,
+        active: false,
+      },
+      {
+        provider: "codex",
+        sessionId: "workspace-a-session",
+        cwd: "/repo",
+        title: "original",
+        lastActivityAt: 50,
+        active: false,
+      },
+    ];
+
+    expect(assignSessionsToPanes(panes, sessions, "/repo")[0]).toEqual({
+      paneIndex: 0,
+      workingFolder: "/repo",
+      autoLaunch: true,
+      lastCommand: "codex resume 'workspace-a-session'",
+      agentProvider: "codex",
+      nativeSessionId: "workspace-a-session",
     });
   });
 });
