@@ -10,7 +10,6 @@ use modules::{
     workspace,
 };
 use std::sync::Mutex;
-#[cfg(target_os = "macos")]
 use tauri::Manager;
 use tauri_plugin_window_state::StateFlags;
 
