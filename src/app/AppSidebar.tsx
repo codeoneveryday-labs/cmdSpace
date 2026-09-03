@@ -29,7 +29,7 @@ export function AppSidebar({
       <div className="min-h-0 flex-1">
         {sidebarView === "browser" ? (
           <div className="h-full min-h-0 p-2">
-            <SidebarBrowserPane {...browser} visible />
+            <SidebarBrowserPane {...browser} />
           </div>
         ) : sidebarView === "editor" ? (
           editorSidebarView === "files" ? (
