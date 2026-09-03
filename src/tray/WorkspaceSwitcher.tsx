@@ -63,8 +63,8 @@ export function WorkspaceSwitcher() {
     void invoke("hide_workspace_switcher");
   }, []);
 
-  const openWorkspace = useCallback((workspaceId: string) => {
-    void invoke("open_workspace_from_tray", { workspaceId });
+  const openWorkspace = useCallback((workspaceId: string, paneIndex?: number) => {
+    void invoke("open_workspace_from_tray", { workspaceId, paneIndex: paneIndex ?? null });
   }, []);
 
   const [preventSleep, setPreventSleepState] = useState(false);
@@ -255,6 +255,9 @@ export function WorkspaceSwitcher() {
                 expanded={expandedWorkspaceIds.has(workspace.id)}
                 onToggleExpanded={() => toggleWorkspaceExpanded(workspace.id)}
                 onOpen={() => openWorkspace(workspace.id)}
+                onOpenTerminal={(_terminal, paneIndex) =>
+                  openWorkspace(workspace.id, paneIndex)
+                }
                 onHover={() => setSelectedIndex(index)}
               />
             ))

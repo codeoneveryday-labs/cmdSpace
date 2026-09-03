@@ -1,3 +1,5 @@
+import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
+
 export type TrayWorkspace = {
   id: string;
   name: string;
@@ -7,11 +9,15 @@ export type TrayWorkspace = {
   updatedAt?: number;
   workspaceMode?: "standard" | "canvas" | "agent" | null;
   paneLayout?: string | null;
+  agentProvider?: string | null;
+  agentProviders?: Array<string | null> | null;
   terminals?: TrayTerminal[];
 };
 
 export type TrayTerminal = {
   label: string;
+  agent?: CliAgent | null;
+  paneIndex?: number;
 };
 
 export function filterTrayWorkspaces(

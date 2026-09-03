@@ -46,7 +46,7 @@ if [[ -z "$__CMDSPACE_HOOKS_LOADED" ]]; then
   }
 
   _cmdspace_preexec() {
-    printf '\e]133;C\e\\'
+    printf '\e]133;C;%s\e\\' "$1"
   }
 
   if (( $+functions[add-zsh-hook] )); then

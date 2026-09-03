@@ -4,6 +4,7 @@ import {
   type WorkspaceLoadingPresentation,
 } from "./startupGate";
 import type { WorkspaceRecord } from "./useWorkspaceController";
+import { truncateMiddle } from "@/lib/truncateMiddle";
 
 export function getAppStartupView({
   activeTabId,
@@ -44,7 +45,7 @@ export function getAppStartupView({
     workspaceLoadingPresentation,
     showWorkspaceSwitchLoading: workspaceLoadingPresentation === "local",
     workspaceLoadingLabel: openingWorkspace
-      ? `Opening ${openingWorkspace.name}…`
+      ? `Opening ${truncateMiddle(openingWorkspace.name, 28)}…`
       : "Opening workspace…",
   };
 }

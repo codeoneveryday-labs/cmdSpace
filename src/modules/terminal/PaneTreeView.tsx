@@ -19,7 +19,7 @@ import {
   useAgentResponseLeaves,
   useAgentResponseRequestedLeaves,
 } from "./lib/agentActivity";
-import { detectCliAgent } from "./lib/cliAgents";
+import { detectCliAgent, isDarkTerminalAgent } from "./lib/cliAgents";
 import { usePaneResizeController } from "./lib/usePaneResizeController";
 import type { PaneDragContext } from "./lib/useTerminalPaneDrag";
 import { FloatingTerminalOverlay } from "./FloatingTerminalOverlay";
@@ -96,7 +96,7 @@ export function PaneTreeView({
     node.kind === "leaf" ? node.id : undefined,
   );
   const [detectedAgentCommand, setDetectedAgentCommand] = useState<string | undefined>(
-    () => (node.kind === "leaf" && detectCliAgent(node.lastCommand) ? node.lastCommand : undefined),
+    () => (node.kind === "leaf" && node.autoLaunch && detectCliAgent(node.lastCommand) ? node.lastCommand : undefined),
   );
   const resizeController = usePaneResizeController({
     groupRef,
@@ -121,6 +121,9 @@ export function PaneTreeView({
         : completedLeaves.has(node.id)
           ? "done"
           : undefined;
+    const effectiveCommand = detectedAgentCommand ?? storedAgentCommand ?? node.lastCommand;
+    const activeAgent = effectiveCommand ? detectCliAgent(effectiveCommand) : null;
+    const isDarkAgent = isDarkTerminalAgent(activeAgent);
     const targetStyle =
       isDropTarget && dragContext?.targetOffset
         ? {
@@ -144,6 +147,8 @@ export function PaneTreeView({
         data-pane-leaf={node.id}
         style={targetStyle}
         className={`relative h-full w-full group overflow-hidden @container transition-[transform,opacity,box-shadow] duration-150 ease-out motion-reduce:transition-none ${
+          isDarkAgent ? "dark bg-zinc-950 text-zinc-100" : ""
+        } ${
           isDropTarget
             ? "z-10 opacity-90 shadow-xl shadow-primary/20"
             : ""
@@ -164,6 +169,7 @@ export function PaneTreeView({
             leafId={node.id}
             visible={tabVisible}
             focused={focused}
+            isDark={isDarkAgent}
             initialCwd={node.cwd}
             initialCommand={node.autoLaunch ? node.lastCommand : undefined}
             ref={b.setRef}
@@ -172,6 +178,7 @@ export function PaneTreeView({
             onExit={(_id, code) => b.onExit(code)}
             onCommand={(_id, cmd) => {
               if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);
+              else setDetectedAgentCommand(undefined);
               b.onCommand?.(cmd);
             }}
             onAgentActivity={(_id, responding) => setAgentResponding(responding)}
@@ -216,6 +223,12 @@ export function PaneTreeView({
           canBroadcast={canBroadcast}
           onToggleBroadcast={onToggleBroadcast}
           onToggleBroadcastTarget={() => onToggleBroadcastTarget(node.id)}
+          onWrite={(data) => b.getRef()?.write(data)}
+          onGetBuffer={(lines) => b.getRef()?.getBuffer(lines) ?? null}
+          onFocusTerminal={() => {
+            focusAndHydrate();
+            b.getRef()?.focus();
+          }}
         />
       </div>
     );

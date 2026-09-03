@@ -112,17 +112,18 @@ describe("CLI agent registry", () => {
       "copilot",
       "opencode",
       "pi",
+      "omp",
     ]);
   });
 
   it("keeps newly added marketplace agents opt-in", () => {
     expect(CLI_AGENT_DEFINITIONS).toHaveLength(47);
-    expect(DEFAULT_CONFIGURED_CLI_AGENT_IDS).toHaveLength(6);
+    expect(DEFAULT_CONFIGURED_CLI_AGENT_IDS).toHaveLength(7);
     expect(
       CLI_AGENT_DEFINITIONS.filter(
         ({ id }) => !DEFAULT_CONFIGURED_CLI_AGENT_IDS.includes(id),
       ),
-    ).toHaveLength(41);
+    ).toHaveLength(40);
   });
 
   it("makes unattended launch behavior an explicit catalog policy", () => {

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import {
@@ -155,12 +156,11 @@ export function ProviderUsagePopover({ trigger }: Props) {
               aria-label="Refresh provider limits"
               title="Refresh provider limits"
             >
-              <HugeiconsIcon
-                icon={Refresh01Icon}
-                size={15}
-                strokeWidth={1.75}
-                className={loading ? "animate-spin" : undefined}
-              />
+              {loading ? (
+                <Spinner className="h-4 w-3" />
+              ) : (
+                <HugeiconsIcon icon={Refresh01Icon} size={15} strokeWidth={1.75} />
+              )}
             </Button>
           </div>
           <PopoverDescription>

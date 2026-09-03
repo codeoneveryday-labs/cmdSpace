@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { detectCliAgent, type CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { TrayTerminal, TrayWorkspace } from "./workspaces";
 
 type TrayPane = {
@@ -36,7 +37,10 @@ export function useTrayWorkspaceData() {
 }
 
 async function loadTrayTerminals(workspace: TrayWorkspace): Promise<TrayTerminal[]> {
-  if (workspace.workspaceMode === "agent") return [{ label: "Agent chat" }];
+  if (workspace.workspaceMode === "agent") {
+    const agent = (workspace.agentProvider as CliAgent) ?? null;
+    return [{ label: "Agent chat", agent }];
+  }
 
   if (workspace.workspaceMode === "canvas" && workspace.paneLayout) {
     try {
@@ -45,9 +49,14 @@ async function loadTrayTerminals(workspace: TrayWorkspace): Promise<TrayTerminal
       };
       const terminals = (diagram.nodes ?? [])
         .filter((node) => node.kind === "terminal")
-        .map((node, index) => ({
-          label: node.label?.trim() || `Terminal ${index + 1}`,
-        }));
+        .map((node, index) => {
+          const label = node.label?.trim() || `Terminal ${index + 1}`;
+          return {
+            label,
+            agent: detectCliAgent(label),
+            paneIndex: index,
+          };
+        });
       if (terminals.length > 0) return terminals;
     } catch {
       // Fall through to persisted pane rows/count for older canvas layouts.
@@ -61,12 +70,18 @@ async function loadTrayTerminals(workspace: TrayWorkspace): Promise<TrayTerminal
     if (panes.length > 0) {
       return panes
         .sort((left, right) => left.paneIndex - right.paneIndex)
-        .map((pane, index) => ({
-          label:
+        .map((pane, index) => {
+          const label =
             pane.autoLaunch && pane.lastCommand?.trim()
               ? pane.lastCommand.trim()
-              : `Terminal ${index + 1}`,
-        }));
+              : `Terminal ${index + 1}`;
+          const agent = detectCliAgent(pane.lastCommand?.trim() ?? undefined);
+          return {
+            label,
+            agent,
+            paneIndex: pane.paneIndex,
+          };
+        });
     }
   } catch {
     // The popup can still show count-based placeholders when DB pane rows are absent.
@@ -74,5 +89,6 @@ async function loadTrayTerminals(workspace: TrayWorkspace): Promise<TrayTerminal
 
   return Array.from({ length: Math.max(0, workspace.count) }, (_, index) => ({
     label: `Terminal ${index + 1}`,
+    paneIndex: index,
   }));
 }

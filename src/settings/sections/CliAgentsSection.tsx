@@ -13,7 +13,6 @@ import {
 } from "@/modules/settings/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
@@ -23,27 +22,19 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
 
 type ScanState = "scanning" | "ready" | "error";
-const CLI_AGENT_PAGE_SIZE = 12;
-const MIN_SCAN_SKELETON_MS = 700;
 
 export function CliAgentsSection() {
   const configuredIds = usePreferencesStore((state) => state.cliAgentIds);
-  const preferencesHydrated = usePreferencesStore((state) => state.hydrated);
   const disabledIds = usePreferencesStore(
     (state) => state.disabledCliAgentIds,
   );
   const [query, setQuery] = useState("");
   const [installedIds, setInstalledIds] = useState<Set<CliAgent>>(new Set());
   const [scanState, setScanState] = useState<ScanState>("scanning");
-  const [visibleCatalogCount, setVisibleCatalogCount] =
-    useState(CLI_AGENT_PAGE_SIZE);
-  const catalogSentinelRef = useRef<HTMLDivElement | null>(null);
-  const scannedAgentIdsRef = useRef(new Set<CliAgent>());
-  const pendingScanAgentIdsRef = useRef(new Set<CliAgent>());
 
   const configuredEntries = useMemo(() => {
     const configured = new Set(configuredIds);
@@ -57,90 +48,28 @@ export function CliAgentsSection() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!preferencesHydrated) {
-      setScanState("scanning");
-      return () => {
-        cancelled = true;
-      };
-    }
-    const entriesToScan = configuredEntries.filter(
-      (entry) =>
-        !scannedAgentIdsRef.current.has(entry.id) &&
-        !pendingScanAgentIdsRef.current.has(entry.id),
-    );
-    if (entriesToScan.length === 0) {
-      setScanState("ready");
-      return;
-    }
-    for (const entry of entriesToScan) {
-      pendingScanAgentIdsRef.current.add(entry.id);
-    }
+    const names = CLI_AGENT_CATALOG.map(({ executable }) => executable);
     setScanState("scanning");
-    const names = entriesToScan.map(({ executable }) => executable);
-    const scanStartedAt = Date.now();
     invoke<boolean[]>("check_agent_clis", { names, workspace: null })
-      .then(async (present) => {
-        const remaining = MIN_SCAN_SKELETON_MS - (Date.now() - scanStartedAt);
-        if (remaining > 0) {
-          await new Promise((resolve) => window.setTimeout(resolve, remaining));
-        }
+      .then((present) => {
         if (cancelled) return;
-        for (const entry of entriesToScan) {
-          pendingScanAgentIdsRef.current.delete(entry.id);
-          scannedAgentIdsRef.current.add(entry.id);
-        }
         setInstalledIds(
-          (previous) => {
-            const next = new Set(previous);
-            entriesToScan.forEach((entry, index) => {
-              if (present[index]) next.add(entry.id);
-              else next.delete(entry.id);
-            });
-            return next;
-          },
+          new Set(
+            CLI_AGENT_CATALOG.filter((_, index) => present[index]).map(
+              ({ id }) => id,
+            ),
+          ),
         );
-        setScanState(
-          pendingScanAgentIdsRef.current.size > 0 ? "scanning" : "ready",
-        );
+        setScanState("ready");
       })
       .catch((error) => {
         console.error("Failed to check installed agent CLIs:", error);
-        for (const entry of entriesToScan) {
-          pendingScanAgentIdsRef.current.delete(entry.id);
-        }
         if (!cancelled) setScanState("error");
       });
     return () => {
       cancelled = true;
-      for (const entry of entriesToScan) {
-        pendingScanAgentIdsRef.current.delete(entry.id);
-      }
     };
-  }, [configuredEntries, preferencesHydrated]);
-
-  useEffect(() => {
-    setVisibleCatalogCount(CLI_AGENT_PAGE_SIZE);
-  }, [configuredIds, query]);
-
-  const visibleCatalogEntries = catalogEntries.slice(0, visibleCatalogCount);
-  const hasMoreCatalogEntries = visibleCatalogEntries.length < catalogEntries.length;
-
-  useEffect(() => {
-    if (!hasMoreCatalogEntries || typeof IntersectionObserver === "undefined") return;
-    const sentinel = catalogSentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        setVisibleCatalogCount((current) =>
-          Math.min(current + CLI_AGENT_PAGE_SIZE, catalogEntries.length),
-        );
-      },
-      { rootMargin: "0px 0px 160px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [catalogEntries.length, hasMoreCatalogEntries]);
+  }, []);
 
   const addAgent = async (id: CliAgent) => {
     const nextConfigured = normalizeCliAgentIds([...configuredIds, id]);
@@ -177,25 +106,21 @@ export function CliAgentsSection() {
           </span>
         </div>
 
-        {scanState === "scanning" ? (
-          <CliAgentRowsSkeleton count={Math.max(3, configuredEntries.length)} />
-        ) : (
-          <div className="overflow-hidden rounded-lg border border-border/60 bg-card/40">
-            {configuredEntries.map((entry, index) => (
-              <ConfiguredAgentRow
-                key={entry.id}
-                entry={entry}
-                enabled={!disabled.has(entry.id)}
-                installed={installedIds.has(entry.id)}
-                scanState={scanState}
-                first={index === 0}
-                onEnabledChange={(enabled) =>
-                  void setAgentEnabled(entry.id, enabled)
-                }
-              />
-            ))}
-          </div>
-        )}
+        <div className="overflow-hidden rounded-lg border border-border/60 bg-card/40">
+          {configuredEntries.map((entry, index) => (
+            <ConfiguredAgentRow
+              key={entry.id}
+              entry={entry}
+              enabled={!disabled.has(entry.id)}
+              installed={installedIds.has(entry.id)}
+              scanState={scanState}
+              first={index === 0}
+              onEnabledChange={(enabled) =>
+                void setAgentEnabled(entry.id, enabled)
+              }
+            />
+          ))}
+        </div>
       </section>
 
       <section className="flex flex-col gap-2">
@@ -222,13 +147,9 @@ export function CliAgentsSection() {
           />
         </div>
 
-        {scanState === "scanning" ? (
-          <CliAgentRowsSkeleton
-            count={Math.max(4, Math.min(6, catalogEntries.length))}
-          />
-        ) : catalogEntries.length > 0 ? (
+        {catalogEntries.length > 0 ? (
           <div className="overflow-hidden rounded-lg border border-border/60 bg-card/40">
-            {visibleCatalogEntries.map((entry, index) => (
+            {catalogEntries.map((entry, index) => (
               <CatalogAgentRow
                 key={entry.id}
                 entry={entry}
@@ -236,11 +157,6 @@ export function CliAgentsSection() {
                 onAdd={() => void addAgent(entry.id)}
               />
             ))}
-            {hasMoreCatalogEntries ? (
-              <div ref={catalogSentinelRef} className="border-t border-border/55">
-                <CliAgentRowsSkeleton count={2} />
-              </div>
-            ) : null}
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-border/60 bg-card/25 px-4 py-8 text-center text-[11px] text-muted-foreground">
@@ -250,33 +166,6 @@ export function CliAgentsSection() {
           </div>
         )}
       </section>
-    </div>
-  );
-}
-
-function CliAgentRowsSkeleton({ count }: { count: number }) {
-  return (
-    <div
-      className="overflow-hidden rounded-lg border border-border/60 bg-card/40"
-      aria-busy="true"
-      aria-label="Loading CLI agents"
-    >
-      {Array.from({ length: count }, (_, index) => (
-        <div
-          key={index}
-          className={cn(
-            "flex min-h-14 items-center gap-3 px-3 py-2.5",
-            index > 0 && "border-t border-border/55",
-          )}
-        >
-          <Skeleton className="size-7 rounded-lg" aria-hidden="true" />
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <Skeleton className="h-3 w-36 rounded-md" aria-hidden="true" />
-            <Skeleton className="h-2.5 w-20 rounded-md" aria-hidden="true" />
-          </div>
-          <Skeleton className="h-5 w-9 rounded-full" aria-hidden="true" />
-        </div>
-      ))}
     </div>
   );
 }

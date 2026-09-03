@@ -1,4 +1,5 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Spinner } from "@/components/ui/spinner";
 import type { FloatingVoiceAgentHandle } from "@/modules/ai/components/FloatingVoiceAgent";
 import {
   EMPTY_PROVIDER_KEYS,
@@ -145,6 +146,12 @@ function readSkipWorkspaceDeleteConfirm(): boolean {
   } catch {
     return false;
   }
+}
+
+function waitForNextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 export default function App() {
@@ -903,6 +910,7 @@ export default function App() {
     onMaximizePane: maximizeActivePane,
     onBeforeClose: async () => {
       setSavingWorkspaceSessions(true);
+      await waitForNextPaint();
       await flushWorkspacePaneSessionSync();
     },
   });
@@ -1151,9 +1159,9 @@ export default function App() {
       <ThemeProvider>
         <TooltipProvider>
           <div className="flex h-screen items-center justify-center bg-background text-foreground">
-            <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3 text-sm shadow-sm">
-              <span className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-              <span>{workspaceLoadingLabel}</span>
+            <div className="flex max-w-[90vw] items-center gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3 text-sm shadow-sm sm:max-w-md">
+              <Spinner className="h-4 w-3 shrink-0" aria-label={workspaceLoadingLabel} />
+              <span className="min-w-0 truncate" title={workspaceLoadingLabel}>{workspaceLoadingLabel}</span>
             </div>
           </div>
         </TooltipProvider>
@@ -1259,14 +1267,14 @@ export default function App() {
   ) : null;
 
   const workspaceLoading = showWorkspaceSwitchLoading && !workspaceSetupOpen ? (
-    <div className="pointer-events-none absolute right-4 top-4 z-20">
+    <div className="pointer-events-none absolute right-4 top-4 z-20 max-w-[calc(100vw-2rem)]">
       <div
         role="status"
         aria-live="polite"
-        className="flex items-center gap-2 rounded-full border border-border/60 bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur"
+        className="flex max-w-sm items-center gap-2 rounded-full border border-border/60 bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur"
       >
-        <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-        <span>{workspaceLoadingLabel}</span>
+        <Spinner className="h-4 w-3 shrink-0" aria-label={workspaceLoadingLabel} />
+        <span className="min-w-0 truncate" title={workspaceLoadingLabel}>{workspaceLoadingLabel}</span>
       </div>
     </div>
   ) : null;
@@ -1406,9 +1414,14 @@ export default function App() {
             confirmDeleteWorkspace={confirmDeleteWorkspace}
           />
           {savingWorkspaceSessions ? (
-            <div className="absolute inset-0 z-50 grid place-items-center bg-background/85 backdrop-blur-sm">
-              <div role="status" className="rounded-xl border border-border/60 bg-card px-4 py-3 text-sm shadow-lg">
-                Saving workspace sessions…
+            <div className="absolute inset-0 z-50 grid place-items-center bg-background/85 p-6 backdrop-blur-sm">
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 text-sm shadow-lg"
+              >
+                <Spinner className="h-4 w-3" aria-label="Saving workspace sessions" />
+                <span>Saving workspace sessions…</span>
               </div>
             </div>
           ) : null}

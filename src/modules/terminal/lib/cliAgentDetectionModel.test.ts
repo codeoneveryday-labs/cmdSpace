@@ -43,6 +43,7 @@ describe("cliAgentDetectionModel", () => {
   it("matches banner patterns from raw terminal output", () => {
     expect(matchCliAgentBannerPattern("Claude Code (research preview)", CLI_AGENT_DEFINITIONS)).toBe("claude");
     expect(matchCliAgentBannerPattern("Welcome to OpenAI Codex CLI", CLI_AGENT_DEFINITIONS)).toBe("codex");
+    expect(matchCliAgentBannerPattern("> Ask Codex to do anything", CLI_AGENT_DEFINITIONS)).toBe("codex");
     expect(matchCliAgentBannerPattern("Regular bash output", CLI_AGENT_DEFINITIONS)).toBeNull();
   });
 

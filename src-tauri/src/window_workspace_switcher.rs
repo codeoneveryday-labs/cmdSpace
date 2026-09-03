@@ -171,6 +171,7 @@ pub(crate) fn hide_workspace_switcher_impl() -> Result<(), String> {
 pub(crate) fn open_workspace_from_tray_impl(
     app: tauri::AppHandle,
     workspace_id: String,
+    pane_index: Option<usize>,
 ) -> Result<(), String> {
     if workspace_id.trim().is_empty() {
         return Err("Workspace ID must not be empty".to_string());
@@ -185,6 +186,15 @@ pub(crate) fn open_workspace_from_tray_impl(
     let _ = main.unminimize();
     main.show().map_err(|error| error.to_string())?;
     main.set_focus().map_err(|error| error.to_string())?;
+    if let Some(index) = pane_index {
+        let _ = main.emit(
+            "cmdspace:focus-workspace-pane",
+            serde_json::json!({
+                "workspaceId": &workspace_id,
+                "paneIndex": index,
+            }),
+        );
+    }
     main.emit("cmdspace:open-workspace", workspace_id)
         .map_err(|error| error.to_string())?;
     Ok(())

@@ -174,7 +174,7 @@ export function TabBar({
                   }}
                   onDoubleClick={() => isPreview && onPin(t.id)}
                   className={cn(
-                    "group h-7 shrink-0 gap-1.5 rounded-md text-xs text-muted-foreground transition-colors data-[state=active]:bg-accent data-[state=active]:text-foreground hover:text-foreground/80 justify-between",
+                    "group h-7 min-w-0 max-w-28 shrink gap-1.5 rounded-md text-xs text-muted-foreground transition-colors data-[state=active]:bg-accent data-[state=active]:text-foreground hover:text-foreground/80 justify-between sm:max-w-36 md:max-w-40",
                     "cursor-default",
                     t.kind === "terminal" && t.title === "Music CLI" && isMusicPlaying &&
                       "cmdspace-music-playing-tab",

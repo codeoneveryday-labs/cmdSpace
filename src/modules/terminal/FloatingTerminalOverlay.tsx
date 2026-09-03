@@ -8,6 +8,7 @@ import { useTerminalAgentUsage, AgentUsageBadge, AgentUsageMenu } from "./Termin
 import { cn } from "@/lib/utils";
 import { GIT_REPO_CHANGED_EVENT, gitRepoRootFromChangedEvent, pathBelongsToRepo } from "@/modules/git/events";
 import type { SplitDir } from "./lib/panes";
+import { TerminalAgentPermissionPill } from "./TerminalAgentPermissionPill";
 
 type FloatingTerminalOverlayProps = {
   cwd: string | undefined;
@@ -30,6 +31,9 @@ type FloatingTerminalOverlayProps = {
   onToggleBroadcast: () => void;
   onToggleBroadcastTarget: () => void;
   onSwitchAgent: (agent: CliAgent | null, command: string | null) => void;
+  onWrite?: (data: string) => void;
+  onGetBuffer?: (lines?: number) => string | null;
+  onFocusTerminal?: () => void;
 };
 
 export function FloatingTerminalOverlay({
@@ -52,6 +56,9 @@ export function FloatingTerminalOverlay({
   onToggleBroadcast,
   onToggleBroadcastTarget,
   onSwitchAgent,
+  onWrite,
+  onGetBuffer,
+  onFocusTerminal,
   agentState,
 }: FloatingTerminalOverlayProps) {
   const [additions, setAdditions] = useState<number>(0);
@@ -224,6 +231,16 @@ export function FloatingTerminalOverlay({
           )}
         </div>
       )}
+      {/* Fast mode & Permission control: only rendered when a CLI Agent is detected */}
+      {cliAgent ? (
+        <TerminalAgentPermissionPill
+          agent={cliAgent}
+          onWrite={onWrite}
+          onGetBuffer={onGetBuffer}
+          onFocusTerminal={onFocusTerminal}
+        />
+      ) : null}
+
       {/* Control Buttons */}
       <div className="flex items-center gap-1">
         {canBroadcast ? (

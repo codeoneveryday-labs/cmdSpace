@@ -36,6 +36,21 @@ describe("appStartupViewModel", () => {
     });
   });
 
+  it("middle-truncates long workspace names in the loading label", () => {
+    const view = getAppStartupView({
+      ...base,
+      openingWorkspaceId: "workspace-long",
+      workspaces: [
+        {
+          id: "workspace-long",
+          name: "Super long nameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        } as never,
+      ],
+    });
+    expect(view.workspaceLoadingLabel).toMatch(/^Opening Super long.*aaaa…$/);
+    expect(view.workspaceLoadingLabel).toContain("...");
+  });
+
   it("suppresses the bootstrap shell while the first workspace is unresolved", () => {
     expect(
       getAppStartupView({

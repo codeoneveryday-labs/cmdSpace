@@ -16,6 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { EditorTab, Tab } from "./lib/useTabs";
+import { truncateMiddle } from "@/lib/truncateMiddle";
 
 export function TabBarTabContent({
   tab,
@@ -29,19 +30,22 @@ export function TabBarTabContent({
   agentState?: AgentDisplayState;
 }) {
   const isPreview = tab.kind === "editor" && (tab as EditorTab).preview;
+  const rawLabel = labelFor(tab);
+  const displayLabel = truncateMiddle(rawLabel, compact ? 10 : 14);
   return (
     <span
       className={cn(
-        "flex min-w-0 items-center gap-1.5 truncate",
-        compact ? "max-w-48" : "max-w-80",
+        "flex min-w-0 flex-1 items-center gap-1.5 truncate",
+        compact ? "max-w-20" : "max-w-28 sm:max-w-36",
       )}
+      title={rawLabel}
     >
       {agentState ? <AgentStateDot state={agentState} /> : null}
       <TabIcon tab={tab} musicPlaying={musicPlaying} />
       {/* Preview tabs use italic to signal the transient state,
           matching the visual convention from VSCode. */}
       <span className={cn("truncate", isPreview && "italic")}>
-        {labelFor(tab)}
+        {displayLabel}
       </span>
       {tab.kind === "editor" && tab.dirty ? (
         <span

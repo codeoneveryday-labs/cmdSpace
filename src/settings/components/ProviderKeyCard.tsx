@@ -168,7 +168,7 @@ export function ProviderKeyCard({
               disabled={saving || !value.trim()}
               className="h-8 gap-1 px-3 text-[11px]"
             >
-              {saving ? <Spinner className="size-3" /> : null}
+              {saving ? <Spinner className="h-4 w-3" /> : null}
               Save
             </Button>
           </div>

@@ -167,6 +167,8 @@ export function useTerminalWorkspaceActions(ports: TerminalWorkspaceActionPorts)
       if (isCliAgent) {
         ports.setLeafLaunchCommand(leafId, command);
         ports.workspacePaneLaunchAtRef.current.set(`${workspace.id}:${paneIndex}`, Date.now());
+      } else {
+        ports.setLeafLaunchCommand(leafId, null);
       }
       const existingPane = ports.persistedPaneFor(workspace.id, paneIndex);
       const configuredCommand = isCliAgent
@@ -179,10 +181,10 @@ export function useTerminalWorkspaceActions(ports: TerminalWorkspaceActionPorts)
         paneIndex,
         workingFolder,
         configuredCommand,
-        isCliAgent || autoLaunch,
+        isCliAgent,
         existingPane,
         null,
-        isCliAgent ? "clear" : "preserve",
+        "clear",
       );
       void ports.persistPaneRecord(pane).catch((error) =>
         console.error("Failed to save terminal pane command to DB:", error),

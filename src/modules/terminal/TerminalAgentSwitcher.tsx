@@ -9,7 +9,7 @@ import {
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { ComputerTerminal02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { AgentCliIcon } from "./AgentCliIcon";
 import {
   CLI_AGENT_BY_ID,
@@ -39,6 +39,8 @@ export function TerminalAgentSwitcher({
   trigger,
   allowSameSelection = false,
 }: Props) {
+  const [open, setOpen] = useState(false);
+  const pendingSwitchRef = useRef(false);
   const configuredIds = usePreferencesStore((state) => state.cliAgentIds);
   const disabledIds = usePreferencesStore(
     (state) => state.disabledCliAgentIds,
@@ -56,13 +58,19 @@ export function TerminalAgentSwitcher({
     : "Terminal";
 
   const selectAgent = (value: string) => {
+    if (pendingSwitchRef.current) return;
     const agent = value === "terminal" ? null : (value as CliAgent);
     if (agent === currentAgent && !allowSameSelection) return;
+    pendingSwitchRef.current = true;
+    setOpen(false);
     onSelect(agent, resolveAgentSwitchCommand(agent, commandOverrides));
+    window.setTimeout(() => {
+      pendingSwitchRef.current = false;
+    }, 400);
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         {trigger ?? (
           <button

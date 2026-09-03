@@ -23,6 +23,7 @@ fn user_bin_dirs() -> Vec<std::path::PathBuf> {
         dirs.push(home.join(".local").join("bin"));
         dirs.push(home.join(".npm-global").join("bin"));
         dirs.push(home.join(".cargo").join("bin"));
+        dirs.push(home.join(".bun").join("bin"));
         dirs.push(home.join(".codex").join("bin"));
         dirs.push(home.join(".claude").join("local").join("bin"));
     }

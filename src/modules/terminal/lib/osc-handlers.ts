@@ -10,10 +10,11 @@ import type { IMarker, Terminal } from "@xterm/xterm";
  */
 export type ShellIntegrationState = {
   inCommand: boolean;
+  commandCount: number;
 };
 
 export function createShellIntegrationState(): ShellIntegrationState {
-  return { inCommand: false };
+  return { inCommand: false, commandCount: 0 };
 }
 
 export function registerCwdHandler(
@@ -58,7 +59,10 @@ export function registerPromptTracker(
       if (state) state.inCommand = false;
     } else if (data.startsWith("C")) {
       // OSC 133 C — command pre-execution marker; still inside command.
-      if (state) state.inCommand = true;
+      if (state) {
+        state.inCommand = true;
+        state.commandCount += 1;
+      }
     } else if (data.startsWith("D")) {
       // OSC 133 D — command ends.
       if (state) state.inCommand = false;

@@ -23,3 +23,10 @@ export {
   type PaneNode,
   type SplitDir,
 } from "./lib/panes";
+export { TerminalAgentPermissionPill } from "./TerminalAgentPermissionPill";
+export {
+  getCliAgentControlProfile,
+  type AgentPermissionOption,
+  type AgentFastModeConfig,
+  type CliAgentControlProfile,
+} from "./lib/cliAgentControls";

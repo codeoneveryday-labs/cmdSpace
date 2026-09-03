@@ -10,8 +10,8 @@ import { createShellIntegrationState, registerCwdHandler, registerPromptTracker 
 import { openPty, type PtySession } from "./pty-bridge";
 import { broadcastTargetsForInput } from "./terminalBroadcastRuntime";
 import { noteTerminalOutput } from "./terminalActivity";
-import { acquireSlot, configureRendererPool, getSlotForLeaf, releaseSlot } from "./rendererPool";
-import { isInteractiveCodingAgentCommand } from "./cliAgents";
+import { acquireSlot, configureRendererPool, getSlotForLeaf, releaseSlot, syncSlotThemeForLeaf } from "./rendererPool";
+import { isInteractiveCodingAgentCommand, isDarkTerminalAgent, detectCliAgent } from "./cliAgents";
 import { processTerminalOutput } from "./terminalOutputModel";
 import { trackTerminalInput } from "./terminalInputTrackingModel";
 import { installTerminalWakeRebind } from "./terminalWakeRebind";
@@ -82,7 +82,9 @@ function trackInputAndApplyEvents(leafId: number, s: Session, data: string): voi
 
     if (event.interactive) {
       s.launchCommand = event.command;
+      s.cliAgent = detectCliAgent(event.command);
       setAgentCliCommand(leafId, event.command);
+      syncSlotThemeForLeaf(leafId);
     } else {
       setAgentResponseActivity(leafId, false, false);
       s.callbacks.onAgentActivity?.(false);
@@ -111,7 +113,9 @@ function observeTerminalInputLine(
   if (s.shellState?.inCommand || !isInteractiveCodingAgentCommand(line)) return;
   s.interactiveCodingAgent = true;
   s.launchCommand = line;
+  s.cliAgent = detectCliAgent(line);
   setAgentCliCommand(leafId, line);
+  syncSlotThemeForLeaf(leafId);
   void s.pty?.setMetadata({ agent: line });
   s.callbacks.onCommand?.(line);
 }
@@ -130,6 +134,8 @@ configureRendererPool({
           if (target) writeToSessionPty(targetLeafId, target, data);
         }
       },
+      isHerdr: () => s.cliAgent === "herdr",
+      isDarkAgent: () => isDarkTerminalAgent(s.cliAgent),
       observeInputLine: (line) => {
         observeTerminalInputLine(leafId, s, line);
       },
@@ -205,7 +211,9 @@ function deliverPtyBytes(leafId: number, bytes: Uint8Array): void {
   s.interactiveCodingAgent = outputResult.state.interactiveCodingAgent;
   s.launchCommand = outputResult.state.launchCommand;
   if (outputResult.detectedAgent) {
+    s.cliAgent = detectCliAgent(outputResult.detectedAgent);
     setAgentCliCommand(leafId, outputResult.detectedAgent);
+    syncSlotThemeForLeaf(leafId);
     if (outputResult.agentStarted) {
       void s.pty?.setMetadata({ agent: outputResult.detectedAgent });
       s.callbacks.onCommand?.(outputResult.detectedAgent);
@@ -294,10 +302,30 @@ export function bindLeafToSlot(leafId: number, s: Session): void {
       const shellState = createShellIntegrationState();
       s.shellState = shellState;
       const prompt = registerPromptTracker(term, shellState, () => {
+        const hadInitialCommand = Boolean(s.initialCommand);
         flushInitialCommand(leafId, s);
+        if (hadInitialCommand) return;
+
+        // Skip prompt cleanup on the initial shell startup prompt before any command has executed.
+        if (shellState.commandCount === 0) return;
+
         if (s.agentResponseRequested && !s.interactiveCodingAgent) {
           s.agentResponseRequested = false;
           setAgentResponseActivity(leafId, false, true);
+          s.callbacks.onAgentActivity?.(false);
+        }
+
+        if (s.interactiveCodingAgent || s.launchCommand) {
+          s.interactiveCodingAgent = false;
+          s.launchCommand = undefined;
+          s.cliAgent = null;
+          s.agentOutputTail = "";
+          setAgentCliCommand(leafId, undefined);
+          setAgentResponseActivity(leafId, false, false);
+          setAgentBlockedActivity(leafId, false);
+          syncSlotThemeForLeaf(leafId);
+          void s.pty?.setMetadata({ agent: undefined });
+          s.callbacks.onCommand?.("");
           s.callbacks.onAgentActivity?.(false);
         }
       });
@@ -412,6 +440,12 @@ export async function respawnSession(
     return;
   }
   s.pty = pty;
+  if (s.initialCommand) {
+    // The native PTY bootstrap already executed this command. Publish
+    // it for workspace/session persistence without writing it again.
+    s.callbacks.onCommand?.(s.initialCommand);
+  }
+  s.initialCommand = undefined;
   s.respawning = false;
   if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
 }
@@ -422,13 +456,15 @@ export async function replaceSessionCommand(
   command: string | null,
 ): Promise<void> {
   const session = sessions.get(leafId);
-  if (!session || session.disposed) return;
+  if (!session || session.disposed || session.respawning) return;
   session.launchCommand = command ?? undefined;
   session.interactiveCodingAgent = Boolean(
     command && isInteractiveCodingAgentCommand(command),
   );
+  session.cliAgent = command ? detectCliAgent(command) : null;
   session.agentResponseRequested = false;
   setAgentCliCommand(leafId, command ?? undefined);
+  syncSlotThemeForLeaf(leafId);
   await respawnSession(leafId, cwd, Boolean(command));
 }
 

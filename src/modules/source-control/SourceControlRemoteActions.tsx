@@ -38,13 +38,13 @@ export function SourceControlRemoteActions({
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       <IconActionButton label={fetchBusy ? "Fetching…" : "Fetch from remote"} disabled={!canFetch} onClick={onFetch} side="bottom">
-        {fetchBusy ? <Spinner className="size-3" /> : <HugeiconsIcon icon={FolderCloudIcon} size={14} strokeWidth={1.85} />}
+        {fetchBusy ? <Spinner className="h-4 w-3" /> : <HugeiconsIcon icon={FolderCloudIcon} size={14} strokeWidth={1.85} />}
       </IconActionButton>
       <IconActionButton label={pullBusy ? "Pulling…" : isDiverged ? "Branch diverged — resolve in terminal" : !hasUpstream ? "No upstream configured" : behind === 0 ? "Already up to date" : `Pull ${behind} commits (fast-forward)`} disabled={!canPull} onClick={onPull} side="bottom">
-        {pullBusy ? <Spinner className="size-3" /> : <HugeiconsIcon icon={Download01Icon} size={14} strokeWidth={1.9} />}
+        {pullBusy ? <Spinner className="h-4 w-3" /> : <HugeiconsIcon icon={Download01Icon} size={14} strokeWidth={1.9} />}
       </IconActionButton>
       <IconActionButton label="Refresh source control" disabled={isRefreshing} onClick={onRefresh} side="bottom">
-        {isRefreshing ? <Spinner className="size-3.5" /> : <HugeiconsIcon icon={Refresh01Icon} size={14} strokeWidth={1.9} className={cn(refreshAnimating && "animate-spin")} />}
+        {isRefreshing ? <Spinner className="h-4 w-3" /> : <HugeiconsIcon icon={Refresh01Icon} size={14} strokeWidth={1.9} className={cn(refreshAnimating && "animate-spin")} />}
       </IconActionButton>
     </div>
   );

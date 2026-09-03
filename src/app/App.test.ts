@@ -86,6 +86,18 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("pendingTabCloseIdsRef");
   });
 
+  it("paints a save-session loader before acknowledging app exit", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("setSavingWorkspaceSessions(true)");
+    expect(source).toContain("await waitForNextPaint()");
+    expect(source).toContain("Saving workspace sessions");
+    expect(source).toContain('aria-live="polite"');
+    expect(source).toContain(
+      '<Spinner className="h-4 w-3" aria-label="Saving workspace sessions" />',
+    );
+  });
+
   it("opens the Paseo-style draft workspace flow before creating a forked agent session", () => {
     const source = [
       readFileSync(appPath, "utf8"),
@@ -596,5 +608,19 @@ describe("App sidebar toggle", () => {
 
     expect(appSource).not.toContain("border-l border-border/60 bg-card");
     expect(panelSource).not.toContain("border-r border-border/60");
+  });
+
+  it("forwards the computed browser visibility instead of forcing it on", () => {
+    const appSource = readFileSync(appPath, "utf8");
+    const sidebarSource = readFileSync(
+      path.join(here, "AppSidebar.tsx"),
+      "utf8",
+    );
+
+    // The native WKWebView ignores CSS: a hardcoded `visible` here keeps a
+    // collapsed sidebar's webview on screen and interactive.
+    expect(sidebarSource).not.toContain("{...browser} visible");
+    expect(sidebarSource).toContain("<SidebarBrowserPane {...browser} />");
+    expect(appSource).toContain("sidebarOpen && sidebarWidth > 0");
   });
 });

@@ -7,6 +7,10 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import type { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import {
+  DARK_TERMINAL_THEME,
+  buildTerminalTheme,
+} from "@/styles/terminalTheme";
+import {
   currentTerminalZoomLevel,
   sharedTerminalOptions,
 } from "./terminalOptions";
@@ -37,6 +41,8 @@ export type SlotAdapter = {
 
 export type LeafBridge = {
   writeToPty(data: string): void;
+  isHerdr?(): boolean;
+  isDarkAgent?(): boolean;
   observeInputLine?(line: string): void;
   resizePty(cols: number, rows: number): void;
   // Force a SIGWINCH on the underlying PTY at the given dims. Implemented
@@ -352,3 +358,17 @@ function applyCursorBlinkOnSlot(slot: Slot, focused: boolean): void {
 export function getSlotForLeaf(leafId: number): Slot | null {
   return slots.find((s) => s.currentLeafId === leafId) ?? null;
 }
+
+export function syncSlotThemeForLeaf(leafId: number): void {
+  const slot = slots.find((s) => s.currentLeafId === leafId);
+  if (!slot) return;
+  const bridge = adapter?.resolveLeaf(leafId);
+  if (bridge?.isDarkAgent?.() || bridge?.isHerdr?.()) {
+    slot.term.options.theme = DARK_TERMINAL_THEME;
+    slot.host.style.backgroundColor = "#09090b";
+  } else {
+    slot.term.options.theme = buildTerminalTheme();
+    slot.host.style.backgroundColor = "";
+  }
+}
+

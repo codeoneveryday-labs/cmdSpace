@@ -46,5 +46,5 @@ function fish_prompt
 end
 
 function __cmdspace_preexec --on-event fish_preexec
-    printf '\e]133;C\e\\'
+    printf '\e]133;C;%s\e\\' "$argv[1]"
 end

@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ArrowDown01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { truncateMiddle } from "@/lib/truncateMiddle";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
 import { AgentStateDot } from "@/modules/terminal/AgentStateDot";
@@ -163,7 +164,7 @@ export function WorkspaceRow({
           title={workspace.name}
           className="min-w-0 flex-1 truncate text-left text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
-          {workspace.name}
+          {truncateMiddle(workspace.name, 22)}
         </button>
         <span
           className={cn(
@@ -256,9 +257,11 @@ export function WorkspaceRow({
           onClick={onSelect}
           onDoubleClick={() => setRenaming(true)}
           aria-current={active ? "page" : undefined}
+          aria-label={workspace.name}
+          title={workspace.name}
           className="min-w-0 flex-1 truncate text-left text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
-          {workspace.name}
+          {truncateMiddle(workspace.name, 28)}
         </button>
       )}
       <span

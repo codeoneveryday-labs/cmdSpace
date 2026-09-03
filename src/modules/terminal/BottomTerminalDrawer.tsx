@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { truncateMiddle } from "@/lib/truncateMiddle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -223,7 +224,9 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
                       className="gap-2"
                     />
                   ) : (
-                    <span className="max-w-44 truncate font-semibold">{tabLabel(tab)}</span>
+                    <span className="max-w-44 truncate font-semibold" title={tabLabel(tab)}>
+                      {truncateMiddle(tabLabel(tab), 24)}
+                    </span>
                   )}
                   {tabs.length > 1 ? (
                     <button

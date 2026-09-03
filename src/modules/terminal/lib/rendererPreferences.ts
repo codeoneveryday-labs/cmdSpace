@@ -1,5 +1,5 @@
 import { detectMonoFontFamily } from "@/lib/fonts";
-import { buildTerminalTheme } from "@/styles/terminalTheme";
+import { buildTerminalTheme, DARK_TERMINAL_THEME } from "@/styles/terminalTheme";
 import type { Terminal } from "@xterm/xterm";
 import {
   effectiveTerminalFontSize,
@@ -27,6 +27,8 @@ export type RendererPreferenceRuntime<SlotType extends RendererPreferenceSlot = 
   fitSlot: (slot: SlotType) => void;
   resolveLeaf: (leafId: number) => {
     resizePty(cols: number, rows: number): void;
+    isHerdr?(): boolean;
+    isDarkAgent?(): boolean;
   } | null;
 };
 
@@ -118,9 +120,19 @@ export function createRendererPreferenceController<
     },
 
     applyTheme() {
-      const theme = buildTerminalTheme();
+      const defaultTheme = buildTerminalTheme();
       for (const slot of runtime.slots) {
-        slot.term.options.theme = theme;
+        const bridge =
+          slot.currentLeafId !== null
+            ? runtime.resolveLeaf(slot.currentLeafId)
+            : null;
+        if (bridge?.isDarkAgent?.() || bridge?.isHerdr?.()) {
+          slot.term.options.theme = DARK_TERMINAL_THEME;
+          slot.host.style.backgroundColor = "#09090b";
+        } else {
+          slot.term.options.theme = defaultTheme;
+          slot.host.style.backgroundColor = "";
+        }
       }
     },
   };

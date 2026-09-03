@@ -131,6 +131,7 @@ export function WorkspaceSetupLayoutStep({
                       }
                     }}
                     placeholder={suggestedWorkspaceName}
+                    maxLength={80}
                     className="h-9 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 text-sm font-semibold text-foreground shadow-none placeholder:text-muted-foreground/55 focus-visible:ring-0"
                     aria-label="Workspace name"
                   />

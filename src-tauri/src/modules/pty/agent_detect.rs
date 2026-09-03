@@ -18,6 +18,7 @@ const DEFAULT_AGENTS: &[&str] = &[
     "cursor-agent",
     "aider",
     "pi",
+    "omp",
     "amp",
     "cline",
     "goose",
@@ -340,8 +341,8 @@ mod tests {
     }
 
     #[test]
-    fn arms_on_opencode_and_grok_commands() {
-        for agent in ["opencode", "grok"] {
+    fn arms_on_opencode_omp_and_grok_commands() {
+        for agent in ["opencode", "omp", "grok"] {
             let mut d = AgentDetector::new();
             assert_eq!(
                 run(&mut d, &osc(&format!("133;C;{agent}"))),

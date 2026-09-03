@@ -2,7 +2,11 @@ import type { SearchAddon } from "@xterm/addon-search";
 import { DormantRing } from "./dormantRing";
 import type { PtySession } from "./pty-bridge";
 import type { ShellIntegrationState } from "./osc-handlers";
-import { isInteractiveCodingAgentCommand } from "./cliAgents";
+import {
+  detectCliAgent,
+  isInteractiveCodingAgentCommand,
+  type CliAgent,
+} from "./cliAgents";
 
 export type TerminalSessionCallbacks = {
   onSearchReady?: (addon: SearchAddon) => void;
@@ -39,6 +43,7 @@ export type TerminalSession = {
   agentLaunchBuffer: string;
   agentOutputTail: string;
   interactiveCodingAgent: boolean;
+  cliAgent: CliAgent | null;
   agentResponseRequested: boolean;
   shellState: ShellIntegrationState | null;
   initialCommandFallbackTimer: number | null;
@@ -78,6 +83,7 @@ export function createTerminalSession(
     agentLaunchBuffer: "",
     agentOutputTail: "",
     interactiveCodingAgent: isInteractiveCodingAgentCommand(initialCommand),
+    cliAgent: detectCliAgent(initialCommand),
     agentResponseRequested: false,
     shellState: null,
     initialCommandFallbackTimer: null,

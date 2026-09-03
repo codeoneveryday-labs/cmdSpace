@@ -1,4 +1,8 @@
 import type { AcquireParams, Slot, SlotAdapter } from "./rendererPool";
+import {
+  DARK_TERMINAL_THEME,
+  buildTerminalTheme,
+} from "@/styles/terminalTheme";
 
 type ResizePort = {
   setupResizeObserver: (slot: Slot, params: AcquireParams) => void;
@@ -51,6 +55,15 @@ export function createRendererSlotLifecycle(runtime: SlotLifecycleRuntime) {
     slot.term.options.disableStdin = params.shellExited;
     slot.term.clear();
     slot.term.reset();
+
+    const bridge = runtime.getAdapter()?.resolveLeaf(params.leafId);
+    if (bridge?.isDarkAgent?.() || bridge?.isHerdr?.()) {
+      slot.term.options.theme = DARK_TERMINAL_THEME;
+      slot.host.style.backgroundColor = "#09090b";
+    } else {
+      slot.term.options.theme = buildTerminalTheme();
+      slot.host.style.backgroundColor = "";
+    }
     if (
       params.cols > 0 &&
       params.rows > 0 &&
