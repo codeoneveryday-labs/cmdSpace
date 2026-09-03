@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
 import {
   DEFAULT_PREFERENCES,
   loadPreferences,
@@ -54,8 +55,14 @@ export const usePreferencesStore = create<State>((set) => ({
     const prefs = await loadPreferences();
     set({ ...prefs, hydrated: true });
     mirrorBgFastPath(prefs.backgroundKind, prefs.backgroundImageId);
+    if (prefs.preventSleep) {
+      void invoke("set_prevent_sleep", { enabled: true }).catch(() => undefined);
+    }
     void onPreferencesChange((key, value) => {
       set({ [key]: value } as Partial<State>);
+      if (key === "preventSleep") {
+        void invoke("set_prevent_sleep", { enabled: Boolean(value) }).catch(() => undefined);
+      }
       if (key === "backgroundKind" || key === "backgroundImageId") {
         const s = usePreferencesStore.getState();
         mirrorBgFastPath(s.backgroundKind, s.backgroundImageId);
