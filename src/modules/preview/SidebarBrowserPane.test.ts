@@ -132,6 +132,14 @@ describe("Sidebar browser toolbar", () => {
     const source = readFileSync(sidebarBrowserPath, "utf8");
 
     expect(source).toContain("interactionBlockedRef");
-    expect(source).toContain("if (interactionBlockedRef.current) return false;");
+    expect(source).toContain("if (interactionBlockedRef.current) {");
+    expect(source).toContain("publishNativeBrowserBounds(overlayId, null);");
+  });
+
+  it("publishes visible native bounds for floating-UI avoidance", () => {
+    const source = readFileSync(sidebarBrowserPath, "utf8");
+
+    expect(source).toContain('import { publishNativeBrowserBounds } from "./nativeBrowserBounds";');
+    expect(source).toContain("publishNativeBrowserBounds(overlayId, visibleBounds);");
   });
 });

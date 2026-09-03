@@ -17,6 +17,7 @@ import {
   type PreviewAddressBarHandle,
 } from "./PreviewAddressBar";
 import { intersectBrowserBounds } from "./browserBounds";
+import { publishNativeBrowserBounds } from "./nativeBrowserBounds";
 import { isLocalPreviewUrl, normalizePreviewUrl } from "./normalizePreviewUrl";
 
 type Props = {
@@ -146,15 +147,23 @@ export function SidebarBrowserPane({
 
   const syncNativeBounds = useCallback(async (): Promise<boolean> => {
     const webview = webviewRef.current;
+    const overlayId = webviewLabelRef.current;
     if (!webview) return false;
-    if (interactionBlockedRef.current) return false;
+    if (interactionBlockedRef.current) {
+      // A modal dialog sits above every layer: the native view hides, so it
+      // must not reserve space in the floating-UI avoidance registry either.
+      publishNativeBrowserBounds(overlayId, null);
+      return false;
+    }
 
     const visibleBounds = getVisibleNativeBounds();
     if (!visibleBounds) {
+      publishNativeBrowserBounds(overlayId, null);
       await webview.hide().catch(() => {});
       return false;
     }
 
+    publishNativeBrowserBounds(overlayId, visibleBounds);
     await Promise.all([
       webview.setPosition(
         new LogicalPosition(visibleBounds.left, visibleBounds.top),
@@ -176,6 +185,7 @@ export function SidebarBrowserPane({
   useEffect(() => {
     if (!useNativeWebview) return;
     if (!visible || !normalizedUrl || nativeInteractionBlocked) {
+      publishNativeBrowserBounds(webviewLabelRef.current, null);
       void webviewRef.current?.hide().catch(() => {});
       return;
     }
@@ -282,7 +292,9 @@ export function SidebarBrowserPane({
   }, [boundsRevision, syncNativeBounds, useNativeWebview]);
 
   useEffect(() => {
+    const overlayId = webviewLabelRef.current;
     return () => {
+      publishNativeBrowserBounds(overlayId, null);
       void closeNativeWebview();
     };
   }, [closeNativeWebview]);

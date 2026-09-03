@@ -1,7 +1,14 @@
 import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
+  avoidNativeBrowserBounds,
+  readNativeBrowserBounds,
+  rectsOverlap,
+  subscribeNativeBrowserBounds,
+} from "@/modules/preview/nativeBrowserBounds";
+import {
   forwardRef,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -69,8 +76,81 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     const [position, setPosition] = useState<{ left: number; top: number } | null>(
       null,
     );
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const positionRef = useRef(position);
+    positionRef.current = position;
 
     useImperativeHandle(ref, () => ({ toggle }), [toggle]);
+
+    // External URLs render in a native child webview above all DOM, so the
+    // pill steers around published browser rects instead of sliding under.
+    const resolveVisiblePosition = (
+      left: number,
+      top: number,
+      width: number,
+      height: number,
+    ) => {
+      const viewportClamped = {
+        left: Math.min(
+          Math.max(VOICE_SCREEN_EDGE_PX, left),
+          window.innerWidth - width - VOICE_SCREEN_EDGE_PX,
+        ),
+        top: Math.min(
+          Math.max(VOICE_SCREEN_EDGE_PX, top),
+          window.innerHeight - height - VOICE_SCREEN_EDGE_PX,
+        ),
+      };
+      const avoided = avoidNativeBrowserBounds(
+        viewportClamped,
+        { width, height },
+        readNativeBrowserBounds(),
+      );
+      return {
+        left: Math.min(
+          Math.max(VOICE_SCREEN_EDGE_PX, avoided.left),
+          window.innerWidth - width - VOICE_SCREEN_EDGE_PX,
+        ),
+        top: Math.min(
+          Math.max(VOICE_SCREEN_EDGE_PX, avoided.top),
+          window.innerHeight - height - VOICE_SCREEN_EDGE_PX,
+        ),
+      };
+    };
+
+    // Re-clamp the parked pill when browser bounds change underneath it
+    // (sidebar resize, collapse, navigation).
+    useEffect(() => {
+      const reclamp = () => {
+        const button = buttonRef.current;
+        if (!button) return;
+        const current = positionRef.current;
+        const rect = current
+          ? {
+              left: current.left,
+              top: current.top,
+              width: button.offsetWidth,
+              height: button.offsetHeight,
+            }
+          : button.getBoundingClientRect();
+        const obstacles = readNativeBrowserBounds();
+        if (!obstacles.some((bounds) => rectsOverlap(rect, bounds))) return;
+        const next = resolveVisiblePosition(
+          rect.left,
+          rect.top,
+          button.offsetWidth,
+          button.offsetHeight,
+        );
+        if (
+          !current ||
+          next.left !== current.left ||
+          next.top !== current.top
+        ) {
+          setPosition(next);
+        }
+      };
+      reclamp();
+      return subscribeNativeBrowserBounds(reclamp);
+    }, []);
 
     const startDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
@@ -104,16 +184,14 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
       suppressClickRef.current = true;
       setDragging(true);
       const { offsetWidth, offsetHeight } = event.currentTarget;
-      setPosition({
-        left: Math.min(
-          Math.max(VOICE_SCREEN_EDGE_PX, drag.originLeft + deltaX),
-          window.innerWidth - offsetWidth - VOICE_SCREEN_EDGE_PX,
+      setPosition(
+        resolveVisiblePosition(
+          drag.originLeft + deltaX,
+          drag.originTop + deltaY,
+          offsetWidth,
+          offsetHeight,
         ),
-        top: Math.min(
-          Math.max(VOICE_SCREEN_EDGE_PX, drag.originTop + deltaY),
-          window.innerHeight - offsetHeight - VOICE_SCREEN_EDGE_PX,
-        ),
-      });
+      );
     };
 
     const endDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -132,6 +210,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     return (
       <button
         type="button"
+        ref={buttonRef}
         aria-label="Toggle voice input"
         aria-pressed={status === "listening"}
         title={label}
