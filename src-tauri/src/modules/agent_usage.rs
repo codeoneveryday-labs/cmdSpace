@@ -8,7 +8,8 @@ pub(crate) use scan::claude_project_roots;
 #[allow(unused_imports)]
 pub use scan::{
     command_code_usage_snapshot, context_remaining_percent, latest_provider_limit_snapshot,
-    parse_codex_status, provider_limit_snapshot,
+    known_model_context_window, models_context_window, parse_claude_status, parse_cmd_status,
+    parse_codex_status, parse_omp_status, parse_opencode_message, provider_limit_snapshot,
 };
 use scan::{
     fetch_command_code_usage, scan_agent_usage, scan_local_provider_limit_status,

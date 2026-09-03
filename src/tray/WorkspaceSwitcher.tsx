@@ -3,6 +3,15 @@ import { cn } from "@/lib/utils";
 import { setPreventSleep } from "@/modules/settings/store";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import type { CliAgentDefinition } from "@/modules/terminal/lib/cliAgents";
+import {
+  USAGE_BAR_TONE_CLASS,
+  USAGE_TEXT_TONE_CLASS,
+  usagePercentTone,
+} from "@/modules/usage/usagePercentTone";
+import {
+  formatResetWeekday,
+  formatUsageWindow,
+} from "@/modules/usage/usageResetTime";
 import { Coffee02Icon, Moon02Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { invoke } from "@tauri-apps/api/core";
@@ -300,6 +309,8 @@ function ProviderUsageRow({
     summary.usedPercent === undefined
       ? undefined
       : Math.min(100, Math.max(0, summary.usedPercent));
+  const tone =
+    usedPercent === undefined ? null : usagePercentTone(usedPercent);
 
   return (
     <div className="space-y-1.5">
@@ -308,11 +319,16 @@ function ProviderUsageRow({
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">
           {agent.name}
         </span>
-        <span className="shrink-0 font-mono text-muted-foreground">
+        <span
+          className={cn(
+            "shrink-0 font-mono",
+            tone ? USAGE_TEXT_TONE_CLASS[tone] : "text-muted-foreground",
+          )}
+        >
           {summary.value}
         </span>
       </div>
-      {usedPercent !== undefined ? (
+      {usedPercent !== undefined && tone ? (
         <div
           aria-label={`${agent.name} ${usedPercent}% used`}
           aria-valuemax={100}
@@ -322,7 +338,7 @@ function ProviderUsageRow({
           role="progressbar"
         >
           <div
-            className="h-full rounded-full bg-foreground/70"
+            className={`h-full rounded-full ${USAGE_BAR_TONE_CLASS[tone]}`}
             style={{ width: `${usedPercent}%` }}
           />
         </div>
@@ -344,8 +360,9 @@ function summarizeUsage(
     const window = limit.windowMinutes
       ? ` / ${formatUsageWindow(limit.windowMinutes)}`
       : "";
+    const resetWeekday = formatResetWeekday(limit.resetsAt);
     return {
-      value: `${limit.usedPercent}%${window}`,
+      value: `${limit.usedPercent}%${window}${resetWeekday ? ` · ${resetWeekday}` : ""}`,
       usedPercent: limit.usedPercent,
     };
   }
@@ -358,12 +375,6 @@ function summarizeUsage(
     };
   }
   return null;
-}
-
-function formatUsageWindow(minutes: number): string {
-  if (minutes % (60 * 24) === 0) return `${minutes / (60 * 24)}d`;
-  if (minutes % 60 === 0) return `${minutes / 60}h`;
-  return `${minutes}m`;
 }
 
 function formatTokens(tokens: number): string {
