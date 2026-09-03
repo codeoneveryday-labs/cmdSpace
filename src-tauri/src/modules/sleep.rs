@@ -73,10 +73,17 @@ impl SleepInhibitor {
     #[cfg(target_os = "windows")]
     fn start(&mut self) -> Result<(), String> {
         unsafe {
+<<<<<<< HEAD
             windows_sys::Win32::System::Threading::SetThreadExecutionState(
                 windows_sys::Win32::System::Threading::ES_CONTINUOUS
                     | windows_sys::Win32::System::Threading::ES_SYSTEM_REQUIRED
                     | windows_sys::Win32::System::Threading::ES_DISPLAY_REQUIRED,
+=======
+            windows_sys::Win32::System::Power::SetThreadExecutionState(
+                windows_sys::Win32::System::Power::ES_CONTINUOUS
+                    | windows_sys::Win32::System::Power::ES_SYSTEM_REQUIRED
+                    | windows_sys::Win32::System::Power::ES_DISPLAY_REQUIRED,
+>>>>>>> origin/main
             );
         }
         Ok(())
@@ -98,8 +105,13 @@ impl SleepInhibitor {
     #[cfg(target_os = "windows")]
     fn stop(&mut self) {
         unsafe {
+<<<<<<< HEAD
             windows_sys::Win32::System::Threading::SetThreadExecutionState(
                 windows_sys::Win32::System::Threading::ES_CONTINUOUS,
+=======
+            windows_sys::Win32::System::Power::SetThreadExecutionState(
+                windows_sys::Win32::System::Power::ES_CONTINUOUS,
+>>>>>>> origin/main
             );
         }
     }

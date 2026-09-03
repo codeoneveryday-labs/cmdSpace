@@ -3,6 +3,41 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.103] - 2026-09-03
+
+### Added
+
+- Added Muse Code to the CLI agent catalog with brand icon, launch command,
+  banner detection, session resume, and remote provider mirrors; moved
+  muse, devin, and hermes above amp in catalog order (still opt-in).
+- Added session context window reporting for omp, cmd, and opencode
+  sessions on the terminal header, resolved from each CLI's local session
+  storage with model-limit lookup and a conservative known-family table.
+- Added calendar reset dates (`7d`, `10 Sep, 09:25`) and threshold tone
+  colors (red at 90%+, amber at 50%+, green below) to provider usage in
+  the popover and tray.
+- Added a Prevent sleep switch in Settings and the tray, backed by
+  caffeinate (macOS), execution state (Windows), and systemd-inhibit
+  (Linux).
+
+### Fixed
+
+- Fixed terminal input being wiped after window refocus on macOS by
+  resyncing the IME bridge when the hidden textarea regains focus.
+- Fixed the collapsed sidebar leaving its native browser webview visible
+  and interactive by forwarding computed visibility and hiding on
+  zero-area bounds.
+- Fixed Windows build using the wrong Win32 module for execution state
+  APIs.
+
+### Known limitations
+
+- Gemini CLI sessions expose no token counts on disk, so no context
+  percentage is shown for gemini; the badge stays hidden.
+- Linux Prevent sleep requires systemd; other init systems are no-ops.
+- Closing the laptop lid still sleeps the machine on all platforms
+  (OS-enforced).
+
 ## [0.7.102] - 2026-09-02
 
 ### Added
