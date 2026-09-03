@@ -24,6 +24,8 @@ describe("CLI agent registry", () => {
       pi: "pi",
       omp: "omp",
       muse: "muse",
+      devin: "devin",
+      hermes: "hermes",
       amp: "amp",
       cline: "cline",
       goose: "goose",
