@@ -45,4 +45,12 @@ describe("cliAgentDetectionModel", () => {
     expect(matchCliAgentBannerPattern("Welcome to OpenAI Codex CLI", CLI_AGENT_DEFINITIONS)).toBe("codex");
     expect(matchCliAgentBannerPattern("Regular bash output", CLI_AGENT_DEFINITIONS)).toBeNull();
   });
+
+  it("does not mistake a model name for the Muse Code CLI", () => {
+    // OpenCode running a Muse Spark model redraws status lines like
+    // "Build · Muse Spark 1.3 Free". "Muse Spark" is a model, not the
+    // Muse Code CLI banner, so it must not flip the agent to muse.
+    expect(matchCliAgentBannerPattern("Build · Muse Spark 1.3 Free", CLI_AGENT_DEFINITIONS)).toBeNull();
+    expect(matchCliAgentBannerPattern("Muse Code", CLI_AGENT_DEFINITIONS)).toBe("muse");
+  });
 });
