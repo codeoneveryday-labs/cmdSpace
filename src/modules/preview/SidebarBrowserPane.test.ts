@@ -127,4 +127,11 @@ describe("Sidebar browser toolbar", () => {
 
     expect(source).toContain("rect.width <= 0 || rect.height <= 0");
   });
+
+  it("skips bounds IPC while the native layer is blocked (resize drags)", () => {
+    const source = readFileSync(sidebarBrowserPath, "utf8");
+
+    expect(source).toContain("interactionBlockedRef");
+    expect(source).toContain("if (interactionBlockedRef.current) return false;");
+  });
 });
