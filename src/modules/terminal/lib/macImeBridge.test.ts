@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as macImeBridge from "./macImeBridge";
 
 type MacImeBridgeModule = typeof macImeBridge & {
@@ -47,5 +47,63 @@ describe("normalizeMacTerminalInput", () => {
     expect(normalize?.("\u0083")).toBe(" ");
     expect(normalize?.("\u00a0")).toBe(" ");
     expect(normalize?.(" ")).toBe(" ");
+  });
+});
+
+type FakeTextarea = {
+  value: string;
+  fire: (name: string, event: Record<string, unknown>) => void;
+};
+
+function createFakeTextarea() {
+  const listeners = new Map<string, Array<(e: unknown) => void>>();
+  const textarea = {
+    value: "",
+    addEventListener: (name: string, cb: (e: unknown) => void) => {
+      const arr = listeners.get(name) ?? [];
+      arr.push(cb);
+      listeners.set(name, arr);
+    },
+    fire: (name: string, event: Record<string, unknown>) => {
+      for (const cb of listeners.get(name) ?? []) {
+        cb({ stopImmediatePropagation: () => undefined, ...event });
+      }
+    },
+  };
+  return textarea as FakeTextarea & { value: string };
+}
+
+describe("attachMacImeBridge focus resync", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not emit spurious DELs when typing after a window blur cleared the textarea", async () => {
+    vi.stubGlobal("navigator", { userAgent: "Macintosh" });
+    const { attachMacImeBridge } = await import("./macImeBridge");
+
+    const writes: string[] = [];
+    const textarea = createFakeTextarea();
+    attachMacImeBridge(
+      { textarea } as unknown as Parameters<typeof attachMacImeBridge>[0],
+      (data) => writes.push(data),
+    );
+
+    // User types "git" — the browser accumulates it in the textarea.
+    for (const next of ["g", "gi", "git"]) {
+      textarea.value = next;
+      textarea.fire("input", { inputType: "insertText" });
+    }
+    expect(writes).toEqual(["g", "i", "t"]);
+
+    // xterm clears the textarea on blur without firing `input`.
+    textarea.value = "";
+    // Refocus resyncs; the next keystroke must forward alone.
+    textarea.fire("focus", {});
+    textarea.value = "!";
+    textarea.fire("input", { inputType: "insertText" });
+
+    expect(writes).toEqual(["g", "i", "t", "!"]);
   });
 });

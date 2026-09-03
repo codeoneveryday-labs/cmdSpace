@@ -124,6 +124,13 @@ export function attachMacImeBridge(
     }
     writeDiff(lastValue);
   }, true);
+  // xterm clears its hidden textarea on blur (`_handleTextAreaBlur` sets
+  // value="") without firing an `input` event, so `lastValue` goes stale.
+  // Without this resync, the next keystroke after refocus diffs into a run
+  // of spurious DELs and wipes the shell line (blur-to-Chrome then type).
+  textarea.addEventListener("focus", () => {
+    lastValue = textarea.value;
+  });
 }
 
 function isPrintableTerminalData(data: string): boolean {
