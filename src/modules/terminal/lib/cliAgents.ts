@@ -309,7 +309,7 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "aider", name: "Aider", executable: "aider", command: "aider", launch: "aider", launchPolicy: "standard", bannerPatterns: [/\baider\b/i] },
   { id: "pi", name: "Pi Coding Agent", executable: "pi", command: "pi", launch: "pi", launchPolicy: "standard", bannerPatterns: [/\bpi coding agent\b/i] },
   { id: "omp", name: "omp", executable: "omp", command: "omp", launch: "omp", launchPolicy: "standard", chatTransport: "omp-rpc", bannerPatterns: [/\bomp(?:\.sh)?\b/i] },
-  { id: "muse", name: "Muse Code", executable: "muse", command: "muse", launch: museLaunch, launchPolicy: "standard", bannerPatterns: [/\bmuse code\b/i, /\bmuse spark\b/i] },
+  { id: "muse", name: "Muse Code", executable: "muse", command: "muse", launch: museLaunch, launchPolicy: "standard", bannerPatterns: [/\bmuse code\b/i] },
   { id: "devin", name: "Devin CLI", executable: "devin", command: "devin", launch: "devin", launchPolicy: "standard", bannerPatterns: [/\bdevin(?: cli)?\b/i] },
   { id: "hermes", name: "Hermes", executable: "hermes", command: "hermes", launch: "hermes", launchPolicy: "standard", bannerPatterns: [/\bhermes\b/i] },
   { id: "amp", name: "Amp CLI", executable: "amp", command: "amp", launch: "amp", launchPolicy: "standard", bannerPatterns: [/\bamp cli\b/i, /\bsourcegraph amp\b/i] },
