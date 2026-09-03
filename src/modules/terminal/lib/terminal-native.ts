@@ -24,8 +24,14 @@ export const getAgentUsageStatuses = (
   cwd: string,
   provider?: string,
   nativeSessionId?: string | null,
+  sessionTitleHint?: string | null,
 ): Promise<AgentUsageStatus[]> =>
-  invoke("agent_usage_statuses", { cwd, provider, nativeSessionId });
+  invoke("agent_usage_statuses", {
+    cwd,
+    provider,
+    nativeSessionId,
+    sessionTitleHint,
+  });
 
 export const listTerminalSubdirectories = (
   path: string,

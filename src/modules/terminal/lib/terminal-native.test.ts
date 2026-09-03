@@ -29,6 +29,7 @@ describe("typed terminal native bridge", () => {
       cwd: "/repo",
       provider: "codex",
       nativeSessionId: "thread-1",
+      sessionTitleHint: undefined,
     });
     expect(mocks.invoke).toHaveBeenNthCalledWith(2, "list_subdirs", {
       path: "/repo",

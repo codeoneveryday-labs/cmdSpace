@@ -17,16 +17,33 @@ const PROVIDER_DISPLAY_NAMES: Record<AgentUsageStatus["provider"], string> = {
   opencode: "OpenCode",
 };
 
+/// Matches OpenCode's default session title as rendered in the TUI sidebar
+/// (e.g. "New session - 2026-09-03T11:35:14.641Z"). The title is stored
+/// verbatim in opencode.db, so the full match pins usage lookups to the
+/// session running in this pane instead of the newest session in the folder.
+const OPENCODE_SESSION_TITLE_PATTERN =
+  /New session - \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z/;
+
+export function extractOpenCodeSessionTitle(
+  text: string | null | undefined,
+): string | null {
+  if (!text) return null;
+  const match = OPENCODE_SESSION_TITLE_PATTERN.exec(text);
+  return match ? match[0] : null;
+}
+
 export function useTerminalAgentUsage({
   cwd,
   agentCommand,
   focused,
   hydrated,
+  getBuffer,
 }: {
   cwd: string | undefined;
   agentCommand: string | undefined;
   focused: boolean;
   hydrated: boolean;
+  getBuffer?: () => string | null;
 }) {
   const [agentUsage, setAgentUsage] = useState<AgentUsageStatus[]>([]);
   const [usageOpen, setUsageOpen] = useState(false);
@@ -52,7 +69,19 @@ export function useTerminalAgentUsage({
     let disposed = false;
     const refreshAgentUsage = async () => {
       try {
-        const statuses = await getAgentUsageStatuses(cwd);
+        // Read the pane's own buffer every refresh: the OpenCode sidebar
+        // renders its session title, which resolves the per-pane session even
+        // when several sessions share this cwd.
+        const sessionTitleHint =
+          cliAgent === "opencode"
+            ? extractOpenCodeSessionTitle(getBuffer?.() ?? null)
+            : null;
+        const statuses = await getAgentUsageStatuses(
+          cwd,
+          undefined,
+          null,
+          sessionTitleHint,
+        );
         if (!disposed) setAgentUsage(statuses);
       } catch (error) {
         void error;
@@ -65,7 +94,7 @@ export function useTerminalAgentUsage({
       disposed = true;
       if (interval !== null) window.clearInterval(interval);
     };
-  }, [cwd, focused, hydrated, supportsUsage]);
+  }, [cwd, focused, hydrated, supportsUsage, cliAgent, getBuffer]);
 
   return {
     activeAgentUsage,

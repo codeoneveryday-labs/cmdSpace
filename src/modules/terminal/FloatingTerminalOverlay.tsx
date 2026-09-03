@@ -74,7 +74,13 @@ export function FloatingTerminalOverlay({
     usageOpen,
     usageMenuRef,
     setUsageOpen,
-  } = useTerminalAgentUsage({ cwd, agentCommand, focused, hydrated });
+  } = useTerminalAgentUsage({
+    cwd,
+    agentCommand,
+    focused,
+    hydrated,
+    getBuffer: onGetBuffer,
+  });
 
   const refreshGitInfo = useCallback(async () => {
     const requestId = ++gitInfoRequestRef.current;

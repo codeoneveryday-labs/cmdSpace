@@ -80,9 +80,15 @@ pub async fn agent_usage_statuses(
     cwd: String,
     provider: Option<String>,
     native_session_id: Option<String>,
+    session_title_hint: Option<String>,
 ) -> Result<Vec<AgentUsageStatus>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        scan_agent_usage(&cwd, provider.as_deref(), native_session_id.as_deref())
+        scan_agent_usage(
+            &cwd,
+            provider.as_deref(),
+            native_session_id.as_deref(),
+            session_title_hint.as_deref(),
+        )
     })
     .await
     .map_err(|error| error.to_string())?
