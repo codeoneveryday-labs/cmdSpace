@@ -82,6 +82,27 @@ const REMOTE_CLI_AGENT_CATALOG: &[(&str, &str, &str, &str, Option<&str>)] = &[
         Some("https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent"),
     ),
     (
+        "muse",
+        "Muse Code",
+        "muse",
+        "Meta's terminal coding agent powered by Muse Spark.",
+        Some("https://developer.meta.com/ai/products/muse-code/"),
+    ),
+    (
+        "devin",
+        "Devin CLI",
+        "devin",
+        "Devin's terminal coding agent via Agent Client Protocol.",
+        Some("https://cli.devin.ai/docs"),
+    ),
+    (
+        "hermes",
+        "Hermes",
+        "hermes",
+        "Nous Research self-improving AI agent.",
+        Some("https://hermes-agent.nousresearch.com/"),
+    ),
+    (
         "amp",
         "Amp CLI",
         "amp",
@@ -215,13 +236,6 @@ const REMOTE_CLI_AGENT_CATALOG: &[(&str, &str, &str, &str, Option<&str>)] = &[
         Some("https://docs.langchain.com/oss/javascript/deepagents/overview"),
     ),
     (
-        "devin",
-        "Devin CLI",
-        "devin",
-        "Devin's terminal coding agent via Agent Client Protocol.",
-        Some("https://cli.devin.ai/docs"),
-    ),
-    (
         "dimcode",
         "DimCode",
         "dimcode",
@@ -255,13 +269,6 @@ const REMOTE_CLI_AGENT_CATALOG: &[(&str, &str, &str, &str, Option<&str>)] = &[
         "glm",
         "Zhipu GLM coding agent with streaming and tool calls.",
         Some("https://github.com/stefandevo/glm-acp-agent"),
-    ),
-    (
-        "hermes",
-        "Hermes",
-        "hermes",
-        "Nous Research self-improving AI agent.",
-        Some("https://hermes-agent.nousresearch.com/"),
     ),
     (
         "junie",

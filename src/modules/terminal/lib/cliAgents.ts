@@ -13,6 +13,9 @@ export const CLI_AGENT_IDS = [
   "aider",
   "pi",
   "omp",
+  "muse",
+  "devin",
+  "hermes",
   "amp",
   "cline",
   "goose",
@@ -32,13 +35,11 @@ export const CLI_AGENT_IDS = [
   "corust",
   "crow",
   "deepagents",
-  "devin",
   "dimcode",
   "dirac",
   "factory-droid",
   "fast-agent",
   "glm",
-  "hermes",
   "junie",
   "kilo",
   "minion",
@@ -266,12 +267,19 @@ const CLI_AGENT_CATALOG_META: Record<
     description: "Open-source coding agent with LLM-native code understanding.",
     installUrl: "https://github.com/vinhnx/vtcode",
   },
+  muse: {
+    description: "Meta's terminal coding agent powered by Muse Spark.",
+    installUrl: "https://developer.meta.com/ai/products/muse-code/",
+  },
 };
 
 const kimiLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.kimi-code/bin:$HOME/.local/bin:$PATH"; kimi';
 const grokLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; grok';
+
+const museLaunch =
+  'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; muse';
 
 const UNATTENDED_LAUNCH_FLAGS: Partial<Record<CliAgent, string>> = {
   claude: "--dangerously-skip-permissions",
@@ -301,6 +309,9 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "aider", name: "Aider", executable: "aider", command: "aider", launch: "aider", launchPolicy: "standard", bannerPatterns: [/\baider\b/i] },
   { id: "pi", name: "Pi Coding Agent", executable: "pi", command: "pi", launch: "pi", launchPolicy: "standard", bannerPatterns: [/\bpi coding agent\b/i] },
   { id: "omp", name: "omp", executable: "omp", command: "omp", launch: "omp", launchPolicy: "standard", chatTransport: "omp-rpc", bannerPatterns: [/\bomp(?:\.sh)?\b/i] },
+  { id: "muse", name: "Muse Code", executable: "muse", command: "muse", launch: museLaunch, launchPolicy: "standard", bannerPatterns: [/\bmuse code\b/i, /\bmuse spark\b/i] },
+  { id: "devin", name: "Devin CLI", executable: "devin", command: "devin", launch: "devin", launchPolicy: "standard", bannerPatterns: [/\bdevin(?: cli)?\b/i] },
+  { id: "hermes", name: "Hermes", executable: "hermes", command: "hermes", launch: "hermes", launchPolicy: "standard", bannerPatterns: [/\bhermes\b/i] },
   { id: "amp", name: "Amp CLI", executable: "amp", command: "amp", launch: "amp", launchPolicy: "standard", bannerPatterns: [/\bamp cli\b/i, /\bsourcegraph amp\b/i] },
   { id: "cline", name: "Cline CLI", executable: "cline", command: "cline", launch: "cline", launchPolicy: "standard", bannerPatterns: [/\bcline cli\b/i] },
   { id: "goose", name: "Goose", executable: "goose", command: "goose", launch: "goose", launchPolicy: "standard", bannerPatterns: [/\bgoose\b/i] },
@@ -320,13 +331,11 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "corust", name: "Corust Agent", executable: "corust", command: "corust", launch: "corust", launchPolicy: "standard", bannerPatterns: [/\bcorust(?: agent)?\b/i] },
   { id: "crow", name: "crow-cli", executable: "crow", command: "crow", launch: "crow", launchPolicy: "standard", bannerPatterns: [/\bcrow(?:-cli)?\b/i] },
   { id: "deepagents", name: "DeepAgents", executable: "deepagents", command: "deepagents", launch: "deepagents", launchPolicy: "standard", bannerPatterns: [/\bdeepagents\b/i] },
-  { id: "devin", name: "Devin CLI", executable: "devin", command: "devin", launch: "devin", launchPolicy: "standard", bannerPatterns: [/\bdevin(?: cli)?\b/i] },
   { id: "dimcode", name: "DimCode", executable: "dimcode", command: "dimcode", launch: "dimcode", launchPolicy: "standard", bannerPatterns: [/\bdimcode\b/i] },
   { id: "dirac", name: "Dirac", executable: "dirac", command: "dirac", launch: "dirac", launchPolicy: "standard", bannerPatterns: [/\bdirac\b/i] },
   { id: "factory-droid", name: "Factory Droid", executable: "droid", command: "droid", launch: "droid", launchPolicy: "standard", bannerPatterns: [/\bfactory droid\b/i] },
   { id: "fast-agent", name: "fast-agent", executable: "fast-agent", command: "fast-agent", launch: "fast-agent", launchPolicy: "standard", bannerPatterns: [/\bfast-agent\b/i] },
   { id: "glm", name: "GLM Agent", executable: "glm", command: "glm", launch: "glm", launchPolicy: "standard", bannerPatterns: [/\bglm agent\b/i] },
-  { id: "hermes", name: "Hermes", executable: "hermes", command: "hermes", launch: "hermes", launchPolicy: "standard", bannerPatterns: [/\bhermes\b/i] },
   { id: "junie", name: "Junie", executable: "junie", command: "junie", launch: "junie", launchPolicy: "standard", bannerPatterns: [/\bjunie\b/i] },
   { id: "kilo", name: "Kilo", executable: "kilo", command: "kilo", launch: "kilo", launchPolicy: "standard", bannerPatterns: [/\bkilo\b/i] },
   { id: "minion", name: "Minion Code", executable: "minion", command: "minion", launch: "minion", launchPolicy: "standard", bannerPatterns: [/\bminion(?: code)?\b/i] },

@@ -53,6 +53,7 @@ function providerLabel(provider: string): string {
     grok: "Grok",
     herdr: "Herdr",
     cmd: "cmd",
+    muse: "Muse Code",
   };
   return labels[provider] ?? provider;
 }

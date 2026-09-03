@@ -41,6 +41,7 @@ import traeIconSvg from "@/assets/provider-icons/trae.svg?raw";
 import vtCodeIconSvg from "@/assets/provider-icons/vt-code.svg?raw";
 import openhandsIconSvg from "@/assets/provider-icons/openhands-mark.svg?raw";
 import kiroIconSvg from "@/assets/provider-icons/kiro.svg?raw";
+import museIconSvg from "@/assets/provider-icons/muse.svg?raw";
 import hermesIconUrl from "@/assets/provider-icons/hermes.png?url";
 import devinIconUrl from "@/assets/provider-icons/devin.ico?url";
 import deepgramIconSvg from "@/assets/provider-icons/deepgram.svg?raw";
@@ -97,6 +98,7 @@ export const BRAND_ICON_ASSETS = {
   "vt-code": vtCodeIconSvg,
   openhands: openhandsIconSvg,
   kiro: kiroIconSvg,
+  muse: museIconSvg,
   deepgram: deepgramIconSvg,
   googlecloud: googleCloudIconSvg,
   elevenlabs: elevenLabsIconSvg,
@@ -122,6 +124,7 @@ export const BRAND_ICON_SOURCE_URLS: Partial<
   cmd: "https://raw.githubusercontent.com/CommandCodeAI/command-code/main/.github/commandcode/symbols/commandcode.svg",
   herdr:
     "https://raw.githubusercontent.com/ogulcancelik/herdr/master/website/assets/agent-icons/herdr-mask.svg",
+  muse: "https://raw.githubusercontent.com/gilbarbara/logos/main/logos/meta-icon.svg",
 };
 
 const PROVIDER_BRAND_ICONS: Partial<Record<ProviderId, BrandIconName>> = {
@@ -180,6 +183,7 @@ const AGENT_BRAND_ICONS: Partial<Record<CliAgent, BrandIconName>> = {
   openhands: "openhands",
   hermes: "hermes",
   kiro: "kiro",
+  muse: "muse",
   devin: "devin",
 };
 

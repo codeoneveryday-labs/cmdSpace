@@ -71,6 +71,8 @@ export function buildSessionResumeCommand(
       return `herdr session attach ${id}`;
     case "cmd":
       return `cmd --session ${id}`;
+    case "muse":
+      return `muse resume ${id}`;
     default:
       // Marketplace agents do not share one resume API. Keep imported
       // sessions usable with a conservative conventional fallback until an

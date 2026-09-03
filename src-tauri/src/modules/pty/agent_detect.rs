@@ -26,6 +26,7 @@ const DEFAULT_AGENTS: &[&str] = &[
     "openhands",
     "kiro-cli",
     "grok",
+    "muse",
 ];
 
 // OSC 777 marker our agent hooks emit. Legacy 3-field `notify;cmdSpace;<event>`
