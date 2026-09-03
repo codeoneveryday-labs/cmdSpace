@@ -92,6 +92,8 @@ macro_rules! cmdspace_commands {
             window_commands::open_workspace_from_tray,
             window_commands::set_desktop_blur,
             window_commands::set_webview_corner_radius,
+            sleep::set_prevent_sleep,
+            sleep::get_prevent_sleep,
             // Secrets
             secrets::secrets_get,
             secrets::secrets_set,

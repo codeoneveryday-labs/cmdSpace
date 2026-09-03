@@ -6,7 +6,7 @@ mod modules;
 mod window_commands;
 
 use modules::{
-    agent_chat, agent_usage, db, fs, git, music, net, pty, remote, secrets, shell, speech,
+    agent_chat, agent_usage, db, fs, git, music, net, pty, remote, secrets, shell, sleep, speech,
     workspace,
 };
 use std::sync::Mutex;
@@ -263,6 +263,7 @@ pub fn run() {
             window_commands::parse_launch_dir(),
         )))
         .manage(window_commands::DesktopBlurState::default())
+        .manage(sleep::SleepInhibitorState::default())
         .manage(db::DbState(std::sync::Mutex::new(db_conn)))
         .manage(app_exit::ExitCoordinator::default())
         .setup(|_app| {
