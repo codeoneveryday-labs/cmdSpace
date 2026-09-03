@@ -159,6 +159,7 @@ pub(super) fn build_agent_resume_command(
         "grok" => format!("grok --resume {id}"),
         "herdr" => format!("herdr session attach {id}"),
         "cmd" => format!("cmd --session {id}"),
+        "muse" => format!("muse resume {id}"),
         _ => return Err("unsupported CLI provider".to_string()),
     };
     Ok(command)
