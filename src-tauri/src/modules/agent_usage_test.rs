@@ -1,6 +1,8 @@
 use super::agent_usage::{
     claude_project_roots, command_code_usage_snapshot, context_remaining_percent,
-    parse_codex_status, provider_limit_snapshot, AgentSessionUsage, ProviderAccountUsage,
+    known_model_context_window, models_context_window, parse_cmd_status, parse_codex_status,
+    parse_omp_status, parse_opencode_message, provider_limit_snapshot, AgentSessionUsage,
+    ProviderAccountUsage,
 };
 use std::path::Path;
 
@@ -148,4 +150,122 @@ fn provider_usage_payload_omits_unavailable_account_metrics() {
     assert_eq!(payload.get("usedPercent"), None);
     assert_eq!(payload.get("creditsRemaining"), None);
     assert_eq!(payload.get("requestCount"), None);
+}
+
+#[test]
+fn omp_status_reads_total_tokens_and_model() {
+    let line = r#"{"cwd":"/repo","model":"gpt-5.6-sol","usage":{"input":100,"output":50,"cacheRead":10,"cacheWrite":5,"totalTokens":165,"cost":{"total":0}}}"#;
+
+    let (tokens, model) = parse_omp_status(line).expect("omp usage should parse");
+
+    assert_eq!(tokens, 165);
+    assert_eq!(model, "gpt-5.6-sol");
+}
+
+#[test]
+fn omp_status_ignores_zero_token_lines() {
+    let line = r#"{"cwd":"/repo","model":"gpt-5.6-sol","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0}}"#;
+
+    assert!(parse_omp_status(line).is_none());
+}
+
+#[test]
+fn cmd_status_sums_token_fields_with_model() {
+    let line = r#"{"type":"message","id":"a1","message":{"role":"assistant"},"usage":{"inputTokens":30021,"outputTokens":543,"cacheReadTokens":10368,"cacheWriteTokens":0},"model":"deepseek/deepseek-v4-flash"}"#;
+
+    let (tokens, model) = parse_cmd_status(line).expect("cmd usage should parse");
+
+    assert_eq!(tokens, 30021 + 543 + 10368);
+    assert_eq!(model, "deepseek/deepseek-v4-flash");
+}
+
+#[test]
+fn cmd_status_skips_session_headers() {
+    let line = r#"{"type":"session","id":"abc","cwd":"/repo"}"#;
+
+    assert!(parse_cmd_status(line).is_none());
+}
+
+#[test]
+fn models_context_window_resolves_models_dev_cache_shape() {
+    let cache = r#"{"hpc-ai":{"models":{"deepseek/deepseek-v4-flash":{"limit":{"context":1048576}}}}}"#;
+
+    assert_eq!(
+        models_context_window(cache, "deepseek/deepseek-v4-flash"),
+        Some(1_048_576)
+    );
+    assert_eq!(models_context_window(cache, "unknown/model"), None);
+}
+
+#[test]
+fn models_context_window_resolves_omp_model_cache_shape() {
+    let cache = r#"[{"id":"gpt-5.6-sol","contextWindow":200000}]"#;
+
+    assert_eq!(models_context_window(cache, "gpt-5.6-sol"), Some(200_000));
+    assert_eq!(models_context_window(cache, "other/model"), None);
+}
+
+#[test]
+fn known_model_context_window_matches_families_case_insensitively() {
+    assert_eq!(known_model_context_window("claude-sonnet-4-5"), Some(200_000));
+    assert_eq!(
+        known_model_context_window("Claude-Opus-4-1"),
+        Some(200_000)
+    );
+    assert_eq!(known_model_context_window("gpt-4o"), Some(128_000));
+    assert_eq!(known_model_context_window("gpt-4.1-mini"), Some(1_048_576));
+    assert_eq!(known_model_context_window("gpt-5-mini"), Some(400_000));
+    assert_eq!(
+        known_model_context_window("gemini-2.5-pro"),
+        Some(1_048_576)
+    );
+    assert_eq!(
+        known_model_context_window("gemini-3.1-pro-preview"),
+        Some(1_048_576)
+    );
+    assert_eq!(
+        known_model_context_window("meta/muse-spark-1.3-contributor-free"),
+        Some(1_048_576)
+    );
+}
+
+#[test]
+fn known_model_context_window_omits_version_dependent_families() {
+    assert_eq!(known_model_context_window("deepseek-v4-flash"), None);
+    assert_eq!(known_model_context_window("qwen3-max"), None);
+    assert_eq!(known_model_context_window("grok-4"), None);
+    assert_eq!(known_model_context_window("llama-3.3-70b"), None);
+    assert_eq!(known_model_context_window(""), None);
+}
+
+#[test]
+fn opencode_message_uses_latest_turn_input_plus_cache_read() {
+    // Mirrors docs/OPENCODE_CONTEXT_WINDOW.md: session.tokens_* columns are
+    // cumulative and must not be used.
+    let data = r#"{"role":"assistant","providerID":"opencode","modelID":"muse-spark-1.3-contributor-free","finish":"stop","tokens":{"input":529,"output":110,"reasoning":0,"cache":{"read":477937,"write":0}}}"#;
+
+    let (tokens, model) =
+        parse_opencode_message(data).expect("opencode message should parse");
+
+    assert_eq!(tokens, 529 + 477937);
+    assert_eq!(model, "muse-spark-1.3-contributor-free");
+}
+
+#[test]
+fn opencode_message_skips_in_progress_turns_without_finish() {
+    // Matches opencode's own status line, which only counts completed turns.
+    let running = r#"{"role":"assistant","providerID":"opencode","modelID":"m","finish":null,"tokens":{"input":1204,"cache":{"read":491121}}}"#;
+    assert!(parse_opencode_message(running).is_none());
+
+    let placeholder = r#"{"role":"assistant","providerID":"opencode","modelID":"m","tokens":{"input":0,"cache":{"read":0}}}"#;
+    assert!(parse_opencode_message(placeholder).is_none());
+}
+
+#[test]
+fn opencode_message_skips_user_messages_and_empty_turns() {
+    let user = r#"{"role":"user","providerID":"opencode","modelID":"m","tokens":{"input":10,"cache":{"read":0}}}"#;
+    assert!(parse_opencode_message(user).is_none());
+
+    let empty = r#"{"role":"assistant","providerID":"opencode","modelID":"m","tokens":{"input":0,"cache":{"read":0}}}"#;
+    assert!(parse_opencode_message(empty).is_none());
 }

@@ -10,6 +10,7 @@ export type ProviderLimitStatus = {
     label: string;
     usedPercent: number;
     windowMinutes?: number;
+    resetsAt?: number;
   }>;
   accountUsage?: { plan?: string; usedPercent?: number };
   sessionUsage?: { inputTokens: number; outputTokens: number };

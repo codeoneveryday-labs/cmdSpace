@@ -39,6 +39,19 @@ fn same_path(left: &str, right: &str) -> bool {
     left.trim_end_matches('/') == right.trim_end_matches('/')
 }
 
+/// Matches session lines that carry their own `cwd` (omp writes it per
+/// line; cmd writes it on the session header). Unlike
+/// `codex_session_matches_cwd`, this scans caller-provided lines so files
+/// whose first line is a title/header without cwd still match.
+pub(super) fn any_line_matches_cwd(lines: &[String], cwd: &str) -> bool {
+    lines.iter().any(|line| {
+        serde_json::from_str::<Value>(line)
+            .ok()
+            .and_then(|value| find_cwd(&value).map(str::to_owned))
+            .is_some_and(|candidate| same_path(&candidate, cwd))
+    })
+}
+
 pub(super) fn escaped_claude_cwd(cwd: &str) -> String {
     cwd.chars()
         .map(|character| {

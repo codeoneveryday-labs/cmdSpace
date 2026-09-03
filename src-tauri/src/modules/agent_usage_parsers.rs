@@ -129,3 +129,129 @@ fn parse_rate_limits(value: &Value) -> Vec<AgentRateLimit> {
         })
         .collect()
 }
+
+/// Session token usage plus the model it was recorded with.
+/// omp writes `usage{input,output,cacheRead,cacheWrite,totalTokens}` per
+/// session line together with the active `model` id.
+pub fn parse_omp_status(line: &str) -> Option<(u64, String)> {
+    let value: Value = serde_json::from_str(line).ok()?;
+    let usage = value.get("usage")?;
+    let summed = ["input", "output", "cacheRead", "cacheWrite"]
+        .into_iter()
+        .filter_map(|key| usage.get(key).and_then(Value::as_u64))
+        .sum::<u64>();
+    let total = usage
+        .get("totalTokens")
+        .and_then(Value::as_u64)
+        .unwrap_or_default()
+        .max(summed);
+    let model = value.get("model").and_then(Value::as_str)?;
+    if total == 0 || model.is_empty() {
+        return None;
+    }
+    Some((total, model.to_string()))
+}
+
+/// Command Code writes top-level `usage{inputTokens,outputTokens,
+/// cacheReadTokens,cacheWriteTokens}` and `model` per session line.
+pub fn parse_cmd_status(line: &str) -> Option<(u64, String)> {
+    let value: Value = serde_json::from_str(line).ok()?;
+    if value.get("type").and_then(Value::as_str) == Some("session") {
+        return None;
+    }
+    let usage = value.get("usage")?;
+    let tokens = ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens"]
+        .into_iter()
+        .filter_map(|key| usage.get(key).and_then(Value::as_u64))
+        .sum::<u64>();
+    let model = value.get("model").and_then(Value::as_str)?;
+    if tokens == 0 || model.is_empty() {
+        return None;
+    }
+    Some((tokens, model.to_string()))
+}
+
+/// OpenCode assistant message payload:
+/// `{role, providerID, modelID, finish?, tokens{input, cache{read}}}`.
+/// Active context is the latest *completed* turn's `input + cache.read`:
+/// the in-progress turn has no `finish` marker yet and must be skipped so
+/// the badge agrees with opencode's own status line. The
+/// `session.tokens_*` columns are cumulative across every turn and must
+/// NOT be used (see docs/OPENCODE_CONTEXT_WINDOW.md).
+pub fn parse_opencode_message(data: &str) -> Option<(u64, String)> {
+    let value: Value = serde_json::from_str(data).ok()?;
+    if value.get("role").and_then(Value::as_str) != Some("assistant") {
+        return None;
+    }
+    if !matches!(value.get("finish"), Some(Value::String(_))) {
+        return None;
+    }
+    let tokens = value.get("tokens")?;
+    let active = tokens.get("input").and_then(Value::as_u64).unwrap_or_default()
+        + tokens
+            .get("cache")
+            .and_then(|cache| cache.get("read"))
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+    let provider = value.get("providerID").and_then(Value::as_str)?;
+    let model = value.get("modelID").and_then(Value::as_str)?;
+    if active == 0 || provider.is_empty() || model.is_empty() {
+        return None;
+    }
+    // Plain model id: the models cache is searched across every provider.
+    Some((active, model.to_string()))
+}
+
+/// Finds a model's context window in a models.dev-style cache
+/// (`~/.cache/opencode/models.json` or omp's `model_cache` rows):
+/// `{provider: {models: {id: {limit: {context}}}}}` or `[{id, contextWindow}]`.
+pub fn models_context_window(models_json: &str, model_id: &str) -> Option<u64> {    let value: Value = serde_json::from_str(models_json).ok()?;
+    if let Some(models) = value.as_array() {
+        for model in models {
+            if model.get("id").and_then(Value::as_str) == Some(model_id) {
+                if let Some(window) = model.get("contextWindow").and_then(Value::as_u64) {
+                    return Some(window);
+                }
+            }
+        }
+    }
+    if let Some(providers) = value.as_object() {
+        for provider in providers.values() {
+            let models = provider.get("models")?;
+            if let Some(window) = models
+                .get(model_id)
+                .and_then(|model| model.pointer("/limit/context"))
+                .and_then(Value::as_u64)
+            {
+                return Some(window);
+            }
+        }
+    }
+    None
+}
+
+/// Well-known model context windows, used when neither the session file
+/// nor a local models cache records the limit. Matched case-insensitively
+/// by family substring; callers must mark results estimated. Deliberately
+/// conservative: families with version-dependent windows (deepseek, qwen,
+/// grok, llama) are omitted and resolve through the models cache instead.
+pub fn known_model_context_window(model_id: &str) -> Option<u64> {
+    let model = model_id.to_lowercase();
+    // Order matters: check specific families before broader substrings.
+    for (family, window) in [
+        ("muse-spark", 1_048_576),
+        ("claude", 200_000),
+        ("gpt-4o", 128_000),
+        ("gpt-4.1", 1_048_576),
+        ("gpt-5", 400_000),
+        ("gemini-2.", 1_048_576),
+        ("gemini-1.5", 1_048_576),
+        ("gemini-3", 1_048_576),
+        ("gemini-flash", 1_048_576),
+    ] {
+        if model.contains(family) {
+            return Some(window);
+        }
+    }
+    None
+}

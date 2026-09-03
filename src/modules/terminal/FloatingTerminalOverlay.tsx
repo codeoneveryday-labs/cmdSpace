@@ -164,7 +164,7 @@ export function FloatingTerminalOverlay({
       data-pane-drag-handle
       draggable={false}
       onPointerDown={onDragStart}
-      className={`absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-3 rounded-none border bg-card/95 px-0 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 ${
+      className={`absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-1.5 rounded-none border bg-card/95 px-0 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 @sm:gap-3 ${
         isDragging ? "cursor-grabbing opacity-60" : "cursor-grab"
       } ${
         focused
@@ -176,10 +176,24 @@ export function FloatingTerminalOverlay({
         currentAgent={cliAgent}
         onSelect={onSwitchAgent}
       />
-      {agentState ? <AgentStateDot state={agentState} /> : null}
-      {activeAgentUsage ? <AgentUsageBadge status={activeAgentUsage} /> : null}
+      {/* Compact dir label: only on narrow panes, the full directory +
+          branch picker (TerminalNavigationControls) takes over at @sm. */}
+      <span
+        className="min-w-0 max-w-32 shrink truncate text-xs font-semibold text-foreground @sm:hidden"
+        title={cwd ?? undefined}
+      >
+        {cwd?.replace(/\/$/, "").split("/").pop() || "terminal"}
+      </span>
+      {agentState ? (
+        <span className="hidden @sm:contents">
+          <AgentStateDot state={agentState} />
+        </span>
+      ) : null}
+      {activeAgentUsage ? (
+        <AgentUsageBadge status={activeAgentUsage} />
+      ) : null}
       {supportsUsage ? (
-        <div className="relative" ref={usageMenuRef}>
+        <div className="relative hidden @sm:block" ref={usageMenuRef}>
           <button
             type="button"
             onClick={(event) => {
@@ -210,11 +224,10 @@ export function FloatingTerminalOverlay({
           )}
         </div>
       )}
-
       {/* Control Buttons */}
       <div className="flex items-center gap-1">
         {canBroadcast ? (
-          <>
+          <span className="hidden @sm:contents">
             <button
               type="button"
               onClick={(event) => {
@@ -249,7 +262,7 @@ export function FloatingTerminalOverlay({
             >
               B
             </button>
-          </>
+          </span>
         ) : null}
         {/* Split Vertically (Row) Button */}
         <button

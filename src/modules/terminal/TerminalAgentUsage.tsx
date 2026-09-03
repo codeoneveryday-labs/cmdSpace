@@ -4,6 +4,18 @@ import {
   getAgentUsageStatuses,
   type AgentUsageStatus,
 } from "./lib/terminal-native";
+import {
+  formatResetDateTime,
+  formatUsageWindow,
+} from "@/modules/usage/usageResetTime";
+
+const PROVIDER_DISPLAY_NAMES: Record<AgentUsageStatus["provider"], string> = {
+  codex: "Codex",
+  claude: "Claude",
+  omp: "omp",
+  cmd: "Command Code",
+  opencode: "OpenCode",
+};
 
 export function useTerminalAgentUsage({
   cwd,
@@ -20,7 +32,12 @@ export function useTerminalAgentUsage({
   const [usageOpen, setUsageOpen] = useState(false);
   const usageMenuRef = useRef<HTMLDivElement>(null);
   const cliAgent = detectCliAgent(agentCommand);
-  const supportsUsage = cliAgent === "codex" || cliAgent === "claude";
+  const supportsUsage =
+    cliAgent === "codex" ||
+    cliAgent === "claude" ||
+    cliAgent === "omp" ||
+    cliAgent === "cmd" ||
+    cliAgent === "opencode";
   const activeAgentUsage = supportsUsage
     ? agentUsage.find((status) => status.provider === cliAgent)
     : undefined;
@@ -63,14 +80,24 @@ export function useTerminalAgentUsage({
 
 export function AgentUsageBadge({ status }: { status: AgentUsageStatus }) {
   const remaining = status.contextRemainingPercent;
-  if (remaining === undefined) return null;
+  const used =
+    remaining !== undefined
+      ? 100 - remaining
+      : status.contextTokens !== undefined && status.contextWindow
+        ? Math.min(
+            100,
+            Math.round((status.contextTokens / status.contextWindow) * 100),
+          )
+        : undefined;
+  if (used === undefined) return null;
+  const providerName = PROVIDER_DISPLAY_NAMES[status.provider] ?? status.provider;
 
   return (
     <span
       className="inline-flex h-5 shrink-0 items-center rounded-sm bg-muted px-1.5 font-mono text-[10px] font-semibold text-foreground dark:bg-zinc-800 dark:text-zinc-100"
-      title={`${status.provider === "codex" ? "Codex" : "Claude"} context remaining${status.contextIsEstimated ? " (estimated)" : ""}`}
+      title={`${providerName} context used${status.contextIsEstimated ? " (estimated)" : ""}`}
     >
-      {status.contextIsEstimated ? "~" : ""}{remaining}%
+      {status.contextIsEstimated ? "~" : ""}{used}%
     </span>
   );
 }
@@ -106,7 +133,7 @@ export function AgentUsageMenu({ statuses }: { statuses: AgentUsageStatus[] }) {
             ) : (
               status.rateLimits.map((limit) => (
                 <div key={limit.label} className="mt-1 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
-                  <span>{limit.label}{limit.windowMinutes ? ` · ${limit.windowMinutes}m` : ""}</span>
+                  <span>{limit.label}{limit.windowMinutes ? ` · ${formatUsageWindow(limit.windowMinutes)}` : ""}</span>
                   <span>{limit.usedPercent}% used{formatReset(limit.resetsAt)}</span>
                 </div>
               ))
@@ -129,8 +156,6 @@ function formatTokenCount(value?: number): string {
 }
 
 function formatReset(timestamp?: number): string {
-  if (!timestamp) return "";
-  const reset = new Date(timestamp * 1000);
-  if (Number.isNaN(reset.getTime())) return "";
-  return ` · resets ${reset.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  const stamp = formatResetDateTime(timestamp);
+  return stamp ? ` · resets ${stamp}` : "";
 }
