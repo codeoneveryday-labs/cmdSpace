@@ -27,4 +27,8 @@ export function prepareTerminalSessionRespawn(
   session.pendingExit = null;
   session.altScreenAtRelease = false;
   session.inputBuffer = "";
+  if (session.shellState) {
+    session.shellState.inCommand = false;
+    session.shellState.commandCount = 0;
+  }
 }

@@ -18,6 +18,7 @@ import type { TerminalShell, ThemePref } from "@/modules/settings/store";
 import {
   setAutostart,
   setExplorerExcludedFolderNames,
+  setPreventSleep,
   setRestoreWindowState,
   setShowHidden,
   setVimMode,
@@ -72,6 +73,7 @@ export function GeneralSection() {
 
   const autostart = usePreferencesStore((s) => s.autostart);
   const restoreWindowState = usePreferencesStore((s) => s.restoreWindowState);
+  const preventSleep = usePreferencesStore((s) => s.preventSleep);
   const vimMode = usePreferencesStore((s) => s.vimMode);
   const showHidden = usePreferencesStore((s) => s.showHidden);
   const explorerExcludedFolderNames = usePreferencesStore(
@@ -148,6 +150,17 @@ export function GeneralSection() {
       );
     } catch (e) {
       console.error("autostart toggle failed", e);
+    }
+  };
+
+  const onTogglePreventSleep = async (next: boolean) => {
+    try {
+      await setPreventSleep(next);
+      await invoke("set_prevent_sleep", { enabled: next }).catch((err) => {
+        console.warn("set_prevent_sleep native call:", err);
+      });
+    } catch (e) {
+      console.error("prevent sleep toggle failed", e);
     }
   };
 
@@ -314,8 +327,17 @@ export function GeneralSection() {
       </AlertDialog>
 
       <div className="flex flex-col gap-2">
-        <Label>Startup</Label>
+        <Label>System & Startup</Label>
         <div className="flex flex-col gap-2">
+          <SettingRow
+            title="Prevent sleep"
+            description="Prevent the computer from sleeping while the app is running."
+          >
+            <Switch
+              checked={preventSleep}
+              onCheckedChange={(v) => void onTogglePreventSleep(v)}
+            />
+          </SettingRow>
           <SettingRow
             title="Launch at login"
             description="Open cmdSpace automatically when you sign in."

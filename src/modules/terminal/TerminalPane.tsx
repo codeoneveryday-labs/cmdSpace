@@ -20,6 +20,7 @@ type Props = {
   visible: boolean;
   /** This leaf is the active pane within its tab — receives auto-focus. */
   focused?: boolean;
+  isDark?: boolean;
   initialCwd?: string;
   initialCommand?: string;
   /** The Cmd+I drawer owns its own tab chrome, so it does not need this inset. */
@@ -38,6 +39,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
       leafId,
       visible,
       focused = true,
+      isDark = false,
       initialCwd,
       initialCommand,
       contentTopPadding = true,
@@ -95,6 +97,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
         ref={containerRef}
         className={cn(
           "cmdspace-terminal-viewport h-full w-full overflow-hidden",
+          isDark && "!bg-[#09090b]",
           contentTopPadding && "pt-12",
         )}
         style={{

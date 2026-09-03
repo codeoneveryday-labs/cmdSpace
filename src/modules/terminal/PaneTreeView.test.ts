@@ -148,6 +148,25 @@ describe("PaneTreeView split resizing", () => {
     expect(source).toContain("cursor-row-resize");
     expect(source).not.toContain("<ResizableHandle");
   });
+
+  it("shows the Fast Mode and Permission pill when a CLI agent is active", () => {
+    const source = readPaneTreeSource();
+
+    expect(source).toContain("TerminalAgentPermissionPill");
+    expect(source).toContain("<TerminalAgentPermissionPill");
+    expect(source).toContain("agent={cliAgent}");
+    expect(source).toContain("onWrite={onWrite}");
+    expect(source).toContain("onGetBuffer={onGetBuffer}");
+    expect(source).toContain("onWrite={(data) => b.getRef()?.write(data)}");
+    expect(source).toContain("onGetBuffer={(lines) => b.getRef()?.getBuffer(lines) ?? null}");
+  });
+
+  it("clears detected agent command when a command ends or is not a CLI agent", () => {
+    const source = readPaneTreeSource();
+
+    expect(source).toContain("if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);");
+    expect(source).toContain("else setDetectedAgentCommand(undefined);");
+  });
 });
 
 describe("PaneTreeView header swapping", () => {

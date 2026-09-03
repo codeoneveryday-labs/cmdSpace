@@ -66,4 +66,30 @@ describe("terminalInputTrackingModel", () => {
 
     expect(result.state.inputBuffer).toBe("x");
   });
+
+  it("switches to new agent when another agent command is entered even if already in interactiveCodingAgent", () => {
+    const result = trackTerminalInput(
+      { ...idle, interactiveCodingAgent: true, inputBuffer: "codex" },
+      "\r",
+      { inCommand: false, isInteractiveCodingAgentCommand: isAgent },
+    );
+
+    expect(result.state.interactiveCodingAgent).toBe(true);
+    expect(result.events).toEqual([
+      { type: "command-submitted", command: "codex", interactive: true },
+    ]);
+  });
+
+  it("switches to new agent while inCommand if another agent command is submitted", () => {
+    const result = trackTerminalInput(
+      { ...idle, interactiveCodingAgent: true, agentLaunchBuffer: "codex" },
+      "\r",
+      { inCommand: true, isInteractiveCodingAgentCommand: isAgent },
+    );
+
+    expect(result.state.interactiveCodingAgent).toBe(true);
+    expect(result.events).toEqual([
+      { type: "command-submitted", command: "codex", interactive: true },
+    ]);
+  });
 });

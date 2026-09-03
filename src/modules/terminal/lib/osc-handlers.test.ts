@@ -129,4 +129,27 @@ describe("OSC 7 cwd handler — gated by OSC 133 in-command state", () => {
     handlers.get(133)?.("C");
     expect(state.inCommand).toBe(true);
   });
+
+  it("increments commandCount on OSC 133 C and preserves it on prompt", () => {
+    const { term, handlers } = makeFakeTerm();
+    const state = createShellIntegrationState();
+    registerPromptTracker(term, state);
+
+    expect(state.commandCount).toBe(0);
+
+    // Initial prompt before any command
+    handlers.get(133)?.("A");
+    expect(state.commandCount).toBe(0);
+
+    // Command starts
+    handlers.get(133)?.("C");
+    expect(state.commandCount).toBe(1);
+    expect(state.inCommand).toBe(true);
+
+    // Command ends and prompt returns
+    handlers.get(133)?.("D;0");
+    handlers.get(133)?.("A");
+    expect(state.commandCount).toBe(1);
+    expect(state.inCommand).toBe(false);
+  });
 });

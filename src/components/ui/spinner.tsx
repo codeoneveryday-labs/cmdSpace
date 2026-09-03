@@ -1,18 +1,27 @@
 import { cn } from "@/lib/utils";
-import { Loading03Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 
-function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
+const DOT_COUNT = 3;
+
+function Spinner({ className, ...props }: React.ComponentProps<"span">) {
   return (
-    <HugeiconsIcon
-      icon={Loading03Icon}
-      // @ts-ignore
-      strokeWidth={2}
+    <span
       role="status"
       aria-label="Loading"
-      className={cn("size-4 animate-spin", className)}
+      className={cn(
+        "relative inline-flex h-4 w-3 shrink-0 items-center justify-center",
+        className,
+      )}
       {...props}
-    />
+    >
+      {Array.from({ length: DOT_COUNT }, (_, index) => (
+        <span
+          key={index}
+          aria-hidden="true"
+          className="cmdspace-loading-dot absolute left-1/2 top-1/2 size-0.5 rounded-full bg-primary"
+          style={{ animationDelay: `${index * 120}ms` }}
+        />
+      ))}
+    </span>
   );
 }
 

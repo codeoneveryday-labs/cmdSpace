@@ -183,7 +183,7 @@ export function GitHistoryPane({
       <div className="flex h-full min-h-0 flex-col bg-background [contain:layout_style]">
         {loadStatus === "initial" && commits.length === 0 ? (
           <CenterPlaceholder>
-            <Spinner className="size-4" />
+            <Spinner className="h-4 w-3" />
             <span className="text-[11.5px] text-muted-foreground">
               Loading commits…
             </span>
@@ -267,7 +267,7 @@ export function GitHistoryPane({
 
               {loadStatus === "more" ? (
                 <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-muted-foreground">
-                  <Spinner className="size-3" />
+                  <Spinner className="h-4 w-3" />
                   Loading more…
                 </div>
               ) : null}

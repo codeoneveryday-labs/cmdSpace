@@ -6,12 +6,20 @@ const source = readFileSync(
   path.join(path.dirname(new URL(import.meta.url).pathname), "AgentStateDot.tsx"),
   "utf8",
 );
+const spinnerSource = readFileSync(
+  path.join(path.dirname(new URL(import.meta.url).pathname), "../../components/ui/spinner.tsx"),
+  "utf8",
+);
 
 describe("AgentStateDot", () => {
   it("renders the three-dot working loader", () => {
     expect(source).toContain('working: { color: "bg-primary"');
-    expect(source).toContain("cmdspace-agent-spinner-dot");
-    expect(source).toContain("[0, 1, 2, 3, 4]");
+    expect(source).toContain("Spinner");
+    expect(spinnerSource).toContain("cmdspace-loading-dot");
+    expect(spinnerSource).toContain("DOT_COUNT = 3");
+    expect(spinnerSource).toContain("left-1/2 top-1/2");
+    expect(spinnerSource).toContain("h-4 w-3");
+    expect(spinnerSource).toContain("animationDelay: `${index * 120}ms`");
     expect(source).not.toContain("bg-activity");
   });
 

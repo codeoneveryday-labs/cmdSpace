@@ -23,7 +23,7 @@ export function GitCommitFiles({
   onRetry: () => void;
 }) {
   if (!filesEntry || filesEntry.state === "loading") {
-    return <div className="flex items-center gap-2 px-3 py-3 text-[11px] text-muted-foreground"><Spinner className="size-3" />Loading files…</div>;
+    return <div className="flex items-center gap-2 px-3 py-3 text-[11px] text-muted-foreground"><Spinner className="h-4 w-3" />Loading files…</div>;
   }
   if (filesEntry.state === "error") {
     return (

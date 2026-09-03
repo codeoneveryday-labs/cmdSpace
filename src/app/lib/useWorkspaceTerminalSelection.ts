@@ -1,12 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
 } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { clearAgentCompleted } from "@/modules/terminal/lib/agentActivity";
-import { hasLeaf } from "@/modules/terminal/lib/panes";
+import { hasLeaf, leafIds } from "@/modules/terminal/lib/panes";
 import type { Tab } from "@/modules/tabs";
 import type { WorkspaceRecord } from "./useWorkspaceController";
 
@@ -37,6 +39,8 @@ export function useWorkspaceTerminalSelection({
   focusPane,
   handleSelectWorkspace,
 }: WorkspaceTerminalSelectionPorts) {
+  const pendingTrayPaneFocusRef = useRef<{ workspaceId?: string; paneIndex: number } | null>(null);
+
   const handleSelectWorkspaceTerminal = useCallback(
     (workspaceId: string, leafId: number) => {
       const workspace = workspacesRef.current.find(
@@ -71,6 +75,77 @@ export function useWorkspaceTerminalSelection({
     },
     [activeCanvasTerminalIds, focusPane, handleSelectWorkspace, pendingWorkspaceTerminalRef, setActiveId, setCanvasTerminalSelectionVersion, tabsRef, workspacesRef],
   );
+
+  const tryFocusPendingTrayPane = useCallback(() => {
+    const pending = pendingTrayPaneFocusRef.current;
+    if (!pending) return;
+    const { workspaceId, paneIndex } = pending;
+
+    const targetWorkspace = workspaceId
+      ? workspacesRef.current.find((item) => item.id === workspaceId)
+      : workspacesRef.current.find((item) => item.tabId !== null && item.tabId !== undefined) ??
+        workspacesRef.current[0];
+    if (!targetWorkspace) return;
+
+    if (targetWorkspace.canvasTabId !== null && targetWorkspace.canvasTabId !== undefined) {
+      const canvasTab = tabsRef.current.find(
+        (item) => item.id === targetWorkspace.canvasTabId,
+      );
+      if (canvasTab?.kind === "architecture") {
+        const terminalNodes =
+          canvasTab.diagram?.nodes.filter((node) => node.kind === "terminal") ?? [];
+        const node = terminalNodes[paneIndex];
+        if (node) {
+          pendingTrayPaneFocusRef.current = null;
+          activeCanvasTerminalIds.current.set(canvasTab.id, node.id);
+          setCanvasTerminalSelectionVersion((version) => version + 1);
+          setActiveId(canvasTab.id);
+          return;
+        }
+      }
+    }
+
+    if (targetWorkspace.tabId !== null && targetWorkspace.tabId !== undefined) {
+      const tab = tabsRef.current.find((item) => item.id === targetWorkspace.tabId);
+      if (tab?.kind === "terminal") {
+        const leaves = leafIds(tab.paneTree);
+        const targetLeafId = leaves[paneIndex] ?? leaves[0];
+        if (targetLeafId !== undefined) {
+          pendingTrayPaneFocusRef.current = null;
+          clearAgentCompleted(targetLeafId);
+          setActiveId(tab.id);
+          focusPane(tab.id, targetLeafId);
+        }
+      }
+    }
+  }, [
+    activeCanvasTerminalIds,
+    focusPane,
+    setActiveId,
+    setCanvasTerminalSelectionVersion,
+    tabsRef,
+    workspacesRef,
+  ]);
+
+  useEffect(() => {
+    const unlisten = listen<{ workspaceId?: string; paneIndex: number } | number>(
+      "cmdspace:focus-workspace-pane",
+      (event) => {
+        const payload = event.payload;
+        const paneIndex = typeof payload === "number" ? payload : payload.paneIndex;
+        const workspaceId = typeof payload === "object" ? payload.workspaceId : undefined;
+        pendingTrayPaneFocusRef.current = { workspaceId, paneIndex };
+        tryFocusPendingTrayPane();
+      },
+    );
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, [tryFocusPendingTrayPane]);
+
+  useEffect(() => {
+    tryFocusPendingTrayPane();
+  }, [tabs, workspaces, tryFocusPendingTrayPane]);
 
   useEffect(() => {
     const pending = pendingWorkspaceTerminalRef.current;

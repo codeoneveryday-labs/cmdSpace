@@ -8,6 +8,7 @@ import { useTerminalAgentUsage, AgentUsageBadge, AgentUsageMenu } from "./Termin
 import { cn } from "@/lib/utils";
 import { GIT_REPO_CHANGED_EVENT, gitRepoRootFromChangedEvent, pathBelongsToRepo } from "@/modules/git/events";
 import type { SplitDir } from "./lib/panes";
+import { TerminalAgentPermissionPill } from "./TerminalAgentPermissionPill";
 
 type FloatingTerminalOverlayProps = {
   cwd: string | undefined;
@@ -30,6 +31,9 @@ type FloatingTerminalOverlayProps = {
   onToggleBroadcast: () => void;
   onToggleBroadcastTarget: () => void;
   onSwitchAgent: (agent: CliAgent | null, command: string | null) => void;
+  onWrite?: (data: string) => void;
+  onGetBuffer?: (lines?: number) => string | null;
+  onFocusTerminal?: () => void;
 };
 
 export function FloatingTerminalOverlay({
@@ -52,6 +56,9 @@ export function FloatingTerminalOverlay({
   onToggleBroadcast,
   onToggleBroadcastTarget,
   onSwitchAgent,
+  onWrite,
+  onGetBuffer,
+  onFocusTerminal,
   agentState,
 }: FloatingTerminalOverlayProps) {
   const [additions, setAdditions] = useState<number>(0);
@@ -164,7 +171,7 @@ export function FloatingTerminalOverlay({
       data-pane-drag-handle
       draggable={false}
       onPointerDown={onDragStart}
-      className={`absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-3 rounded-none border bg-card/95 px-0 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 ${
+      className={`absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-1.5 rounded-none border bg-card/95 px-0 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 @sm:gap-3 ${
         isDragging ? "cursor-grabbing opacity-60" : "cursor-grab"
       } ${
         focused
@@ -176,10 +183,24 @@ export function FloatingTerminalOverlay({
         currentAgent={cliAgent}
         onSelect={onSwitchAgent}
       />
-      {agentState ? <AgentStateDot state={agentState} /> : null}
-      {activeAgentUsage ? <AgentUsageBadge status={activeAgentUsage} /> : null}
+      {/* Compact dir label: only on narrow panes, the full directory +
+          branch picker (TerminalNavigationControls) takes over at @sm. */}
+      <span
+        className="min-w-0 max-w-32 shrink truncate text-xs font-semibold text-foreground @sm:hidden"
+        title={cwd ?? undefined}
+      >
+        {cwd?.replace(/\/$/, "").split("/").pop() || "terminal"}
+      </span>
+      {agentState ? (
+        <span className="hidden @sm:contents">
+          <AgentStateDot state={agentState} />
+        </span>
+      ) : null}
+      {activeAgentUsage ? (
+        <AgentUsageBadge status={activeAgentUsage} />
+      ) : null}
       {supportsUsage ? (
-        <div className="relative" ref={usageMenuRef}>
+        <div className="relative hidden @sm:block" ref={usageMenuRef}>
           <button
             type="button"
             onClick={(event) => {
@@ -210,11 +231,20 @@ export function FloatingTerminalOverlay({
           )}
         </div>
       )}
+      {/* Fast mode & Permission control: only rendered when a CLI Agent is detected */}
+      {cliAgent ? (
+        <TerminalAgentPermissionPill
+          agent={cliAgent}
+          onWrite={onWrite}
+          onGetBuffer={onGetBuffer}
+          onFocusTerminal={onFocusTerminal}
+        />
+      ) : null}
 
       {/* Control Buttons */}
       <div className="flex items-center gap-1">
         {canBroadcast ? (
-          <>
+          <span className="hidden @sm:contents">
             <button
               type="button"
               onClick={(event) => {
@@ -249,7 +279,7 @@ export function FloatingTerminalOverlay({
             >
               B
             </button>
-          </>
+          </span>
         ) : null}
         {/* Split Vertically (Row) Button */}
         <button

@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Spinner } from "@/components/ui/spinner";
 
 export type AgentDisplayState = "blocked" | "done" | "working" | "activity";
 
@@ -20,23 +21,7 @@ export function AgentStateDot({
 }) {
   const meta = DOT_META[state];
   if (state === "working" || state === "activity") {
-    return (
-      <span
-        aria-label={meta.label}
-        title={meta.label}
-        role="status"
-        className={cn("relative inline-flex size-3 shrink-0 items-center justify-center", className)}
-      >
-        {[0, 1, 2, 3, 4].map((index) => (
-          <span
-            key={index}
-            aria-hidden="true"
-            className="cmdspace-agent-spinner-dot absolute left-1/2 top-1/2 size-0.5 rounded-full bg-primary"
-            style={{ animationDelay: `${index * 120}ms` }}
-          />
-        ))}
-      </span>
-    );
+    return <Spinner className={className} aria-label={meta.label} title={meta.label} />;
   }
   if (state === "done") {
     return (

@@ -43,22 +43,17 @@ export function trackTerminalInput(
   const [beforeEnter = ""] = data.split(/[\r\n]+/);
 
   if (inCommand) {
-    if (state.interactiveCodingAgent) {
-      if (submitted) {
-        events.push({ type: "agent-response-requested" });
-        state.agentLaunchBuffer = "";
-      }
-      return { state, events };
-    }
-
     if (submitted) {
       const command = (state.agentLaunchBuffer + beforeEnter).trim();
+      state.agentLaunchBuffer = "";
       if (isInteractiveCodingAgentCommand(command)) {
         state.interactiveCodingAgent = true;
-        state.agentLaunchBuffer = "";
         events.push({ type: "command-submitted", command, interactive: true });
-      } else {
-        state.agentLaunchBuffer = "";
+        return { state, events };
+      }
+      if (state.interactiveCodingAgent) {
+        events.push({ type: "agent-response-requested" });
+        return { state, events };
       }
       return { state, events };
     }
@@ -69,9 +64,17 @@ export function trackTerminalInput(
 
   if (state.interactiveCodingAgent) {
     if (submitted) {
-      events.push({ type: "agent-response-requested" });
+      const command = (state.inputBuffer + beforeEnter).trim();
       state.inputBuffer = "";
+      if (isInteractiveCodingAgentCommand(command)) {
+        state.interactiveCodingAgent = true;
+        events.push({ type: "command-submitted", command, interactive: true });
+        return { state, events };
+      }
+      events.push({ type: "agent-response-requested" });
+      return { state, events };
     }
+    state.inputBuffer = updateBuffer(state.inputBuffer, data);
     return { state, events };
   }
 

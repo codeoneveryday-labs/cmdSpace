@@ -12,12 +12,13 @@ mod parsers;
 pub(crate) use command_code::fetch_command_code_usage;
 pub use command_code_projection::command_code_usage_snapshot;
 use files::{
-    codex_session_matches_cwd, escaped_claude_cwd, modified_at, newest_jsonl_files, tail_lines,
-    tail_lines_with_limit,
+    any_line_matches_cwd, codex_session_matches_cwd, escaped_claude_cwd, modified_at,
+    newest_jsonl_files, tail_lines, tail_lines_with_limit,
 };
 pub use parsers::{
-    context_remaining_percent, latest_provider_limit_snapshot, parse_claude_session_usage,
-    parse_claude_status, parse_codex_status, provider_limit_snapshot,
+    context_remaining_percent, known_model_context_window, latest_provider_limit_snapshot,
+    models_context_window, parse_claude_session_usage, parse_claude_status, parse_cmd_status,
+    parse_codex_status, parse_omp_status, parse_opencode_message, provider_limit_snapshot,
 };
 use std::path::{Path, PathBuf};
 
@@ -43,6 +44,15 @@ pub(crate) fn scan_agent_usage(
         statuses.push(status);
     }
     if let Some(status) = scan_claude(&home, cwd) {
+        statuses.push(status);
+    }
+    if let Some(status) = scan_omp(&home, cwd) {
+        statuses.push(status);
+    }
+    if let Some(status) = scan_cmd(&home, cwd) {
+        statuses.push(status);
+    }
+    if let Some(status) = scan_opencode(&home, cwd) {
         statuses.push(status);
     }
     Ok(statuses)
@@ -179,6 +189,148 @@ fn scan_claude(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
         }
     }
     None
+}
+
+fn status_with_model_window(
+    provider: &str,
+    tokens: u64,
+    model: &str,
+    window: Option<u64>,
+) -> AgentUsageStatus {
+    // A local models cache is authoritative; otherwise fall back to the
+    // well-known family table and mark the percentage estimated.
+    let (window, estimated) = match window {
+        Some(limit) => (Some(limit), false),
+        None => match parsers::known_model_context_window(model) {
+            Some(limit) => (Some(limit), true),
+            None => (None, false),
+        },
+    };
+    let _ = model;
+    AgentUsageStatus {
+        provider: provider.to_string(),
+        context_window: window,
+        context_tokens: Some(tokens),
+        context_remaining_percent: window
+            .map(|limit| parsers::context_remaining_percent(tokens, limit)),
+        context_is_estimated: estimated,
+        rate_limits: Vec::new(),
+    }
+}
+
+fn scan_omp(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
+    // Usage lines may repeat or reset across turns; the tail-most nonzero
+    // reading is the active context.
+    let root = home.join(".omp").join("agent").join("sessions");
+    for file in newest_jsonl_files(&root, 3) {
+        let lines = tail_lines(&file);
+        if !any_line_matches_cwd(&lines, cwd) {
+            continue;
+        }
+        if let Some((tokens, model)) = lines
+            .iter()
+            .rev()
+            .find_map(|line| parse_omp_status(line))
+        {
+            let window = omp_model_context_window(home, &model);
+            return Some(status_with_model_window("omp", tokens, &model, window));
+        }
+    }
+    None
+}
+
+fn omp_model_context_window(home: &Path, model: &str) -> Option<u64> {
+    let connection = rusqlite::Connection::open_with_flags(
+        home.join(".omp").join("agent").join("models.db"),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .ok()?;
+    let windows: Vec<String> = {
+        let mut statement = connection
+            .prepare("SELECT models FROM model_cache")
+            .ok()?;
+        let rows = match statement.query_map([], |row| row.get::<_, String>(0)) {
+            Ok(rows) => rows,
+            Err(_) => return None,
+        };
+        rows.flatten().collect()
+    };
+    windows
+        .iter()
+        .filter_map(|models_json| parsers::models_context_window(models_json, model))
+        .next()
+}
+
+fn scan_cmd(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
+    let root = home.join(".commandcode").join("projects");
+    for file in newest_jsonl_files(&root, 3) {
+        if file
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.ends_with(".checkpoints.jsonl"))
+        {
+            continue;
+        }
+        // The cwd lives on the session header (first line); usage lines
+        // carry no cwd, so match the header the same way codex does.
+        if !codex_session_matches_cwd(&file, cwd) {
+            continue;
+        }
+        if let Some((tokens, model)) = tail_lines(&file)
+            .into_iter()
+            .rev()
+            .find_map(|line| parse_cmd_status(&line))
+        {
+            let window = opencode_models_context_window(home, &model);
+            return Some(status_with_model_window("cmd", tokens, &model, window));
+        }
+    }
+    None
+}
+
+fn scan_opencode(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
+    // The session.tokens_* columns are cumulative across every turn and
+    // must NOT be used; active context comes from the latest assistant
+    // message (see docs/OPENCODE_CONTEXT_WINDOW.md).
+    let connection = rusqlite::Connection::open_with_flags(
+        home.join(".local/share/opencode/opencode.db"),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .ok()?;
+    let session_id: String = connection
+        .query_row(
+            "SELECT id FROM session WHERE directory = ?1 ORDER BY time_updated DESC LIMIT 1",
+            [cwd.trim_end_matches('/')],
+            |row| row.get(0),
+        )
+        .ok()?;
+    let mut statement = connection
+        .prepare(
+            "SELECT data FROM message WHERE session_id = ?1 ORDER BY time_created DESC LIMIT 50",
+        )
+        .ok()?;
+    let rows = match statement.query_map([&session_id], |row| row.get::<_, String>(0)) {
+        Ok(rows) => rows,
+        Err(_) => return None,
+    };
+    let (tokens, model) = rows
+        .flatten()
+        .find_map(|data| parsers::parse_opencode_message(&data))?;
+    let window = opencode_models_context_window(home, &model);
+    Some(status_with_model_window(
+        "opencode",
+        tokens,
+        &model,
+        window,
+    ))
+}
+
+/// Looks up a model's context window in the shared models.dev cache
+/// (`~/.cache/opencode/models.json`), searched across every provider
+/// section so custom provider/model ids still resolve.
+fn opencode_models_context_window(home: &Path, model_id: &str) -> Option<u64> {
+    let models_json = std::fs::read_to_string(home.join(".cache/opencode/models.json")).ok()?;
+    parsers::models_context_window(&models_json, model_id)
 }
 
 #[cfg(test)]

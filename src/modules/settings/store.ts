@@ -65,6 +65,7 @@ export type Preferences = {
   remoteAccessEnabled: boolean;
   autostart: boolean;
   restoreWindowState: boolean;
+  preventSleep: boolean;
   speechToTextModelId: string;
   speechToTextProviderIds: ProviderId[];
   disabledSpeechToTextProviderIds: ProviderId[];
@@ -99,6 +100,7 @@ const KEY_EDITOR_THEME = "editorTheme";
 const KEY_REMOTE_ACCESS_ENABLED = "remoteAccessEnabled";
 const KEY_AUTOSTART = "autostart";
 const KEY_RESTORE_WINDOW = "restoreWindowState";
+const KEY_PREVENT_SLEEP = "preventSleep";
 const KEY_SPEECH_TO_TEXT_MODEL = "speechToTextModelId";
 const KEY_SPEECH_TO_TEXT_PROVIDERS = "speechToTextProviderIds";
 const KEY_DISABLED_SPEECH_TO_TEXT_PROVIDERS =
@@ -149,6 +151,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   remoteAccessEnabled: false,
   autostart: false,
   restoreWindowState: true,
+  preventSleep: false,
   speechToTextModelId: DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
   speechToTextProviderIds: [...DEFAULT_CONFIGURED_SPEECH_TO_TEXT_PROVIDER_IDS],
   disabledSpeechToTextProviderIds: [],
@@ -217,6 +220,8 @@ export async function loadPreferences(): Promise<Preferences> {
     restoreWindowState:
       get<boolean>(KEY_RESTORE_WINDOW) ??
       DEFAULT_PREFERENCES.restoreWindowState,
+    preventSleep:
+      get<boolean>(KEY_PREVENT_SLEEP) ?? DEFAULT_PREFERENCES.preventSleep,
     speechToTextModelId:
       get<string>(KEY_SPEECH_TO_TEXT_MODEL) ??
       DEFAULT_PREFERENCES.speechToTextModelId,
@@ -340,6 +345,10 @@ export async function setAutostart(value: boolean): Promise<void> {
 
 export async function setRestoreWindowState(value: boolean): Promise<void> {
   await writePref(KEY_RESTORE_WINDOW, value);
+}
+
+export async function setPreventSleep(value: boolean): Promise<void> {
+  await writePref(KEY_PREVENT_SLEEP, value);
 }
 
 export async function setSpeechToTextModelId(value: string): Promise<void> {
@@ -490,6 +499,7 @@ export async function onPreferencesChange(
     [KEY_REMOTE_ACCESS_ENABLED]: "remoteAccessEnabled",
     [KEY_AUTOSTART]: "autostart",
     [KEY_RESTORE_WINDOW]: "restoreWindowState",
+    [KEY_PREVENT_SLEEP]: "preventSleep",
     [KEY_SPEECH_TO_TEXT_MODEL]: "speechToTextModelId",
     [KEY_SPEECH_TO_TEXT_PROVIDERS]: "speechToTextProviderIds",
     [KEY_DISABLED_SPEECH_TO_TEXT_PROVIDERS]:

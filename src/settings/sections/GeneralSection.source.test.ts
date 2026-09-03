@@ -228,4 +228,18 @@ describe("GeneralSection terminal settings", () => {
       'className="mt-3 flex justify-end border-t border-border/45 pt-3"',
     );
   });
+
+  it("renders a Prevent Sleep toggle and connects it to native inhibitor", () => {
+    const source = readFileSync(generalSectionPath, "utf8");
+    const store = readFileSync(settingsStorePath, "utf8");
+
+    expect(source).toContain('title="Prevent sleep"');
+    expect(source).toContain("Prevent the computer from sleeping while the app is running.");
+    expect(source).toContain("preventSleep");
+    expect(source).toContain("onTogglePreventSleep");
+    expect(source).toContain('invoke("set_prevent_sleep"');
+    expect(store).toContain('const KEY_PREVENT_SLEEP = "preventSleep"');
+    expect(store).toContain("setPreventSleep");
+    expect(store).toContain('[KEY_PREVENT_SLEEP]: "preventSleep"');
+  });
 });

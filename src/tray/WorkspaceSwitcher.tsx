@@ -1,7 +1,18 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { setPreventSleep } from "@/modules/settings/store";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import type { CliAgentDefinition } from "@/modules/terminal/lib/cliAgents";
-import { Search01Icon } from "@hugeicons/core-free-icons";
+import {
+  USAGE_BAR_TONE_CLASS,
+  USAGE_TEXT_TONE_CLASS,
+  usagePercentTone,
+} from "@/modules/usage/usagePercentTone";
+import {
+  formatResetWeekday,
+  formatUsageWindow,
+} from "@/modules/usage/usageResetTime";
+import { Coffee02Icon, Moon02Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -52,18 +63,42 @@ export function WorkspaceSwitcher() {
     void invoke("hide_workspace_switcher");
   }, []);
 
-  const openWorkspace = useCallback((workspaceId: string) => {
-    void invoke("open_workspace_from_tray", { workspaceId });
+  const openWorkspace = useCallback((workspaceId: string, paneIndex?: number) => {
+    void invoke("open_workspace_from_tray", { workspaceId, paneIndex: paneIndex ?? null });
   }, []);
+
+  const [preventSleep, setPreventSleepState] = useState(false);
+
+  const refreshPreventSleep = useCallback(async () => {
+    try {
+      const active = await invoke<boolean>("get_prevent_sleep");
+      setPreventSleepState(active);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const togglePreventSleep = useCallback(async () => {
+    const next = !preventSleep;
+    try {
+      await invoke("set_prevent_sleep", { enabled: next });
+      await setPreventSleep(next);
+      setPreventSleepState(next);
+    } catch {
+      /* ignore */
+    }
+  }, [preventSleep]);
 
   useEffect(() => {
     void refresh();
     void refreshUsage();
+    void refreshPreventSleep();
     const unlistenOpen = listen("cmdspace:tray-opened", () => {
       setQuery("");
       setSelectedIndex(0);
       void refresh();
       void refreshUsage();
+      void refreshPreventSleep();
       window.setTimeout(() => searchRef.current?.focus(), 0);
     });
     const unlistenFocus = getCurrentWindow().onFocusChanged(
@@ -76,7 +111,7 @@ export function WorkspaceSwitcher() {
       void unlistenOpen.then((unlisten) => unlisten());
       void unlistenFocus.then((unlisten) => unlisten());
     };
-  }, [hide, refresh, refreshUsage]);
+  }, [hide, refresh, refreshPreventSleep, refreshUsage]);
 
   const toggleWorkspaceExpanded = (workspaceId: string) => {
     setExpandedWorkspaceIds((current) => {
@@ -220,6 +255,9 @@ export function WorkspaceSwitcher() {
                 expanded={expandedWorkspaceIds.has(workspace.id)}
                 onToggleExpanded={() => toggleWorkspaceExpanded(workspace.id)}
                 onOpen={() => openWorkspace(workspace.id)}
+                onOpenTerminal={(_terminal, paneIndex) =>
+                  openWorkspace(workspace.id, paneIndex)
+                }
                 onHover={() => setSelectedIndex(index)}
               />
             ))
@@ -227,7 +265,33 @@ export function WorkspaceSwitcher() {
         </div>
 
         <footer className="flex items-center justify-between border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">
-          <span>{workspaces.length} workspaces</span>
+          <div className="flex items-center gap-2">
+            <span>{workspaces.length} workspaces</span>
+            <button
+              type="button"
+              onClick={() => void togglePreventSleep()}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors",
+                preventSleep
+                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold"
+                  : "hover:bg-muted hover:text-foreground",
+              )}
+              title={
+                preventSleep
+                  ? "Prevent sleep is active (click to allow sleep)"
+                  : "Click to prevent computer from sleeping"
+              }
+            >
+              <span className="inline-flex items-center gap-1">
+                <HugeiconsIcon
+                  icon={preventSleep ? Coffee02Icon : Moon02Icon}
+                  size={11}
+                  strokeWidth={2}
+                />
+                {preventSleep ? "Awake" : "Sleep"}
+              </span>
+            </button>
+          </div>
           <span>↑↓ Select · ↵ Open · esc Close</span>
         </footer>
       </section>
@@ -248,6 +312,8 @@ function ProviderUsageRow({
     summary.usedPercent === undefined
       ? undefined
       : Math.min(100, Math.max(0, summary.usedPercent));
+  const tone =
+    usedPercent === undefined ? null : usagePercentTone(usedPercent);
 
   return (
     <div className="space-y-1.5">
@@ -256,11 +322,16 @@ function ProviderUsageRow({
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">
           {agent.name}
         </span>
-        <span className="shrink-0 font-mono text-muted-foreground">
+        <span
+          className={cn(
+            "shrink-0 font-mono",
+            tone ? USAGE_TEXT_TONE_CLASS[tone] : "text-muted-foreground",
+          )}
+        >
           {summary.value}
         </span>
       </div>
-      {usedPercent !== undefined ? (
+      {usedPercent !== undefined && tone ? (
         <div
           aria-label={`${agent.name} ${usedPercent}% used`}
           aria-valuemax={100}
@@ -270,7 +341,7 @@ function ProviderUsageRow({
           role="progressbar"
         >
           <div
-            className="h-full rounded-full bg-foreground/70"
+            className={`h-full rounded-full ${USAGE_BAR_TONE_CLASS[tone]}`}
             style={{ width: `${usedPercent}%` }}
           />
         </div>
@@ -292,8 +363,9 @@ function summarizeUsage(
     const window = limit.windowMinutes
       ? ` / ${formatUsageWindow(limit.windowMinutes)}`
       : "";
+    const resetWeekday = formatResetWeekday(limit.resetsAt);
     return {
-      value: `${limit.usedPercent}%${window}`,
+      value: `${limit.usedPercent}%${window}${resetWeekday ? ` · ${resetWeekday}` : ""}`,
       usedPercent: limit.usedPercent,
     };
   }
@@ -306,12 +378,6 @@ function summarizeUsage(
     };
   }
   return null;
-}
-
-function formatUsageWindow(minutes: number): string {
-  if (minutes % (60 * 24) === 0) return `${minutes / (60 * 24)}d`;
-  if (minutes % 60 === 0) return `${minutes / 60}h`;
-  return `${minutes}m`;
 }
 
 function formatTokens(tokens: number): string {

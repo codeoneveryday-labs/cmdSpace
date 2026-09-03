@@ -15,6 +15,7 @@ pub mod remote_relay;
 pub mod remote_tunnel;
 pub mod secrets;
 pub mod shell;
+pub mod sleep;
 pub mod speech;
 pub mod workspace;
 

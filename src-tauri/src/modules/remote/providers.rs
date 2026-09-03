@@ -82,6 +82,13 @@ const REMOTE_CLI_AGENT_CATALOG: &[(&str, &str, &str, &str, Option<&str>)] = &[
         Some("https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent"),
     ),
     (
+        "omp",
+        "omp",
+        "omp",
+        "Open, provider-rich coding agent with IDE-aware workflows.",
+        Some("https://omp.sh/"),
+    ),
+    (
         "muse",
         "Muse Code",
         "muse",

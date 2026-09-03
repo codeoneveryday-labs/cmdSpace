@@ -85,6 +85,7 @@ export const DEFAULT_CONFIGURED_CLI_AGENT_IDS: CliAgent[] = [
   "copilot",
   "opencode",
   "pi",
+  "omp",
 ];
 
 const CLI_AGENT_CATALOG_META: Record<
@@ -277,9 +278,12 @@ const kimiLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.kimi-code/bin:$HOME/.local/bin:$PATH"; kimi';
 const grokLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; grok';
-
 const museLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; muse';
+const ompLaunch =
+  'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; omp';
+const piLaunch =
+  'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; command -v pi >/dev/null 2>&1 && pi || omp';
 
 const UNATTENDED_LAUNCH_FLAGS: Partial<Record<CliAgent, string>> = {
   claude: "--dangerously-skip-permissions",
@@ -301,15 +305,15 @@ const commandCodeLaunch = unattendedLaunch("cmd", "cmd");
 
 export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "claude", name: "Claude Code", executable: "claude", command: claudeLaunch, launch: claudeLaunch, launchPolicy: "unattended", chatTransport: "claude-json", bannerPatterns: [/\bclaude code\b/i] },
-  { id: "codex", name: "Codex", executable: "codex", command: codexLaunch, launch: codexLaunch, launchPolicy: "unattended", chatTransport: "codex-app-server", bannerPatterns: [/\bopenai codex\b/i] },
+  { id: "codex", name: "Codex", executable: "codex", command: codexLaunch, launch: codexLaunch, launchPolicy: "unattended", chatTransport: "codex-app-server", bannerPatterns: [/\bopenai codex\b/i, /\bask codex\b/i] },
   { id: "gemini", name: "Gemini CLI", executable: "gemini", command: "gemini", launch: "gemini", launchPolicy: "standard", bannerPatterns: [/\bgemini cli\b/i] },
   { id: "opencode", name: "OpenCode", executable: "opencode", command: opencodeLaunch, launch: opencodeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bopencode\b/i] },
   { id: "copilot", name: "GitHub Copilot", executable: "copilot", command: "copilot", launch: "copilot", launchPolicy: "standard", bannerPatterns: [/\bgithub copilot\b/i, /\bcopilot cli\b/i] },
   { id: "cursor", name: "Cursor Agent", executable: "cursor-agent", command: "cursor-agent", launch: "cursor-agent", launchPolicy: "standard", bannerPatterns: [/\bcursor agent\b/i] },
   { id: "aider", name: "Aider", executable: "aider", command: "aider", launch: "aider", launchPolicy: "standard", bannerPatterns: [/\baider\b/i] },
-  { id: "pi", name: "Pi Coding Agent", executable: "pi", command: "pi", launch: "pi", launchPolicy: "standard", bannerPatterns: [/\bpi coding agent\b/i] },
-  { id: "omp", name: "omp", executable: "omp", command: "omp", launch: "omp", launchPolicy: "standard", chatTransport: "omp-rpc", bannerPatterns: [/\bomp(?:\.sh)?\b/i] },
-  { id: "muse", name: "Muse Code", executable: "muse", command: "muse", launch: museLaunch, launchPolicy: "standard", bannerPatterns: [/\bmuse code\b/i, /\bmuse spark\b/i] },
+  { id: "pi", name: "Pi Coding Agent", executable: "pi", command: piLaunch, launch: piLaunch, launchPolicy: "standard", bannerPatterns: [/\bpi coding agent\b/i, /\boh-my-pi\b/i, /\bomp(?:\.sh)?\b/i] },
+  { id: "omp", name: "omp", executable: "omp", command: ompLaunch, launch: ompLaunch, launchPolicy: "standard", chatTransport: "omp-rpc", bannerPatterns: [/\bomp(?:\.sh)?\b/i, /\boh-my-pi\b/i, /\bpi coding agent\b/i] },
+  { id: "muse", name: "Muse Code", executable: "muse", command: "muse", launch: museLaunch, launchPolicy: "standard", bannerPatterns: [/\bmuse code\b/i] },
   { id: "devin", name: "Devin CLI", executable: "devin", command: "devin", launch: "devin", launchPolicy: "standard", bannerPatterns: [/\bdevin(?: cli)?\b/i] },
   { id: "hermes", name: "Hermes", executable: "hermes", command: "hermes", launch: "hermes", launchPolicy: "standard", bannerPatterns: [/\bhermes\b/i] },
   { id: "amp", name: "Amp CLI", executable: "amp", command: "amp", launch: "amp", launchPolicy: "standard", bannerPatterns: [/\bamp cli\b/i, /\bsourcegraph amp\b/i] },
@@ -427,3 +431,14 @@ export function isInteractiveCodingAgentCommand(command?: string): boolean {
 export function detectCodingAgentBanner(text: string): CliAgent | null {
   return matchCliAgentBannerPattern(text, CLI_AGENT_DEFINITIONS);
 }
+
+export function isDarkTerminalAgent(agent: CliAgent | null | undefined): boolean {
+  return (
+    agent === "gemini" ||
+    agent === "herdr" ||
+    agent === "opencode" ||
+    agent === "omp" ||
+    agent === "pi"
+  );
+}
+

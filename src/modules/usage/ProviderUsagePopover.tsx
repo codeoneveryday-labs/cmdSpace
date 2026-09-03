@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import {
@@ -19,6 +20,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { Refresh01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  clampUsagePercent,
+  USAGE_BAR_TONE_CLASS,
+  USAGE_TEXT_TONE_CLASS,
+  usagePercentTone,
+} from "./usagePercentTone";
+import { formatResetDateTime, formatUsageWindow } from "./usageResetTime";
 
 type AgentRateLimit = {
   label: string;
@@ -148,12 +156,11 @@ export function ProviderUsagePopover({ trigger }: Props) {
               aria-label="Refresh provider limits"
               title="Refresh provider limits"
             >
-              <HugeiconsIcon
-                icon={Refresh01Icon}
-                size={15}
-                strokeWidth={1.75}
-                className={loading ? "animate-spin" : undefined}
-              />
+              {loading ? (
+                <Spinner className="h-4 w-3" />
+              ) : (
+                <HugeiconsIcon icon={Refresh01Icon} size={15} strokeWidth={1.75} />
+              )}
             </Button>
           </div>
           <PopoverDescription>
@@ -234,9 +241,22 @@ function ProviderLimitCard({
                   <span className="text-muted-foreground">Plan</span>
                   <span className="font-mono font-medium text-foreground">
                     {status.accountUsage.plan ?? "Command Code"}
-                    {status.accountUsage.usedPercent !== undefined
-                      ? ` · ${status.accountUsage.usedPercent}% used`
-                      : ""}
+                    {status.accountUsage.usedPercent !== undefined ? (
+                      <>
+                        {" · "}
+                        <span
+                          className={
+                            USAGE_TEXT_TONE_CLASS[
+                              usagePercentTone(status.accountUsage.usedPercent)
+                            ]
+                          }
+                        >
+                          {status.accountUsage.usedPercent}% used
+                        </span>
+                      </>
+                    ) : (
+                      ""
+                    )}
                   </span>
                 </div>
               ) : null}
@@ -261,16 +281,18 @@ function ProviderLimitCard({
               <div className="mb-1 flex items-center justify-between gap-3 text-xs">
                 <span className="text-muted-foreground">
                   {limit.label}
-                  {limit.windowMinutes ? ` · ${formatWindow(limit.windowMinutes)}` : ""}
+                  {limit.windowMinutes ? ` · ${formatUsageWindow(limit.windowMinutes)}` : ""}
                 </span>
-                <span className="font-mono font-medium text-foreground">
+                <span
+                  className={`font-mono font-medium ${USAGE_TEXT_TONE_CLASS[usagePercentTone(limit.usedPercent)]}`}
+                >
                   {limit.usedPercent}% used{formatReset(limit.resetsAt)}
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full rounded-full bg-foreground/75 transition-[width] duration-200"
-                  style={{ width: `${limit.usedPercent}%` }}
+                  className={`h-full rounded-full transition-[width] duration-200 ${USAGE_BAR_TONE_CLASS[usagePercentTone(limit.usedPercent)]}`}
+                  style={{ width: `${clampUsagePercent(limit.usedPercent)}%` }}
                 />
               </div>
             </div>
@@ -308,9 +330,9 @@ function formatCredits(credits: number): string {
   return `$${credits.toFixed(2)}`;
 }
 
-function formatWindow(minutes: number): string {
-  if (minutes % 60 === 0) return `${minutes / 60}h`;
-  return `${minutes}m`;
+function formatReset(timestamp?: number): string {
+  const stamp = formatResetDateTime(timestamp);
+  return stamp ? ` · ${stamp}` : "";
 }
 
 function formatAge(timestamp: number): string {
@@ -318,11 +340,4 @@ function formatAge(timestamp: number): string {
   if (minutes < 1) return "now";
   if (minutes < 60) return `${minutes}m ago`;
   return `${Math.floor(minutes / 60)}h ago`;
-}
-
-function formatReset(timestamp?: number): string {
-  if (!timestamp) return "";
-  const reset = new Date(timestamp * 1000);
-  if (Number.isNaN(reset.getTime())) return "";
-  return ` · ${reset.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }

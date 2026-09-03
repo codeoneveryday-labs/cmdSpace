@@ -55,8 +55,9 @@ pub(crate) fn hide_workspace_switcher() -> Result<(), String> {
 pub(crate) fn open_workspace_from_tray(
     app: tauri::AppHandle,
     workspace_id: String,
+    pane_index: Option<usize>,
 ) -> Result<(), String> {
-    workspace_switcher::open_workspace_from_tray_impl(app, workspace_id)
+    workspace_switcher::open_workspace_from_tray_impl(app, workspace_id, pane_index)
 }
 
 #[tauri::command]

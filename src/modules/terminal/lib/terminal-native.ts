@@ -9,7 +9,7 @@ export type AgentRateLimit = {
 };
 
 export type AgentUsageStatus = {
-  provider: "codex" | "claude";
+  provider: "codex" | "claude" | "omp" | "cmd" | "opencode";
   contextWindow?: number;
   contextTokens?: number;
   contextRemainingPercent?: number;

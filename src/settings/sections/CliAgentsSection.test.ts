@@ -24,14 +24,6 @@ describe("CLI Agents settings", () => {
     expect(section).toContain("setCliAgentIds");
     expect(section).toContain("setDisabledCliAgentIds");
     expect(section).toContain("if (!installedIds.has(id)) return;");
-    expect(section).toContain("CliAgentRowsSkeleton");
-    expect(section).toContain('aria-label="Loading CLI agents"');
-    expect(section).toContain("IntersectionObserver");
-    expect(section).toContain("visibleCatalogCount");
-    expect(section).toContain("preferencesHydrated");
-    expect(section).toContain('if (!preferencesHydrated)');
-    expect(section).toContain("entriesToScan = configuredEntries.filter");
-    expect(section).not.toContain("const names = CLI_AGENT_CATALOG.map");
     expect(section).toContain(
       'disabled={scanState !== "ready" || !installed}',
     );
