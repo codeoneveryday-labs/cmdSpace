@@ -121,4 +121,10 @@ describe("Sidebar browser toolbar", () => {
     expect(source).toContain("intersectBrowserBounds");
     expect(source).toContain("if (!visibleBounds)");
   });
+
+  it("reports no bounds when the collapsed sidebar keeps a zero-area host", () => {
+    const source = readFileSync(sidebarBrowserPath, "utf8");
+
+    expect(source).toContain("rect.width <= 0 || rect.height <= 0");
+  });
 });

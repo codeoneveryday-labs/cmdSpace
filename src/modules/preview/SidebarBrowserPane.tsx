@@ -126,6 +126,11 @@ export function SidebarBrowserPane({
     if (!host) return null;
 
     const rect = host.getBoundingClientRect();
+    // Collapsed sidebar keeps the pane mounted with width 0 (keep-alive).
+    // CSS cannot hide a native WKWebView, so report no bounds and let the
+    // caller hide it instead of sizing it to a zero rect.
+    if (rect.width <= 0 || rect.height <= 0) return null;
+
     const viewport = host.closest<HTMLElement>(
       '[data-canvas-surface-viewport="true"]',
     );

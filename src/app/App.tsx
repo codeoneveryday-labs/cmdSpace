@@ -1292,7 +1292,7 @@ export default function App() {
       editorRail={{ onSelectView: setEditorSidebarView }}
       browser={{
         url: sidebarBrowserUrl,
-        visible: sidebarView === "browser",
+        visible: sidebarOpen && sidebarWidth > 0 && sidebarView === "browser",
         resizing: sidebarResizing,
         onUrlChange: persistSidebarBrowserUrl,
       }}
