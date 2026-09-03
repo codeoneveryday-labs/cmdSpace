@@ -50,6 +50,11 @@ export function SidebarBrowserPane({
     hasTauriWebviewRuntime() && (!embedded || !isLocalPreviewUrl(normalizedUrl));
   const nativeLayerBlocked = useNativeLayerBlocker();
   const nativeInteractionBlocked = nativeLayerBlocked || resizing;
+  // Mirror for async callbacks: while blocked the webview is hidden, so
+  // per-tick bounds syncs (resize drag storms) are pure IPC waste. The
+  // show effect re-syncs once when unblocked.
+  const interactionBlockedRef = useRef(nativeInteractionBlocked);
+  interactionBlockedRef.current = nativeInteractionBlocked;
   const [history, setHistory] = useState<string[]>(() =>
     normalizedUrl ? [normalizedUrl] : [],
   );
@@ -142,6 +147,7 @@ export function SidebarBrowserPane({
   const syncNativeBounds = useCallback(async (): Promise<boolean> => {
     const webview = webviewRef.current;
     if (!webview) return false;
+    if (interactionBlockedRef.current) return false;
 
     const visibleBounds = getVisibleNativeBounds();
     if (!visibleBounds) {
