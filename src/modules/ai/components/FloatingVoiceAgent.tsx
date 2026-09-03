@@ -118,8 +118,11 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     };
 
     // Re-clamp the parked pill when browser bounds change underneath it
-    // (sidebar resize, collapse, navigation).
+    // (sidebar resize, collapse, navigation). Re-runs when `enabled` flips:
+    // preferences hydrate async, so the button often mounts after the first
+    // bounds publish — without this the pill parks under the browser.
     useEffect(() => {
+      if (!enabled) return undefined;
       const reclamp = () => {
         const button = buttonRef.current;
         if (!button) return;
@@ -150,7 +153,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
       };
       reclamp();
       return subscribeNativeBrowserBounds(reclamp);
-    }, []);
+    }, [enabled]);
 
     const startDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
