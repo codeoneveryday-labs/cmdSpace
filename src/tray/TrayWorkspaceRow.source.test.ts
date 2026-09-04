@@ -16,5 +16,7 @@ describe("TrayWorkspaceRow", () => {
     expect(source).toContain("onOpen");
     expect(source).toContain("No terminals open");
     expect(source).toContain('role="option"');
+    expect(source).toContain("min-w-0 flex-1 truncate");
+    expect(source).toContain("title={terminal.label}");
   });
 });
