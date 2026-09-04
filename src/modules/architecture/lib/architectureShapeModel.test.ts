@@ -32,6 +32,5 @@ describe("architectureShapeModel", () => {
   it("normalizes rotation and preserves documented defaults", () => {
     expect(normalizeRotation(-90)).toBe(270);
     expect(defaultSize("terminal")).toEqual({ width: 640, height: 400 });
-    expect(defaultSize("browser")).toEqual({ width: 720, height: 480 });
   });
 });

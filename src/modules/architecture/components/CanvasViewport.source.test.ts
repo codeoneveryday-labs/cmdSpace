@@ -13,7 +13,6 @@ describe("CanvasViewport", () => {
 
     expect(source).toContain("CanvasDiagramSvg");
     expect(source).toContain("CanvasTerminalLayer");
-    expect(source).toContain("CanvasBrowserLayer");
     expect(source).toContain("CanvasInteractionOverlays");
     expect(source).not.toContain("invoke(");
     expect(source).not.toContain("useState(");

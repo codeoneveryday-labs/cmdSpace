@@ -40,10 +40,7 @@ export function createDockedSurfaceState({
   created: ArchitectureNode;
   terminalDockGroups: ArchitectureTerminalDockGroup[];
 } {
-  const surfaceKind: LiveSurfaceKind =
-    source.kind === "terminal" || source.kind === "browser"
-      ? source.kind
-      : "terminal";
+  const surfaceKind: LiveSurfaceKind = "terminal";
   const created = providedCreated ??
     createSurfaceNode({
       id,

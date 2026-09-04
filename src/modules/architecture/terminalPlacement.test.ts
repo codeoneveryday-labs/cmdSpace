@@ -46,7 +46,7 @@ describe("recommendTerminalPlacements", () => {
     expect(placements.some((placement) => placement.y > anchor.y)).toBe(true);
   });
 
-  it("uses the requested surface size for browser and editor placement", () => {
+  it("uses the requested surface size for editor placement", () => {
     const placements = recommendTerminalPlacements(
       { x: 0, y: 0, width: 1400, height: 900 },
       [],

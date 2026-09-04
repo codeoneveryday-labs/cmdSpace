@@ -13,7 +13,7 @@ The product is opinionated: terminal-first, AI as a primitive (not a sidebar), l
 ## What cmdSpace is not
 
 - Not a full IDE replacement. Heavy IDE features that overlap with VS Code / Cursor / Zed are out of scope.
-- Not a browser. Web preview exists for local dev servers and lightweight doc viewing only.
+- Not a browser. Web content belongs in the user's own browser; open URLs externally instead.
 - Not a general workspace. Tools and formats that pull the product away from the terminal-first surface are out of scope.
 - Not a one-size-fits-all CLI replacement. The goal is "best AI-native terminal", not "shell with extras".
 
@@ -69,11 +69,9 @@ The themes below frame every scope decision.
 - [x] Workspace file picker
 - [x] Auto-compact for long context
 
-### Web Preview
+### Removed
 
-- [x] Auto-detected local dev server preview
-- [x] Image and PDF viewers
-- [x] Sandboxed iframe
+- In-app browser (sidebar Browser view, local dev-server preview tabs, canvas browser nodes, native webview layer) — use the system browser instead. External URLs open via the OS opener.
 
 ### Platform Integration
 
@@ -89,7 +87,6 @@ The themes below frame every scope decision.
 - [x] Hardened AI tool surface (file system, network, IPC)
 - [x] SSRF and DNS rebinding defenses on outbound HTTP
 - [x] Trust gating in terminal escape-sequence handling
-- [x] Sandboxed preview surface
 
 ## Planned
 
@@ -104,7 +101,6 @@ The themes below frame every scope decision.
 - [ ] More slash commands and skills
 - [ ] Approval flow improvements (YOLO / auto-approve, project-scoped policies, per-tool trust)
 - [ ] Persistent terminal sessions and layout restore
-- [ ] Preview surface expansion (better image / Markdown handling)
 - [ ] Test coverage expansion (PTY edge cases, security functions, AI tool guards)
 
 ### Longer horizon
@@ -135,7 +131,7 @@ Categories that will not be built into cmdSpace. Individual feature requests in 
 - **Heavy IDE features.** Full language-server integration, integrated debuggers, refactoring engines, project-wide search at IDE scale. Use a real editor for those.
 - **Notebook and document workspaces.** Anything that turns cmdSpace into a document host rather than a terminal.
 - **Package manager and toolchain UIs.** Use `npm`, `pip`, `cargo` and friends in the terminal directly.
-- **Full web browser features.** Preview pane stays scoped to local dev servers and lightweight doc viewing. No navigation history, no bookmarks, no dev tools.
+- **Full web browser features.** Web content belongs in the user's own browser; open URLs externally instead. No navigation history, no bookmarks, no dev tools.
 - **Telemetry, analytics, accounts.** cmdSpace stays BYOK and offline-respectful.
 - **Extension marketplaces at IDE scale.** Narrowly-scoped AI tool / skill bundles may happen eventually. Arbitrary UI or behavior extensions will not.
 - **Third-party subscription session bridges.** Forwarding cloud subscription auth (provider-managed login sessions) through cmdSpace is not technically feasible for third-party clients.

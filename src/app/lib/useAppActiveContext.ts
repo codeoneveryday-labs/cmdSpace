@@ -33,7 +33,6 @@ export function useAppActiveContext({
     activeWorkspaceFolder: activeWorkspace?.workingFolder ?? null,
     isTerminalTab: activeTab?.kind === "terminal",
     isEditorTab: activeTab?.kind === "editor",
-    isPreviewTab: activeTab?.kind === "preview",
     isMarkdownTab: activeTab?.kind === "markdown",
     isAiDiffTab: activeTab?.kind === "ai-diff",
     isGitDiffTab:

@@ -5,7 +5,6 @@ export type AppShortcutCoordination = {
   hasGitRepository: boolean;
   openNewTab: () => void;
   openNewPrivateTab: () => void;
-  openPreviewTab: () => void;
   openEditor: () => void;
   openGitGraph: () => void;
   openArchitecture: () => void;
@@ -40,7 +39,6 @@ export function createAppShortcutHandlers(
   return {
     "tab.new": actions.openNewTab,
     "tab.newPrivate": actions.openNewPrivateTab,
-    "tab.newPreview": actions.openPreviewTab,
     "tab.newEditor": actions.openEditor,
     "tab.newGitGraph": () => {
       if (actions.hasGitRepository) actions.openGitGraph();

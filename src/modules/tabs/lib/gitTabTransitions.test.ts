@@ -6,7 +6,7 @@ import {
   openGitHistoryState,
 } from "./gitTabTransitions";
 
-const base = [{ id: 1, kind: "preview", title: "A", url: "https://a.test" }] as Tab[];
+const base = [{ id: 1, kind: "markdown", title: "A", path: "/a.md" }] as Tab[];
 
 describe("gitTabTransitions", () => {
   it("dedupes and updates git diff tabs", () => {

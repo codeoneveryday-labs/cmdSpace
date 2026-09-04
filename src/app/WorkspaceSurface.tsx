@@ -12,7 +12,6 @@ import {
 } from "@/modules/editor";
 import { GitHistoryStack } from "@/modules/git-history";
 import { MarkdownStack } from "@/modules/markdown";
-import { PreviewStack } from "@/modules/preview";
 import type {
   ArchitectureDiagram,
   Tab,
@@ -32,7 +31,6 @@ export type WorkspaceSurfaceProps = {
   hideBootstrapShell: boolean;
   isTerminalTab: boolean;
   isEditorTab: boolean;
-  isPreviewTab: boolean;
   isMarkdownTab: boolean;
   isAiDiffTab: boolean;
   isGitDiffTab: boolean;
@@ -77,8 +75,6 @@ export type WorkspaceSurfaceProps = {
   registerEditorHandle: ComponentProps<typeof EditorStack>["registerHandle"];
   onEditorDirty: ComponentProps<typeof EditorStack>["onDirtyChange"];
   onCloseEditorTab: ComponentProps<typeof EditorStack>["onCloseTab"];
-  registerPreviewHandle: ComponentProps<typeof PreviewStack>["registerHandle"];
-  onPreviewUrlChange: ComponentProps<typeof PreviewStack>["onUrlChange"];
   onOpenCommitFile: ComponentProps<typeof GitHistoryStack>["onOpenCommitFile"];
   onGitHistorySearchHandle: ComponentProps<typeof GitHistoryStack>["onSearchHandle"];
 };
@@ -89,7 +85,6 @@ export function WorkspaceSurface({
   hideBootstrapShell,
   isTerminalTab,
   isEditorTab,
-  isPreviewTab,
   isMarkdownTab,
   isAiDiffTab,
   isGitDiffTab,
@@ -111,8 +106,6 @@ export function WorkspaceSurface({
   registerEditorHandle,
   onEditorDirty,
   onCloseEditorTab,
-  registerPreviewHandle,
-  onPreviewUrlChange,
   onOpenCommitFile,
   onGitHistorySearchHandle,
 }: WorkspaceSurfaceProps) {
@@ -191,18 +184,6 @@ export function WorkspaceSurface({
           registerHandle={registerEditorHandle}
           onDirtyChange={onEditorDirty}
           onCloseTab={onCloseEditorTab}
-        />
-      </div>
-
-      <div
-        className={cn("absolute inset-0", !isPreviewTab && "invisible pointer-events-none")}
-        aria-hidden={!isPreviewTab}
-      >
-        <PreviewStack
-          tabs={tabs}
-          activeId={activeId}
-          registerHandle={registerPreviewHandle}
-          onUrlChange={onPreviewUrlChange}
         />
       </div>
 

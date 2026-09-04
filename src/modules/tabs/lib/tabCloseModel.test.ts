@@ -3,9 +3,9 @@ import type { Tab } from "./tabTypes";
 import { closeTabState, resetWorkspaceState } from "./tabCloseModel";
 
 const tabs = [
-  { id: 1, kind: "preview", title: "A", url: "https://a.test" },
-  { id: 2, kind: "preview", title: "B", url: "https://b.test" },
-  { id: 3, kind: "preview", title: "C", url: "https://c.test" },
+  { id: 1, kind: "markdown", title: "A", path: "/a.md" },
+  { id: 2, kind: "markdown", title: "B", path: "/b.md" },
+  { id: 3, kind: "markdown", title: "C", path: "/c.md" },
 ] as Tab[];
 
 describe("tabCloseModel", () => {

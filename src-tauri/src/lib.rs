@@ -130,14 +130,12 @@ mod native_command_registration_tests {
     }
 
     #[test]
-    fn grouped_native_command_macro_keeps_preview_corner_radius_command() {
+    fn grouped_native_command_macro_drops_removed_browser_commands() {
         let source = include_str!("commands.rs");
 
         assert!(
-            source.contains(
-                "window_commands::set_desktop_blur,\n            window_commands::set_webview_corner_radius,",
-            ),
-            "the preview corner-radius command must remain registered with window surface commands"
+            !source.contains("window_commands::set_webview_corner_radius,"),
+            "the removed browser corner-radius command must stay unregistered"
         );
     }
 

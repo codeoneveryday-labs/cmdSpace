@@ -130,7 +130,6 @@ export function defaultSize(kind: ShapeKind): { width: number; height: number } 
       return { width: 240, height: 150 };
     case "terminal":
       return TERMINAL_DEFAULT_SIZE;
-    case "browser":
     case "editor":
       return INTERACTIVE_SURFACE_DEFAULT_SIZE;
     case "line":
@@ -158,7 +157,6 @@ export function minimumDrawingSize(kind: ShapeKind): { width: number; height: nu
       return { width: 80, height: 56 };
     case "terminal":
       return { width: 320, height: 200 };
-    case "browser":
     case "editor":
       return INTERACTIVE_SURFACE_MINIMUM_SIZE;
     case "rectangle":

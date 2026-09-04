@@ -76,7 +76,7 @@
     },
     "category": "DeveloperTool",
     "shortDescription": "Premium AI-agentic terminal workspace",
-    "longDescription": "cmdSpace — the premium AI-agentic terminal workspace with tiling grid, file explorer, code editor, browser preview, voice input, and native AI agents."
+    "longDescription": "cmdSpace — the premium AI-agentic terminal workspace with tiling grid, file explorer, code editor, voice input, and native AI agents."
   },
   "plugins": {
     "updater": {

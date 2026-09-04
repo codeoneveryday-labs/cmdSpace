@@ -392,10 +392,7 @@ export function DiagramNode({
     );
   }
 
-  if (
-    node.kind === "terminal" ||
-    node.kind === "browser"
-  ) {
+  if (node.kind === "terminal") {
     return null;
   }
 

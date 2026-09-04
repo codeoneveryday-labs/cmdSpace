@@ -9,7 +9,7 @@
   </p>
 </div>
 
-cmdSpace is an open-source desktop development workspace built with Tauri 2, Rust, React 19, and a native PTY backend. It combines real terminals, AI coding agents, CLI agent chat workspaces, a code editor, file navigation, source control, local web previews, a spatial Canvas for arranging development work visually, and remote access from a mobile browser.
+cmdSpace is an open-source desktop development workspace built with Tauri 2, Rust, React 19, and a native PTY backend. It combines real terminals, AI coding agents, CLI agent chat workspaces, a code editor, file navigation, source control, a spatial Canvas for arranging development work visually, and remote access from a mobile browser.
 
 No account is required. There is no telemetry. AI can use your own provider keys or local models.
 
@@ -23,9 +23,6 @@ No account is required. There is no telemetry. AI can use your own provider keys
 
 <p align="center"><img src="docs/source-control.png" alt="Source control and commit history" /></p>
 <p align="center"><em>Source control and commit history</em></p>
-
-<p align="center"><img src="docs/web.png" alt="Preview local development servers in-app" /></p>
-<p align="center"><em>Preview local development servers in-app</em></p>
 
 <p align="center"><img src="docs/ai-workflow.png" alt="Agentic AI workflow with reviewable code edits" /></p>
 <p align="center"><em>Agentic AI workflow with reviewable code edits</em></p>
@@ -92,10 +89,8 @@ No account is required. There is no telemetry. AI can use your own provider keys
 - Catppuccin file icons, fuzzy search, keyboard navigation, inline rename, and context actions.
 - Attach files or selected ranges directly to an AI prompt.
 
-### Web preview and appearance
+### Appearance
 
-- Detect local development servers and preview them in-app.
-- Open external URLs in a native child webview.
 - Light and dark themes with independent editor themes.
 - Custom themes, background images, opacity, blur, and workspace panel collapse.
 

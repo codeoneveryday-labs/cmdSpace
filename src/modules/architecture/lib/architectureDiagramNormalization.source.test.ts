@@ -13,5 +13,6 @@ describe("architectureDiagramNormalization contract", () => {
     expect(source).toContain("nodeIds");
     expect(source).toContain("edgeIds");
     expect(source).toContain("normalizeTerminalDockGroups");
+    expect(source).toContain('kind === "browser"');
   });
 });

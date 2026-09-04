@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAgentChatTab, createAiDiffTab, createArchitectureTab, createEditorTab, createGitCommitFileDiffTab, createGitDiffTab, createGitHistoryTab, createInitialTerminalTab, createMarkdownTab, createPreviewTab, createTerminalTab, createWorkspaceTab } from "./tabFactories";
+import { createAgentChatTab, createAiDiffTab, createArchitectureTab, createEditorTab, createGitCommitFileDiffTab, createGitDiffTab, createGitHistoryTab, createInitialTerminalTab, createMarkdownTab, createTerminalTab, createWorkspaceTab } from "./tabFactories";
 
 describe("tabFactories", () => {
   it("creates terminal and private tabs with the expected pane metadata", () => {
@@ -23,7 +23,6 @@ describe("tabFactories", () => {
       title: "README.md",
       preview: true,
     });
-    expect(createPreviewTab(3, "https://example.test/docs")).toMatchObject({ title: "example.test" });
     expect(createMarkdownTab(4, "/repo/README.md")).toMatchObject({ title: "README.md" });
     expect(createArchitectureTab(5)).toMatchObject({ kind: "architecture", title: "Architecture" });
     expect(createGitDiffTab({ id: 6, path: "/repo/a.ts", repoRoot: "/repo", mode: "-", originalPath: null })).toMatchObject({ title: "a.ts (-)" });

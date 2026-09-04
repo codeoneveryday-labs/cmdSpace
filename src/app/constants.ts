@@ -12,7 +12,6 @@ export const WORKSPACES_PANEL_COMPACT_BREAKPOINT = 1180;
 export const CHROME_RESIZE_TRANSITION_MS = 180;
 export const SIDEBAR_WIDTH_STORAGE_KEY = "cmdspace.sidebar.width";
 export const SIDEBAR_VIEW_STORAGE_KEY = "cmdspace.sidebar.view";
-export const SIDEBAR_BROWSER_URL_STORAGE_KEY = "cmdspace.sidebar.browser.url";
 export const WORKSPACES_PANEL_WIDTH_STORAGE_KEY = "cmdspace.workspaces.width";
 export const WORKSPACE_DELETE_CONFIRM_STORAGE_KEY =
   "cmdspace.workspace.delete.confirm.skip";

@@ -9,8 +9,6 @@ mod desktop_blur;
 mod launch;
 #[path = "window_settings.rs"]
 mod settings;
-#[path = "window_webview.rs"]
-mod webview_corner_radius;
 #[path = "window_workspace_switcher.rs"]
 mod workspace_switcher;
 
@@ -67,13 +65,4 @@ pub(crate) async fn set_desktop_blur(
     enabled: bool,
 ) -> Result<(), String> {
     desktop_blur::set_desktop_blur_impl(app, state, enabled).await
-}
-
-#[tauri::command]
-pub(crate) fn set_webview_corner_radius(
-    app: tauri::AppHandle,
-    label: String,
-    radius: f64,
-) -> Result<(), String> {
-    webview_corner_radius::set_webview_corner_radius_impl(app, label, radius)
 }

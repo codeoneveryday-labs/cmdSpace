@@ -22,17 +22,4 @@ describe("createSurfaceNode", () => {
       frameId: "frame-1",
     });
   });
-
-  it("creates browser surfaces with an empty URL", () => {
-    expect(
-      createSurfaceNode({
-        id: "n2",
-        kind: "browser",
-        x: 0,
-        y: 0,
-        width: 720,
-        height: 480,
-      }),
-    ).toMatchObject({ kind: "browser", url: "", width: 720, height: 480 });
-  });
 });

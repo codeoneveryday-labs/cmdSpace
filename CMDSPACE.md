@@ -44,7 +44,7 @@ Each ConPTY child is also assigned to a per-session **Job Object** with `JOB_OBJ
 
 ### Frontend (`src/`)
 
-Single-window React app. Path alias `@/*` → `src/*`. Tabs are tagged-union (`{ kind: "terminal" | "editor" | "preview" | "ai-diff", … }`) and **not** unmounted on switch — they're hidden via `invisible pointer-events-none` so PTYs and dev servers keep streaming in the background.
+Single-window React app. Path alias `@/*` → `src/*`. Tabs are tagged-union (`{ kind: "terminal" | "editor" | "ai-diff", … }`) and **not** unmounted on switch — they're hidden via `invisible pointer-events-none` so PTYs and dev servers keep streaming in the background.
 
 `App.tsx` wires modules together — keep it a coordinator. New features go inside the appropriate `modules/<area>/`.
 
@@ -55,7 +55,6 @@ Each module is self-contained, exports a thin barrel via `index.ts`, and owns it
 - **terminal/** — `TerminalStack` keeps one mounted xterm per tab via `useTerminalSession` + `pty-bridge`. `osc-handlers.ts` parses OSC 7 (with Windows drive-letter normalization: `/C:/Users/foo` → `C:/Users/foo`) and OSC 133 markers. Themes in `themes.ts`.
 - **editor/** — CodeMirror 6 stack (`EditorStack` mirrors `TerminalStack`). `extensions.ts` configures language modes; supports vim mode and prebuilt themes (Tokyo Night, Nord, GitHub, Atom One, Aura, Copilot, Xcode).
 - **explorer/** — file tree with Material/Catppuccin icons (`iconResolver.ts`), fuzzy search, keyboard nav, inline rename, context actions. Backslash-aware `basename`.
-- **preview/** — auto-detected dev-server preview tab (status-bar pill suggests opening when a localhost URL is detected).
 - **tabs/** — `useTabs` is the source of truth for tab list + active id. `useWorkspaceCwd` derives explorer root + inherited cwd for new tabs from active tab. `basename` splits on both `/` and `\`.
 - **header/** — top bar + inline search (`SearchInline` adapts to terminal vs editor via `SearchTarget`). `WindowControls` rendered when `USE_CUSTOM_WINDOW_CONTROLS` is true (Linux + Windows; macOS uses native traffic lights).
 - **statusbar/** — bottom bar, `CwdBreadcrumb` (handles Unix paths, Windows drive letters, and home `~` segments via `pathUtils.segmentsFromCwd`), AI tools indicator.

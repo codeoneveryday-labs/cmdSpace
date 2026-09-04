@@ -16,8 +16,6 @@ export function defaultTechnology(kind: ShapeKind): string {
       return "Serverless";
     case "ai":
       return "LLM / model";
-    case "browser":
-      return "Web";
     case "editor":
       return "CodeMirror";
     case "database":

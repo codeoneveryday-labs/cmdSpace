@@ -3,9 +3,9 @@ import type { Tab } from "./tabTypes";
 import { closeAiDiffState, openAiDiffState, updateAiDiffStatus } from "./aiDiffTransitions";
 
 const tabs = [
-  { id: 1, kind: "preview", title: "A", url: "https://a.test" },
+  { id: 1, kind: "markdown", title: "A", path: "/a.md" },
   { id: 2, kind: "ai-diff", title: "diff", path: "a.ts", originalContent: "", proposedContent: "x", approvalId: "approval-1", status: "pending", isNewFile: false },
-  { id: 3, kind: "preview", title: "B", url: "https://b.test" },
+  { id: 3, kind: "markdown", title: "B", path: "/b.md" },
 ] as Tab[];
 
 describe("aiDiffTransitions", () => {

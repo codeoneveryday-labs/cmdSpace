@@ -8,7 +8,6 @@ import type {
   GitDiffTab,
   GitHistoryTab,
   MarkdownTab,
-  PreviewTab,
   TerminalTab,
 } from "./tabTypes";
 
@@ -125,12 +124,6 @@ export function createEditorTab({ id, path, preview }: { id: number; path: strin
     dirty: false,
     preview,
   };
-}
-
-export function createPreviewTab(id: number, url: string): PreviewTab {
-  let title = url || "preview";
-  try { title = new URL(url).host || url; } catch { /* keep the raw URL */ }
-  return { id, kind: "preview", title, url };
 }
 
 export function createMarkdownTab(id: number, path: string): MarkdownTab {

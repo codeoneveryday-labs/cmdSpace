@@ -46,12 +46,14 @@ export function normalizeDiagramSeed(seed?: ArchitectureDiagram): {
     typeof value === "number" && Number.isFinite(value);
 
   const nodes = rawNodes.reduce<ArchitectureNode[]>((result, rawNode) => {
-    const item = rawNode as Partial<ArchitectureNode>;
+    const item = rawNode as unknown as Record<string, unknown>;
+    const kind = item.kind;
     if (
       typeof item.id !== "string" ||
       nodeIds.has(item.id) ||
-      typeof item.kind !== "string" ||
-      !validKinds.has(item.kind as ShapeKind) ||
+      typeof kind !== "string" ||
+      kind === "browser" ||
+      !validKinds.has(kind as ShapeKind) ||
       !isFiniteNumber(item.x) ||
       !isFiniteNumber(item.y) ||
       !isFiniteNumber(item.width) ||
@@ -78,7 +80,6 @@ export function normalizeDiagramSeed(seed?: ArchitectureDiagram): {
       ...(typeof item.initialCommand === "string"
         ? { initialCommand: item.initialCommand }
         : {}),
-      ...(typeof item.url === "string" ? { url: item.url } : {}),
       ...(typeof item.path === "string" ? { path: item.path } : {}),
       ...(item.kind === "terminal" ? { terminalChromeVersion: 2 as const } : {}),
       ...(typeof item.connectorStartId === "string"

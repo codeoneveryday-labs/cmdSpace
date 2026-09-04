@@ -7,7 +7,6 @@ import { IS_MAC, MOD_PROP } from "@/lib/platform";
 export type ShortcutId =
   | "tab.new"
   | "tab.newPrivate"
-  | "tab.newPreview"
   | "tab.newEditor"
   | "tab.newGitGraph"
   | "tab.newArchitecture"
@@ -98,12 +97,6 @@ export const SHORTCUTS: Shortcut[] = [
     label: "New private terminal",
     group: "Tabs",
     defaultBindings: [{ [MOD_PROP]: true, key: "r" }],
-  },
-  {
-    id: "tab.newPreview",
-    label: "New preview tab",
-    group: "Tabs",
-    defaultBindings: [{ [MOD_PROP]: true, key: "p" }],
   },
   {
     id: "tab.newEditor",

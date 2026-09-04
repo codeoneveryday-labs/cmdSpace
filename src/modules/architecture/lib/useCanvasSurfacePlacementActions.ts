@@ -66,7 +66,7 @@ export function useCanvasSurfacePlacementActions({
   viewHeight: number;
   nextNodeRef: MutableRefObject<number>;
   pendingTerminalCommandRef: MutableRefObject<string | undefined>;
-  createNode: (kind: "terminal" | "browser", point: Point) => ArchitectureNode;
+  createNode: (kind: "terminal", point: Point) => ArchitectureNode;
   pushHistory: () => void;
   clearSelection: () => void;
   setConnectSourceId: Dispatch<SetStateAction<string | null>>;

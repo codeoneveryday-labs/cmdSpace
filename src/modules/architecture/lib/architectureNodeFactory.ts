@@ -129,7 +129,6 @@ export function createSurfaceNode({
       ...(kind === "terminal" ? { terminalChromeVersion: 2 as const } : {}),
       ...(kind === "terminal" && cwd ? { cwd } : {}),
       ...(kind === "terminal" && initialCommand ? { initialCommand } : {}),
-      ...(kind === "browser" ? { url: "" } : {}),
       ...(frameId ? { frameId } : {}),
     },
   );

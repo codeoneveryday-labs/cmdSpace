@@ -29,6 +29,7 @@ describe("architectureDiagramNormalization", () => {
         { id: "a", kind: "service", x: 0, y: 0, width: 10, height: 10 },
         { id: "a", kind: "service", x: 1, y: 1, width: 10, height: 10 },
         { id: "bad", kind: "unknown", x: 0, y: 0, width: 10, height: 10 },
+        { id: "legacy-browser", kind: "browser", x: 0, y: 0, width: 10, height: 10, url: "https://example.com" },
       ],
       edges: [
         { id: "e1", from: "a", to: "a", label: "ok" },

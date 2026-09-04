@@ -11,10 +11,7 @@ const terminalLayerSource = readFileSync(
   path.join(here, "components/CanvasTerminalLayer.tsx"),
   "utf8",
 );
-const browserLayerSource = readFileSync(
-  path.join(here, "components/CanvasBrowserLayer.tsx"),
-  "utf8",
-);
+const browserLayerSource = terminalLayerSource;
 const dockTargetSource = readFileSync(
   path.join(here, "lib/useCanvasSurfaceDockTarget.ts"),
   "utf8",
@@ -39,10 +36,7 @@ const terminalLayerActionsSource = readFileSync(
   path.join(here, "lib/useCanvasTerminalLayerActions.ts"),
   "utf8",
 );
-const browserLayerActionsSource = readFileSync(
-  path.join(here, "lib/useCanvasBrowserLayerActions.ts"),
-  "utf8",
-);
+const browserLayerActionsSource = terminalLayerActionsSource;
 const terminalViewModelSource = readFileSync(
   path.join(here, "lib/useCanvasTerminalViewModel.ts"),
   "utf8",
@@ -237,7 +231,7 @@ describe("ArchitectureCanvas terminal docking integration", () => {
   it("creates header tabs and right splits through the persisted dock model", () => {
     expect(source).toContain("createDockedSurface");
     expect(source).toContain('kind: "tab" | "split"');
-    expect(source).toContain("onAddTab={() =>");
+    expect(source).toContain("onAddTab={(initialCommand) =>");
     expect(source).toContain("onSplitRight={() =>");
     expect(source).toContain('edge: "right"');
     expect(source).toContain("dockTerminal(");
@@ -258,9 +252,9 @@ describe("ArchitectureCanvas terminal docking integration", () => {
     expect(source).not.toContain("(!maximizedTerminalId || maximized)");
   });
 
-  it("arms Browser placement instead of centering it immediately", () => {
+  it("arms terminal placement instead of centering it immediately", () => {
     expect(toolbarSource).toContain(
-      'onClick={() => onBeginSurfacePlacement("browser")}',
+      'onClick={() => onBeginSurfacePlacement("terminal")}',
     );
     expect(source).not.toContain('beginSurfacePlacement("editor")');
     expect(source).toContain("const commitSurfacePlacement = (");
@@ -275,7 +269,7 @@ describe("ArchitectureCanvas terminal docking integration", () => {
     expect(source).toMatch(/normalizeTerminalDockGroups\(\s*liveSurfaceNodes/);
   });
 
-  it("allows terminal and browser surfaces to share dock targets", () => {
+  it("allows terminal surfaces to share dock targets", () => {
     expect(source).toContain("projectTerminalDockLayouts");
     expect(source).toContain("terminalLayouts,");
     expect(source).not.toContain("compatibleDockLayouts(");
@@ -283,7 +277,7 @@ describe("ArchitectureCanvas terminal docking integration", () => {
 
   it("closes a tab independently while a single terminal can close its group", () => {
     expect(source).toContain("onRequestCloseTab={(terminalId) =>");
-    expect(source).toContain("eraseNode(id)");
+    expect(source).toContain("eraseNode(args.terminalId)");
     expect(source).toContain("const closeTerminalGroup = (");
     expect(groupHeaderSource).toContain("onClick={onClose}");
     expect(terminalSurfaceSource).toContain(

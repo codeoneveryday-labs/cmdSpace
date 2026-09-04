@@ -3,7 +3,6 @@ import {
   CodeIcon,
   Folder01Icon,
   GitBranchIcon,
-  Globe02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { EditorSidebarViewId, SidebarViewId } from "./types";
@@ -29,7 +28,6 @@ export function SidebarRail({
   placement = "bottom",
 }: Props) {
   const items: RailItem[] = [
-    { id: "browser", label: "Browser", icon: Globe02Icon },
     { id: "editor", label: "Editor", icon: CodeIcon },
   ];
 

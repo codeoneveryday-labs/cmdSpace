@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { applyTabPatch } from "./tabPatchModel";
-import type { EditorTab, PreviewTab } from "./tabTypes";
+import type { EditorTab, MarkdownTab } from "./tabTypes";
 
 describe("tabPatchModel", () => {
-  it("updates preview URLs and derives a title when none is supplied", () => {
-    const tab: PreviewTab = { id: 1, kind: "preview", title: "old", url: "https://old.test" };
-    expect(applyTabPatch(tab, { url: "https://new.test/path" })).toMatchObject({
-      url: "https://new.test/path",
-      title: "new.test",
+  it("updates markdown titles when supplied", () => {
+    const tab: MarkdownTab = { id: 1, kind: "markdown", title: "old", path: "/old.md" };
+    expect(applyTabPatch(tab, { title: "new" })).toMatchObject({
+      title: "new",
     });
   });
 

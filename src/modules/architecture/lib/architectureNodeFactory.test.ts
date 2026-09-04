@@ -21,18 +21,6 @@ describe("architectureNodeFactory", () => {
   it("creates surface-specific fields without leaking terminal fields", () => {
     expect(
       createSurfaceNode({
-        id: "browser",
-        kind: "browser",
-        x: 1,
-        y: 2,
-        width: 720,
-        height: 480,
-        cwd: "/repo",
-        initialCommand: "codex",
-      }),
-    ).toMatchObject({ kind: "browser", url: "" });
-    expect(
-      createSurfaceNode({
         id: "terminal",
         kind: "terminal",
         x: 1,

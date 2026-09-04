@@ -50,7 +50,6 @@ type Props = {
   ) => void;
   onNew: () => void;
   onNewPrivate: () => void;
-  onNewPreview: () => void;
   onNewEditor: () => void;
   onNewGitGraph: () => void;
   canNewGitGraph: boolean;
@@ -79,7 +78,6 @@ export function Header({
   onReorder,
   onNew,
   onNewPrivate,
-  onNewPreview,
   onNewEditor,
   onNewGitGraph,
   canNewGitGraph,
@@ -286,7 +284,6 @@ export function Header({
           onReorder={onReorder}
           onNew={onNew}
           onNewPrivate={onNewPrivate}
-          onNewPreview={onNewPreview}
           onNewEditor={onNewEditor}
           onNewGitGraph={onNewGitGraph}
           canNewGitGraph={canNewGitGraph}

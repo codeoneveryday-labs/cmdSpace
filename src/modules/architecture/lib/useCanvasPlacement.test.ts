@@ -20,8 +20,8 @@ describe("useCanvasPlacement model operations", () => {
     expect(started.placements).toEqual(candidates);
     expect(started.isFreePlacement).toBe(false);
 
-    const free = startFreeSurfacePlacement("browser");
-    expect(free.pendingSurfaceKind).toBe("browser");
+    const free = startFreeSurfacePlacement("terminal");
+    expect(free.pendingSurfaceKind).toBe("terminal");
     expect(free.isFreePlacement).toBe(true);
 
     const cleared = clearSurfacePlacement();
