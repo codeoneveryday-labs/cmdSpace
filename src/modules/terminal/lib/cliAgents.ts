@@ -280,10 +280,22 @@ const grokLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; grok';
 const museLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; muse';
-const ompLaunch =
-  'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; omp';
 const piLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; command -v pi >/dev/null 2>&1 && pi || omp';
+
+const LEGACY_OMP_LAUNCH_COMMAND =
+  'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; omp';
+
+/** Removes the pre-shell-integration OMP bootstrap from persisted preferences. */
+export function normalizeCliAgentLaunchCommand(
+  agent: CliAgent,
+  command: string,
+): string {
+  const trimmed = command.trim();
+  return agent === "omp" && trimmed === LEGACY_OMP_LAUNCH_COMMAND
+    ? "omp"
+    : trimmed;
+}
 
 const UNATTENDED_LAUNCH_FLAGS: Partial<Record<CliAgent, string>> = {
   claude: "--dangerously-skip-permissions",

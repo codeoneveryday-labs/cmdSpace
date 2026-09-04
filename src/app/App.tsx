@@ -1037,11 +1037,7 @@ export default function App() {
     });
   persistCanvasDiagramRef.current = handleArchitectureDiagramChange;
 
-  const {
-    swapWorkspaceTerminals: handleSwapWorkspaceTerminals,
-    focusLeaf: handleFocusLeaf,
-    handleLeafExit,
-  } = useTerminalPaneActions({
+  const { focusLeaf: handleFocusLeaf, handleLeafExit } = useTerminalPaneActions({
     tabsRef,
     focusPane,
     handlePaneTreeChange: handleTerminalPaneTreeChange,
