@@ -7,12 +7,21 @@ const source = readFileSync(
 );
 
 describe("WorkspaceList contract", () => {
-  it("renders expandable workspace rows and terminal lists", () => {
+  it("renders directory groups without terminal rows", () => {
     expect(source).toContain("WorkspaceList");
     expect(source).toContain("WorkspaceRow");
-    expect(source).toContain("WorkspaceTerminalList");
-    expect(source).toContain("expandedWorkspaceIds");
+    expect(source).toContain("groupWorkspacesByDir");
+    expect(source).toContain("DragDropVerticalIcon");
+    expect(source).toContain("onGroupDragStart");
+    expect(source).toContain("data-workspace-group-id");
+    expect(source).toContain("groupCount");
+    expect(source).toContain("aria-expanded={groupExpanded}");
     expect(source).toContain("onSelectWorkspace");
     expect(source).toContain("onDragStart");
+    expect(source).not.toContain("WorkspaceTerminalList");
+    expect(source).not.toContain("expandedWorkspaceIds");
+    expect(source).not.toContain("onSelectTerminal");
+    expect(source).not.toContain("onCreateTerminal");
+    expect(source).not.toContain("terminalDragVisual");
   });
 });

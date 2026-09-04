@@ -12,7 +12,7 @@ import {
   formatResetWeekday,
   formatUsageWindow,
 } from "@/modules/usage/usageResetTime";
-import { Coffee02Icon, Moon02Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, Coffee02Icon, Moon02Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clampSelectionIndex,
   filterTrayWorkspaces,
+  groupTrayWorkspacesByDir,
 } from "./workspaces";
 import {
   hasUsageData,
@@ -51,10 +52,20 @@ export function WorkspaceSwitcher() {
     () => filterTrayWorkspaces(workspaces, query),
     [query, workspaces],
   );
+  const groupedWorkspaces = useMemo(
+    () => groupTrayWorkspacesByDir(visibleWorkspaces),
+    [visibleWorkspaces],
+  );
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     setExpandedWorkspaceIds(
       new Set(workspaces.map((workspace) => workspace.id)),
+    );
+    setExpandedGroupIds(
+      new Set(groupTrayWorkspacesByDir(workspaces).map((group) => group.id)),
     );
     setSelectedIndex(workspaces.length > 0 ? 0 : -1);
   }, [workspaces]);
@@ -118,6 +129,15 @@ export function WorkspaceSwitcher() {
       const next = new Set(current);
       if (next.has(workspaceId)) next.delete(workspaceId);
       else next.add(workspaceId);
+      return next;
+    });
+  };
+
+  const toggleGroupExpanded = (groupId: string) => {
+    setExpandedGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
       return next;
     });
   };
@@ -247,20 +267,61 @@ export function WorkspaceSwitcher() {
                 : "No matching workspaces"}
             </div>
           ) : (
-            visibleWorkspaces.map((workspace, index) => (
-              <TrayWorkspaceRow
-                key={workspace.id}
-                workspace={workspace}
-                selected={index === selectedIndex}
-                expanded={expandedWorkspaceIds.has(workspace.id)}
-                onToggleExpanded={() => toggleWorkspaceExpanded(workspace.id)}
-                onOpen={() => openWorkspace(workspace.id)}
-                onOpenTerminal={(_terminal, paneIndex) =>
-                  openWorkspace(workspace.id, paneIndex)
-                }
-                onHover={() => setSelectedIndex(index)}
-              />
-            ))
+            groupedWorkspaces.map((group) => {
+              const groupExpanded = expandedGroupIds.has(group.id);
+              const groupCount = group.workspaces.reduce(
+                (total, item) => total + item.count,
+                0,
+              );
+              return (
+                <div key={group.id} className="space-y-0.5">
+                  <button
+                    type="button"
+                    aria-expanded={groupExpanded}
+                    onClick={() => toggleGroupExpanded(group.id)}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "transition-transform",
+                        !groupExpanded && "-rotate-90",
+                      )}
+                    >
+                      <HugeiconsIcon icon={ArrowDown01Icon} size={12} strokeWidth={2} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate" title={group.id}>
+                      {group.label}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-medium ring-1 ring-border/60">
+                      {groupCount}
+                    </span>
+                  </button>
+                  {groupExpanded
+                    ? group.workspaces.map((workspace) => {
+                        const index = visibleWorkspaces.indexOf(workspace);
+                        return (
+                          <div key={workspace.id} className="ml-3">
+                            <TrayWorkspaceRow
+                              workspace={workspace}
+                              selected={index === selectedIndex}
+                              expanded={expandedWorkspaceIds.has(workspace.id)}
+                              onToggleExpanded={() =>
+                                toggleWorkspaceExpanded(workspace.id)
+                              }
+                              onOpen={() => openWorkspace(workspace.id)}
+                              onOpenTerminal={(_terminal, paneIndex) =>
+                                openWorkspace(workspace.id, paneIndex)
+                              }
+                              onHover={() => setSelectedIndex(index)}
+                            />
+                          </div>
+                        );
+                      })
+                    : null}
+                </div>
+              );
+            })
           )}
         </div>
 

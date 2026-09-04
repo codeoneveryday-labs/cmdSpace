@@ -75,7 +75,6 @@ import {
 import { useWorkspaceSelectionController } from "./lib/useWorkspaceSelectionController";
 import { useTerminalWorkspaceActions } from "./lib/useTerminalWorkspaceActions";
 import { useTerminalPaneActions } from "./lib/useTerminalPaneActions";
-import { useWorkspaceTerminalSelection } from "./lib/useWorkspaceTerminalSelection";
 import { buildWorkspacePaneRecord } from "./lib/workspacePaneRecordModel";
 import {
   buildCanvasWorkspaceDiagram,
@@ -106,7 +105,6 @@ import { useAppWorkspaceTerminalView } from "./lib/useAppWorkspaceTerminalView";
 import { useAppWorkspaceItems } from "./lib/useAppWorkspaceItems";
 import { useAppChromeActions } from "./lib/useAppChromeActions";
 import { useWorkspaceSessionImportAction } from "./lib/useWorkspaceSessionImportAction";
-import { useWorkspaceTerminalCreationAction } from "./lib/useWorkspaceTerminalCreationAction";
 import { useMusicTabAction } from "./lib/useMusicTabAction";
 import { useWorkspaceDeletion } from "./lib/useWorkspaceDeletion";
 import { useWorkspaceDeleteConfirmation } from "./lib/useWorkspaceDeleteConfirmation";
@@ -327,7 +325,6 @@ export default function App() {
     reorderWorkspaces,
     deleteWorkspace: removeWorkspace,
     createWorkspace,
-    createWorkspaceTerminal,
     importAgentSession,
   } = useWorkspaceController({ updateTab });
   const reservedNativeSessionIdsRef = useRef<Map<string, string>>(new Map());
@@ -422,7 +419,6 @@ export default function App() {
   const [workspaceForkContext, setWorkspaceForkContext] =
     useState<WorkspaceForkContext | null>(null);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
-  const pendingWorkspaceTerminalRef = useRef<{ workspaceId: string; leafId: number } | null>(null);
   const persistCanvasDiagramRef = useRef<
     ((tabId: number, diagram: ArchitectureDiagram) => void) | null
   >(null);
@@ -1054,36 +1050,6 @@ export default function App() {
     respawnSession,
   });
 
-
-  const { handleSelectWorkspaceTerminal } = useWorkspaceTerminalSelection({
-    activeCanvasTerminalIds,
-    pendingWorkspaceTerminalRef,
-    tabsRef,
-    workspacesRef,
-    tabs,
-    workspaces,
-    setActiveId,
-    setCanvasTerminalSelectionVersion,
-    focusPane,
-    handleSelectWorkspace,
-  });
-
-  const handleCreateWorkspaceTerminal = useWorkspaceTerminalCreationAction({
-    workspaceId: activeWorkspaceId,
-    tabsRef,
-    canvasTerminalCreators: canvasTerminalCreatorRef,
-    appendTerminalPane,
-    newAgentChatTab,
-    setActiveId,
-    persistPaneRecord,
-    persistedPaneFor,
-    buildPaneRecord: buildWorkspacePaneRecord,
-    saveRecentWorkspace,
-    markWorkspacePaneLaunch,
-    scheduleWorkspacePaneSessionSync,
-    createWorkspaceTerminal,
-  });
-
   const handleEditorDirty = useCallback(
     (id: number, dirty: boolean) => updateTab(id, { dirty }),
     [updateTab],
@@ -1208,11 +1174,6 @@ export default function App() {
   const workspacesPanel = (
     <WorkspacesPanel
       activeWorkspaceId={activeWorkspaceId}
-      activeWorkspaceTerminals={activeWorkspaceTerminals}
-      onSelectTerminal={handleSelectWorkspaceTerminal}
-      onSelectTab={setActiveId}
-      onSwapTerminals={handleSwapWorkspaceTerminals}
-      onCreateTerminal={handleCreateWorkspaceTerminal}
       compact={workspacesPanelCompact}
       workspaces={workspaceItems}
       onSelectWorkspace={handleSelectWorkspace}

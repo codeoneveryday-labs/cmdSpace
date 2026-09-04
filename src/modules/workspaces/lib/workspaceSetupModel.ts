@@ -1,5 +1,6 @@
 import {
   CLI_AGENT_DEFINITIONS,
+  normalizeCliAgentLaunchCommand,
   type CliAgentDefinition,
 } from "@/modules/terminal/lib/cliAgents";
 import { isolatedAgentCommand } from "@/modules/ai/lib/agentWorktree";
@@ -64,7 +65,10 @@ export function agentCommandPlan(
   const commands: string[] = [];
   for (const agent of AGENT_CLI_OPTIONS) {
     const count = agentCounts[agent.id] ?? 0;
-    const command = effectiveCommands[agent.id] || agent.launch || agent.command;
+    const command = normalizeCliAgentLaunchCommand(
+      agent.id,
+      effectiveCommands[agent.id] || agent.launch || agent.command,
+    );
     for (let index = 0; index < count; index += 1) commands.push(command);
   }
   const customCount = agentCounts.custom ?? 0;
@@ -83,10 +87,13 @@ export function resolveEffectiveAgentCommands(
   return Object.fromEntries(
     agents.map((agent) => [
       agent.id,
-      drafts[agent.id]?.trim() ||
-        stored[agent.id]?.trim() ||
-        agent.launch ||
-        agent.command,
+      normalizeCliAgentLaunchCommand(
+        agent.id,
+        drafts[agent.id]?.trim() ||
+          stored[agent.id]?.trim() ||
+          agent.launch ||
+          agent.command,
+      ),
     ]),
   );
 }

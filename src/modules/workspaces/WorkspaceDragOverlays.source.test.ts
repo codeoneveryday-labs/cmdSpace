@@ -7,11 +7,10 @@ const source = readFileSync(
 );
 
 describe("WorkspaceDragOverlays contract", () => {
-  it("renders terminal and workspace drag previews through document.body portals", () => {
+  it("renders the workspace reorder preview", () => {
     expect(source).toContain("WorkspaceDragOverlays");
-    expect(source).toContain("createPortal");
-    expect(source).toContain("document.body");
-    expect(source).toContain("draggedTerminal");
     expect(source).toContain("draggedWorkspace");
+    expect(source).not.toContain("draggedTerminal");
+    expect(source).not.toContain("terminalDragVisual");
   });
 });

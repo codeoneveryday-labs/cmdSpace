@@ -93,6 +93,23 @@ describe("menu bar workspace switcher wiring", () => {
     expect(styles).toContain(".tray-panel");
   });
 
+  it("groups workspaces sharing a directory under one collapsible header", () => {
+    const source = readFileSync(
+      path.join(root, "src/tray/WorkspaceSwitcher.tsx"),
+      "utf8",
+    );
+    const model = readFileSync(
+      path.join(root, "src/tray/workspaces.ts"),
+      "utf8",
+    );
+
+    expect(model).toContain("groupTrayWorkspacesByDir");
+    expect(source).toContain("groupedWorkspaces");
+    expect(source).toContain("expandedGroupIds");
+    expect(source).toContain("toggleGroupExpanded");
+    expect(source).toContain('aria-expanded={groupExpanded}');
+  });
+
   it("hands selection to the existing main-window workspace callback", () => {
     const selection = readFileSync(
       path.join(root, "src/app/lib/useWorkspaceSelectionController.ts"),

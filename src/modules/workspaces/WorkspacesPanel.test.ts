@@ -339,7 +339,7 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain(
       "sm:flex-row sm:items-center sm:justify-between",
     );
-    expect(panelSource).toContain("renderedWorkspaces.flatMap");
+    expect(panelSource).toContain(".flatMap((group, index) =>");
     expect(panelSource).not.toContain("native.gitResolveRepo(cwd)");
     expect(panelSource).not.toContain("native.workspaceAuthorize(cwd)");
     expect(panelSource).not.toContain('git diff HEAD --shortstat');
@@ -510,61 +510,33 @@ describe("WorkspacesPanel", () => {
     expect(dbWorkspacesSource).toContain("auto_launch: row.get(4)?");
   });
 
-  it("nests terminal navigation under expandable workspace rows", () => {
+  it("renders grouped workspaces without terminal rows", () => {
     const source = [
       readFileSync(panelPath, "utf8"),
       readFileSync(path.join(here, "WorkspaceRow.tsx"), "utf8"),
       readFileSync(path.join(here, "WorkspaceList.tsx"), "utf8"),
     ].join("\n");
 
-    expect(source).toContain("expandedWorkspaceIds");
-    expect(source).toContain("toggleWorkspaceExpanded");
-    expect(source).toContain("onToggleExpanded");
-    expect(source).toContain("Show terminals for");
-    expect(source).toContain("Hide terminals for");
-    expect(source).toContain("workspace.terminals");
-    expect(source).not.toContain("activeWorkspaceCodingAgentCount: number");
-    expect(source).not.toContain("Coding agents");
+    expect(source).toContain("groupWorkspacesByDir");
+    expect(source).toContain("groupCount");
+    expect(source).toContain("workspace.count");
+    expect(source).not.toContain("WorkspaceTerminalList");
+    expect(source).not.toContain("expandedWorkspaceIds");
+    expect(source).not.toContain("onSelectTerminal");
+    expect(source).not.toContain("onCreateTerminal");
+    expect(source).not.toContain("terminalDragVisual");
   });
 
-  it("supports swapping terminal positions from the sidebar", () => {
-    const panelSource = [
-      readFileSync(panelPath, "utf8"),
-      readFileSync(path.join(here, "lib/useWorkspaceTerminalDrag.ts"), "utf8"),
-    ].join("\n");
+  it("does not pass terminal-pane controls into WorkspacesPanel", () => {
     const appSource = readFileSync(appPath, "utf8");
-    const paneActionsSource = readFileSync(
-      path.join(here, "../../app/lib/useTerminalPaneActions.ts"),
-      "utf8",
+    const workspacesPanelCall = appSource.slice(
+      appSource.indexOf("const workspacesPanel ="),
+      appSource.indexOf("const workspaceSetup ="),
     );
 
-    expect(panelSource).toContain("onSwapTerminals");
-    expect(panelSource).toContain("data-terminal-leaf-id");
-    expect(appSource).toContain("handleSwapWorkspaceTerminals");
-    expect(paneActionsSource).toContain("swapLeafNodes(");
-    expect(paneActionsSource).toContain("handlePaneTreeChange(tab.id, paneTree)");
-  });
-
-  it("renders the terminal drag preview outside the transformed zoom container", () => {
-    const source = [
-      readFileSync(panelPath, "utf8"),
-      readFileSync(path.join(here, "WorkspaceDragOverlays.tsx"), "utf8"),
-    ].join("\n");
-
-    expect(source).toContain('import { createPortal } from "react-dom";');
-    expect(source).toContain("createPortal(");
-    expect(source).toContain("document.body");
-  });
-
-  it("keeps the dragged terminal's agent logo in the preview", () => {
-    const source = [
-      readFileSync(panelPath, "utf8"),
-      readFileSync(path.join(here, "WorkspaceDragOverlays.tsx"), "utf8"),
-    ].join("\n");
-
-    expect(source).toContain("draggedTerminal?.agent");
-    expect(source).toContain(
-      '<AgentCliIcon agent={draggedTerminal.agent} size="md" />',
-    );
+    expect(workspacesPanelCall).not.toContain("activeWorkspaceTerminals");
+    expect(workspacesPanelCall).not.toContain("onSelectTerminal");
+    expect(workspacesPanelCall).not.toContain("onSwapTerminals");
+    expect(workspacesPanelCall).not.toContain("onCreateTerminal");
   });
 });

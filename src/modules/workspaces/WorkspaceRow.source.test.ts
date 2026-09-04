@@ -7,12 +7,15 @@ const source = readFileSync(
 );
 
 describe("WorkspaceRow contract", () => {
-  it("preserves rename, expand, color and close interactions", () => {
+  it("preserves workspace actions without terminal expansion", () => {
     expect(source).toContain("export function WorkspaceRow");
-    expect(source).toContain("onToggleExpanded");
     expect(source).toContain("commitRename");
     expect(source).toContain("WorkspaceColorPicker");
+    expect(source).toContain("getWorkspaceCliAgent");
+    expect(source).toContain("AgentCliIcon");
     expect(source).toContain("onClose");
     expect(source).toContain("onDragStart");
+    expect(source).not.toContain("onToggleExpanded");
+    expect(source).not.toContain("expanded");
   });
 });

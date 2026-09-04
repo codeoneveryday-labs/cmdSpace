@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { AgentDisplayState } from "@/modules/terminal/AgentStateDot";
 import { WorkspacePanelHeader } from "./WorkspacePanelHeader";
 import { WorkspaceList } from "./WorkspaceList";
 import { WorkspaceDragOverlays } from "./WorkspaceDragOverlays";
-import { useWorkspaceTerminalDrag } from "./lib/useWorkspaceTerminalDrag";
 import { useWorkspaceReorderDrag } from "./lib/useWorkspaceReorderDrag";
 export { WorkspaceSetupView } from "./WorkspaceSetupView";
 export {
@@ -42,11 +41,6 @@ export type WorkspaceTerminalItem = {
 
 type Props = {
   activeWorkspaceId: string | null;
-  activeWorkspaceTerminals: WorkspaceTerminalItem[];
-  onSelectTerminal: (workspaceId: string, leafId: number) => void;
-  onSelectTab?: (tabId: number) => void;
-  onSwapTerminals: (sourceId: number, targetId: number) => void;
-  onCreateTerminal: (initialCommand?: string) => boolean;
   compact?: boolean;
   workspaces: WorkspaceItem[];
   onSelectWorkspace: (workspaceId: string) => void;
@@ -64,11 +58,6 @@ type Props = {
 
 export function WorkspacesPanel({
   activeWorkspaceId,
-  activeWorkspaceTerminals,
-  onSelectTerminal,
-  onSelectTab,
-  onSwapTerminals,
-  onCreateTerminal,
   compact = false,
   workspaces,
   onSelectWorkspace,
@@ -80,38 +69,6 @@ export function WorkspacesPanel({
   onReorderWorkspaces,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [createNotice, setCreateNotice] = useState<string | null>(null);
-  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<Set<string>>(
-    () => new Set(activeWorkspaceId ? [activeWorkspaceId] : []),
-  );
-  const handleCreateTerminal = useCallback(
-    (initialCommand?: string) => {
-      const created = onCreateTerminal(initialCommand);
-      setCreateNotice(
-        created
-          ? null
-          : "Workspace terminal limit reached. Close a terminal before adding another.",
-      );
-      return created;
-    },
-    [onCreateTerminal],
-  );
-  const toggleWorkspaceExpanded = useCallback((workspaceId: string) => {
-    setExpandedWorkspaceIds((current) => {
-      const next = new Set(current);
-      if (next.has(workspaceId)) next.delete(workspaceId);
-      else next.add(workspaceId);
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    if (activeWorkspaceId === null) return;
-    setExpandedWorkspaceIds((current) => {
-      if (current.has(activeWorkspaceId)) return current;
-      return new Set([...current, activeWorkspaceId]);
-    });
-  }, [activeWorkspaceId]);
 
   const {
     pointerDragRef,
@@ -122,22 +79,6 @@ export function WorkspacesPanel({
     containerRef,
     onReorderWorkspaces,
   });
-
-  const {
-    terminalDragRef,
-    terminalDragVisual,
-    startTerminalDrag,
-  } = useWorkspaceTerminalDrag({
-    activeWorkspaceTerminals,
-    onSwapTerminals,
-  });
-
-  const draggedTerminal =
-    terminalDragVisual === null
-      ? null
-      : activeWorkspaceTerminals.find(
-          (terminal) => terminal.leafId === terminalDragVisual.sourceId,
-        ) ?? null;
 
   const draggedWorkspace =
     dragVisual === null
@@ -173,29 +114,18 @@ export function WorkspacesPanel({
           workspaces={workspaces}
           renderedWorkspaces={renderedWorkspaces}
           activeWorkspaceId={activeWorkspaceId}
-          expandedWorkspaceIds={expandedWorkspaceIds}
           dragVisual={dragVisual}
           placeholderIndex={placeholderIndex}
-          createNotice={createNotice}
-          terminalDragVisual={terminalDragVisual}
-          onSelectTerminal={onSelectTerminal}
-          onSelectTab={onSelectTab}
-          onCreateTerminal={handleCreateTerminal}
-          onCloseTerminal={(terminal) => terminal.onClose?.()}
-          onPointerDownTerminal={startTerminalDrag}
           onSelectWorkspace={onSelectWorkspace}
-          onToggleExpanded={toggleWorkspaceExpanded}
           onCloseWorkspace={onCloseWorkspace}
           onRenameWorkspace={onRenameWorkspace}
           onChangeWorkspaceColor={onChangeWorkspaceColor}
           onDragStart={onDragStart}
+          onReorderWorkspaces={onReorderWorkspaces}
         />
       </aside>
 
       <WorkspaceDragOverlays
-        terminalDragRef={terminalDragRef}
-        terminalDragVisual={terminalDragVisual}
-        draggedTerminal={draggedTerminal}
         pointerDragRef={pointerDragRef}
         dragVisual={dragVisual}
         draggedWorkspace={draggedWorkspace}

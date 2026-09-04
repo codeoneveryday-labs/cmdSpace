@@ -63,4 +63,20 @@ describe("workspaceSetupModel", () => {
       }),
     ).toEqual(["codex resume 'session-1'", "codex --safe"]);
   });
+
+  it("normalizes a persisted legacy OMP launch command for new workspaces", () => {
+    const agents: CliAgentDefinition[] = [
+      { id: "omp", command: "omp", launch: "omp" },
+    ] as CliAgentDefinition[];
+
+    expect(
+      resolveEffectiveAgentCommands(
+        agents,
+        {},
+        {
+          omp: 'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; omp',
+        },
+      ),
+    ).toEqual({ omp: "omp" });
+  });
 });
