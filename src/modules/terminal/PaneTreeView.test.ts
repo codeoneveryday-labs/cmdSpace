@@ -68,7 +68,9 @@ describe("FloatingTerminalOverlay", () => {
       readFileSync(path.join(here, "TerminalAgentUsage.tsx"), "utf8"),
     ].join("\n");
 
-    expect(source).toContain("getAgentUsageStatuses(cwd)");
+    expect(source).toContain("getAgentUsageStatuses(");
+    expect(source).toContain("sessionTitleHint");
+    expect(source).toContain("extractOpenCodeSessionTitle");
     expect(source).toContain("AgentUsageBadge");
     expect(source).toContain("AgentUsageMenu");
     expect(source).toContain("Context window");

@@ -28,6 +28,7 @@ pub(crate) fn scan_agent_usage(
     cwd: &str,
     provider: Option<&str>,
     native_session_id: Option<&str>,
+    session_title_hint: Option<&str>,
 ) -> Result<Vec<AgentUsageStatus>, String> {
     let Some(home) = dirs::home_dir() else {
         return Ok(Vec::new());
@@ -52,7 +53,7 @@ pub(crate) fn scan_agent_usage(
     if let Some(status) = scan_cmd(&home, cwd) {
         statuses.push(status);
     }
-    if let Some(status) = scan_opencode(&home, cwd) {
+    if let Some(status) = scan_opencode(&home, cwd, session_title_hint) {
         statuses.push(status);
     }
     Ok(statuses)
@@ -288,22 +289,41 @@ fn scan_cmd(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
     None
 }
 
-fn scan_opencode(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
+fn scan_opencode(
+    home: &Path,
+    cwd: &str,
+    session_title_hint: Option<&str>,
+) -> Option<AgentUsageStatus> {
     // The session.tokens_* columns are cumulative across every turn and
     // must NOT be used; active context comes from the latest assistant
     // message (see docs/OPENCODE_CONTEXT_WINDOW.md).
+    //
+    // Multiple panes can run different sessions in the same directory, so a
+    // caller-provided session title (read from that pane's terminal buffer)
+    // pins the lookup to the pane's own session. Without it we fall back to
+    // the most recently updated session, which may belong to another pane.
     let connection = rusqlite::Connection::open_with_flags(
         home.join(".local/share/opencode/opencode.db"),
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
     )
     .ok()?;
-    let session_id: String = connection
-        .query_row(
-            "SELECT id FROM session WHERE directory = ?1 ORDER BY time_updated DESC LIMIT 1",
-            [cwd.trim_end_matches('/')],
-            |row| row.get(0),
-        )
-        .ok()?;
+    let directory = cwd.trim_end_matches('/');
+    let session_id: String = match session_title_hint {
+        Some(hint) if is_session_title_hint(hint) => connection
+            .query_row(
+                "SELECT id FROM session WHERE directory = ?1 AND title = ?2 LIMIT 1",
+                [directory, hint],
+                |row| row.get(0),
+            )
+            .ok()?,
+        _ => connection
+            .query_row(
+                "SELECT id FROM session WHERE directory = ?1 ORDER BY time_updated DESC LIMIT 1",
+                [directory],
+                |row| row.get(0),
+            )
+            .ok()?,
+    };
     let mut statement = connection
         .prepare(
             "SELECT data FROM message WHERE session_id = ?1 ORDER BY time_created DESC LIMIT 50",
@@ -325,6 +345,18 @@ fn scan_opencode(home: &Path, cwd: &str) -> Option<AgentUsageStatus> {
     ))
 }
 
+/// Session titles are matched with a parameterized exact comparison, so this
+/// is only a shape guard: accept OpenCode's default "New session - <ISO>"
+/// titles (and user titles in the same charset) and reject control bytes.
+fn is_session_title_hint(hint: &str) -> bool {
+    if hint.is_empty() || hint.len() > 80 {
+        return false;
+    }
+    hint.bytes().all(|byte| {
+        byte.is_ascii_alphanumeric()
+            || matches!(byte, b' ' | b'-' | b':' | b'.' | b'/' | b'_')
+    })
+}
 /// Looks up a model's context window in the shared models.dev cache
 /// (`~/.cache/opencode/models.json`), searched across every provider
 /// section so custom provider/model ids still resolve.
@@ -341,4 +373,26 @@ pub(crate) fn provider_limit_tail_bytes() -> u64 {
 #[cfg(test)]
 pub(crate) fn terminal_usage_tail_bytes() -> u64 {
     files::terminal_usage_tail_bytes()
+}
+
+#[cfg(test)]
+mod session_title_hint_tests {
+    use super::is_session_title_hint;
+
+    #[test]
+    fn accepts_opencode_default_session_titles() {
+        assert!(is_session_title_hint(
+            "New session - 2026-09-03T11:35:14.641Z"
+        ));
+        assert!(is_session_title_hint("My debug session 2"));
+    }
+
+    #[test]
+    fn rejects_empty_oversized_and_control_byte_hints() {
+        assert!(!is_session_title_hint(""));
+        assert!(!is_session_title_hint(&"x".repeat(81)));
+        assert!(!is_session_title_hint("New session\nDROP TABLE session"));
+        assert!(!is_session_title_hint("title with 'quotes'"));
+        assert!(!is_session_title_hint("title; rm -rf ~"));
+    }
 }
