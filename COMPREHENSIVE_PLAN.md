@@ -70,7 +70,7 @@ reviewable edits.
   Cerebras, OpenRouter/DeepSeek/Mistral, LM Studio/Ollama), sub-agents, tools
   with approval flow, reviewable AI edit diffs, voice input.
 - CodeMirror 6 editor (vim mode, inline AI autocomplete), file explorer, git
-  (stage/commit/push/history graph), web preview of local dev servers.
+  (stage/commit/push/history graph).
 - **Remote access**: mobile-browser terminal over a WebSocket + QR-paired
   localhost tunnel.
 - Privacy: no telemetry, no accounts, keys in OS keychain, SSRF-guarded AI HTTP.
@@ -137,7 +137,6 @@ All feature modules live in `src/modules/<name>/`, each with a barrel
 | `ai/` | Chat store, transport, agent registry, tools, voice | `store/chatStore.ts`, `lib/native.ts` |
 | `editor/` | CodeMirror editor, git/AI diffs | `EditorStack.tsx` |
 | `explorer/` | File tree sidebar | `FileExplorer.tsx` |
-| `preview/` | In-app browser preview tabs | `PreviewStack.tsx` |
 | `markdown/` | Markdown preview tabs | `MarkdownStack.tsx` |
 | `git/` + `git-history/` | Git event bus + commit graph | `events.ts`, `GitHistoryPane.tsx` |
 | `source-control/` | Git status panel + app-wide hook | `SourceControlPanel.tsx`, `useSourceControl.ts` |

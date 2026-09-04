@@ -18,7 +18,6 @@ const tabBarPath = path.join(here, "../tabs/TabBar.tsx");
 const surfacePath = path.join(here, "../../app/WorkspaceSurface.tsx");
 const relatedCanvasSource = [
   "components/CanvasBackgroundMedia.tsx",
-  "components/CanvasBrowserLayer.tsx",
   "components/CanvasInteractionOverlays.tsx",
   "components/CanvasFocusIcon.tsx",
   "components/CanvasToolbar.tsx",
@@ -63,7 +62,6 @@ const relatedCanvasSource = [
   "lib/useCanvasTerminalLayerActions.ts",
   "lib/useCanvasTerminalSizeMigration.ts",
   "lib/useCanvasTerminalViewModel.ts",
-  "lib/useCanvasBrowserLayerActions.ts",
   "lib/useCanvasSelection.ts",
   "lib/useCanvasSurfaceDockTarget.ts",
   "lib/useCanvasSurfacePlacementActions.ts",

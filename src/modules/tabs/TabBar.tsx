@@ -27,7 +27,6 @@ import {
   CanvasIcon,
   ComputerTerminal02Icon,
   GitBranchIcon,
-  Globe02Icon,
   IncognitoIcon,
   MusicNote01Icon,
   PencilEdit02Icon,
@@ -51,7 +50,6 @@ type Props = {
   ) => void;
   onNew: () => void;
   onNewPrivate: () => void;
-  onNewPreview: () => void;
   onNewEditor: () => void;
   onNewGitGraph: () => void;
   canNewGitGraph: boolean;
@@ -70,7 +68,6 @@ export function TabBar({
   onReorder,
   onNew,
   onNewPrivate,
-  onNewPreview,
   onNewEditor,
   onNewGitGraph,
   canNewGitGraph,
@@ -250,12 +247,6 @@ export function TabBar({
               label="Editor"
               shortcut={shortcutFor("tab.newEditor")}
               onSelect={onNewEditor}
-            />
-            <NewTabMenuItem
-              icon={Globe02Icon}
-              label="Preview"
-              shortcut={shortcutFor("tab.newPreview")}
-              onSelect={onNewPreview}
             />
             <NewTabMenuItem
               icon={GitBranchIcon}

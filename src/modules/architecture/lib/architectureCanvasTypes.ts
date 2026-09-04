@@ -16,7 +16,7 @@ export type {
 } from "@/modules/tabs";
 
 export type ShapeKind = ArchitectureShapeKind;
-export type LiveSurfaceKind = "terminal" | "browser";
+export type LiveSurfaceKind = "terminal";
 export type CanvasMode =
   | "select"
   | "pan"
@@ -46,8 +46,7 @@ export type ResizableShapeKind =
   | "frame"
   | "text"
   | "image"
-  | "terminal"
-  | "browser";
+  | "terminal";
 export type ShapeCategory = "Drawing" | "C4" | "Application" | "Data" | "Platform";
 export type Point = { x: number; y: number };
 export type ResizeHandle = "nw" | "ne" | "se" | "sw";

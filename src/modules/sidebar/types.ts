@@ -1,2 +1,2 @@
-export type SidebarViewId = "browser" | "editor";
+export type SidebarViewId = "editor";
 export type EditorSidebarViewId = "files" | "source-control";

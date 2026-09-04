@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   forwardRef,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -69,8 +70,65 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     const [position, setPosition] = useState<{ left: number; top: number } | null>(
       null,
     );
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const positionRef = useRef(position);
+    positionRef.current = position;
 
     useImperativeHandle(ref, () => ({ toggle }), [toggle]);
+
+    // No native layer paints above the DOM anymore, so clamping to the
+    // viewport is enough to keep the pill visible.
+    const resolveVisiblePosition = (
+      left: number,
+      top: number,
+      width: number,
+      height: number,
+    ) => {
+      return {
+        left: Math.min(
+          Math.max(VOICE_SCREEN_EDGE_PX, left),
+          window.innerWidth - width - VOICE_SCREEN_EDGE_PX,
+        ),
+        top: Math.min(
+          Math.max(VOICE_SCREEN_EDGE_PX, top),
+          window.innerHeight - height - VOICE_SCREEN_EDGE_PX,
+        ),
+      };
+    };
+
+    // Re-clamp the parked pill when the viewport changes underneath it.
+    useEffect(() => {
+      if (!enabled) return undefined;
+      const reclamp = () => {
+        const button = buttonRef.current;
+        if (!button) return;
+        const current = positionRef.current;
+        const rect = current
+          ? {
+              left: current.left,
+              top: current.top,
+              width: button.offsetWidth,
+              height: button.offsetHeight,
+            }
+          : button.getBoundingClientRect();
+        const next = resolveVisiblePosition(
+          rect.left,
+          rect.top,
+          button.offsetWidth,
+          button.offsetHeight,
+        );
+        if (
+          !current ||
+          next.left !== current.left ||
+          next.top !== current.top
+        ) {
+          setPosition(next);
+        }
+      };
+      reclamp();
+      window.addEventListener("resize", reclamp);
+      return () => window.removeEventListener("resize", reclamp);
+    }, [enabled]);
 
     const startDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0) return;
@@ -104,16 +162,14 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
       suppressClickRef.current = true;
       setDragging(true);
       const { offsetWidth, offsetHeight } = event.currentTarget;
-      setPosition({
-        left: Math.min(
-          Math.max(VOICE_SCREEN_EDGE_PX, drag.originLeft + deltaX),
-          window.innerWidth - offsetWidth - VOICE_SCREEN_EDGE_PX,
+      setPosition(
+        resolveVisiblePosition(
+          drag.originLeft + deltaX,
+          drag.originTop + deltaY,
+          offsetWidth,
+          offsetHeight,
         ),
-        top: Math.min(
-          Math.max(VOICE_SCREEN_EDGE_PX, drag.originTop + deltaY),
-          window.innerHeight - offsetHeight - VOICE_SCREEN_EDGE_PX,
-        ),
-      });
+      );
     };
 
     const endDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -132,6 +188,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     return (
       <button
         type="button"
+        ref={buttonRef}
         aria-label="Toggle voice input"
         aria-pressed={status === "listening"}
         title={label}

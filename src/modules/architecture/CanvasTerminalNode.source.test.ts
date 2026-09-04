@@ -53,7 +53,6 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain('aria-label="Add terminal tab"');
     expect(source).toContain('aria-label="Split terminal right"');
     expect(source).toContain("data-canvas-surface-tab-kind={tab.kind}");
-    expect(source).toContain("tab.kind === \"browser\"");
     expect(source).not.toContain("tab.kind === \"editor\"");
     expect(source).not.toContain("FloatingTerminalOverlay");
     expect(source).toContain("onCwdChange");

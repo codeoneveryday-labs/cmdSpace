@@ -8,10 +8,9 @@ const sourcePath = path.join(
 );
 
 describe("AppSidebar", () => {
-  it("composes browser, explorer, and source-control surfaces without owning state", () => {
+  it("composes explorer and source-control surfaces without owning state", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("SidebarBrowserPane");
     expect(source).toContain("FileExplorer");
     expect(source).toContain("SourceControlPanel");
     expect(source).toContain("EditorSidebarRail");

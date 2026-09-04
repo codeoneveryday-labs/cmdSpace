@@ -2,7 +2,6 @@ import { cn } from "@/lib/utils";
 import {
   Add01Icon,
   Cancel01Icon,
-  Globe02Icon,
   LockIcon,
   SquareUnlock01Icon,
   TerminalIcon,
@@ -17,7 +16,7 @@ import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 type StackTab = {
   id: string;
   label: string;
-  kind?: "terminal" | "browser";
+  kind?: "terminal";
   agent?: CliAgent | null;
 };
 
@@ -66,7 +65,7 @@ export function CanvasTerminalHeader({
           return (
             <div key={tab.id} data-canvas-surface-tab-kind={tab.kind} className={cn("flex max-w-52 shrink-0 items-center rounded-full py-0.5 pr-1 text-[11px] font-normal transition-colors", tab.id === activeTabId ? "bg-muted text-foreground shadow-sm dark:bg-zinc-800 dark:text-zinc-100" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:hover:bg-zinc-800/70")}>
               <button type="button" role="tab" aria-selected={tab.id === activeTabId} className="flex min-w-0 items-center gap-1 px-2" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); onActivateTab(tab.id); onTabPointerDown(tab.id, event); }} onClick={(event) => { event.stopPropagation(); onActivateTab(tab.id); }}>
-                {tab.kind === "browser" ? <HugeiconsIcon icon={Globe02Icon} size={12} strokeWidth={1.8} className="shrink-0" /> : tab.id === activeTabId ? <TerminalAgentSwitcher currentAgent={tabAgent ?? null} onSelect={(_agent, command) => { if (command) onAgentCommandChange(command); }} trigger={<span className="inline-flex shrink-0 cursor-pointer" aria-label="Switch coding agent" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>{tabAgent ? <AgentCliIcon agent={tabAgent} size="sm" /> : <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} />}</span>} /> : tabAgent ? <AgentCliIcon agent={tabAgent} size="sm" /> : <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} className="shrink-0" />}
+                {tab.id === activeTabId ? <TerminalAgentSwitcher currentAgent={tabAgent ?? null} onSelect={(_agent, command) => { if (command) onAgentCommandChange(command); }} trigger={<span className="inline-flex shrink-0 cursor-pointer" aria-label="Switch coding agent" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>{tabAgent ? <AgentCliIcon agent={tabAgent} size="sm" /> : <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} />}</span>} /> : tabAgent ? <AgentCliIcon agent={tabAgent} size="sm" /> : <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} className="shrink-0" />}
                 <span className="truncate">{tab.id === activeTabId ? tabLabel : tab.label}</span>
               </button>
               <button type="button" aria-label={`Close ${tab.label}`} title={`Close ${tab.label}`} className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground/70 transition-colors hover:bg-foreground/10 hover:text-foreground" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }} onClick={(event) => { event.stopPropagation(); onRequestCloseTab(tab.id); }}><HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={1.8} /></button>

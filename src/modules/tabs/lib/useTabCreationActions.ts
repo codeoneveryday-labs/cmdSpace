@@ -9,7 +9,6 @@ import {
 import {
   createAgentChatTab,
   createArchitectureTab,
-  createPreviewTab,
   createTerminalTab,
   createWorkspaceTab,
 } from "./tabFactories";
@@ -87,13 +86,6 @@ export function useTabCreationActions({
     return id;
   }, [nextIdRef, setActiveId, setTabs]);
 
-  const newPreviewTab = useCallback((url: string) => {
-    const id = nextIdRef.current++;
-    setTabs((tabs) => [...tabs, createPreviewTab(id, url)]);
-    setActiveId(id);
-    return id;
-  }, [nextIdRef, setActiveId, setTabs]);
-
   const newMarkdownTab = useCallback((path: string) => {
     let targetId: number | null = null;
     setTabs((tabs) => {
@@ -120,7 +112,6 @@ export function useTabCreationActions({
     newPrivateTab,
     newWorkspaceTab,
     newAgentChatTab,
-    newPreviewTab,
     newMarkdownTab,
     newArchitectureTab,
   };

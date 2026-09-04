@@ -29,9 +29,6 @@ export function useCanvasDiagramViewModel({
   const terminalNodes = liveSurfaceNodes.filter(
     (node) => node.kind === "terminal",
   );
-  const interactiveSurfaceNodes = liveSurfaceNodes.filter(
-    (node) => node.kind !== "terminal",
-  );
 
   return {
     selectedNode,
@@ -40,6 +37,5 @@ export function useCanvasDiagramViewModel({
     nodeById,
     liveSurfaceNodes,
     terminalNodes,
-    interactiveSurfaceNodes,
   };
 }

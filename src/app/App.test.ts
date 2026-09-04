@@ -294,7 +294,7 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("setSidebarOpen(true);");
   });
 
-  it("keeps sidebar resizing smooth and away from the browser URL field", () => {
+  it("keeps sidebar resizing smooth", () => {
     const source = readFileSync(appPath, "utf8");
     const layout = readFileSync(path.join(here, "lib/useAppLayout.ts"), "utf8");
     const resize = readFileSync(path.join(here, "lib/useAppLayoutResize.ts"), "utf8");
@@ -586,8 +586,8 @@ describe("App sidebar toggle", () => {
     expect(sidebarAside).toContain('!sidebarOpen && "pointer-events-none"');
     expect(sidebarAside).toContain("style={{ width: sidebarWidth }}");
     expect(appSource).toContain("const sidebar = (");
-    expect(sidebarSource).toContain("SidebarBrowserPane");
-    expect(appSource).toContain("resizing: sidebarResizing");
+    expect(sidebarSource).not.toContain("SidebarBrowserPane");
+    expect(appSource).toContain("sidebarResizing={sidebarResizing}");
   });
 
   it("keeps the right sidebar free of helper chat surfaces", () => {
@@ -610,17 +610,15 @@ describe("App sidebar toggle", () => {
     expect(panelSource).not.toContain("border-r border-border/60");
   });
 
-  it("forwards the computed browser visibility instead of forcing it on", () => {
+  it("keeps the sidebar free of the removed browser surface", () => {
     const appSource = readFileSync(appPath, "utf8");
     const sidebarSource = readFileSync(
       path.join(here, "AppSidebar.tsx"),
       "utf8",
     );
 
-    // The native WKWebView ignores CSS: a hardcoded `visible` here keeps a
-    // collapsed sidebar's webview on screen and interactive.
-    expect(sidebarSource).not.toContain("{...browser} visible");
-    expect(sidebarSource).toContain("<SidebarBrowserPane {...browser} />");
-    expect(appSource).toContain("sidebarOpen && sidebarWidth > 0");
+    expect(sidebarSource).not.toContain("SidebarBrowserPane");
+    expect(sidebarSource).not.toContain("sidebarView === \"browser\"");
+    expect(appSource).not.toContain("sidebarBrowserUrl");
   });
 });

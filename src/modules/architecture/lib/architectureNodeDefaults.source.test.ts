@@ -12,6 +12,6 @@ describe("architectureNodeDefaults contract", () => {
     expect(source).toContain('case "service"');
     expect(source).toContain('case "database"');
     expect(source).toContain('case "terminal"');
-    expect(source).toContain('case "browser"');
+    expect(source).not.toContain('case "browser"');
   });
 });

@@ -8,7 +8,7 @@ import {
 } from "./architectureCanvasModel";
 import type { ArchitectureNode } from "./architectureCanvasTypes";
 
-const node = (id: string, kind: "terminal" | "browser", x: number): ArchitectureNode => ({
+const node = (id: string, kind: "terminal", x: number): ArchitectureNode => ({
   id,
   kind,
   label: id,
@@ -32,7 +32,7 @@ describe("surfacePlacementAnchor", () => {
   });
 
   it("uses the nearest surface of the requested kind when no surface is active", () => {
-    const surfaces = [node("terminal", "terminal", 450), node("browser", "browser", 480)];
+    const surfaces = [node("terminal", "terminal", 450), node("second", "terminal", 480)];
 
     expect(surfacePlacementAnchor(surfaces, "terminal", "", null, view)?.x).toBe(450);
   });

@@ -17,7 +17,6 @@ import {
   Header,
   type SearchInlineHandle,
 } from "@/modules/header";
-import { type PreviewPaneHandle } from "@/modules/preview";
 import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { useGlobalShortcuts } from "@/modules/shortcuts";
@@ -105,7 +104,6 @@ import { useAppSourceControlContext } from "./lib/useAppSourceControlContext";
 import { useAppPaneActions } from "./lib/useAppPaneActions";
 import { useAppWorkspaceTerminalView } from "./lib/useAppWorkspaceTerminalView";
 import { useAppWorkspaceItems } from "./lib/useAppWorkspaceItems";
-import { usePreviewTabAction } from "./lib/usePreviewTabAction";
 import { useAppChromeActions } from "./lib/useAppChromeActions";
 import { useWorkspaceSessionImportAction } from "./lib/useWorkspaceSessionImportAction";
 import { useWorkspaceTerminalCreationAction } from "./lib/useWorkspaceTerminalCreationAction";
@@ -165,7 +163,6 @@ export default function App() {
     newAgentChatTab,
     openFileTab,
     pinTab,
-    newPreviewTab,
     newMarkdownTab,
     newArchitectureTab,
     openGitDiffTab,
@@ -216,7 +213,6 @@ export default function App() {
   const voiceAgentRef = useRef<FloatingVoiceAgentHandle | null>(null);
   const editorRefs = useRef<Map<number, EditorPaneHandle>>(new Map());
   useEditorExternalReload({ tabs, tabsRef, editorRefs });
-  const previewRefs = useRef<Map<number, PreviewPaneHandle>>(new Map());
   const [activeEditorHandle, setActiveEditorHandle] =
     useState<EditorPaneHandle | null>(null);
   const [gitHistoryHandle, setGitHistoryHandle] =
@@ -238,8 +234,6 @@ export default function App() {
     persistSidebarView,
     editorSidebarView,
     setEditorSidebarView,
-    sidebarBrowserUrl,
-    persistSidebarBrowserUrl,
     workspacesPanelOpen,
     setWorkspacesPanelOpen,
     workspacesPanelResizing,
@@ -471,7 +465,6 @@ export default function App() {
     activeWorkspaceFolder,
     isTerminalTab,
     isEditorTab,
-    isPreviewTab,
     isMarkdownTab,
     isAiDiffTab,
     isGitDiffTab,
@@ -566,7 +559,6 @@ export default function App() {
           .catch((error) => console.error("Failed to flush workspace before tab close:", error))
           .finally(() => {
             editorRefs.current.delete(id);
-            previewRefs.current.delete(id);
             clearWorkspaceTabOwnership(id);
             closeTab(id);
             pendingTabCloseIdsRef.current.delete(id);
@@ -577,7 +569,6 @@ export default function App() {
       // the effect below as the pane tree changes; only the tab-id-keyed
       // handles need explicit cleanup here.
       editorRefs.current.delete(id);
-      previewRefs.current.delete(id);
       clearWorkspaceTabOwnership(id);
       closeTab(id);
     },
@@ -600,7 +591,6 @@ export default function App() {
     searchAddons,
     terminalRefs,
     editorRefs,
-    previewRefs,
     setActiveSearchAddon,
     setActiveEditorHandle,
     setWorkspaceEnv,
@@ -837,11 +827,6 @@ export default function App() {
     });
 
 
-  const openPreviewTab = usePreviewTabAction({
-    newPreviewTab,
-    previewRefs,
-  });
-
   const openMarkdownPreview = useCallback(
     (path: string) => {
       newMarkdownTab(path);
@@ -922,7 +907,6 @@ export default function App() {
         hasGitRepository: sourceControl.hasRepo,
         openNewTab,
         openNewPrivateTab,
-        openPreviewTab: () => openPreviewTab(""),
         openEditor: () => setNewEditorOpen(true),
         openGitGraph: () => void openGitGraphFromContext(),
         openArchitecture: () => newArchitectureTab(),
@@ -958,7 +942,6 @@ export default function App() {
       openGitGraphFromContext,
       openNewTab,
       openNewPrivateTab,
-      openPreviewTab,
       selectByIndex,
       sourceControl.hasRepo,
       splitActivePaneInActiveTab,
@@ -996,19 +979,12 @@ export default function App() {
   const {
     registerTerminalHandle,
     registerEditorHandle,
-    registerPreviewHandle,
   } = useAppHandleRegistry({
     activeId,
     terminalRefs,
     editorRefs,
-    previewRefs,
     setActiveEditorHandle,
   });
-
-  const handlePreviewUrl = useCallback(
-    (id: number, url: string) => updateTab(id, { url }),
-    [updateTab],
-  );
 
   const {
     handleTerminalCwd,
@@ -1179,7 +1155,6 @@ export default function App() {
       hideBootstrapShell={hideBootstrapShell}
       isTerminalTab={isTerminalTab}
       isEditorTab={isEditorTab}
-      isPreviewTab={isPreviewTab}
       isMarkdownTab={isMarkdownTab}
       isAiDiffTab={isAiDiffTab}
       isGitDiffTab={isGitDiffTab}
@@ -1225,8 +1200,6 @@ export default function App() {
       registerEditorHandle={registerEditorHandle}
       onEditorDirty={handleEditorDirty}
       onCloseEditorTab={disposeTab}
-      registerPreviewHandle={registerPreviewHandle}
-      onPreviewUrlChange={handlePreviewUrl}
       onOpenCommitFile={openCommitFileDiffTab}
       onGitHistorySearchHandle={setGitHistoryHandle}
     />
@@ -1298,12 +1271,6 @@ export default function App() {
       editorSidebarView={editorSidebarView}
       sidebarRail={{ placement: "top", onSelectView: persistSidebarView }}
       editorRail={{ onSelectView: setEditorSidebarView }}
-      browser={{
-        url: sidebarBrowserUrl,
-        visible: sidebarOpen && sidebarWidth > 0 && sidebarView === "browser",
-        resizing: sidebarResizing,
-        onUrlChange: persistSidebarBrowserUrl,
-      }}
       explorer={{
         ref: explorerRef,
         rootPath: explorerRoot,
@@ -1332,7 +1299,6 @@ export default function App() {
             onReorder={reorderTab}
             onNew={openNewTab}
             onNewPrivate={openNewPrivateTab}
-            onNewPreview={() => openPreviewTab("")}
             onNewEditor={() => setNewEditorOpen(true)}
             onNewGitGraph={openGitGraphFromContext}
             canNewGitGraph={sourceControl.hasRepo}

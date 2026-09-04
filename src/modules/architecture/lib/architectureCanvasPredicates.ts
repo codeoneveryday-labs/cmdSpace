@@ -52,16 +52,15 @@ export function isResizableShapeKind(kind: ShapeKind): kind is ResizableShapeKin
     "text",
     "image",
     "terminal",
-    "browser",
   ].includes(kind);
 }
 
 export function isFrameAttachableKind(kind: ShapeKind): boolean {
-  return kind === "terminal" || kind === "browser";
+  return kind === "terminal";
 }
 
 export function isLiveSurfaceKind(kind: ShapeKind): kind is LiveSurfaceKind {
-  return kind === "terminal" || kind === "browser";
+  return kind === "terminal";
 }
 
 export function isLiveSurfaceNode(node: ArchitectureNode): boolean {

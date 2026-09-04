@@ -1,6 +1,5 @@
 import {
   Cursor01Icon,
-  Globe02Icon,
   HashtagIcon,
   LockIcon,
   MinusSignIcon,
@@ -97,12 +96,6 @@ export function CanvasToolbar({
         label="Add terminal"
         shortcut={TOOL_SHORTCUTS.image}
         onClick={() => onBeginSurfacePlacement("terminal")}
-      />
-      <ToolButton
-        active={pendingSurfaceKind === "browser"}
-        icon={Globe02Icon}
-        label="Add browser"
-        onClick={() => onBeginSurfacePlacement("browser")}
       />
       <ToolButton
         active={mode === "frame"}

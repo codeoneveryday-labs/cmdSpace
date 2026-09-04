@@ -35,9 +35,9 @@ describe("canvasPlacementStateModel", () => {
   });
 
   it("handles free placement start and clearing", () => {
-    const freeState = startFreeSurfacePlacement("browser");
+    const freeState = startFreeSurfacePlacement("terminal");
     expect(isCanvasPlacementActive(freeState)).toBe(true);
-    expect(freeState.pendingSurfaceKind).toBe("browser");
+    expect(freeState.pendingSurfaceKind).toBe("terminal");
     expect(freeState.isFreePlacement).toBe(true);
     expect(freeState.placements).toEqual([]);
 

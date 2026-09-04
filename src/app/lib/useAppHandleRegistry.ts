@@ -5,7 +5,6 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import type { PreviewPaneHandle } from "@/modules/preview";
 import type { EditorPaneHandle } from "@/modules/editor";
 import type { TerminalPaneHandle } from "@/modules/terminal";
 
@@ -13,13 +12,11 @@ export function useAppHandleRegistry({
   activeId,
   terminalRefs,
   editorRefs,
-  previewRefs,
   setActiveEditorHandle,
 }: {
   activeId: number;
   terminalRefs: MutableRefObject<Map<number, TerminalPaneHandle>>;
   editorRefs: MutableRefObject<Map<number, EditorPaneHandle>>;
-  previewRefs: MutableRefObject<Map<number, PreviewPaneHandle>>;
   setActiveEditorHandle: Dispatch<SetStateAction<EditorPaneHandle | null>>;
 }) {
   useEffect(() => {
@@ -43,13 +40,5 @@ export function useAppHandleRegistry({
     [activeId, editorRefs, setActiveEditorHandle],
   );
 
-  const registerPreviewHandle = useCallback(
-    (id: number, handle: PreviewPaneHandle | null) => {
-      if (handle) previewRefs.current.set(id, handle);
-      else previewRefs.current.delete(id);
-    },
-    [previewRefs],
-  );
-
-  return { registerTerminalHandle, registerEditorHandle, registerPreviewHandle };
+  return { registerTerminalHandle, registerEditorHandle };
 }

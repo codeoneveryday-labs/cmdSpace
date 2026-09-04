@@ -31,7 +31,6 @@ import { useCanvasSurfacePlacementActions } from "./lib/useCanvasSurfacePlacemen
 import { useCanvasTerminalLayerActions } from "./lib/useCanvasTerminalLayerActions";
 import { useCanvasTerminalSizeMigration } from "./lib/useCanvasTerminalSizeMigration";
 import { useCanvasTerminalViewModel } from "./lib/useCanvasTerminalViewModel";
-import { useCanvasBrowserLayerActions } from "./lib/useCanvasBrowserLayerActions";
 import { useCanvasDockDividerPointerDown } from "./lib/useCanvasDockDividerPointerDown";
 import { useCanvasEdgePointerDown } from "./lib/useCanvasEdgePointerDown";
 import { useCanvasDeleteShortcut } from "./lib/useCanvasDeleteShortcut";
@@ -150,7 +149,6 @@ export function ArchitectureCanvas({
     nodeById,
     liveSurfaceNodes,
     terminalNodes,
-    interactiveSurfaceNodes,
   } = useCanvasDiagramViewModel({
     nodes,
     edges,
@@ -581,23 +579,6 @@ export function ArchitectureCanvas({
     handleDockDividerKeyDown,
   });
 
-  const browserLayerActions = useCanvasBrowserLayerActions({
-    nodeById,
-    terminalInteractions,
-    selectSingleNode,
-    setActiveTerminalId,
-    setMaximizedTerminalId,
-    setNodes,
-    pushHistory,
-    handleNodePointerDown,
-    handleTerminalGroupHeaderPointerDown,
-    terminalDockGroupUsesSharedHeader,
-    closeTerminalGroup,
-    eraseNode,
-    createDockedSurface,
-    handleResizePointerDown,
-  });
-
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-background text-foreground">
       <CanvasToolbar
@@ -674,26 +655,6 @@ export function ArchitectureCanvas({
           maximizedTerminalGroupId,
           terminalResizePaused,
           actions: terminalLayerActions,
-        }}
-        browserLayer={{
-          active,
-          mode,
-          panActive: Boolean(pan),
-          dragActive: Boolean(drag),
-          resizeActive: Boolean(resize),
-          terminalResizePaused,
-          appZoom,
-          view,
-          browserNodes: interactiveSurfaceNodes,
-          nodeById,
-          terminalDockGroups,
-          terminalLayouts,
-          terminalLayoutById,
-          renderedTerminalLayoutById,
-          maximizedTerminalId,
-          maximizedTerminalGroupId,
-          selectedNodeIds,
-          actions: browserLayerActions,
         }}
         overlays={{
           terminalDropPreview,

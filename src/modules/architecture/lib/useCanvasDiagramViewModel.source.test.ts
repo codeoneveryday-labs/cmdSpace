@@ -14,6 +14,6 @@ describe("useCanvasDiagramViewModel contract", () => {
     expect(source).toContain("nodeById");
     expect(source).toContain("liveSurfaceNodes");
     expect(source).toContain("terminalNodes");
-    expect(source).toContain("interactiveSurfaceNodes");
+    expect(source).not.toContain("interactiveSurfaceNodes");
   });
 });

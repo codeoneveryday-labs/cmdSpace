@@ -34,17 +34,6 @@ const splitDiagram: ArchitectureDiagram = {
       initialCommand: "codex",
     },
     {
-      id: "browser-1",
-      kind: "browser",
-      label: "Browser",
-      technology: "Web",
-      x: 80,
-      y: 720,
-      width: 720,
-      height: 480,
-      url: "https://example.com",
-    },
-    {
       id: "editor-1",
       kind: "editor",
       label: "example.ts",
@@ -93,14 +82,11 @@ describe("canvas workspace persistence", () => {
     expect(parseCanvasWorkspaceDiagram(persisted)).toEqual(splitDiagram);
   });
 
-  it("round-trips browser URLs and editor file paths", () => {
+  it("round-trips editor file paths", () => {
     const restored = parseCanvasWorkspaceDiagram(
       serializeCanvasWorkspaceDiagram(splitDiagram),
     );
 
-    expect(restored?.nodes.find((node) => node.kind === "browser")?.url).toBe(
-      "https://example.com",
-    );
     expect(restored?.nodes.find((node) => node.kind === "editor")?.path).toBe(
       "/tmp/example.ts",
     );

@@ -3,6 +3,16 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Removed
+
+- Removed the in-app browser: sidebar Browser view, local dev-server
+  preview tabs, canvas browser nodes, and the native webview layer with
+  its floating-UI avoidance registry. Saved canvas diagrams drop legacy
+  browser nodes on load. Use the system browser instead; external URLs
+  open via the OS opener.
+
 ## [0.7.103] - 2026-09-03
 
 ### Added

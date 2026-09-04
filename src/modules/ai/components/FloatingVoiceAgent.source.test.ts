@@ -44,6 +44,20 @@ describe("FloatingVoiceAgent", () => {
     expect(app).not.toContain('terminal.write(draft.replace(/[\\r\\n]+$/, "") + "\\r")');
   });
 
+  it("clamps to the viewport without a native avoidance registry", () => {
+    const component = readFileSync(
+      path.join(here, "FloatingVoiceAgent.tsx"),
+      "utf8",
+    );
+
+    expect(component).toContain("resolveVisiblePosition");
+    expect(component).toContain("VOICE_SCREEN_EDGE_PX");
+    expect(component).not.toContain("avoidNativeBrowserBounds");
+    expect(component).not.toContain("subscribeNativeBrowserBounds");
+    expect(component).not.toContain("readNativeBrowserBounds");
+    expect(component).not.toContain("nativeBrowserBounds");
+  });
+
   it("targets the active real PTY inside an Architecture canvas", () => {
     const app = readAppSource();
     const stack = readFileSync(

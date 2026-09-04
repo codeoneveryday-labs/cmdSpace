@@ -8,7 +8,6 @@ import {
   DatabaseIcon,
   DatabaseSyncIcon,
   DeliveryBox01Icon,
-  Globe02Icon,
   HashtagIcon,
   ImageAdd01Icon,
   LineIcon,
@@ -79,14 +78,6 @@ export const ARCHITECTURE_SHAPES: ShapeConfig[] = [
     description: "Independent shell on the canvas",
     icon: TerminalIcon,
     tone: "border-emerald-400/35 bg-emerald-500/[0.08] text-emerald-700 dark:text-emerald-200",
-  },
-  {
-    kind: "browser",
-    label: "Browser",
-    category: "Platform",
-    description: "Live web browser on the canvas",
-    icon: Globe02Icon,
-    tone: "border-sky-400/35 bg-sky-500/[0.08] text-sky-700 dark:text-sky-200",
   },
   {
     kind: "line",

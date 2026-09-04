@@ -39,7 +39,7 @@ export function CanvasInteractionOverlays({
   viewWidth: number;
   viewHeight: number;
   terminalPlacements: TerminalPlacement[];
-  pendingSurfaceKind: "terminal" | "browser" | null;
+  pendingSurfaceKind: "terminal" | null;
   isFreeTerminalPlacement: boolean;
   nodeCount: number;
   edgeCount: number;

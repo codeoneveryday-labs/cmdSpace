@@ -22,18 +22,17 @@ describe("sidebar rails", () => {
     expect(railSource).toContain('id: "source-control"');
   });
 
-  it("uses a web globe icon for the browser rail tab", () => {
+  it("keeps the editor rail without the removed browser tab", () => {
     const railSource = readFileSync(sidebarRailPath, "utf8");
 
-    expect(railSource).toContain("Globe02Icon");
-    expect(railSource).toContain('{ id: "browser", label: "Browser", icon: Globe02Icon }');
+    expect(railSource).not.toContain("Globe02Icon");
+    expect(railSource).not.toContain('{ id: "browser"');
     expect(railSource).not.toContain("BrowserIcon");
   });
 
-  it("limits the main rail to browser and editor tabs", () => {
+  it("limits the main rail to the editor tab", () => {
     const railSource = readFileSync(sidebarRailPath, "utf8");
 
-    expect(railSource).toContain('{ id: "browser", label: "Browser", icon: Globe02Icon }');
     expect(railSource).toContain('{ id: "editor", label: "Editor", icon: CodeIcon }');
     expect(railSource).not.toContain('id: "helper"');
     expect(railSource).not.toContain('label: "Helper"');

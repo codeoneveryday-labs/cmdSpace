@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Tab } from "./tabTypes";
 import { openMarkdownTabState } from "./markdownTabTransitions";
 
-const tabs = [{ id: 1, kind: "preview", title: "A", url: "https://a.test" }] as Tab[];
+const tabs = [{ id: 1, kind: "markdown", title: "A", path: "/a.md" }] as Tab[];
 
 describe("markdownTabTransitions", () => {
   it("dedupes an existing markdown path", () => {

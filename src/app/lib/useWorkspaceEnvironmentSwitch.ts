@@ -4,7 +4,6 @@ import { native } from "@/modules/ai/lib/native";
 import { disposeSession } from "@/modules/terminal";
 import type { SearchAddon } from "@xterm/addon-search";
 import type { EditorPaneHandle } from "@/modules/editor";
-import type { PreviewPaneHandle } from "@/modules/preview";
 import type { TerminalPaneHandle } from "@/modules/terminal";
 import type { Tab } from "@/modules/tabs";
 import type { WorkspaceEnv } from "@/modules/workspace";
@@ -18,7 +17,6 @@ export function useWorkspaceEnvironmentSwitch({
   searchAddons,
   terminalRefs,
   editorRefs,
-  previewRefs,
   setActiveSearchAddon,
   setActiveEditorHandle,
   setWorkspaceEnv,
@@ -33,7 +31,6 @@ export function useWorkspaceEnvironmentSwitch({
   searchAddons: MutableRefObject<Map<number, SearchAddon>>;
   terminalRefs: MutableRefObject<Map<number, TerminalPaneHandle>>;
   editorRefs: MutableRefObject<Map<number, EditorPaneHandle>>;
-  previewRefs: MutableRefObject<Map<number, PreviewPaneHandle>>;
   setActiveSearchAddon: (addon: SearchAddon | null) => void;
   setActiveEditorHandle: (handle: EditorPaneHandle | null) => void;
   setWorkspaceEnv: (env: WorkspaceEnv) => void;
@@ -70,7 +67,6 @@ export function useWorkspaceEnvironmentSwitch({
       searchAddons.current.clear();
       terminalRefs.current.clear();
       editorRefs.current.clear();
-      previewRefs.current.clear();
       setActiveSearchAddon(null);
       setActiveEditorHandle(null);
       setWorkspaceEnv(env.kind === "local" ? LOCAL_WORKSPACE : env);
@@ -95,7 +91,6 @@ export function useWorkspaceEnvironmentSwitch({
     [
       editorRefs,
       liveLeavesRef,
-      previewRefs,
       resetWorkspace,
       searchAddons,
       setActiveEditorHandle,

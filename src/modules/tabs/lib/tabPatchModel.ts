@@ -5,30 +5,12 @@ import type {
   TabPatch,
 } from "./tabTypes";
 
-function titleFromUrl(url: string): string {
-  try {
-    return new URL(url).host || url;
-  } catch {
-    return url || "preview";
-  }
-}
-
 export function applyTabPatch(tab: Tab, patch: TabPatch): Tab {
   if (tab.kind === "terminal") {
     return {
       ...tab,
       ...(patch.title !== undefined && { title: patch.title }),
       ...(patch.cwd !== undefined && { cwd: patch.cwd }),
-    };
-  }
-  if (tab.kind === "preview") {
-    return {
-      ...tab,
-      ...(patch.title !== undefined && { title: patch.title }),
-      ...(patch.url !== undefined && {
-        url: patch.url,
-        title: patch.title ?? titleFromUrl(patch.url),
-      }),
     };
   }
   if (tab.kind === "markdown") {

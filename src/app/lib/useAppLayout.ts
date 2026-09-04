@@ -2,7 +2,6 @@ import type { EditorSidebarViewId, SidebarViewId } from "@/modules/sidebar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SIDEBAR_DEFAULT_WIDTH,
-  SIDEBAR_BROWSER_URL_STORAGE_KEY,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_VIEW_STORAGE_KEY,
@@ -67,20 +66,11 @@ function readWorkspacesPanelWidth(): number {
 function readSidebarView(): SidebarViewId {
   try {
     const stored = window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY);
-    if (stored === "browser" || stored === "editor") return stored;
-    if (stored === "explorer" || stored === "source-control") return "editor";
+    if (stored === "editor") return stored;
   } catch {
     // Storage is optional.
   }
-  return "browser";
-}
-
-function readSidebarBrowserUrl(): string {
-  try {
-    return window.localStorage.getItem(SIDEBAR_BROWSER_URL_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
+  return "editor";
 }
 
 export type AppLayoutState = ReturnType<typeof useAppLayout>;
@@ -94,7 +84,6 @@ export function useAppLayout() {
   const [sidebarView, setSidebarViewState] = useState<SidebarViewId>(readSidebarView);
   const [editorSidebarView, setEditorSidebarView] =
     useState<EditorSidebarViewId>("files");
-  const [sidebarBrowserUrl, setSidebarBrowserUrl] = useState(readSidebarBrowserUrl);
   const [workspacesPanelOpen, setWorkspacesPanelOpen] = useState(true);
   const [workspacesPanelResizing, setWorkspacesPanelResizing] = useState(false);
   const [workspacesPanelExpandedWidth, setWorkspacesPanelExpandedWidth] =
@@ -148,14 +137,6 @@ export function useAppLayout() {
       // Storage is optional.
     }
   }, []);
-  const persistSidebarBrowserUrl = useCallback((url: string) => {
-    setSidebarBrowserUrl(url);
-    try {
-      window.localStorage.setItem(SIDEBAR_BROWSER_URL_STORAGE_KEY, url);
-    } catch {
-      // Storage is optional.
-    }
-  }, []);
 
   return {
     mainShellRef,
@@ -171,9 +152,6 @@ export function useAppLayout() {
     persistSidebarView,
     editorSidebarView,
     setEditorSidebarView,
-    sidebarBrowserUrl,
-    setSidebarBrowserUrl,
-    persistSidebarBrowserUrl,
     workspacesPanelOpen,
     setWorkspacesPanelOpen,
     workspacesPanelResizing,

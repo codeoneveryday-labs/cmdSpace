@@ -38,9 +38,9 @@ describe("tabPaneClose", () => {
 
   it("removes a terminal tab and selects its previous sibling", () => {
     const tabs = [
-      { id: 0, kind: "preview" as const, title: "before", url: "https://before.test" },
+      { id: 0, kind: "markdown" as const, title: "before", path: "/before.md" },
       { ...tab, paneTree: { kind: "leaf" as const, id: 2 } },
-      { id: 3, kind: "preview" as const, title: "after", url: "https://after.test" },
+      { id: 3, kind: "markdown" as const, title: "after", path: "/after.md" },
     ];
 
     expect(closeTerminalPaneState(tabs, 1, 2)).toMatchObject({

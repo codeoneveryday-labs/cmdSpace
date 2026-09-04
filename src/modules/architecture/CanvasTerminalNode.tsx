@@ -57,7 +57,7 @@ type Props = {
   stackTabs: Array<{
     id: string;
     label: string;
-    kind?: "terminal" | "browser";
+    kind?: "terminal";
     agent?: CliAgent | null;
   }>;
   activeTabId: string;

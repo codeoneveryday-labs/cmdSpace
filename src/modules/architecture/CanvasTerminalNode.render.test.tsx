@@ -63,11 +63,6 @@ describe("CanvasTerminalNode", () => {
             label: "Claude",
             agent: "claude",
           } as never,
-          {
-            id: "browser-1",
-            kind: "browser",
-            label: "Browser",
-          } as never,
         ]}
         activeTabId="terminal-1"
         visible
@@ -98,6 +93,5 @@ describe("CanvasTerminalNode", () => {
     expect(markup).toContain('data-agent-switcher="true"');
     expect(markup).toContain('data-agent-icon="codex"');
     expect(markup).toContain('data-agent-icon="claude"');
-    expect(markup).toContain('data-canvas-surface-tab-kind="browser"');
   });
 });

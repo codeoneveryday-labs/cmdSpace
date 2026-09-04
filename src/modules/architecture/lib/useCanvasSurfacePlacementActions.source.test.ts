@@ -7,7 +7,7 @@ const source = readFileSync(
 );
 
 describe("useCanvasSurfacePlacementActions contract", () => {
-  it("owns placement planning and terminal/browser creation actions", () => {
+  it("owns placement planning and terminal creation actions", () => {
     expect(source).toContain("export function useCanvasSurfacePlacementActions");
     expect(source).toContain("recommendTerminalPlacements");
     expect(source).toContain("createDockedSurfaceState");

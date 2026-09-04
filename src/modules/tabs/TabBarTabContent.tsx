@@ -10,7 +10,6 @@ import {
   Clock01Icon,
   ComputerTerminal02Icon,
   GitCompareIcon,
-  Globe02Icon,
   IncognitoIcon,
   MusicNote01Icon,
 } from "@hugeicons/core-free-icons";
@@ -78,16 +77,6 @@ function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
     const url = fileIconUrl(tab.title);
     return url ? <img src={url} alt="" className="size-3.5 shrink-0" /> : null;
   }
-  if (tab.kind === "preview") {
-    return (
-      <HugeiconsIcon
-        icon={Globe02Icon}
-        size={14}
-        strokeWidth={2}
-        className="shrink-0"
-      />
-    );
-  }
   if (tab.kind === "ai-diff") {
     return (
       <HugeiconsIcon
@@ -153,7 +142,6 @@ function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
 
 function labelFor(t: Tab): string {
   if (t.kind === "editor") return t.title;
-  if (t.kind === "preview") return t.title;
   if (t.kind === "markdown") return t.title;
   if (t.kind === "ai-diff") return t.title;
   if (t.kind === "git-diff") return t.title;

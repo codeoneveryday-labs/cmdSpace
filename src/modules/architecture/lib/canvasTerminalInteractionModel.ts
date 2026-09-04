@@ -73,8 +73,7 @@ export function resolveTerminalDropResult({
   terminalNodes: ArchitectureDiagramNode[];
 }): TerminalDropResult {
   if (drag && terminalDropPreview?.id === drag.id) {
-    const isLiveSurface =
-      draggedTerminal?.kind === "terminal" || draggedTerminal?.kind === "browser";
+    const isLiveSurface = draggedTerminal?.kind === "terminal";
     if (isLiveSurface && dockTarget) {
       return {
         kind: "dock",
