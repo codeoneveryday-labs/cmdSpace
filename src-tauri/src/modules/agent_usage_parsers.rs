@@ -52,6 +52,7 @@ pub fn parse_codex_status(line: &str) -> Option<AgentUsageStatus> {
 
     Some(AgentUsageStatus {
         provider: "codex".to_string(),
+        native_session_id: None,
         context_window: Some(context_window),
         context_tokens: Some(context_tokens),
         context_remaining_percent: Some(context_remaining_percent(context_tokens, context_window)),
@@ -78,6 +79,7 @@ pub fn parse_claude_status(line: &str) -> Option<AgentUsageStatus> {
 
     Some(AgentUsageStatus {
         provider: "claude".to_string(),
+        native_session_id: None,
         context_window: Some(CLAUDE_CONTEXT_WINDOW_ESTIMATE),
         context_tokens: Some(context_tokens),
         context_remaining_percent: Some(context_remaining_percent(
@@ -153,14 +155,16 @@ pub fn parse_omp_status(line: &str) -> Option<(u64, String)> {
 }
 
 /// Command Code writes top-level `usage{inputTokens,outputTokens,
-/// cacheReadTokens,cacheWriteTokens}` and `model` per session line.
+/// cacheReadTokens,cacheWriteTokens}` and `model` per session line. The
+/// active context is the prompt input plus cached prompt read; completion and
+/// cache-write tokens do not occupy the active input window.
 pub fn parse_cmd_status(line: &str) -> Option<(u64, String)> {
     let value: Value = serde_json::from_str(line).ok()?;
     if value.get("type").and_then(Value::as_str) == Some("session") {
         return None;
     }
     let usage = value.get("usage")?;
-    let tokens = ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens"]
+    let tokens = ["inputTokens", "cacheReadTokens"]
         .into_iter()
         .filter_map(|key| usage.get(key).and_then(Value::as_u64))
         .sum::<u64>();
@@ -178,7 +182,7 @@ pub fn parse_cmd_status(line: &str) -> Option<(u64, String)> {
 /// the badge agrees with opencode's own status line. The
 /// `session.tokens_*` columns are cumulative across every turn and must
 /// NOT be used (see docs/OPENCODE_CONTEXT_WINDOW.md).
-pub fn parse_opencode_message(data: &str) -> Option<(u64, String)> {
+pub fn parse_opencode_message(data: &str) -> Option<(u64, String, String)> {
     let value: Value = serde_json::from_str(data).ok()?;
     if value.get("role").and_then(Value::as_str) != Some("assistant") {
         return None;
@@ -187,7 +191,10 @@ pub fn parse_opencode_message(data: &str) -> Option<(u64, String)> {
         return None;
     }
     let tokens = value.get("tokens")?;
-    let active = tokens.get("input").and_then(Value::as_u64).unwrap_or_default()
+    let active = tokens
+        .get("input")
+        .and_then(Value::as_u64)
+        .unwrap_or_default()
         + tokens
             .get("cache")
             .and_then(|cache| cache.get("read"))
@@ -198,14 +205,14 @@ pub fn parse_opencode_message(data: &str) -> Option<(u64, String)> {
     if active == 0 || provider.is_empty() || model.is_empty() {
         return None;
     }
-    // Plain model id: the models cache is searched across every provider.
-    Some((active, model.to_string()))
+    Some((active, provider.to_string(), model.to_string()))
 }
 
 /// Finds a model's context window in a models.dev-style cache
 /// (`~/.cache/opencode/models.json` or omp's `model_cache` rows):
 /// `{provider: {models: {id: {limit: {context}}}}}` or `[{id, contextWindow}]`.
-pub fn models_context_window(models_json: &str, model_id: &str) -> Option<u64> {    let value: Value = serde_json::from_str(models_json).ok()?;
+pub fn models_context_window(models_json: &str, model_id: &str) -> Option<u64> {
+    let value: Value = serde_json::from_str(models_json).ok()?;
     if let Some(models) = value.as_array() {
         for model in models {
             if model.get("id").and_then(Value::as_str) == Some(model_id) {
@@ -228,6 +235,23 @@ pub fn models_context_window(models_json: &str, model_id: &str) -> Option<u64> {
         }
     }
     None
+}
+
+/// Finds a model's context window under its exact OpenCode provider section.
+/// This avoids selecting a same-named model from another provider with a
+/// different context limit.
+pub fn models_context_window_for_provider(
+    models_json: &str,
+    provider_id: &str,
+    model_id: &str,
+) -> Option<u64> {
+    let value: Value = serde_json::from_str(models_json).ok()?;
+    value
+        .get(provider_id)
+        .and_then(|provider| provider.get("models"))
+        .and_then(|models| models.get(model_id))
+        .and_then(|model| model.pointer("/limit/context"))
+        .and_then(Value::as_u64)
 }
 
 /// Well-known model context windows, used when neither the session file
