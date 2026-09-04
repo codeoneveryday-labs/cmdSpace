@@ -9,6 +9,7 @@ import {
   getEnabledCliAgentDefinitions,
   isInteractiveCodingAgentCommand,
   normalizeCliAgentIds,
+  normalizeCliAgentLaunchCommand,
 } from "./cliAgents";
 
 describe("CLI agent registry", () => {
@@ -143,6 +144,27 @@ describe("CLI agent registry", () => {
       launchPolicy: "standard",
       launch: "gemini",
     });
+  });
+
+  it("launches OMP through the shell integration without replaying user zsh startup", () => {
+    const omp = CLI_AGENT_DEFINITIONS.find(({ id }) => id === "omp");
+
+    expect(omp).toMatchObject({
+      command: "omp",
+      launch: "omp",
+    });
+  });
+
+  it("migrates the legacy OMP bootstrap without changing custom commands", () => {
+    expect(
+      normalizeCliAgentLaunchCommand(
+        "omp",
+        'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; omp',
+      ),
+    ).toBe("omp");
+    expect(normalizeCliAgentLaunchCommand("omp", "omp --model test")).toBe(
+      "omp --model test",
+    );
   });
 
   it("filters enabled workspace agents from configured preferences", () => {

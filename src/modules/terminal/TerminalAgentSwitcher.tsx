@@ -14,6 +14,7 @@ import { AgentCliIcon } from "./AgentCliIcon";
 import {
   CLI_AGENT_BY_ID,
   getEnabledCliAgentDefinitions,
+  normalizeCliAgentLaunchCommand,
   type CliAgent,
 } from "./lib/cliAgents";
 
@@ -30,7 +31,10 @@ export function resolveAgentSwitchCommand(
 ): string | null {
   if (!agent) return null;
   const definition = CLI_AGENT_BY_ID[agent];
-  return overrides[agent]?.trim() || definition.launch || definition.command;
+  return normalizeCliAgentLaunchCommand(
+    agent,
+    overrides[agent]?.trim() || definition.launch || definition.command,
+  );
 }
 
 export function TerminalAgentSwitcher({

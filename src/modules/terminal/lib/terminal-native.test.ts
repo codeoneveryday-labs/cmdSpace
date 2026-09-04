@@ -24,14 +24,23 @@ describe("typed terminal native bridge", () => {
   it("serializes agent usage and directory requests", async () => {
     mocks.invoke.mockResolvedValue([]);
     await getAgentUsageStatuses("/repo", "codex", "thread-1");
+    await getAgentUsageStatuses("/repo", "cmd", null, null, 1_700_000_000_000);
     await listTerminalSubdirectories("/repo", true);
     expect(mocks.invoke).toHaveBeenNthCalledWith(1, "agent_usage_statuses", {
       cwd: "/repo",
       provider: "codex",
       nativeSessionId: "thread-1",
       sessionTitleHint: undefined,
+      sessionStartedAtMs: undefined,
     });
-    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "list_subdirs", {
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, "agent_usage_statuses", {
+      cwd: "/repo",
+      provider: "cmd",
+      nativeSessionId: null,
+      sessionTitleHint: null,
+      sessionStartedAtMs: 1_700_000_000_000,
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(3, "list_subdirs", {
       path: "/repo",
       showHidden: true,
       workspace: expect.any(Object),

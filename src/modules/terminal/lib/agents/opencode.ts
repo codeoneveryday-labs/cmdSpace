@@ -16,6 +16,12 @@ export const opencodeAgentHandler: CliAgentHandler = {
           command: "/models\r",
         },
         {
+          id: "variants",
+          label: "/variants",
+          description: "Select a model variant",
+          command: "/variants\r",
+        },
+        {
           id: "skills",
           label: "/skills",
           description: "Browse and manage skills",

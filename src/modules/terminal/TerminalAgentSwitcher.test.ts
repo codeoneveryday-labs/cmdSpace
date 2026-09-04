@@ -20,6 +20,14 @@ describe("resolveAgentSwitchCommand", () => {
     expect(resolveAgentSwitchCommand("codex", {})).toBeTruthy();
   });
 
+  it("does not replay the persisted legacy OMP shell bootstrap", () => {
+    expect(
+      resolveAgentSwitchCommand("omp", {
+        omp: 'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; omp',
+      }),
+    ).toBe("omp");
+  });
+
   it("uses no command for Terminal", () => {
     expect(resolveAgentSwitchCommand(null, {})).toBeNull();
   });
@@ -35,4 +43,3 @@ describe("TerminalAgentSwitcher debouncing and controlled menu", () => {
     expect(switcherSource).toContain("<DropdownMenu open={open} onOpenChange={setOpen}>");
   });
 });
-

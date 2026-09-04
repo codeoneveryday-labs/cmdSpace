@@ -453,4 +453,3 @@ export function isDarkTerminalAgent(agent: CliAgent | null | undefined): boolean
     agent === "pi"
   );
 }
-
