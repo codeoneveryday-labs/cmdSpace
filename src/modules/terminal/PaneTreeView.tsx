@@ -146,7 +146,7 @@ export function PaneTreeView({
         }}
         data-pane-leaf={node.id}
         style={targetStyle}
-        className={`relative h-full w-full group overflow-hidden @container transition-[transform,opacity,box-shadow] duration-150 ease-out motion-reduce:transition-none ${
+        className={`relative flex h-full min-h-0 w-full flex-col group overflow-hidden @container transition-[transform,opacity,box-shadow] duration-150 ease-out motion-reduce:transition-none ${
           isDarkAgent ? "dark bg-zinc-950 text-zinc-100" : ""
         } ${
           isDropTarget
@@ -164,36 +164,7 @@ export function PaneTreeView({
             className="pointer-events-none absolute inset-0 z-40 border-2 border-dashed border-primary/80"
           />
         ) : null}
-        {hydrated ? (
-          <TerminalPane
-            leafId={node.id}
-            visible={tabVisible}
-            focused={focused}
-            isDark={isDarkAgent}
-            initialCwd={node.cwd}
-            initialCommand={node.autoLaunch ? node.lastCommand : undefined}
-            ref={b.setRef}
-            onSearchReady={(_id, addon) => b.onSearch(addon)}
-            onCwd={(_id, cwd) => b.onCwd(cwd)}
-            onExit={(_id, code) => b.onExit(code)}
-            onCommand={(_id, cmd) => {
-              if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);
-              else setDetectedAgentCommand(undefined);
-              b.onCommand?.(cmd);
-            }}
-            onAgentActivity={(_id, responding) => setAgentResponding(responding)}
-          />
-        ) : null}
-
-        {/* Focus outline around the active terminal pane. */}
-        {focused && (
-          <div
-    className="absolute inset-0 pointer-events-none border-2 z-30"
-            style={paneFocusStyle(focusAccentColor)}
-          />
-        )}
-
-        {/* Centered premium capsule floating control overlay with git status & active model */}
+        {/* Terminal header stays in layout flow so terminal content starts directly below it. */}
         <FloatingTerminalOverlay
           cwd={node.cwd}
           nodeId={node.id}
@@ -225,11 +196,42 @@ export function PaneTreeView({
           onToggleBroadcastTarget={() => onToggleBroadcastTarget(node.id)}
           onWrite={(data) => b.getRef()?.write(data)}
           onGetBuffer={(lines) => b.getRef()?.getBuffer(lines) ?? null}
+          onGetSessionStartedAt={() => b.getRef()?.getSessionStartedAt()}
           onFocusTerminal={() => {
             focusAndHydrate();
             b.getRef()?.focus();
           }}
         />
+        <div className="min-h-0 flex-1">
+          {hydrated ? (
+            <TerminalPane
+              leafId={node.id}
+              visible={tabVisible}
+              focused={focused}
+              isDark={isDarkAgent}
+              initialCwd={node.cwd}
+              initialCommand={node.autoLaunch ? node.lastCommand : undefined}
+              ref={b.setRef}
+              onSearchReady={(_id, addon) => b.onSearch(addon)}
+              onCwd={(_id, cwd) => b.onCwd(cwd)}
+              onExit={(_id, code) => b.onExit(code)}
+              onCommand={(_id, cmd) => {
+                if (detectCliAgent(cmd)) setDetectedAgentCommand(cmd);
+                else setDetectedAgentCommand(undefined);
+                b.onCommand?.(cmd);
+              }}
+              onAgentActivity={(_id, responding) => setAgentResponding(responding)}
+            />
+          ) : null}
+        </div>
+
+        {/* Focus outline around the active terminal pane. */}
+        {focused && (
+          <div
+            className="absolute inset-0 pointer-events-none border-2 z-30"
+            style={paneFocusStyle(focusAccentColor)}
+          />
+        )}
       </div>
     );
   }

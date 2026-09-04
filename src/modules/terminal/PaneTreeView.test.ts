@@ -26,9 +26,9 @@ describe("FloatingTerminalOverlay", () => {
   it("keeps the terminal header flush without outer padding or rounding", () => {
     const source = readPaneTreeSource();
 
-    expect(source).toContain(
-      "absolute inset-x-0 top-0 z-20 flex items-center",
-    );
+    expect(source).toContain("relative z-20 flex shrink-0 items-center");
+    expect(source).toContain("relative flex h-full min-h-0 w-full flex-col");
+    expect(source).toContain('<div className="min-h-0 flex-1">');
     expect(source).toContain("rounded-none border");
     expect(source).toContain("px-0 py-0");
     expect(source).not.toContain("left-1/2 -translate-x-1/2 z-20");
@@ -38,7 +38,7 @@ describe("FloatingTerminalOverlay", () => {
     const source = readPaneTreeSource();
 
     expect(source).toContain("pointer-events-none border-2 z-30");
-    expect(source).toContain("top-0 z-20 flex items-center");
+    expect(source).toContain("relative z-20 flex shrink-0 items-center");
   });
 
   it("shows the coding CLI identity at the start of the pane header", () => {
@@ -62,19 +62,14 @@ describe("FloatingTerminalOverlay", () => {
     expect(iconSource).not.toContain("AGENT_CLI_ICON_META");
   });
 
-  it("shows local coding-agent context and account-limit details without exposing credentials", () => {
-    const source = [
-      readPaneTreeSource(),
-      readFileSync(path.join(here, "TerminalAgentUsage.tsx"), "utf8"),
-    ].join("\n");
+  it("does not render the removed coding-agent usage popup", () => {
+    const source = readPaneTreeSource();
 
-    expect(source).toContain("getAgentUsageStatuses(");
-    expect(source).toContain("sessionTitleHint");
-    expect(source).toContain("extractOpenCodeSessionTitle");
+    expect(source).toContain("useTerminalAgentUsage");
     expect(source).toContain("AgentUsageBadge");
-    expect(source).toContain("AgentUsageMenu");
-    expect(source).toContain("Context window");
-    expect(source).toContain("Account limits");
+    expect(source).not.toContain("AgentUsageMenu");
+    expect(source).not.toContain("Show coding agent usage");
+    expect(source).not.toContain("…");
   });
 
   it("delegates folder and branch navigation to the shared terminal controls", () => {

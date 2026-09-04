@@ -183,8 +183,8 @@ describe("TerminalStack lazy renderer restore", () => {
     expect(treeSource).not.toContain("startPaneResizeDrag");
     expect(treeSource).not.toContain("<ResizableHandle");
     expect(paneSource).toContain("cmdspace-terminal-viewport");
-    expect(paneSource).toContain('contentTopPadding && "pt-12"');
-    expect(paneSource).not.toContain("px-2 pb-2 pt-12");
+    expect(paneSource).not.toContain("contentTopPadding");
+    expect(paneSource).not.toContain("pt-12");
     expect(sessionSource).toContain("applyZoomLevel(zoomLevel)");
     const optionsSource = readFileSync(terminalOptionsPath, "utf8");
     expect(optionsSource).toContain("function effectiveTerminalFontSize");

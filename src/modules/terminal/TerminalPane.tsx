@@ -10,6 +10,7 @@ export type TerminalPaneHandle = {
   replaceCurrentInput: (next: string) => boolean;
   focus: () => void;
   getBuffer: (maxLines?: number) => string | null;
+  getSessionStartedAt: () => number | undefined;
   getSelection: () => string | null;
 };
 
@@ -23,8 +24,6 @@ type Props = {
   isDark?: boolean;
   initialCwd?: string;
   initialCommand?: string;
-  /** The Cmd+I drawer owns its own tab chrome, so it does not need this inset. */
-  contentTopPadding?: boolean;
   onSearchReady?: (leafId: number, addon: SearchAddon) => void;
   onExit?: (leafId: number, code: number) => void;
   onCwd?: (leafId: number, cwd: string) => void;
@@ -42,7 +41,6 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
       isDark = false,
       initialCwd,
       initialCommand,
-      contentTopPadding = true,
       onSearchReady,
       onExit,
       onCwd,
@@ -87,6 +85,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
         replaceCurrentInput: (next: string) => session.replaceCurrentInput(next),
         focus: () => session.focus(),
         getBuffer: (max?: number) => session.getBuffer(max),
+        getSessionStartedAt: session.getSessionStartedAt,
         getSelection: () => session.getSelection(),
       }),
       [session],
@@ -98,7 +97,6 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, Props>(
         className={cn(
           "cmdspace-terminal-viewport h-full w-full overflow-hidden",
           isDark && "!bg-[#09090b]",
-          contentTopPadding && "pt-12",
         )}
         style={{
           visibility: visible ? "visible" : "hidden",
