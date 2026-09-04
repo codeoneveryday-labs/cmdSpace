@@ -293,7 +293,6 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
                 visible={tab.id === activeTabId}
                 focused={tab.id === activeTabId}
                 initialCwd={tab.cwd}
-                contentTopPadding={false}
                 onCwd={(_leafId, cwd) => updateTabCwd(tab.id, cwd)}
               />
             </div>

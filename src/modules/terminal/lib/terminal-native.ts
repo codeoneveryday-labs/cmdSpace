@@ -10,6 +10,7 @@ export type AgentRateLimit = {
 
 export type AgentUsageStatus = {
   provider: "codex" | "claude" | "omp" | "cmd" | "opencode";
+  nativeSessionId?: string;
   contextWindow?: number;
   contextTokens?: number;
   contextRemainingPercent?: number;
@@ -25,12 +26,14 @@ export const getAgentUsageStatuses = (
   provider?: string,
   nativeSessionId?: string | null,
   sessionTitleHint?: string | null,
+  sessionStartedAtMs?: number,
 ): Promise<AgentUsageStatus[]> =>
   invoke("agent_usage_statuses", {
     cwd,
     provider,
     nativeSessionId,
     sessionTitleHint,
+    sessionStartedAtMs,
   });
 
 export const listTerminalSubdirectories = (

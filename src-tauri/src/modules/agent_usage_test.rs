@@ -170,12 +170,12 @@ fn omp_status_ignores_zero_token_lines() {
 }
 
 #[test]
-fn cmd_status_sums_token_fields_with_model() {
-    let line = r#"{"type":"message","id":"a1","message":{"role":"assistant"},"usage":{"inputTokens":30021,"outputTokens":543,"cacheReadTokens":10368,"cacheWriteTokens":0},"model":"deepseek/deepseek-v4-flash"}"#;
+fn cmd_status_uses_active_context_fields_with_model() {
+    let line = r#"{"type":"message","id":"a1","message":{"role":"assistant"},"usage":{"inputTokens":30021,"outputTokens":543,"cacheReadTokens":10368,"cacheWriteTokens":99},"model":"deepseek/deepseek-v4-flash"}"#;
 
     let (tokens, model) = parse_cmd_status(line).expect("cmd usage should parse");
 
-    assert_eq!(tokens, 30021 + 543 + 10368);
+    assert_eq!(tokens, 30021 + 10368);
     assert_eq!(model, "deepseek/deepseek-v4-flash");
 }
 
@@ -244,11 +244,25 @@ fn opencode_message_uses_latest_turn_input_plus_cache_read() {
     // cumulative and must not be used.
     let data = r#"{"role":"assistant","providerID":"opencode","modelID":"muse-spark-1.3-contributor-free","finish":"stop","tokens":{"input":529,"output":110,"reasoning":0,"cache":{"read":477937,"write":0}}}"#;
 
-    let (tokens, model) =
+    let (tokens, provider, model) =
         parse_opencode_message(data).expect("opencode message should parse");
 
     assert_eq!(tokens, 529 + 477937);
+    assert_eq!(provider, "opencode");
     assert_eq!(model, "muse-spark-1.3-contributor-free");
+}
+
+#[test]
+fn opencode_model_context_window_uses_the_message_provider() {
+    let cache = r#"{
+        "provider-a":{"models":{"shared":{"limit":{"context":111111}}}},
+        "provider-b":{"models":{"shared":{"limit":{"context":222222}}}}
+    }"#;
+
+    assert_eq!(
+        super::agent_usage::models_context_window_for_provider(cache, "provider-b", "shared"),
+        Some(222222)
+    );
 }
 
 #[test]

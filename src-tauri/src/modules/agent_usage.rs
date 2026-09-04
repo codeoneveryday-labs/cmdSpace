@@ -7,9 +7,10 @@ mod scan;
 pub(crate) use scan::claude_project_roots;
 #[allow(unused_imports)]
 pub use scan::{
-    command_code_usage_snapshot, context_remaining_percent, latest_provider_limit_snapshot,
-    known_model_context_window, models_context_window, parse_claude_status, parse_cmd_status,
-    parse_codex_status, parse_omp_status, parse_opencode_message, provider_limit_snapshot,
+    command_code_usage_snapshot, context_remaining_percent, known_model_context_window,
+    latest_provider_limit_snapshot, models_context_window, models_context_window_for_provider,
+    parse_claude_status, parse_cmd_status, parse_codex_status, parse_omp_status,
+    parse_opencode_message, provider_limit_snapshot,
 };
 use scan::{
     fetch_command_code_usage, scan_agent_usage, scan_local_provider_limit_status,
@@ -22,6 +23,8 @@ pub(crate) use scan::{provider_limit_tail_bytes, terminal_usage_tail_bytes};
 #[serde(rename_all = "camelCase")]
 pub struct AgentUsageStatus {
     pub provider: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub native_session_id: Option<String>,
     pub context_window: Option<u64>,
     pub context_tokens: Option<u64>,
     pub context_remaining_percent: Option<u8>,
@@ -81,6 +84,7 @@ pub async fn agent_usage_statuses(
     provider: Option<String>,
     native_session_id: Option<String>,
     session_title_hint: Option<String>,
+    session_started_at_ms: Option<u64>,
 ) -> Result<Vec<AgentUsageStatus>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         scan_agent_usage(
@@ -88,6 +92,7 @@ pub async fn agent_usage_statuses(
             provider.as_deref(),
             native_session_id.as_deref(),
             session_title_hint.as_deref(),
+            session_started_at_ms,
         )
     })
     .await

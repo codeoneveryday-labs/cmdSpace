@@ -63,7 +63,7 @@ describe("BottomTerminalDrawer", () => {
     expect(drawerInteractionSource).toContain("onPointerMove");
     expect(drawerInteractionSource).toContain("onSelect={() => addTerminalTab()}");
     expect(drawerInteractionSource).toContain("<TerminalPane");
-    expect(drawerInteractionSource).toContain("contentTopPadding={false}");
+    expect(drawerInteractionSource).not.toContain("contentTopPadding");
     expect(drawerInteractionSource).toContain('className="absolute inset-0"');
   });
 

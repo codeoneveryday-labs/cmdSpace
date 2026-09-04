@@ -6,9 +6,8 @@ const here = path.dirname(new URL(import.meta.url).pathname);
 const source = readFileSync(path.join(here, "TerminalPane.tsx"), "utf8");
 
 describe("TerminalPane", () => {
-  it("can remove its top chrome inset for the Cmd+I terminal tabs", () => {
-    expect(source).toContain("contentTopPadding?: boolean");
-    expect(source).toContain("contentTopPadding = true");
-    expect(source).toContain('contentTopPadding && "pt-12"');
+  it("does not reserve a duplicate top chrome inset", () => {
+    expect(source).not.toContain("contentTopPadding");
+    expect(source).not.toContain("pt-12");
   });
 });

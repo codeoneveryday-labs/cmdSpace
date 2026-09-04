@@ -18,6 +18,7 @@ export type TerminalSessionCallbacks = {
 };
 
 export type TerminalSession = {
+  startedAtMs: number;
   pty: PtySession | null;
   ptyOpening: boolean;
   initialCwd: string | undefined;
@@ -58,6 +59,7 @@ export function createTerminalSession(
   initialCommand?: string,
 ): TerminalSession {
   return {
+    startedAtMs: Date.now(),
     pty: null,
     ptyOpening: false,
     initialCwd,

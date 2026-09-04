@@ -24,6 +24,24 @@ pub(super) fn codex_session_matches_cwd(path: &Path, cwd: &str) -> bool {
     find_cwd(&value).is_some_and(|candidate| same_path(candidate, cwd))
 }
 
+pub(super) fn session_id_from_header(path: &Path) -> Option<String> {
+    let file = File::open(path).ok()?;
+    let mut reader = std::io::BufReader::new(file);
+    let mut first_line = String::new();
+    std::io::BufRead::read_line(&mut reader, &mut first_line).ok()?;
+    let value = serde_json::from_str::<Value>(&first_line).ok()?;
+    find_session_id(&value).map(str::to_owned)
+}
+
+pub(super) fn session_timestamp_ms_from_header(path: &Path) -> Option<u64> {
+    let file = File::open(path).ok()?;
+    let mut reader = std::io::BufReader::new(file);
+    let mut first_line = String::new();
+    std::io::BufRead::read_line(&mut reader, &mut first_line).ok()?;
+    let value = serde_json::from_str::<Value>(&first_line).ok()?;
+    find_timestamp(&value).and_then(parse_rfc3339_millis)
+}
+
 fn find_cwd(value: &Value) -> Option<&str> {
     match value {
         Value::Object(values) => values
@@ -33,6 +51,101 @@ fn find_cwd(value: &Value) -> Option<&str> {
         Value::Array(values) => values.iter().find_map(find_cwd),
         _ => None,
     }
+}
+
+fn find_session_id(value: &Value) -> Option<&str> {
+    match value {
+        Value::Object(values) => values
+            .get("session_id")
+            .or_else(|| values.get("sessionId"))
+            .or_else(|| values.get("id"))
+            .and_then(Value::as_str)
+            .or_else(|| values.values().find_map(find_session_id)),
+        Value::Array(values) => values.iter().find_map(find_session_id),
+        _ => None,
+    }
+}
+
+fn find_timestamp(value: &Value) -> Option<&str> {
+    match value {
+        Value::Object(values) => values
+            .get("timestamp")
+            .and_then(Value::as_str)
+            .or_else(|| values.values().find_map(find_timestamp)),
+        Value::Array(values) => values.iter().find_map(find_timestamp),
+        _ => None,
+    }
+}
+
+fn parse_rfc3339_millis(value: &str) -> Option<u64> {
+    let bytes = value.as_bytes();
+    if bytes.len() < 20 || bytes[4] != b'-' || bytes[7] != b'-' || bytes[10] != b'T' {
+        return None;
+    }
+    let year = parse_digits(bytes, 0, 4)? as i64;
+    let month = parse_digits(bytes, 5, 2)? as i64;
+    let day = parse_digits(bytes, 8, 2)? as i64;
+    let hour = parse_digits(bytes, 11, 2)? as i64;
+    let minute = parse_digits(bytes, 14, 2)? as i64;
+    let second = parse_digits(bytes, 17, 2)? as i64;
+    if bytes.get(19) != Some(&b'Z') && bytes.get(19) != Some(&b'.') {
+        return None;
+    }
+    let fraction_start = if bytes[19] == b'.' { 20 } else { 19 };
+    let fraction_end = bytes[fraction_start..]
+        .iter()
+        .position(|byte| *byte == b'Z' || *byte == b'+' || *byte == b'-')
+        .map(|offset| fraction_start + offset)
+        .unwrap_or(bytes.len());
+    let fraction = if fraction_start < fraction_end {
+        let digits = &bytes[fraction_start..fraction_end];
+        let millis = parse_digits_prefix(digits, 3)?;
+        millis * 10u64.pow(3u32.saturating_sub(digits.len().min(3) as u32))
+    } else {
+        0
+    };
+    let days = days_from_civil(year, month, day)?;
+    let seconds = days
+        .checked_mul(86_400)?
+        .checked_add(hour * 3_600 + minute * 60 + second)?;
+    u64::try_from(
+        seconds
+            .checked_mul(1_000)?
+            .checked_add(i64::try_from(fraction).ok()?)?,
+    )
+    .ok()
+}
+
+fn parse_digits(bytes: &[u8], start: usize, length: usize) -> Option<u64> {
+    bytes
+        .get(start..start + length)?
+        .iter()
+        .try_fold(0u64, |value, byte| {
+            let digit = byte.checked_sub(b'0')?;
+            (digit <= 9).then_some(value * 10 + u64::from(digit))
+        })
+}
+
+fn parse_digits_prefix(bytes: &[u8], length: usize) -> Option<u64> {
+    let count = bytes.len().min(length);
+    parse_digits(bytes, 0, count)
+}
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> Option<i64> {
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    let adjusted_year = year - i64::from(month <= 2);
+    let era = (if adjusted_year >= 0 {
+        adjusted_year
+    } else {
+        adjusted_year - 399
+    }) / 400;
+    let year_of_era = adjusted_year - era * 400;
+    let month_prime = month + if month > 2 { -3 } else { 9 };
+    let day_of_year = (153 * month_prime + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    Some(era * 146_097 + day_of_era - 719_468)
 }
 
 fn same_path(left: &str, right: &str) -> bool {

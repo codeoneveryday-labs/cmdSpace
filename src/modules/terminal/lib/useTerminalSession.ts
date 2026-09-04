@@ -112,6 +112,11 @@ export function useTerminalSession({
 
   const focus = useCallback(() => focusSlot(leafId), [leafId]);
 
+  const getSessionStartedAt = useCallback(
+    () => sessions.get(leafId)?.startedAtMs,
+    [leafId],
+  );
+
   const getBuffer = useCallback(
     (maxLines = 200): string | null => {
       const s = sessions.get(leafId);
@@ -141,6 +146,7 @@ export function useTerminalSession({
       replaceInput,
       replaceCurrentInput,
       focus,
+      getSessionStartedAt,
       getBuffer,
       getSelection,
       applyTheme,
@@ -150,6 +156,7 @@ export function useTerminalSession({
       replaceInput,
       replaceCurrentInput,
       focus,
+      getSessionStartedAt,
       getBuffer,
       getSelection,
       applyTheme,

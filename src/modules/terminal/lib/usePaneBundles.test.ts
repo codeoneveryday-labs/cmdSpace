@@ -12,6 +12,7 @@ function makeHandle(label: string): TerminalPaneHandle {
     replaceInput: () => true,
     replaceCurrentInput: () => true,
     focus: () => undefined,
+    getSessionStartedAt: () => 1,
     getBuffer: () => label,
     getSelection: () => label,
   };

@@ -4,7 +4,7 @@ import { AgentStateDot, type AgentDisplayState } from "./AgentStateDot";
 import { TerminalAgentSwitcher } from "./TerminalAgentSwitcher";
 import { TerminalNavigationControls } from "./TerminalNavigationControls";
 import type { CliAgent } from "./lib/cliAgents";
-import { useTerminalAgentUsage, AgentUsageBadge, AgentUsageMenu } from "./TerminalAgentUsage";
+import { AgentUsageBadge, useTerminalAgentUsage } from "./TerminalAgentUsage";
 import { cn } from "@/lib/utils";
 import { GIT_REPO_CHANGED_EVENT, gitRepoRootFromChangedEvent, pathBelongsToRepo } from "@/modules/git/events";
 import type { SplitDir } from "./lib/panes";
@@ -33,6 +33,7 @@ type FloatingTerminalOverlayProps = {
   onSwitchAgent: (agent: CliAgent | null, command: string | null) => void;
   onWrite?: (data: string) => void;
   onGetBuffer?: (lines?: number) => string | null;
+  onGetSessionStartedAt?: () => number | undefined;
   onFocusTerminal?: () => void;
 };
 
@@ -58,6 +59,7 @@ export function FloatingTerminalOverlay({
   onSwitchAgent,
   onWrite,
   onGetBuffer,
+  onGetSessionStartedAt,
   onFocusTerminal,
   agentState,
 }: FloatingTerminalOverlayProps) {
@@ -66,20 +68,14 @@ export function FloatingTerminalOverlay({
   const [repoRoot, setRepoRoot] = useState<string | null>(null);
   const gitInfoRequestRef = useRef(0);
 
-  const {
-    activeAgentUsage,
-    agentUsage,
-    cliAgent,
-    supportsUsage,
-    usageOpen,
-    usageMenuRef,
-    setUsageOpen,
-  } = useTerminalAgentUsage({
+  const { activeAgentUsage, cliAgent } = useTerminalAgentUsage({
     cwd,
     agentCommand,
     focused,
     hydrated,
     getBuffer: onGetBuffer,
+    getSessionStartedAt: onGetSessionStartedAt,
+    agentState,
   });
 
   const refreshGitInfo = useCallback(async () => {
@@ -177,7 +173,7 @@ export function FloatingTerminalOverlay({
       data-pane-drag-handle
       draggable={false}
       onPointerDown={onDragStart}
-      className={`absolute inset-x-0 top-0 z-20 flex items-center justify-center gap-1.5 rounded-none border bg-card/95 px-0 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 @sm:gap-3 ${
+      className={`relative z-20 flex shrink-0 items-center justify-center gap-1.5 rounded-none border bg-card/95 px-0 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 @sm:gap-3 ${
         isDragging ? "cursor-grabbing opacity-60" : "cursor-grab"
       } ${
         focused
@@ -202,26 +198,7 @@ export function FloatingTerminalOverlay({
           <AgentStateDot state={agentState} />
         </span>
       ) : null}
-      {activeAgentUsage ? (
-        <AgentUsageBadge status={activeAgentUsage} />
-      ) : null}
-      {supportsUsage ? (
-        <div className="relative hidden @sm:block" ref={usageMenuRef}>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              setUsageOpen((open) => !open);
-            }}
-            className="grid size-5 place-items-center rounded text-[15px] leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
-            aria-label="Show coding agent usage"
-            title="Coding agent usage"
-          >
-            …
-          </button>
-          {usageOpen ? <AgentUsageMenu statuses={agentUsage} /> : null}
-        </div>
-      ) : null}
+      {activeAgentUsage ? <AgentUsageBadge status={activeAgentUsage} /> : null}
       <TerminalNavigationControls
         cwd={cwd}
         onChangeDirectory={onCd}

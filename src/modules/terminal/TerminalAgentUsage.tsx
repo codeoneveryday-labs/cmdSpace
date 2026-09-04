@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { detectCliAgent } from "./lib/cliAgents";
+import type { AgentDisplayState } from "./AgentStateDot";
 import {
   getAgentUsageStatuses,
   type AgentUsageStatus,
@@ -32,23 +33,49 @@ export function extractOpenCodeSessionTitle(
   return match ? match[0] : null;
 }
 
+export function extractNativeSessionId(
+  command: string | undefined,
+  agent: string | null,
+): string | null {
+  if (!command || !agent) return null;
+  const sessionPath = command.match(/(?:--session|-s)\s+["']([^"']+\.jsonl)["']/i)?.[1];
+  if (sessionPath) {
+    const sessionId = sessionPath
+      .split(/[\\/]/)
+      .pop()
+      ?.replace(/\.jsonl$/i, "");
+    if (sessionId && /^[A-Za-z0-9_-]{1,100}$/.test(sessionId)) return sessionId;
+  }
+  const match = command.match(
+    /(?:--session|-s|--resume|-r|resume)\s+["']?((?:ses_[A-Za-z0-9_-]+|[0-9a-f]{8}-[0-9a-f-]{27,}))(?=["']?(?:\s|$))/i,
+  );
+  return match?.[1] ?? null;
+}
+
 export function useTerminalAgentUsage({
   cwd,
   agentCommand,
   focused,
   hydrated,
   getBuffer,
+  getSessionStartedAt,
+  agentState,
 }: {
   cwd: string | undefined;
   agentCommand: string | undefined;
   focused: boolean;
   hydrated: boolean;
   getBuffer?: () => string | null;
+  getSessionStartedAt?: () => number | undefined;
+  agentState?: AgentDisplayState;
 }) {
   const [agentUsage, setAgentUsage] = useState<AgentUsageStatus[]>([]);
+  const [nativeSessionId, setNativeSessionId] = useState<string | null>(null);
+  const [nativeSessionProvider, setNativeSessionProvider] = useState<string | null>(null);
   const [usageOpen, setUsageOpen] = useState(false);
   const usageMenuRef = useRef<HTMLDivElement>(null);
   const cliAgent = detectCliAgent(agentCommand);
+  const commandNativeSessionId = extractNativeSessionId(agentCommand, cliAgent);
   const supportsUsage =
     cliAgent === "codex" ||
     cliAgent === "claude" ||
@@ -62,6 +89,8 @@ export function useTerminalAgentUsage({
   useEffect(() => {
     if (!hydrated || !cwd || !supportsUsage) {
       setAgentUsage([]);
+      setNativeSessionId(null);
+      setNativeSessionProvider(null);
       setUsageOpen(false);
       return;
     }
@@ -76,25 +105,48 @@ export function useTerminalAgentUsage({
           cliAgent === "opencode"
             ? extractOpenCodeSessionTitle(getBuffer?.() ?? null)
             : null;
+        const sessionStartedAtMs = getSessionStartedAt?.();
         const statuses = await getAgentUsageStatuses(
           cwd,
-          undefined,
-          null,
+          cliAgent,
+          nativeSessionProvider === cliAgent
+            ? nativeSessionId
+            : commandNativeSessionId,
           sessionTitleHint,
+          sessionStartedAtMs,
         );
-        if (!disposed) setAgentUsage(statuses);
+        if (!disposed) {
+          setAgentUsage(statuses);
+          setNativeSessionId(statuses[0]?.nativeSessionId ?? null);
+          setNativeSessionProvider(statuses[0]?.provider ?? null);
+        }
       } catch (error) {
         void error;
       }
     };
 
+    // The pane's display state changes when a response completes. Including it
+    // in this effect makes that transition re-run the same session-id lookup
+    // immediately instead of waiting for the polling interval.
     void refreshAgentUsage();
     const interval = focused ? window.setInterval(refreshAgentUsage, 15_000) : null;
     return () => {
       disposed = true;
       if (interval !== null) window.clearInterval(interval);
     };
-  }, [cwd, focused, hydrated, supportsUsage, cliAgent, getBuffer]);
+  }, [
+    cwd,
+    focused,
+    hydrated,
+    supportsUsage,
+    cliAgent,
+    getBuffer,
+    getSessionStartedAt,
+    nativeSessionId,
+    nativeSessionProvider,
+    agentCommand,
+    agentState,
+  ]);
 
   return {
     activeAgentUsage,
