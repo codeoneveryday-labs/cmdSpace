@@ -187,7 +187,7 @@ export function WorkspaceSwitcher() {
               <h2 className="text-xs font-medium text-muted-foreground">
                 Provider usage
               </h2>
-              <div className="mt-2 max-h-24 space-y-2.5 overflow-y-auto">
+              <div className="mt-2 max-h-36 space-y-2.5 overflow-y-auto">
                 {usageAgents.map((agent) => {
                   const status = statuses.find(
                     (item) => item.provider === agent.id,
