@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampSelectionIndex,
   filterTrayWorkspaces,
+  groupTrayWorkspacesByDir,
   type TrayWorkspace,
 } from "./workspaces";
 
@@ -35,5 +36,24 @@ describe("menu bar workspace helpers", () => {
     expect(clampSelectionIndex(-1, 2)).toBe(0);
     expect(clampSelectionIndex(4, 2)).toBe(1);
     expect(clampSelectionIndex(0, 0)).toBe(-1);
+  });
+
+  it("groups workspaces sharing a parent dir under the dir basename", () => {
+    const grouped = groupTrayWorkspacesByDir([
+      ...workspaces,
+      {
+        id: "second-api",
+        name: "Worker",
+        count: 2,
+        workingFolder: "/Users/dev/projects/api",
+        workspaceMode: "standard",
+      },
+    ]);
+
+    expect(grouped.map((group) => group.label)).toEqual(["api", "platform"]);
+    expect(grouped[0]?.workspaces.map((item) => item.id)).toEqual([
+      "standard",
+      "second-api",
+    ]);
   });
 });

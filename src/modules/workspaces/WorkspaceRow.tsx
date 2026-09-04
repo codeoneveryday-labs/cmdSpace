@@ -1,11 +1,13 @@
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ArrowDown01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { truncateMiddle } from "@/lib/truncateMiddle";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
+import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { AgentStateDot } from "@/modules/terminal/AgentStateDot";
 import type { WorkspaceItem } from "./WorkspacesPanel";
+import { getWorkspaceCliAgent } from "./lib/workspaceAgentModel";
 import {
   normalizeWorkspaceAccentColor,
   WorkspaceColorPicker,
@@ -17,10 +19,8 @@ export function WorkspaceRow({
   workspace,
   active,
   compact = false,
-  expanded,
   canClose,
   onSelect,
-  onToggleExpanded,
   onClose,
   onRename,
   onColorChange,
@@ -30,10 +30,8 @@ export function WorkspaceRow({
   workspace: WorkspaceItem;
   active: boolean;
   compact?: boolean;
-  expanded: boolean;
   canClose: boolean;
   onSelect: () => void;
-  onToggleExpanded: () => void;
   onClose: () => void;
   onRename: (name: string) => void;
   onColorChange: (accentColor: string) => void;
@@ -47,10 +45,7 @@ export function WorkspaceRow({
   const accentBg = colorWithAlpha(accentColor, 0.1);
   const accentBorder = colorWithAlpha(accentColor, 0.38);
   const accentGlow = colorWithAlpha(accentColor, 0.26);
-  const canExpand = true;
-  const toggleLabel = expanded
-    ? `Hide terminals for ${workspace.name}`
-    : `Show terminals for ${workspace.name}`;
+  const workspaceAgent = getWorkspaceCliAgent(workspace.terminals);
   const activeRowStyle =
     active || isDragging
       ? {
@@ -131,29 +126,12 @@ export function WorkspaceRow({
         )}
         title={workspace.name}
       >
-        {canExpand ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleExpanded();
-            }}
-            className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-            aria-label={toggleLabel}
-            title={toggleLabel}
-          >
-            <HugeiconsIcon
-              icon={ArrowDown01Icon}
-              size={13}
-              strokeWidth={2}
-              className={cn("transition-transform duration-150", !expanded && "-rotate-90")}
-            />
-          </button>
-        ) : (
-          <span className="size-5 shrink-0" aria-hidden="true" />
-        )}
         {colorPicker}
-        <WorkspaceModeIcon workspace={workspace} />
+        {workspaceAgent ? (
+          <AgentCliIcon agent={workspaceAgent} size="xs" />
+        ) : (
+          <WorkspaceModeIcon workspace={workspace} />
+        )}
         {workspace.state ? <AgentStateDot state={workspace.state} /> : null}
         <button
           type="button"
@@ -207,29 +185,12 @@ export function WorkspaceRow({
         isDragging && "scale-[1.02] cursor-grabbing opacity-80 shadow-lg",
       )}
     >
-      {canExpand ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleExpanded();
-          }}
-          className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label={toggleLabel}
-          title={toggleLabel}
-        >
-          <HugeiconsIcon
-            icon={ArrowDown01Icon}
-            size={13}
-            strokeWidth={2}
-            className={cn("transition-transform duration-150", !expanded && "-rotate-90")}
-          />
-        </button>
-      ) : (
-        <span className="size-5 shrink-0" aria-hidden="true" />
-      )}
       {colorPicker}
-      <WorkspaceModeIcon workspace={workspace} />
+      {workspaceAgent ? (
+        <AgentCliIcon agent={workspaceAgent} size="xs" />
+      ) : (
+        <WorkspaceModeIcon workspace={workspace} />
+      )}
       {workspace.state ? <AgentStateDot state={workspace.state} /> : null}
       {renaming ? (
         <Input
