@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  NO_ACTIVE_VOICE_TARGET_MESSAGE,
   resolveVoiceTranscriptInsertion,
   type SpeechInputTarget,
 } from "./voiceTranscriptInsertionModel";
@@ -48,5 +49,9 @@ describe("resolveVoiceTranscriptInsertion", () => {
         throw new Error("PTY is closed");
       }),
     ).toEqual({ kind: "error", message: "PTY is closed" });
+  });
+
+  it("exposes an actionable message for starting without an active terminal", () => {
+    expect(NO_ACTIVE_VOICE_TARGET_MESSAGE).toContain("active terminal");
   });
 });

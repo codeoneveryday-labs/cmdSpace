@@ -10,6 +10,9 @@ export type SpeechInputTarget =
       terminalId: string;
     };
 
+export const NO_ACTIVE_VOICE_TARGET_MESSAGE =
+  "Voice input needs an active terminal. Focus a terminal pane, then try again.";
+
 export type VoiceTranscriptInsertionOutcome =
   | { kind: "ready"; message: "Transcript inserted into terminal." }
   | { kind: "error"; message: string };

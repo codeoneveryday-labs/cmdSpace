@@ -44,6 +44,7 @@ describe("AI provider catalog", () => {
       "together",
       "replicate",
       "nvidia",
+      "fish-audio",
     ]) {
       expect(config).toContain(`id: "${id}"`);
     }
@@ -106,6 +107,7 @@ describe("AI provider catalog", () => {
     expect(config).toContain('keyringAccount: "together-api-key"');
     expect(config).toContain('keyringAccount: "replicate-api-token"');
     expect(config).toContain('keyringAccount: "nvidia-api-key"');
+    expect(config).toContain('keyringAccount: "fish-audio-api-key"');
     expect(config).toContain('keyPrefix: "sk-"');
     expect(config).toContain('keyPrefix: "gsk_"');
     expect(config).toContain('keyPrefix: "nvapi-"');

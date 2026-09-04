@@ -303,6 +303,11 @@ function ConfiguredProviderRow({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-[12.5px] font-medium">{provider.label}</span>
+            {provider.recommended ? (
+              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                Recommended
+              </span>
+            ) : null}
             <span className="text-[10px] text-muted-foreground">·</span>
             <span className={cn("size-1.5 shrink-0 rounded-full", status.dot)} />
             <span className="truncate text-[10.5px] text-muted-foreground">
@@ -363,8 +368,13 @@ function CatalogProviderRow({
       <ProviderIcon provider={provider.id} size={14} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-2">
-          <span className="truncate text-[12.5px] font-medium">{provider.label}</span>
-          {provider.speechToText.developmentOnly ? (
+           <span className="truncate text-[12.5px] font-medium">{provider.label}</span>
+           {provider.recommended ? (
+             <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+               Recommended
+             </span>
+           ) : null}
+           {provider.speechToText.developmentOnly ? (
             <span className="shrink-0 text-[9.5px] text-muted-foreground">staged</span>
           ) : null}
         </div>
@@ -446,8 +456,13 @@ function SpeechToTextRow({
               return (
                 <div key={provider.id} className="px-1 pt-1.5 first:pt-1">
                   <div className="mb-0.5 flex items-center gap-1.5 px-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-                    <ProviderIcon provider={provider.id} size={10} />
-                    <span>{provider.label}</span>
+                     <ProviderIcon provider={provider.id} size={10} />
+                     <span>{provider.label}</span>
+                     {provider.recommended ? (
+                       <span className="rounded-full bg-primary/10 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-primary">
+                         Recommended
+                       </span>
+                     ) : null}
                     {!providerConnected ? (
                       <span className="ml-auto text-[9.5px] normal-case tracking-normal text-muted-foreground/70">
                         not connected

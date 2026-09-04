@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+const proxyFetchMock = vi.hoisted(() => vi.fn());
+vi.mock("./proxyFetch", () => ({ proxyFetch: proxyFetchMock }));
+
 import {
   createSpeechToTextHttpRequest,
   DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
@@ -7,14 +10,21 @@ import {
   SPEECH_TO_TEXT_MODELS,
   transcribeSpeechToText,
 } from "./speechToText";
+import { PROVIDERS } from "../config";
 
 describe("speech-to-text models", () => {
   it("defaults to the existing OpenAI transcription model", () => {
     expect(DEFAULT_SPEECH_TO_TEXT_MODEL_ID).toBe("gpt-4o-transcribe");
   });
 
-  it("offers the expanded cloud provider registry in the original order", () => {
+  it("offers the expanded cloud provider registry with recommended providers first", () => {
+    expect(PROVIDERS.slice(0, 2)).toMatchObject([
+      { id: "fish-audio", recommended: true },
+      { id: "groq", recommended: true },
+    ]);
     expect(SPEECH_TO_TEXT_MODELS.map((model) => model.provider)).toEqual([
+      "fish-audio",
+      "groq",
       "openai",
       "deepgram",
       "google",
@@ -25,7 +35,6 @@ describe("speech-to-text models", () => {
       "azure",
       "gladia",
       "soniox",
-      "groq",
       "inworld",
       "rev",
       "verbit",
@@ -37,6 +46,14 @@ describe("speech-to-text models", () => {
       "replicate",
       "nvidia",
     ]);
+    expect(SPEECH_TO_TEXT_MODELS[0]).toMatchObject({
+      provider: "fish-audio",
+      modelId: "fish-audio-asr",
+    });
+    expect(SPEECH_TO_TEXT_MODELS[1]).toMatchObject({
+      provider: "groq",
+      modelId: "whisper-large-v3-turbo",
+    });
     expect(
       getSpeechToTextRequest("whisper-large-v3-turbo", {
         groq: "gsk_test",
@@ -46,6 +63,61 @@ describe("speech-to-text models", () => {
       endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
       apiKey: "gsk_test",
     });
+  });
+
+  it("builds Fish Audio's multipart ASR request with its audio field", () => {
+    const request = getSpeechToTextRequest("fish-audio-asr", {
+      "fish-audio": "fish_test",
+    });
+    const prepared = createSpeechToTextHttpRequest(
+      new Blob(["audio"], { type: "audio/webm" }),
+      "voice.webm",
+      request!,
+      "cmdSpace, Tauri",
+    );
+
+    expect(prepared.endpoint).toBe("https://api.fish.audio/v1/asr");
+    expect(prepared.headers).toEqual({ Authorization: "Bearer fish_test" });
+    const form = prepared.body as FormData;
+    expect(form.get("audio")).toBeInstanceOf(Blob);
+    expect(form.get("file")).toBeNull();
+    expect(form.get("model")).toBeNull();
+    expect(form.get("prompt")).toBeNull();
+  });
+
+  it("routes Fish Audio transcription and health checks through the native proxy", async () => {
+    proxyFetchMock.mockResolvedValue(new Response('{"text":"xin chào"}'));
+    const directFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("direct browser fetch must not be used"));
+    const request = getSpeechToTextRequest("fish-audio-asr", {
+      "fish-audio": "fish_test",
+    });
+
+    try {
+      await expect(
+        transcribeSpeechToText(
+          new Blob(["audio"], { type: "audio/webm" }),
+          "voice.webm",
+          request!,
+        ),
+      ).resolves.toBe("xin chào");
+      await expect(probeSpeechToText(request!)).resolves.toBeUndefined();
+    } finally {
+      directFetch.mockRestore();
+    }
+
+    expect(proxyFetchMock).toHaveBeenCalledTimes(2);
+    expect(proxyFetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.fish.audio/v1/asr",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(proxyFetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.fish.audio/v1/asr",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("enables Deepgram Nova-3 once its provider adapter is available", () => {

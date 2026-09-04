@@ -25,6 +25,7 @@ describe("AgentChatWorkspace", () => {
     expect(source).toContain("useAgentAttachments");
     expect(source).toContain("useAgentUsagePolling");
     expect(source).toContain("useWhisperRecording");
+    expect(source).toContain("ownerKey: `agent-chat:${chatId}`");
     expect(source).toContain("useAgentChatSubmit");
     expect(source).toContain("useAgentEditActions");
   });

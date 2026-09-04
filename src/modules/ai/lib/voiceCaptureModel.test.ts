@@ -39,6 +39,17 @@ describe("createVoiceCaptureModel", () => {
     });
   });
 
+  it("accepts native final text when microphone level events were missed", async () => {
+    const harness = createHarness({ cloudRequest: null });
+
+    await harness.model.start();
+    harness.model.confirm();
+    await harness.model.handleNativeResult({ text: "open terminal", final: true });
+
+    expect(harness.onResult).toHaveBeenCalledWith("open terminal");
+    expect(harness.onError).not.toHaveBeenCalled();
+  });
+
   it("serializes rapid native cancel/restart and ignores an old start failure", async () => {
     const firstStart = deferred<void>();
     const pendingStop = deferred<void>();

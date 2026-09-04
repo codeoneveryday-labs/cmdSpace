@@ -4,6 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 export type VoiceRecorder = {
   recording: boolean;
   transcribing: boolean;
+  busyElsewhere?: boolean;
   audioLevel: number;
   duration: number;
   cancel: () => void;
@@ -50,6 +51,6 @@ export function AgentVoiceControls({
   }
 
   return (
-    <button type="button" onClick={onStart} disabled={!active} aria-label="Voice to text" title={voiceError ?? "Voice to text"} className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground disabled:opacity-40"><HugeiconsIcon icon={Mic01Icon} size={18} strokeWidth={1.8} /></button>
+    <button type="button" onClick={onStart} disabled={!active || recorder.busyElsewhere} aria-label="Voice to text" title={voiceError ?? (recorder.busyElsewhere ? "Voice input is busy in another composer." : "Voice to text")} className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground disabled:opacity-40"><HugeiconsIcon icon={Mic01Icon} size={18} strokeWidth={1.8} /></button>
   );
 }

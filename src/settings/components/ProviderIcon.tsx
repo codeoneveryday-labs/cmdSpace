@@ -46,6 +46,7 @@ const ICON_BY_PROVIDER = {
   together: GlobeIcon,
   replicate: DatabaseIcon,
   nvidia: CpuIcon,
+  "fish-audio": VoiceIcon,
 } as const satisfies Record<ProviderId, typeof ChatGptIcon>;
 
 type Props = {
