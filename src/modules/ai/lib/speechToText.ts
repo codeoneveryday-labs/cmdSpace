@@ -1,4 +1,5 @@
 import { PROVIDERS, type ProviderId } from "../config";
+import { proxyFetch } from "./proxyFetch";
 
 export type SpeechToTextModel = {
   modelId: string;
@@ -7,6 +8,8 @@ export type SpeechToTextModel = {
   description: string;
   endpoint: string;
   sendModel?: boolean;
+  sendPrompt?: boolean;
+  audioFieldName?: string;
   language?: string;
   developmentOnly?: boolean;
 };
@@ -28,6 +31,19 @@ export type SpeechToTextHttpRequest = {
   body: BodyInit;
   transcriptFromResponse: (payload: unknown) => string | null;
 };
+
+type SpeechToTextFetcher = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
+
+function fetcherForRequest(
+  request: SpeechToTextRequest,
+  fetcher: SpeechToTextFetcher | undefined,
+): SpeechToTextFetcher {
+  if (fetcher) return fetcher;
+  return request.provider === "fish-audio" ? proxyFetch : fetch;
+}
 
 const HEALTH_CHECK_SAMPLE_RATE = 8_000;
 const HEALTH_CHECK_SAMPLE_DURATION_SECONDS = 0.25;
@@ -108,16 +124,21 @@ export function createSpeechToTextFormData(
   developerVocabulary = "",
 ): FormData {
   const formData = new FormData();
-  formData.append("file", new File([recording], filename, { type: recording.type }));
+  formData.append(
+    request.audioFieldName ?? "file",
+    new File([recording], filename, { type: recording.type }),
+  );
   if (request.sendModel !== false) formData.append("model", request.modelId);
   if (request.language) formData.append("language", request.language);
   const workspaceVocabulary = developerVocabulary.trim();
-  formData.append(
-    "prompt",
-    workspaceVocabulary
-      ? `${DEVELOPER_VOCABULARY_PROMPT} Từ vựng workspace hiện tại: ${workspaceVocabulary}.`
-      : DEVELOPER_VOCABULARY_PROMPT,
-  );
+  if (request.sendPrompt !== false) {
+    formData.append(
+      "prompt",
+      workspaceVocabulary
+        ? `${DEVELOPER_VOCABULARY_PROMPT} Từ vựng workspace hiện tại: ${workspaceVocabulary}.`
+        : DEVELOPER_VOCABULARY_PROMPT,
+    );
+  }
   return formData;
 }
 
@@ -195,7 +216,7 @@ export async function transcribeSpeechToText(
   filename: string,
   request: SpeechToTextRequest,
   developerVocabulary = "",
-  fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
+  fetcher?: SpeechToTextFetcher,
 ): Promise<string> {
   const prepared = createSpeechToTextHttpRequest(
     recording,
@@ -203,7 +224,7 @@ export async function transcribeSpeechToText(
     request,
     developerVocabulary,
   );
-  const response = await fetcher(prepared.endpoint, {
+  const response = await fetcherForRequest(request, fetcher)(prepared.endpoint, {
     method: "POST",
     headers: prepared.headers,
     body: prepared.body,
@@ -224,7 +245,7 @@ export async function transcribeSpeechToText(
  */
 export async function probeSpeechToText(
   request: SpeechToTextRequest,
-  fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
+  fetcher?: SpeechToTextFetcher,
   signal?: AbortSignal,
 ): Promise<void> {
   const prepared = createSpeechToTextHttpRequest(
@@ -233,7 +254,7 @@ export async function probeSpeechToText(
     request,
   );
 
-  const response = await fetcher(prepared.endpoint, {
+  const response = await fetcherForRequest(request, fetcher)(prepared.endpoint, {
     method: "POST",
     headers: prepared.headers,
     body: prepared.body,

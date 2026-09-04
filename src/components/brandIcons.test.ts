@@ -17,6 +17,7 @@ describe("brand icon catalog", () => {
     expect(getProviderBrandIcon("google")).toBe("googlecloud");
     expect(getProviderBrandIcon("groq")).toBe("grok");
     expect(getProviderBrandIcon("nvidia")).toBe("nvidia");
+    expect(getProviderBrandIcon("fish-audio")).toBeNull();
   });
 
   it("maps supported coding agents to the same Paseo artwork", () => {

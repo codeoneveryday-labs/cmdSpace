@@ -54,12 +54,12 @@ mod macos {
 
     use super::macos_state::{
         activate_session, begin_finish_active_session, complete_request, invalidate_request,
-        is_current_request, should_deliver_event, start_request, with_active_session,
-        SpeechSession,
+        is_current_request, remember_latest_transcript, should_deliver_event, start_request,
+        take_latest_transcript, with_active_session, SpeechSession,
     };
     use super::macos_support::{
-        microphone_permission_message, runs_from_macos_app_bundle, should_retry_audio_start,
-        speech_error_message,
+        microphone_permission_message, runs_from_macos_app_bundle,
+        should_recover_partial_transcript, should_retry_audio_start, speech_error_message,
     };
 
     const AUDIO_START_RETRY_DELAY: Duration = Duration::from_millis(350);
@@ -244,10 +244,13 @@ mod macos {
             move |result: *mut SFSpeechRecognitionResult, error: *mut NSError| {
                 if !error.is_null() {
                     let error = unsafe { &*error };
+                    let domain = error.domain().to_string();
+                    let code = error.code();
                     handle_recognition_error(
                         app_for_results.clone(),
                         request_id,
                         speech_error_message(error),
+                        domain == "kAFAssistantErrorDomain" && code == 1110,
                     );
                     return;
                 }
@@ -295,6 +298,7 @@ mod macos {
             request,
             _recognizer: recognizer,
             _task: task,
+            latest_transcript: std::cell::RefCell::new(None),
         };
         if let Err(stale_session) = activate_session(request_id, session) {
             dispose_session(stale_session, true);
@@ -408,11 +412,27 @@ mod macos {
         });
     }
 
-    fn handle_recognition_error(app: AppHandle, request_id: u64, message: String) {
+    fn handle_recognition_error(
+        app: AppHandle,
+        request_id: u64,
+        message: String,
+        is_no_speech_error: bool,
+    ) {
         let app_for_main = app.clone();
         let _ = app.run_on_main_thread(move || {
             if should_deliver_event(request_id) {
-                emit_error(&app_for_main, message);
+                let partial = take_latest_transcript(request_id).unwrap_or_default();
+                if should_recover_partial_transcript(is_no_speech_error, &partial) {
+                    let _ = app_for_main.emit(
+                        "cmdspace:speech-result",
+                        serde_json::json!({
+                            "text": partial,
+                            "final": true,
+                        }),
+                    );
+                } else {
+                    emit_error(&app_for_main, message);
+                }
             }
             clear_session_for_result_on_main(&app_for_main, request_id);
         });
@@ -427,6 +447,7 @@ mod macos {
         let app_for_main = app.clone();
         let _ = app.run_on_main_thread(move || {
             if should_deliver_event(request_id) {
+                remember_latest_transcript(request_id, transcript.clone());
                 let _ = app_for_main.emit(
                     "cmdspace:speech-result",
                     serde_json::json!({ "text": transcript, "final": final_result }),

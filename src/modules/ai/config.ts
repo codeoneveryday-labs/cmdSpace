@@ -21,7 +21,8 @@ export type ProviderId =
   | "fireworks"
   | "together"
   | "replicate"
-  | "nvidia";
+  | "nvidia"
+  | "fish-audio";
 
 export type SpeechToTextInfo = {
   modelId: string;
@@ -29,6 +30,8 @@ export type SpeechToTextInfo = {
   description: string;
   endpoint: string;
   sendModel?: boolean;
+  sendPrompt?: boolean;
+  audioFieldName?: string;
   language?: string;
   developmentOnly?: boolean;
 };
@@ -36,6 +39,7 @@ export type SpeechToTextInfo = {
 export type ProviderInfo = {
   id: ProviderId;
   label: string;
+  recommended?: boolean;
   keyringAccount: string;
   keyPrefix: string | null;
   consoleUrl: string;
@@ -43,6 +47,37 @@ export type ProviderInfo = {
 };
 
 export const PROVIDERS: readonly ProviderInfo[] = [
+  {
+    id: "fish-audio",
+    label: "Fish Audio",
+    recommended: true,
+    keyringAccount: "fish-audio-api-key",
+    keyPrefix: null,
+    consoleUrl: "https://fish.audio/app/api-keys/",
+    speechToText: {
+      modelId: "fish-audio-asr",
+      label: "Fish Audio ASR",
+      description: "Speech-to-text with per-segment timestamps from Fish Audio.",
+      endpoint: "https://api.fish.audio/v1/asr",
+      sendModel: false,
+      sendPrompt: false,
+      audioFieldName: "audio",
+    },
+  },
+  {
+    id: "groq",
+    label: "Groq",
+    recommended: true,
+    keyringAccount: "groq-api-key",
+    keyPrefix: "gsk_",
+    consoleUrl: "https://console.groq.com/keys",
+    speechToText: {
+      modelId: "whisper-large-v3-turbo",
+      label: "Whisper hosted API",
+      description: "OpenAI-compatible transcription on Groq.",
+      endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
+    },
+  },
   {
     id: "openai",
     label: "OpenAI",
@@ -180,19 +215,6 @@ export const PROVIDERS: readonly ProviderInfo[] = [
       description: "Hosted transcription from Soniox.",
       endpoint: "https://api.soniox.com/v1/transcriptions",
       developmentOnly: true,
-    },
-  },
-  {
-    id: "groq",
-    label: "Groq",
-    keyringAccount: "groq-api-key",
-    keyPrefix: "gsk_",
-    consoleUrl: "https://console.groq.com/keys",
-    speechToText: {
-      modelId: "whisper-large-v3-turbo",
-      label: "Whisper hosted API",
-      description: "OpenAI-compatible transcription on Groq.",
-      endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
     },
   },
   {

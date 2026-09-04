@@ -685,6 +685,7 @@ dependencies = [
  "cmdspace-remote-protocol",
  "dirs 5.0.1",
  "ed25519-dalek",
+ "embed_plist",
  "futures-util",
  "getrandom 0.3.4",
  "globset",

@@ -25,7 +25,7 @@ export type VoiceCloudCaptureSession = {
   dispose: () => void;
 };
 
-type VoiceCaptureModelOptions = {
+export type VoiceCaptureModelOptions = {
   getCloudRequest: () => SpeechToTextRequest | null;
   getUnavailableRequestId?: () => string | null;
   setUnavailableRequestId?: (requestId: string | null) => void;
@@ -189,7 +189,7 @@ export function createVoiceCaptureModel(
     if (finished || !isCurrentCapture(sessionId)) return;
     stopDurationTracking();
     const transcript = text.trim();
-    if (!transcript || !voiceDetected) {
+    if (!transcript || (mode === "cloud" && !voiceDetected)) {
       finished = true;
       resetToIdle();
       options.onError?.(NO_SPEECH_ERROR);

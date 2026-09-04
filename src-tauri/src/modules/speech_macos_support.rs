@@ -10,10 +10,22 @@ pub(super) fn should_retry_audio_start(attempt: u8) -> bool {
     attempt < 2
 }
 
+pub(super) fn should_recover_partial_transcript(
+    is_no_speech_error: bool,
+    transcript: &str,
+) -> bool {
+    is_no_speech_error && !transcript.trim().is_empty()
+}
+
 pub(super) fn runs_from_macos_app_bundle() -> bool {
-    std::env::current_exe()
-        .ok()
-        .is_some_and(|path| is_macos_app_bundle_executable(&path))
+    native_voice_runtime_available(
+        std::env::current_exe().ok().as_deref(),
+        cfg!(debug_assertions),
+    )
+}
+
+fn native_voice_runtime_available(path: Option<&Path>, allow_debug_build: bool) -> bool {
+    allow_debug_build || path.is_some_and(is_macos_app_bundle_executable)
 }
 
 pub(super) fn is_macos_app_bundle_executable(path: &Path) -> bool {
@@ -65,8 +77,9 @@ pub(super) fn speech_error_message_parts(domain: &str, code: isize, description:
 #[cfg(test)]
 mod tests {
     use super::{
-        is_macos_app_bundle_executable, microphone_permission_message, should_retry_audio_start,
-        speech_error_message_parts,
+        is_macos_app_bundle_executable, microphone_permission_message,
+        native_voice_runtime_available, should_recover_partial_transcript,
+        should_retry_audio_start, speech_error_message_parts,
     };
     use std::path::Path;
 
@@ -84,6 +97,20 @@ mod tests {
         assert!(!is_macos_app_bundle_executable(Path::new(
             "/Users/me/dev/cmdspace/target/debug/cmdspace"
         )));
+    }
+
+    #[test]
+    fn allows_debug_executables_when_their_info_plist_is_embedded() {
+        let dev_executable = Path::new("/Users/me/dev/cmdspace/target/debug/cmdspace");
+        assert!(native_voice_runtime_available(Some(dev_executable), true));
+        assert!(!native_voice_runtime_available(Some(dev_executable), false));
+    }
+
+    #[test]
+    fn recovers_partial_text_only_for_a_no_speech_error() {
+        assert!(should_recover_partial_transcript(true, "open terminal"));
+        assert!(!should_recover_partial_transcript(true, "  "));
+        assert!(!should_recover_partial_transcript(false, "open terminal"));
     }
 
     #[test]

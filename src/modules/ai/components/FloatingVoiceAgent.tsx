@@ -17,7 +17,11 @@ import type { ProviderKeys } from "../lib/keyring";
 
 export type { SpeechInputTarget } from "../hooks/useVoicePromptAgent";
 
-export type FloatingVoiceAgentHandle = { toggle: () => void };
+export type FloatingVoiceAgentHandle = {
+  toggle: () => void;
+  start: (target?: SpeechInputTarget) => void | Promise<void>;
+  stop: () => void;
+};
 
 type Props = {
   apiKeys: ProviderKeys;
@@ -45,7 +49,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     ref,
   ) {
     const enabled = usePreferencesStore((state) => state.floatingVoiceAgentEnabled);
-    const { status, message, toggle, audioLevel } = useSpeechToTextInput({
+    const { status, message, toggle, start, stop, busyElsewhere, audioLevel } = useSpeechToTextInput({
       apiKeys,
       captureTarget,
       captureVocabulary,
@@ -74,7 +78,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     const positionRef = useRef(position);
     positionRef.current = position;
 
-    useImperativeHandle(ref, () => ({ toggle }), [toggle]);
+    useImperativeHandle(ref, () => ({ toggle, start, stop }), [start, stop, toggle]);
 
     // No native layer paints above the DOM anymore, so clamping to the
     // viewport is enough to keep the pill visible.
@@ -191,6 +195,7 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
         ref={buttonRef}
         aria-label="Toggle voice input"
         aria-pressed={status === "listening"}
+        disabled={busyElsewhere}
         title={label}
         onPointerDown={startDrag}
         onPointerMove={move}

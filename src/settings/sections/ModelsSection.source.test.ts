@@ -24,6 +24,8 @@ describe("Voice settings section", () => {
     expect(section).toContain("ModelsSectionSkeleton");
     expect(section).toContain('aria-label="Loading models"');
     expect(section).toContain("MIN_KEYS_SKELETON_MS");
+    expect(section).toContain("provider.recommended");
+    expect(section).toContain('Recommended');
   });
 
   it("checks the selected STT provider and exposes a retryable status", () => {

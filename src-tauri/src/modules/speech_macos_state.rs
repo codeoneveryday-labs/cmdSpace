@@ -14,6 +14,7 @@ pub(super) struct SpeechSession {
     pub(super) request: Retained<SFSpeechAudioBufferRecognitionRequest>,
     pub(super) _recognizer: Retained<SFSpeechRecognizer>,
     pub(super) _task: Retained<SFSpeechRecognitionTask>,
+    pub(super) latest_transcript: RefCell<Option<String>>,
 }
 
 thread_local! {
@@ -49,6 +50,33 @@ pub(super) fn activate_session(
 
 pub(super) fn with_active_session<R>(map: impl FnOnce(&SpeechSession) -> R) -> Option<R> {
     LIFECYCLE.with(|lifecycle| lifecycle.borrow().with_active_session(map))
+}
+
+pub(super) fn remember_latest_transcript(request_id: u64, transcript: String) -> bool {
+    LIFECYCLE.with(|lifecycle| {
+        let lifecycle = lifecycle.borrow();
+        if lifecycle.event_delivery_request_id() != Some(request_id) {
+            return false;
+        }
+        lifecycle
+            .with_active_session(|session| {
+                *session.latest_transcript.borrow_mut() = Some(transcript);
+                true
+            })
+            .unwrap_or(false)
+    })
+}
+
+pub(super) fn take_latest_transcript(request_id: u64) -> Option<String> {
+    LIFECYCLE.with(|lifecycle| {
+        let lifecycle = lifecycle.borrow();
+        if lifecycle.event_delivery_request_id() != Some(request_id) {
+            return None;
+        }
+        lifecycle
+            .with_active_session(|session| session.latest_transcript.borrow_mut().take())
+            .flatten()
+    })
 }
 
 pub(super) fn begin_finish_active_session() -> bool {

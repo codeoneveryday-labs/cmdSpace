@@ -26,25 +26,58 @@ function headerInitToRecord(
   return out;
 }
 
+type SerializedBody = {
+  bytes: number[] | undefined;
+  contentType: string | undefined;
+};
+
 async function bodyToBytes(
   body: BodyInit | null | undefined,
-): Promise<number[] | undefined> {
-  if (body == null) return undefined;
+): Promise<SerializedBody> {
+  if (body == null) return { bytes: undefined, contentType: undefined };
   if (typeof body === "string") {
-    return Array.from(new TextEncoder().encode(body));
+    return {
+      bytes: Array.from(new TextEncoder().encode(body)),
+      contentType: undefined,
+    };
   }
-  if (body instanceof ArrayBuffer) return Array.from(new Uint8Array(body));
+  if (body instanceof ArrayBuffer) {
+    return {
+      bytes: Array.from(new Uint8Array(body)),
+      contentType: undefined,
+    };
+  }
   if (ArrayBuffer.isView(body)) {
     const view = body as ArrayBufferView;
-    return Array.from(
-      new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
-    );
+    return {
+      bytes: Array.from(
+        new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+      ),
+      contentType: undefined,
+    };
   }
-  if (body instanceof Blob)
-    return Array.from(new Uint8Array(await body.arrayBuffer()));
+  if (body instanceof Blob) {
+    return {
+      bytes: Array.from(new Uint8Array(await body.arrayBuffer())),
+      contentType: body.type || undefined,
+    };
+  }
+  if (body instanceof FormData) {
+    const request = new Request("https://cmdspace.invalid", {
+      method: "POST",
+      body,
+    });
+    return {
+      bytes: Array.from(new Uint8Array(await request.arrayBuffer())),
+      contentType: request.headers.get("content-type") ?? undefined,
+    };
+  }
   // FormData / URLSearchParams / ReadableStream — uncommon for AI SDK calls.
   const text = await new Response(body as BodyInit).text();
-  return Array.from(new TextEncoder().encode(text));
+  return {
+    bytes: Array.from(new TextEncoder().encode(text)),
+    contentType: undefined,
+  };
 }
 
 export function createProxyFetch(
@@ -66,8 +99,14 @@ async function proxyFetchImpl(
 ): Promise<Response> {
   const url = input instanceof URL ? input.toString() : String(input);
   const method = (init?.method ?? "GET").toUpperCase();
-  const headers = headerInitToRecord(init?.headers);
-  const body = await bodyToBytes(init?.body);
+  const headers = headerInitToRecord(init?.headers) ?? {};
+  const serializedBody = await bodyToBytes(init?.body);
+  if (
+    serializedBody.contentType &&
+    !Object.keys(headers).some((key) => key.toLowerCase() === "content-type")
+  ) {
+    headers["content-type"] = serializedBody.contentType;
+  }
 
   const signal = init?.signal;
   if (signal?.aborted) {
@@ -139,7 +178,7 @@ async function proxyFetchImpl(
       url,
       method,
       headers,
-      body,
+      body: serializedBody.bytes,
       allowPrivateNetwork,
       onEvent: channel,
     }).catch((e) => {

@@ -36,6 +36,7 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain("Toggle voice input");
     expect(app).toContain("captureVoiceTarget");
     expect(app).toContain("insertVoiceDraft");
+    expect(app).toContain("useHoldOptionToTalk");
     expect(app).toContain('"voice.toggle": actions.toggleVoice');
     expect(app).toContain("pendingVoiceDraftsRef");
     expect(app).toContain("terminal.replaceCurrentInput(nextDraft)");
@@ -83,6 +84,18 @@ describe("FloatingVoiceAgent", () => {
     expect(canvasTerminal).toContain("export type CanvasTerminalHandle");
     expect(canvasTerminal).toContain("replaceCurrentInput");
     expect(canvasTerminal).toContain("getBuffer");
+  });
+
+  it("refuses to record when no terminal target is active", () => {
+    const voiceAgent = readFileSync(
+      path.join(here, "../hooks/useVoicePromptAgent.ts"),
+      "utf8",
+    );
+
+    expect(voiceAgent).toContain("NO_ACTIVE_VOICE_TARGET_MESSAGE");
+    expect(voiceAgent).toContain("captureTarget()");
+    expect(voiceAgent).toContain("targetOverride ?? captureTarget()");
+    expect(voiceAgent).toContain("if (!target)");
   });
 
   it("delegates literal transcript insertion to its dedicated model without chat refinement", () => {
@@ -139,8 +152,8 @@ describe("FloatingVoiceAgent", () => {
       path.join(here, "FloatingVoiceAgent.tsx"),
       "utf8",
     );
-    const recordingHook = readFileSync(
-      path.join(here, "../hooks/useWhisperRecording.ts"),
+    const captureService = readFileSync(
+      path.join(here, "../lib/voiceCaptureService.ts"),
       "utf8",
     );
     const packageManifest = JSON.parse(
@@ -149,7 +162,7 @@ describe("FloatingVoiceAgent", () => {
 
     expect(component).toContain("message ?? LABELS[status]");
     expect(component).not.toContain('error: "Try again"');
-    expect(recordingHook).toContain("nativeSpeechStartMessage(error)");
+    expect(captureService).toContain("nativeSpeechStartMessage");
     expect(packageManifest.scripts["voice:debug"]).toContain(
       "tauri build --debug --bundles app",
     );
@@ -180,8 +193,8 @@ describe("FloatingVoiceAgent", () => {
   });
 
   it("uses the selected STT provider and keeps native speech as fallback", () => {
-    const recordingHook = readFileSync(
-      path.join(here, "../hooks/useWhisperRecording.ts"),
+    const captureService = readFileSync(
+      path.join(here, "../lib/voiceCaptureService.ts"),
       "utf8",
     );
     const listeners = readFileSync(
@@ -197,37 +210,42 @@ describe("FloatingVoiceAgent", () => {
       "utf8",
     );
 
-    expect(recordingHook).toContain("getSpeechToTextRequest");
-    expect(recordingHook).toContain("transcribeSpeechToText");
+    expect(captureService).toContain("getSpeechToTextRequest");
+    expect(captureService).toContain("transcribeSpeechToText");
     expect(speechToText).toContain('formData.append("model", request.modelId)');
-    expect(speechToText).toContain('formData.append(\n    "prompt",');
+    expect(speechToText).toContain('if (request.sendPrompt !== false)');
+    expect(speechToText).toContain('formData.append(\n      "prompt",');
     expect(speechToText).toContain("Từ vựng workspace hiện tại");
     expect(speechToText).toContain("Token ${request.apiKey}");
-    expect(recordingHook).toContain("speechToTextModelId: string");
-    expect(recordingHook).toContain("apiKeys: Partial<Record<ProviderId, string | null>>");
-    expect(recordingHook).toContain("startNativeRecognition");
-    expect(recordingHook).toContain("unavailableRequestRef.current");
-    expect(recordingHook).toContain("!cloudRequest");
-    expect(recordingHook).toContain("!canRecordCloudAudio()");
-    expect(recordingHook).toContain('invoke("speech_stop")');
+    expect(captureService).toContain("speechToTextModelId: string");
+    expect(captureService).toContain("apiKeys: Partial<Record<ProviderId, string | null>>");
+    expect(captureService).toContain("startNativeRecognition");
+    expect(captureService).toContain("unavailableRequestId");
+    expect(captureService).toContain("canRecordCloudAudio()");
+    expect(captureService).toContain('invoke("speech_stop")');
     expect(listeners).toContain('listen<VoiceCaptureNativeResult>("cmdspace:speech-result"');
-    expect(recordingHook).not.toContain("webkitSpeechRecognition");
+    expect(captureService).not.toContain("webkitSpeechRecognition");
     expect(voiceAgent).toContain("speechToTextModelId");
     expect(voiceAgent).toContain("apiKeys,");
     expect(speechToText).toContain('formData.append("language", request.language)');
     expect(voiceAgent).toContain("captureVocabulary");
-    expect(recordingHook).toContain("developerVocabulary");
+    expect(captureService).toContain("developerVocabulary");
+    expect(voiceAgent).toContain('ownerKey: "floating"');
   });
 
   it("falls back to native speech immediately and does not turn silence into a draft", () => {
-    const recordingHook = readFileSync(
-      path.join(here, "../hooks/useWhisperRecording.ts"),
+    const captureModel = readFileSync(
+      path.join(here, "../lib/voiceCaptureModel.ts"),
+      "utf8",
+    );
+    const captureService = readFileSync(
+      path.join(here, "../lib/voiceCaptureService.ts"),
       "utf8",
     );
 
-    expect(recordingHook).toContain("hasDetectedVoiceActivity");
-    expect(recordingHook).toContain("No speech was detected. Try again.");
-    expect(recordingHook).toContain("void startNativeRecognition();");
+    expect(captureModel).toContain("hasDetectedVoiceActivity");
+    expect(captureModel).toContain("No speech was detected. Try again.");
+    expect(captureService).toContain("startNativeRecognition: () => invoke(\"speech_start\")");
   });
 
   it("uses the Paseo-style explicit cancel or confirm flow instead of auto-stopping", () => {

@@ -104,6 +104,7 @@ export function AgentChatWorkspace({
   });
   const agent = CLI_AGENT_BY_ID[provider];
   const voiceRecorder = useWhisperRecording({
+    ownerKey: `agent-chat:${chatId}`,
     onResult: (transcript) => {
       setDraft((current) => appendVoiceTranscript(current, transcript));
     },

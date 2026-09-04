@@ -1,6 +1,10 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
-import type { FloatingVoiceAgentHandle } from "@/modules/ai/components/FloatingVoiceAgent";
+import type {
+  FloatingVoiceAgentHandle,
+  SpeechInputTarget,
+} from "@/modules/ai/components/FloatingVoiceAgent";
+import { useHoldOptionToTalk } from "@/modules/ai/hooks/useHoldOptionToTalk";
 import {
   EMPTY_PROVIDER_KEYS,
   type ProviderKeys,
@@ -884,6 +888,17 @@ export default function App() {
   const toggleVoiceAgent = useCallback(() => {
     voiceAgentRef.current?.toggle();
   }, []);
+  const startVoiceAgent = useCallback((target: SpeechInputTarget) => {
+    return voiceAgentRef.current?.start(target);
+  }, []);
+  const stopVoiceAgent = useCallback(() => {
+    voiceAgentRef.current?.stop();
+  }, []);
+  useHoldOptionToTalk({
+    captureTarget: captureVoiceTarget,
+    start: startVoiceAgent,
+    stop: stopVoiceAgent,
+  });
 
   useAppWindowEvents({
     onNewTab: openNewTab,

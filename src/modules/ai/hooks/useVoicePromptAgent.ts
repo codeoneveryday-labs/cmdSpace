@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { ProviderKeys } from "../lib/keyring";
 import {
+  NO_ACTIVE_VOICE_TARGET_MESSAGE,
   resolveVoiceTranscriptInsertion,
   type SpeechInputTarget,
 } from "../lib/voiceTranscriptInsertionModel";
@@ -79,28 +80,38 @@ export function useSpeechToTextInput({
   );
 
   const recorder = useWhisperRecording({
+    ownerKey: "floating",
     onResult: handleTranscript,
     onError: setError,
     speechToTextModelId,
     apiKeys,
   });
 
-  const toggle = useCallback(async () => {
-    if (recorder.recording) {
-      recorder.stop();
-      return;
-    }
+  const start = useCallback(async (targetOverride?: SpeechInputTarget) => {
     if (recorder.transcribing || phase === "inserting") return;
     if (!recorder.supported) {
       setError("Voice recording is not supported in this window.");
       return;
     }
-    targetRef.current = captureTarget();
+    const target = targetOverride ?? captureTarget();
+    if (!target) {
+      setError(NO_ACTIVE_VOICE_TARGET_MESSAGE);
+      return;
+    }
+    targetRef.current = target;
     if (clearTimerRef.current !== null) window.clearTimeout(clearTimerRef.current);
     setPhase("idle");
     setMessage(null);
     await recorder.start(await captureVocabulary());
   }, [captureTarget, captureVocabulary, phase, recorder, setError]);
+
+  const toggle = useCallback(async () => {
+    if (recorder.recording) {
+      recorder.stop();
+      return;
+    }
+    await start();
+  }, [recorder, start]);
 
   useEffect(() => {
     return () => {
@@ -114,5 +125,13 @@ export function useSpeechToTextInput({
       ? "transcribing"
       : phase;
 
-  return { status, message, toggle, audioLevel: recorder.audioLevel };
+  return {
+    status,
+    message,
+    toggle,
+    start,
+    stop: recorder.stop,
+    busyElsewhere: recorder.busyElsewhere,
+    audioLevel: recorder.audioLevel,
+  };
 }
