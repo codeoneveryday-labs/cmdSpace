@@ -222,15 +222,17 @@ describe("TerminalAgentPermissionPill", () => {
     expect(isDarkTerminalAgent("claude")).toBe(false);
   });
 
-  it("configures opencode with models, skills, and thinking, with models/skills auto-submitting and thinking non-submitting", async () => {
+  it("configures opencode with models, variants, skills, and thinking, with menu commands auto-submitting and thinking non-submitting", async () => {
     const opencodeProfile = getCliAgentControlProfile("opencode");
     expect(opencodeProfile.permissions.map((p) => p.id)).toEqual([
       "models",
+      "variants",
       "skills",
       "thinking",
     ]);
 
     expect(opencodeProfile.permissions.find((p) => p.id === "models")?.command).toBe("/models\r");
+    expect(opencodeProfile.permissions.find((p) => p.id === "variants")?.command).toBe("/variants\r");
     expect(opencodeProfile.permissions.find((p) => p.id === "skills")?.command).toBe("/skills\r");
 
     // models auto-submits with 2-step Enter (selection + submission)
@@ -246,6 +248,13 @@ describe("TerminalAgentPermissionPill", () => {
     expect(skillsWritten).toEqual(["/skills\r"]);
     await new Promise((resolve) => setTimeout(resolve, 70));
     expect(skillsWritten).toEqual(["/skills\r", "\r"]);
+
+    // variants auto-submits with 2-step Enter (selection + submission)
+    const variantsWritten: string[] = [];
+    executeAgentCommand("opencode", "/variants\r", (data) => variantsWritten.push(data));
+    expect(variantsWritten).toEqual(["/variants\r"]);
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    expect(variantsWritten).toEqual(["/variants\r", "\r"]);
 
     // thinking does not auto-submit
     const thinkingWritten: string[] = [];
