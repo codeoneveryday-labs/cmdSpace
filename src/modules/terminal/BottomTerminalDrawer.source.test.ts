@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const source = readFileSync(path.join(here, "BottomTerminalDrawer.tsx"), "utf8");
+const appSource = readFileSync(path.join(here, "../../app/App.tsx"), "utf8");
+const workspaceTerminalViewSource = readFileSync(
+  path.join(here, "../../app/lib/useAppWorkspaceTerminalView.ts"),
+  "utf8",
+);
 const resizeSource = readFileSync(
   path.join(here, "useBottomTerminalResize.ts"),
   "utf8",
@@ -67,9 +72,10 @@ describe("BottomTerminalDrawer", () => {
     expect(drawerInteractionSource).toContain('className="absolute inset-0"');
   });
 
-  it("shows the active workspace coding-agent count in the drawer header", () => {
-    expect(source).toContain("codingAgentCount: number");
-    expect(source).toContain("Coding agents");
-    expect(source).toContain("codingAgentCount");
+  it("does not show a workspace coding-agent count in the drawer header", () => {
+    expect(source).not.toContain("codingAgentCount");
+    expect(source).not.toContain("Coding agents");
+    expect(appSource).not.toContain("activeWorkspaceCodingAgentCount");
+    expect(workspaceTerminalViewSource).not.toContain("countActiveCodingAgents");
   });
 });
