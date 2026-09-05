@@ -15,5 +15,7 @@ describe("useAppWindowEvents contract", () => {
     expect(source).toContain("unlisten.then((dispose) => dispose())");
     expect(source).toContain('listen("cmdspace:exit-requested"');
     expect(source).toContain('invoke("app_exit_flush_complete"');
+    expect(source).toContain('listen("cmdspace:open-files"');
+    expect(source).toContain('invoke<string[]>("drain_open_files")');
   });
 });

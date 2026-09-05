@@ -281,6 +281,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building application");
     app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Opened { urls } = &event {
+            window_commands::queue_open_urls(app, urls);
+        }
         if let tauri::RunEvent::ExitRequested { api, .. } = event {
             if !app.state::<app_exit::ExitCoordinator>().is_exiting() {
                 api.prevent_exit();

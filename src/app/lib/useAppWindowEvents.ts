@@ -6,13 +6,37 @@ export function useAppWindowEvents({
   onNewTab,
   onOpenShortcuts,
   onMaximizePane,
+  onOpenFile,
   onBeforeClose,
 }: {
   onNewTab: () => void;
   onOpenShortcuts: () => void;
   onMaximizePane: () => void;
+  onOpenFile: (path: string) => void;
   onBeforeClose?: () => void | Promise<void>;
 }): void {
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const drainOpenFiles = async () => {
+      const paths = await invoke<string[]>("drain_open_files");
+      if (!disposed) paths.forEach(onOpenFile);
+    };
+    void listen("cmdspace:open-files", () => void drainOpenFiles()).then(
+      (dispose) => {
+        if (disposed) dispose();
+        else {
+          unlisten = dispose;
+          void drainOpenFiles();
+        }
+      },
+    );
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [onOpenFile]);
+
   useEffect(() => {
     const unlisten = listen("cmdspace:new-tab", onNewTab);
     return () => {
