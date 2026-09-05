@@ -18,6 +18,12 @@ describe("CLI Agents settings", () => {
     expect(settingsApp).toContain("CliAgentsSection");
     expect(settingsApp).not.toContain('from "./sections/AgentsSection"');
     expect(section).toContain('invoke<boolean[]>("check_agent_clis"');
+    expect(section).toContain("checkInstalledCliAgents");
+    expect(section).toContain("forceRefresh");
+    expect(section).toContain("Refresh");
+    expect(section).toContain("mountedRef.current");
+    expect(section).toContain('aria-label="Checking CLI availability"');
+    expect(section).toContain("animate-pulse");
     expect(section).toContain("Search CLI agents");
     expect(section).toContain("Not installed");
     expect(section).toContain("Install instructions");

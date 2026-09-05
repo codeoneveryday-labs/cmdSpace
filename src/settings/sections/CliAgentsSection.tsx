@@ -22,8 +22,9 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
+import { checkInstalledCliAgents } from "./cliAgentScan";
 
 type ScanState = "scanning" | "ready" | "error";
 
@@ -35,6 +36,8 @@ export function CliAgentsSection() {
   const [query, setQuery] = useState("");
   const [installedIds, setInstalledIds] = useState<Set<CliAgent>>(new Set());
   const [scanState, setScanState] = useState<ScanState>("scanning");
+  const mountedRef = useRef(true);
+  const scanVersionRef = useRef(0);
 
   const configuredEntries = useMemo(() => {
     const configured = new Set(configuredIds);
@@ -46,30 +49,44 @@ export function CliAgentsSection() {
   );
   const disabled = useMemo(() => new Set(disabledIds), [disabledIds]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const scanAgents = useCallback(async (forceRefresh = false) => {
+    const scanVersion = ++scanVersionRef.current;
     const names = CLI_AGENT_CATALOG.map(({ executable }) => executable);
     setScanState("scanning");
-    invoke<boolean[]>("check_agent_clis", { names, workspace: null })
-      .then((present) => {
-        if (cancelled) return;
-        setInstalledIds(
-          new Set(
-            CLI_AGENT_CATALOG.filter((_, index) => present[index]).map(
-              ({ id }) => id,
-            ),
+    try {
+      const present = await checkInstalledCliAgents(
+        names,
+        (agentNames) =>
+          invoke<boolean[]>("check_agent_clis", {
+            names: agentNames,
+            workspace: null,
+          }),
+        forceRefresh,
+      );
+      if (!mountedRef.current || scanVersion !== scanVersionRef.current) return;
+      setInstalledIds(
+        new Set(
+          CLI_AGENT_CATALOG.filter((_, index) => present[index]).map(
+            ({ id }) => id,
           ),
-        );
-        setScanState("ready");
-      })
-      .catch((error) => {
-        console.error("Failed to check installed agent CLIs:", error);
-        if (!cancelled) setScanState("error");
-      });
-    return () => {
-      cancelled = true;
-    };
+        ),
+      );
+      setScanState("ready");
+    } catch (error) {
+      console.error("Failed to check installed agent CLIs:", error);
+      if (mountedRef.current && scanVersion === scanVersionRef.current) {
+        setScanState("error");
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void scanAgents();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [scanAgents]);
 
   const addAgent = async (id: CliAgent) => {
     const nextConfigured = normalizeCliAgentIds([...configuredIds, id]);
@@ -101,9 +118,20 @@ export function CliAgentsSection() {
               Enabled agents appear in Workspace Setup.
             </p>
           </div>
-          <span className="text-[10.5px] text-muted-foreground">
-            {configuredEntries.length} configured
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10.5px] text-muted-foreground">
+              {configuredEntries.length} configured
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={scanState === "scanning"}
+              onClick={() => void scanAgents(true)}
+            >
+              {scanState === "scanning" ? "Checking…" : "Refresh"}
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-lg border border-border/60 bg-card/40">
@@ -207,11 +235,20 @@ function ConfiguredAgentRow({
           <span className="truncate text-[12.5px] font-medium">
             {entry.name}
           </span>
-          <span className="text-[10px] text-muted-foreground">·</span>
-          <span className={cn("size-1.5 shrink-0 rounded-full", status.dot)} />
-          <span className="truncate text-[10.5px] text-muted-foreground">
-            {status.label}
-          </span>
+          {scanState === "scanning" ? (
+            <span
+              aria-label="Checking CLI availability"
+              className="ml-1 h-3 w-14 shrink-0 animate-pulse rounded-full bg-muted"
+            />
+          ) : (
+            <>
+              <span className="text-[10px] text-muted-foreground">·</span>
+              <span className={cn("size-1.5 shrink-0 rounded-full", status.dot)} />
+              <span className="truncate text-[10.5px] text-muted-foreground">
+                {status.label}
+              </span>
+            </>
+          )}
         </div>
         <div className="mt-0.5 flex min-w-0 items-center gap-2">
           <code className="truncate font-mono text-[9.5px] text-muted-foreground/80">
