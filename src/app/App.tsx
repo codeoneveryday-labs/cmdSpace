@@ -901,6 +901,7 @@ export default function App() {
     onNewTab: openNewTab,
     onOpenShortcuts: openShortcuts,
     onMaximizePane: maximizeActivePane,
+    onOpenFile: openFileTab,
     onBeforeClose: async () => {
       setSavingWorkspaceSessions(true);
       await waitForNextPaint();

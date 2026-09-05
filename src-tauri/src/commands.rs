@@ -87,6 +87,7 @@ macro_rules! cmdspace_commands {
             // Window surfaces
             app_exit::app_exit_flush_complete,
             window_commands::get_launch_dir,
+            window_commands::drain_open_files,
             window_commands::open_settings_window,
             window_commands::hide_workspace_switcher,
             window_commands::open_workspace_from_tray,

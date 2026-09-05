@@ -18,6 +18,8 @@ use tauri::State;
 pub(crate) use desktop_blur::desktop_blur_collection_behavior;
 pub(crate) use desktop_blur::DesktopBlurState;
 
+#[cfg(target_os = "macos")]
+pub(crate) use launch::queue_open_urls;
 pub(crate) use launch::{parse_launch_dir, LaunchDir};
 #[cfg(target_os = "macos")]
 pub(crate) use workspace_switcher::setup_workspace_tray;
@@ -27,6 +29,14 @@ pub(crate) use workspace_switcher::{workspace_switcher_position, WorkspaceSwitch
 #[tauri::command]
 pub(crate) fn get_launch_dir(state: State<'_, LaunchDir>) -> Option<String> {
     launch::get_launch_dir(state)
+}
+
+#[tauri::command]
+pub(crate) fn drain_open_files(
+    state: State<'_, LaunchDir>,
+    registry: State<'_, crate::modules::workspace::WorkspaceRegistry>,
+) -> Vec<String> {
+    launch::drain_open_files(state, registry)
 }
 
 #[tauri::command]

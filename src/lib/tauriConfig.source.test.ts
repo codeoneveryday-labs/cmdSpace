@@ -8,6 +8,9 @@ function readTauriConfig(name: string) {
   return JSON.parse(
     readFileSync(path.join(root, "src-tauri", name), "utf8"),
   ) as {
+    bundle?: {
+      fileAssociations?: Array<{ ext: string[]; role?: string }>;
+    };
     app: {
       security?: { csp?: string };
       windows: Array<{ title?: string }>;
@@ -27,5 +30,18 @@ describe("Tauri platform configuration", () => {
     const base = readTauriConfig("tauri.conf.json");
 
     expect(base.app.security?.csp).toContain("media-src 'self' data: blob:");
+  });
+
+  it("registers cmdSpace as an editor for supported text files", () => {
+    const base = readTauriConfig("tauri.conf.json");
+    const association = base.bundle?.fileAssociations?.[0];
+
+    expect(association?.role).toBe("Editor");
+    expect(association?.ext).toEqual(
+      expect.arrayContaining([
+        "txt", "md", "json", "js", "mjs", "cjs", "ts", "tsx", "mts", "cts",
+        "rs", "py", "rb", "go", "swift", "kt", "cs", "vue", "svelte",
+      ]),
+    );
   });
 });

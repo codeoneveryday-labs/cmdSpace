@@ -36,6 +36,14 @@
     "resources": {
       "../dist": "remote-ui"
     },
+    "fileAssociations": [
+      {
+        "ext": ["txt", "md", "markdown", "json", "jsonc", "js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts", "css", "scss", "html", "htm", "xml", "yaml", "yml", "toml", "rs", "py", "rb", "go", "java", "kt", "kts", "swift", "cs", "c", "h", "cpp", "hpp", "php", "vue", "svelte", "sh", "bash", "zsh", "fish", "sql", "env", "conf", "ini", "log"],
+        "name": "Text and source code",
+        "description": "Open text and source code files in cmdSpace",
+        "role": "Editor"
+      }
+    ],
     "copyright": "Copyright 2026 tranhoangpich",
     "license": "Apache-2.0",
     "publisher": "tranhoangpich",
