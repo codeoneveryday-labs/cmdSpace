@@ -148,6 +148,26 @@ describe("GeneralSection terminal settings", () => {
     expect(source).not.toContain("Generate new pairing code");
   });
 
+  it("uses the same fixed size for web and mobile pairing QR popovers", () => {
+    const hub = readFileSync(remoteHubPath, "utf8");
+    const remoteQrPopovers = hub.match(/<PopoverContent align="end" className="[^"]+">/g) ?? [];
+
+    expect(remoteQrPopovers).toHaveLength(2);
+    expect(new Set(remoteQrPopovers)).toEqual(
+      new Set(['<PopoverContent align="end" className="w-96 rounded-2xl p-4">']),
+    );
+  });
+
+  it("uses platform-neutral copy for native mobile pairing", () => {
+    const hub = readFileSync(remoteHubPath, "utf8");
+
+    expect(hub).toContain("Pair mobile device");
+    expect(hub).toContain("Native mobile device access.");
+    expect(hub).toContain("Scan to pair mobile device");
+    expect(hub).not.toContain("Native iPhone and iPad access.");
+    expect(hub).not.toContain("Scan to pair native device");
+  });
+
   it("shows localhost.run lifecycle and preserves the LAN fallback URL", () => {
     const source = readFileSync(generalSectionPath, "utf8");
     const hub = readFileSync(remoteHubPath, "utf8");
