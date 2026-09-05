@@ -476,10 +476,7 @@ export default function App() {
   const requestedLeaves = useAgentResponseRequestedLeaves();
   const blockedLeaves = useAgentBlockedLeaves();
   const completedLeaves = useAgentCompletedLeaves();
-  const {
-    activeWorkspaceCodingAgentCount,
-    activeWorkspaceTerminals,
-  } = useAppWorkspaceTerminalView({
+  const { activeWorkspaceTerminals } = useAppWorkspaceTerminalView({
     activeTab,
     activeLeafId,
     agentCommands,
@@ -1230,7 +1227,6 @@ export default function App() {
         <BottomTerminalDrawer
           ref={bottomTerminalRef}
           cwd={bottomTerminalCwd}
-          codingAgentCount={activeWorkspaceCodingAgentCount}
           onClose={() => setBottomTerminalOpen(false)}
         />
       </div>

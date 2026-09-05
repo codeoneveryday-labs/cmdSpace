@@ -1,10 +1,7 @@
 import { useMemo } from "react";
 import type { Tab } from "@/modules/tabs";
 import type { WorkspaceTerminalItem } from "@/modules/workspaces";
-import {
-  buildActiveTerminalItems,
-  countActiveCodingAgents,
-} from "./workspaceItemsModel";
+import { buildActiveTerminalItems } from "./workspaceItemsModel";
 
 export function useAppWorkspaceTerminalView({
   activeTab,
@@ -25,15 +22,10 @@ export function useAppWorkspaceTerminalView({
   completedLeaves: ReadonlySet<number>;
   closePaneByLeaf: (leafId: number) => void;
 }): {
-  activeWorkspaceCodingAgentCount: number;
   activeWorkspaceTerminals: WorkspaceTerminalItem[];
 } {
   const activeTerminalTab =
     activeTab?.kind === "terminal" ? activeTab : undefined;
-  const activeWorkspaceCodingAgentCount = countActiveCodingAgents(
-    activeTerminalTab,
-    agentCommands,
-  );
   const activeWorkspaceTerminals = useMemo(
     () =>
       buildActiveTerminalItems({
@@ -59,7 +51,6 @@ export function useAppWorkspaceTerminalView({
   );
 
   return {
-    activeWorkspaceCodingAgentCount,
     activeWorkspaceTerminals,
   };
 }

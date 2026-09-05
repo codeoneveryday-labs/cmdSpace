@@ -7,11 +7,10 @@ const source = readFileSync(
 );
 
 describe("useAppWorkspaceTerminalView contract", () => {
-  it("derives live terminal rows and coding-agent count from one view seam", () => {
+  it("derives live terminal rows from one view seam", () => {
     expect(source).toContain("useAppWorkspaceTerminalView");
     expect(source).toContain("buildActiveTerminalItems");
-    expect(source).toContain("countActiveCodingAgents");
     expect(source).toContain("activeWorkspaceTerminals");
-    expect(source).toContain("activeWorkspaceCodingAgentCount");
+    expect(source).not.toContain("countActiveCodingAgents");
   });
 });
