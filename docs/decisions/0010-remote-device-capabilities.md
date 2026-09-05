@@ -47,10 +47,12 @@ P0 has one active native device controller per terminal. A second device that
 tries to attach receives `session_occupied`. An explicit user-approved takeover
 operation can be added later; concurrent input is not an allowed fallback.
 
-The host lists paired devices with display name and revocation state. Revoking
-a device invalidates its future signed reconnects without affecting unrelated
-native devices or existing browser/password sessions. Active-session eviction
-and last-seen metadata are a follow-up once the iOS client exists.
+The host lists paired devices with a display name and a short identity
+fingerprint. Revoking a device removes its identity from the durable registry,
+invalidates its future signed reconnects, and requires a new QR pairing before
+it can reconnect. This does not affect unrelated native devices or existing
+browser/password sessions. Active-session eviction and last-seen metadata are a
+follow-up once the iOS client exists.
 
 Existing website Remote Access remains on protocol v2 and its password/token
 flow. Native device pairing is protocol v3. Both use the same desktop Remote
