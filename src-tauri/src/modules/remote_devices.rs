@@ -115,24 +115,38 @@ impl DeviceRegistry {
     }
 
     pub fn load_or_create(path: &Path, grant_key: [u8; 32]) -> Result<Self, DeviceRegistryError> {
-        let devices = if path.exists() {
-            let text = fs::read_to_string(path)
-                .map_err(|error| DeviceRegistryError::Storage(error.to_string()))?;
-            serde_json::from_str::<StoredRegistry>(&text)
-                .map_err(|error| DeviceRegistryError::Storage(error.to_string()))?
-                .devices
-                .into_iter()
-                .filter(|device| device.revoked_at.is_none())
-                .collect()
-        } else {
-            Vec::new()
-        };
-        Ok(Self {
+        let registry = Self {
             grant_key,
             grants: Vec::new(),
-            devices,
+            devices: if path.exists() {
+                let text = fs::read_to_string(path)
+                    .map_err(|error| DeviceRegistryError::Storage(error.to_string()))?;
+                let stored = serde_json::from_str::<StoredRegistry>(&text)
+                    .map_err(|error| DeviceRegistryError::Storage(error.to_string()))?
+                    .devices;
+                let device_count = stored.len();
+                let devices: Vec<_> = stored
+                    .into_iter()
+                    .filter(|device| device.revoked_at.is_none())
+                    .collect();
+                if devices.len() != device_count {
+                    // Persist migration so stale revoked credentials do not return
+                    // after a later restart without another registry mutation.
+                    let registry = Self {
+                        grant_key,
+                        grants: Vec::new(),
+                        devices: devices.clone(),
+                        path: Some(path.to_path_buf()),
+                    };
+                    registry.save()?;
+                }
+                devices
+            } else {
+                Vec::new()
+            },
             path: Some(path.to_path_buf()),
-        })
+        };
+        Ok(registry)
     }
 
     pub fn issue_grant(

@@ -147,6 +147,7 @@ fn loading_a_legacy_registry_drops_revoked_devices() {
     let registry = DeviceRegistry::load_or_create(&path, [3_u8; 32]).unwrap();
 
     assert!(registry.devices().is_empty());
+    assert_eq!(std::fs::read_to_string(path).unwrap(), r#"{"devices":[]}"#);
 }
 
 #[test]
