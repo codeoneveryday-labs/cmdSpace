@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use tauri::{Emitter, Manager, State};
+use tauri::State;
+#[cfg(target_os = "macos")]
+use tauri::{Emitter, Manager};
 
 #[derive(Default)]
 pub(crate) struct LaunchTargets {
@@ -42,6 +44,9 @@ pub(crate) fn parse_launch_dir() -> LaunchTargets {
     parse_launch_targets(std::env::args().skip(1))
 }
 
+/// macOS delivers Open With / `open -a` selections through `RunEvent::Opened`;
+/// other platforms only pass launch arguments, which `parse_launch_dir` covers.
+#[cfg(target_os = "macos")]
 pub(crate) fn queue_open_urls(app: &tauri::AppHandle, urls: &[tauri::Url]) {
     let files: Vec<_> = urls
         .iter()
@@ -91,6 +96,7 @@ fn parse_launch_targets(args: impl IntoIterator<Item = String>) -> LaunchTargets
     targets
 }
 
+#[cfg(target_os = "macos")]
 fn canonical_file(path: PathBuf) -> Option<PathBuf> {
     std::fs::canonicalize(path)
         .ok()

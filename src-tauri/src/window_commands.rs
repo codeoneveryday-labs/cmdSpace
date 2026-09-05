@@ -18,7 +18,9 @@ use tauri::State;
 pub(crate) use desktop_blur::desktop_blur_collection_behavior;
 pub(crate) use desktop_blur::DesktopBlurState;
 
-pub(crate) use launch::{parse_launch_dir, queue_open_urls, LaunchDir};
+#[cfg(target_os = "macos")]
+pub(crate) use launch::queue_open_urls;
+pub(crate) use launch::{parse_launch_dir, LaunchDir};
 #[cfg(target_os = "macos")]
 pub(crate) use workspace_switcher::setup_workspace_tray;
 #[cfg(all(test, target_os = "macos"))]
