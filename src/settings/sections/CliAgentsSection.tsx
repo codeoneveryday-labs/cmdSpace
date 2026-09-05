@@ -37,6 +37,7 @@ export function CliAgentsSection() {
   const [installedIds, setInstalledIds] = useState<Set<CliAgent>>(new Set());
   const [scanState, setScanState] = useState<ScanState>("scanning");
   const mountedRef = useRef(true);
+  const scanVersionRef = useRef(0);
 
   const configuredEntries = useMemo(() => {
     const configured = new Set(configuredIds);
@@ -49,6 +50,7 @@ export function CliAgentsSection() {
   const disabled = useMemo(() => new Set(disabledIds), [disabledIds]);
 
   const scanAgents = useCallback(async (forceRefresh = false) => {
+    const scanVersion = ++scanVersionRef.current;
     const names = CLI_AGENT_CATALOG.map(({ executable }) => executable);
     setScanState("scanning");
     try {
@@ -61,7 +63,7 @@ export function CliAgentsSection() {
           }),
         forceRefresh,
       );
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || scanVersion !== scanVersionRef.current) return;
       setInstalledIds(
         new Set(
           CLI_AGENT_CATALOG.filter((_, index) => present[index]).map(
@@ -72,7 +74,9 @@ export function CliAgentsSection() {
       setScanState("ready");
     } catch (error) {
       console.error("Failed to check installed agent CLIs:", error);
-      if (mountedRef.current) setScanState("error");
+      if (mountedRef.current && scanVersion === scanVersionRef.current) {
+        setScanState("error");
+      }
     }
   }, []);
 

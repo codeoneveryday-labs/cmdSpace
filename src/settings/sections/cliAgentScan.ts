@@ -3,6 +3,7 @@ type CliAgentScanner = (names: readonly string[]) => Promise<boolean[]>;
 let cachedNames: string | null = null;
 let cachedResult: boolean[] | null = null;
 let pendingScan: Promise<boolean[]> | null = null;
+let activeScanId = 0;
 
 export function checkInstalledCliAgents(
   names: readonly string[],
@@ -17,15 +18,20 @@ export function checkInstalledCliAgents(
 
   cachedNames = namesKey;
   cachedResult = null;
+  const scanId = ++activeScanId;
   const request = scan(names).then(
     (result) => {
-      cachedResult = result;
-      pendingScan = null;
+      if (scanId === activeScanId) {
+        cachedResult = result;
+        pendingScan = null;
+      }
       return result;
     },
     (error) => {
-      cachedNames = null;
-      pendingScan = null;
+      if (scanId === activeScanId) {
+        cachedNames = null;
+        pendingScan = null;
+      }
       throw error;
     },
   );
@@ -37,4 +43,5 @@ export function resetCliAgentScanCacheForTests(): void {
   cachedNames = null;
   cachedResult = null;
   pendingScan = null;
+  activeScanId = 0;
 }

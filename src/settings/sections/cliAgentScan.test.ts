@@ -54,6 +54,35 @@ describe("CLI agent scan cache", () => {
     expect(scan).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the refreshed result when an older scan resolves later", async () => {
+    let resolveFirst: (value: boolean[]) => void = () => undefined;
+    let resolveSecond: (value: boolean[]) => void = () => undefined;
+    const scan = vi
+      .fn()
+      .mockImplementationOnce(
+        () => new Promise<boolean[]>((resolve) => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockImplementationOnce(
+        () => new Promise<boolean[]>((resolve) => {
+          resolveSecond = resolve;
+        }),
+      );
+
+    const first = checkInstalledCliAgents(["claude"], scan);
+    const refreshed = checkInstalledCliAgents(["claude"], scan, true);
+    resolveSecond([true]);
+    await refreshed;
+    resolveFirst([false]);
+    await first;
+
+    await expect(checkInstalledCliAgents(["claude"], scan)).resolves.toEqual([
+      true,
+    ]);
+    expect(scan).toHaveBeenCalledTimes(2);
+  });
+
   it("does not cache failed scans", async () => {
     const scan = vi
       .fn()
