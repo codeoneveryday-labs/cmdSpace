@@ -121,6 +121,9 @@ impl DeviceRegistry {
             serde_json::from_str::<StoredRegistry>(&text)
                 .map_err(|error| DeviceRegistryError::Storage(error.to_string()))?
                 .devices
+                .into_iter()
+                .filter(|device| device.revoked_at.is_none())
+                .collect()
         } else {
             Vec::new()
         };
@@ -222,12 +225,12 @@ impl DeviceRegistry {
     }
 
     pub fn revoke(&mut self, device_id: &str, now: u64) -> Result<(), DeviceRegistryError> {
-        let device = self
-            .devices
-            .iter_mut()
-            .find(|device| device.id == device_id)
-            .ok_or(DeviceRegistryError::UnknownDevice)?;
-        device.revoked_at = Some(now);
+        let _ = now;
+        let before = self.devices.len();
+        self.devices.retain(|device| device.id != device_id);
+        if self.devices.len() == before {
+            return Err(DeviceRegistryError::UnknownDevice);
+        }
         Ok(())
     }
 

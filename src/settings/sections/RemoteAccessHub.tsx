@@ -16,6 +16,7 @@ import type {
   RemotePairedDeviceStatus,
   RemoteTunnelState,
 } from "@/modules/settings/remoteAccess";
+import { groupRemoteDevices } from "./remoteDeviceGroups";
 import {
   CheckmarkCircle01Icon,
   Copy01Icon,
@@ -134,6 +135,7 @@ export function RemoteAccessHub({
   onResetPassword,
 }: RemoteAccessHubProps) {
   const activeDevices = devices.filter((device) => !device.revoked);
+  const deviceGroups = groupRemoteDevices(activeDevices);
   const ready = enabled && tunnelState === "ready" && Boolean(publicUrl);
   const statusTone =
     tunnelState === "ready"
@@ -174,7 +176,7 @@ export function RemoteAccessHub({
       {!enabled ? (
         <div className="border-t border-border/50 bg-background/40 px-4 py-3 text-[10.5px] text-muted-foreground">
           Turn on Remote access to create a secure public connection and pair
-          native devices.
+          mobile devices.
         </div>
       ) : (
         <div className="border-t border-border/50">
@@ -215,7 +217,7 @@ export function RemoteAccessHub({
                       Show QR
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent align="end" className="w-auto rounded-2xl p-4">
+                  <PopoverContent align="end" className="w-96 rounded-2xl p-4">
                     <QrPanel
                       value={setupQrUrl}
                       label="Scan to connect"
@@ -252,7 +254,7 @@ export function RemoteAccessHub({
                   </span>
                 </div>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  Native iPhone and iPad access.
+                  Native mobile device access.
                 </p>
               </div>
               <Popover
@@ -266,15 +268,15 @@ export function RemoteAccessHub({
                     disabled={!publicUrl || pairingBusy}
                     className="h-8 rounded-lg border border-border/55 bg-background px-3 text-[10.5px] font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    {pairingBusy ? "Preparing…" : "Pair device"}
+                    {pairingBusy ? "Preparing…" : "Pair mobile device"}
                   </button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-auto rounded-2xl p-4">
+                <PopoverContent align="end" className="w-96 rounded-2xl p-4">
                   {pairing && pairingUrl ? (
                     <div className="space-y-3">
                       <QrPanel
                         value={pairingUrl}
-                        label="Scan to pair native device"
+                        label="Scan to pair mobile device"
                         description="One-time pairing QR. It expires after 10 minutes and grants terminal access to this runtime only."
                       />
                       <button
@@ -296,38 +298,41 @@ export function RemoteAccessHub({
             </div>
 
             <div className="mt-3 overflow-hidden rounded-lg border border-border/50 bg-background/45">
-              {devices.length > 0 ? (
-                devices.map((device, index) => (
-                  <div
-                    key={device.id}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5",
-                      index > 0 && "border-t border-border/50",
-                    )}
-                  >
-                    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-                      <HugeiconsIcon icon={SmartPhone01Icon} size={14} strokeWidth={1.75} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[10.5px] font-medium text-foreground">
-                        {device.displayName}
-                      </p>
-                      <p className="truncate font-mono text-[9.5px] text-muted-foreground">
-                        {shortDeviceId(device.id)}
-                      </p>
-                    </div>
-                    {device.revoked ? (
-                      <span className="text-[9.5px] text-muted-foreground">
-                        Revoked
+              {deviceGroups.length > 0 ? (
+                deviceGroups.flatMap((group, groupIndex) =>
+                  group.devices.map((device, deviceIndex) => (
+                    <div
+                      key={device.id}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5",
+                        groupIndex > 0 && deviceIndex === 0 && "border-t border-border/50",
+                      )}
+                    >
+                      <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                        <HugeiconsIcon icon={SmartPhone01Icon} size={14} strokeWidth={1.75} />
                       </span>
-                    ) : (
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-[10.5px] font-medium text-foreground">
+                            {deviceIndex === 0 ? group.displayName : "Identity"}
+                          </p>
+                          {deviceIndex === 0 && group.devices.length > 1 ? (
+                            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] tabular-nums text-muted-foreground">
+                              {group.devices.length} identities
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="truncate font-mono text-[9.5px] text-muted-foreground">
+                          {shortDeviceId(device.id)}
+                        </p>
+                      </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button
                             type="button"
                             disabled={pairingBusy}
                             className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-45"
-                            aria-label={`Manage ${device.displayName}`}
+                            aria-label={`Manage ${device.displayName} identity ${shortDeviceId(device.id)}`}
                           >
                             <HugeiconsIcon icon={MoreHorizontalIcon} size={15} strokeWidth={1.8} />
                           </button>
@@ -341,12 +346,12 @@ export function RemoteAccessHub({
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    )}
-                  </div>
-                ))
+                    </div>
+                  )),
+                )
               ) : (
                 <div className="px-3 py-3 text-[10.5px] text-muted-foreground">
-                  No native devices paired yet.
+                  No mobile devices paired yet.
                 </div>
               )}
             </div>

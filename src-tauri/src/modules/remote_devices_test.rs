@@ -96,12 +96,12 @@ fn revoking_one_device_preserves_another_devices_authority() {
 
     registry.revoke(&device_a.id, 1_040).unwrap();
 
-    assert!(registry.device(&device_a.id).unwrap().revoked_at.is_some());
+    assert!(registry.device(&device_a.id).is_none());
     assert!(registry.device(&device_b.id).unwrap().revoked_at.is_none());
 }
 
 #[test]
-fn device_revocation_survives_registry_reload() {
+fn revoking_a_device_removes_it_from_the_persisted_registry() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("remote-devices.json");
     let mut registry = DeviceRegistry::load_or_create(&path, [3_u8; 32]).unwrap();
@@ -114,7 +114,39 @@ fn device_revocation_survives_registry_reload() {
 
     let restored = DeviceRegistry::load_or_create(&path, [3_u8; 32]).unwrap();
 
-    assert_eq!(restored.device(&device.id).unwrap().revoked_at, Some(1_040));
+    assert!(restored.device(&device.id).is_none());
+}
+
+#[test]
+fn device_removal_survives_registry_reload() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("remote-devices.json");
+    let mut registry = DeviceRegistry::load_or_create(&path, [3_u8; 32]).unwrap();
+    let (grant, signature, key) = issue_signed_grant(&mut registry, "Boji iPhone", [1_u8; 32]);
+    let device = registry
+        .consume_grant_with_proof(&grant, key, signature, 1_030)
+        .unwrap();
+    registry.revoke(&device.id, 1_040).unwrap();
+    registry.save().unwrap();
+
+    let restored = DeviceRegistry::load_or_create(&path, [3_u8; 32]).unwrap();
+
+    assert!(restored.device(&device.id).is_none());
+}
+
+#[test]
+fn loading_a_legacy_registry_drops_revoked_devices() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("remote-devices.json");
+    std::fs::write(
+        &path,
+        r#"{"devices":[{"id":"old-phone","display_name":"Old phone","public_key":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"capability":{"workspace_id":"remote-runtime","terminal_policy":"AnyOwnedSession","can_view":true,"can_input":true,"can_create_terminal":true,"can_close_terminal":true},"revoked_at":1040}]}"#,
+    )
+    .unwrap();
+
+    let registry = DeviceRegistry::load_or_create(&path, [3_u8; 32]).unwrap();
+
+    assert!(registry.devices().is_empty());
 }
 
 #[test]
@@ -142,7 +174,7 @@ fn capability_blocks_input_outside_the_granted_session() {
 }
 
 #[test]
-fn revoked_device_cannot_complete_a_signed_reconnect_challenge() {
+fn removed_device_cannot_complete_a_signed_reconnect_challenge() {
     let mut registry = DeviceRegistry::new_for_test([5_u8; 32]);
     let (grant, signature, key) = issue_signed_grant(&mut registry, "Boji iPhone", [7_u8; 32]);
     let device = registry
