@@ -3,15 +3,38 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.7.104] - 2026-09-05
+
+### Added
+
+- Added project-directory workspace grouping with aggregate and per-workspace
+  terminal counts, CLI-agent logos, collapse/expand, and draggable groups.
+- Added unified target-bound voice capture for Floating Voice and Agent Chat,
+  including safe Option hold-to-talk, Fish Audio ASR, and native macOS dev
+  speech support.
+
+### Changed
+
+- Moved terminal headers into layout flow so terminal content starts directly
+  below the header without a spacer gap.
+- Isolated agent usage to the pane's native session, split provider scanners
+  into focused modules, normalized legacy OMP launches, and added OpenCode
+  `/variants` support.
 
 ### Removed
 
-- Removed the in-app browser: sidebar Browser view, local dev-server
-  preview tabs, canvas browser nodes, and the native webview layer with
-  its floating-UI avoidance registry. Saved canvas diagrams drop legacy
-  browser nodes on load. Use the system browser instead; external URLs
-  open via the OS opener.
+- Removed the in-app browser: sidebar Browser view, local dev-server preview
+  tabs, canvas browser nodes, and the native webview layer with its floating-UI
+  avoidance registry. Saved canvas diagrams drop legacy browser nodes on load.
+  Use the system browser instead; external URLs open via the OS opener.
+
+### Known limitations
+
+- Native voice still depends on OS microphone permissions; cloud STT requires a
+  configured provider key.
+- Context percentages depend on locally available provider session logs; when a
+  provider does not expose usable token counts, the badge remains hidden.
+- CLI agents still require their own local installation and credentials.
 
 ## [0.7.103] - 2026-09-03
 
