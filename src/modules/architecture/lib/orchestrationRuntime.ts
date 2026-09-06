@@ -103,6 +103,38 @@ export type OrchestrationMemoryIndexReport = {
   skippedUnchanged: number;
 };
 
+export type OrchestrationBreakerLevel =
+  | "healthy"
+  | "steering"
+  | "constrained"
+  | "stopped";
+
+export type OrchestrationBreakerAction = "none" | "steer" | "constrain" | "stop";
+
+export type OrchestrationBreakerSample = {
+  input: number;
+  output: number;
+  errors: number;
+  repeatKey?: string | null;
+};
+
+export type OrchestrationBreakerInput = {
+  agentId: string;
+  sample?: OrchestrationBreakerSample | null;
+  progressing: boolean;
+};
+
+export type OrchestrationBreakerDecision = {
+  state: {
+    agentId: string;
+    level: OrchestrationBreakerLevel;
+    reason: string;
+    ts: number;
+  };
+  action: OrchestrationBreakerAction;
+  changed: boolean;
+};
+
 export type OrchestrationSpawnRequest = {
   objective: string;
   cwd?: string | null;
@@ -259,6 +291,18 @@ export function createOrchestrationRuntime(
         runId,
         query,
         limit,
+      });
+    },
+    breakerTick(runId: string, input: OrchestrationBreakerInput) {
+      return invoke<OrchestrationBreakerDecision>("orchestration_breaker_tick", {
+        runId,
+        input,
+      });
+    },
+    breakerLevel(runId: string, agentId: string) {
+      return invoke<OrchestrationBreakerLevel>("orchestration_breaker_level", {
+        runId,
+        agentId,
       });
     },
     listSpawnRequests(runId: string) {

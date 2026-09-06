@@ -44,6 +44,8 @@ macro_rules! cmdspace_commands {
             orchestration::commands::orchestration_wake_note_hook,
             orchestration::commands::orchestration_wake_decide,
             orchestration::commands::orchestration_wake_forget,
+            orchestration::commands::orchestration_breaker_tick,
+            orchestration::commands::orchestration_breaker_level,
             orchestration::commands::orchestration_resolve_launch,
             orchestration::commands::orchestration_agent_identity,
             orchestration::commands::orchestration_memory_reindex,

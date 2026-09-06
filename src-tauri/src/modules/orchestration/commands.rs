@@ -1,7 +1,7 @@
 use super::{
-    hive_files, hook_drain, launch, mailbox, memory, now_ms, protocol, router, spawn_queue, wake,
-    OrchestrationEvent, OrchestrationEventType, OrchestrationManifest, OrchestrationRun,
-    OrchestrationRuntime,
+    breaker, hive_files, hook_drain, launch, mailbox, memory, now_ms, protocol, router,
+    spawn_queue, wake, OrchestrationEvent, OrchestrationEventType, OrchestrationManifest,
+    OrchestrationRun, OrchestrationRuntime,
 };
 use crate::modules::agent_chat::{events::AgentChatEvent, AgentChatRuntime};
 use crate::modules::db::{
@@ -744,6 +744,42 @@ pub fn orchestration_wake_forget(
     pty_id: Option<String>,
 ) -> Result<(), String> {
     runtime.wake_forget(agent_id.trim(), pty_id.as_deref())
+}
+
+#[tauri::command]
+pub fn orchestration_breaker_tick(
+    runtime: tauri::State<'_, OrchestrationRuntime>,
+    db: tauri::State<'_, DbState>,
+    run_id: String,
+    input: breaker::BreakerInput,
+) -> Result<breaker::BreakerDecision, String> {
+    let decision = runtime.breaker_tick(run_id.trim(), input.clone())?;
+    if decision.action != breaker::BreakerAction::None {
+        let run = runtime.snapshot(run_id.trim())?;
+        record_event(
+            &runtime,
+            &db,
+            &run.id,
+            None,
+            OrchestrationEventType::TaskActivity,
+            serde_json::json!({
+                "breaker": format!("{:?}", decision.action).to_lowercase(),
+                "agent": decision.state.agent_id,
+                "level": format!("{:?}", decision.state.level).to_lowercase(),
+                "reason": decision.state.reason,
+            }),
+        )?;
+    }
+    Ok(decision)
+}
+
+#[tauri::command]
+pub fn orchestration_breaker_level(
+    runtime: tauri::State<'_, OrchestrationRuntime>,
+    run_id: String,
+    agent_id: String,
+) -> Result<breaker::BreakerLevel, String> {
+    runtime.breaker_level(run_id.trim(), agent_id.trim())
 }
 
 /// Resolve a worker launch line into an executable + argv triple without
