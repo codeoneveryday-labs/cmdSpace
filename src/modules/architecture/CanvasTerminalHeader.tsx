@@ -12,7 +12,7 @@ import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { AgentStateDot } from "@/modules/terminal/AgentStateDot";
 import { TerminalAgentSwitcher } from "@/modules/terminal/TerminalAgentSwitcher";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
-import { taskStatusDot } from "../lib/orchestrationTaskStatus";
+import { taskStatusDot } from "./lib/orchestrationTaskStatus";
 
 type StackTab = {
   id: string;

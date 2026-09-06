@@ -119,13 +119,7 @@ mod tests {
     use std::fs;
 
     fn temp_dir() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "cmdspace-spawn-test-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_nanos())
-                .unwrap_or_default()
-        ));
+        let dir = super::mailbox::temp_test_dir("cmdspace-spawn-test");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("temp dir");
         dir

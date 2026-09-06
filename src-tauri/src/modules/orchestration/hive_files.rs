@@ -423,6 +423,7 @@ mod tests {
         let contents = fs::read_to_string(root.join("board.md")).expect("board");
         assert!(contents.contains("Hand-written plan."));
         assert!(contents.contains("Run status:"));
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

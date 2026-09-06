@@ -24,4 +24,10 @@ describe("ArchitectureCanvas orchestration surface", () => {
     expect(source).toContain("OrchestrationMailOverlay");
     expect(source).toContain("mailFlights");
   });
+
+  it("builds a task status map from the run snapshot for worker terminals", () => {
+    expect(source).toContain("orchestrationTaskStatuses");
+    expect(source).toContain("orchestration.run?.tasks");
+    expect(source).toContain("taskStatuses: orchestrationTaskStatuses");
+  });
 });

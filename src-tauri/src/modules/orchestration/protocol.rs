@@ -325,7 +325,8 @@ mod tests {
     fn ensure_writes_identity_file() {
         let run = run();
         let run_id = format!(
-            "protocol-test-{}",
+            "protocol-test-{}-{}",
+            std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|duration| duration.as_nanos())

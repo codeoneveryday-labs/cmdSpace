@@ -65,6 +65,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -195,6 +196,13 @@ export function ArchitectureCanvas({
     orchestrationProvider,
     onRunIdChange: setOrchestrationRunId,
   });
+  const orchestrationTaskStatuses = useMemo(
+    () =>
+      new Map(
+        (orchestration.run?.tasks ?? []).map((task) => [task.taskId, task.status]),
+      ),
+    [orchestration.run],
+  );
 
   useCanvasDiagramPersistence({
     tabId,

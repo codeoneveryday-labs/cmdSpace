@@ -16,4 +16,11 @@ describe("Canvas orchestrator terminal", () => {
     expect(terminalSource).toContain("border-violet-400");
     expect(headerSource).toContain("ORCHESTRATOR");
   });
+
+  it("passes task status down to the terminal header dot", () => {
+    expect(terminalSource).toContain("taskStatus");
+    expect(terminalSource).toContain("taskStatus={taskStatus}");
+    expect(headerSource).toContain("taskStatusDot(taskStatus)");
+    expect(headerSource).toContain("AgentStateDot");
+  });
 });
