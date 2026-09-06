@@ -18,6 +18,7 @@ describe("WorkspaceList contract", () => {
     expect(source).toContain("aria-expanded={groupExpanded}");
     expect(source).toContain("onSelectWorkspace");
     expect(source).toContain("onDragStart");
+    expect(source).toContain("h-9 w-full items-center");
     expect(source).not.toContain("WorkspaceTerminalList");
     expect(source).not.toContain("expandedWorkspaceIds");
     expect(source).not.toContain("onSelectTerminal");

@@ -135,13 +135,13 @@ export function WorkspaceList({
                     <div
                       key="group-drag-placeholder"
                       aria-hidden="true"
-                      className="h-8 shrink-0 rounded-md border border-dashed border-primary/40 bg-primary/5"
+                      className="h-9 shrink-0 rounded-md border border-dashed border-primary/40 bg-primary/5"
                       style={{ height: groupDragVisual.height }}
                     />,
                   ]
                 : [];
             const header = (
-              <div className="flex w-full items-center gap-1.5 px-1">
+              <div className="flex h-9 w-full items-center gap-1.5 rounded-md px-1">
                 <button
                   type="button"
                   aria-label={`Reorder ${group.label} directory`}
@@ -151,7 +151,7 @@ export function WorkspaceList({
                     onGroupDragStart(group.id, event);
                   }}
                   onClick={(event) => event.stopPropagation()}
-                  className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:cursor-grabbing"
+                  className="flex size-9 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 active:cursor-grabbing"
                 >
                   <HugeiconsIcon
                     icon={DragDropVerticalIcon}
@@ -163,7 +163,7 @@ export function WorkspaceList({
                   type="button"
                   aria-expanded={groupExpanded}
                   onClick={() => toggleGroupExpanded(group.id)}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-left text-[11px] font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 text-left text-[11px] font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                 >
                   <HugeiconsIcon
                     icon={ArrowDown01Icon}
