@@ -32,7 +32,8 @@ describe("workspaceCreationModel", () => {
       orchestrationProvider: "codex",
       orchestrationRunId: null,
     });
-    expect(plan.canvasDiagram?.nodes).toHaveLength(1);
+    expect(plan.canvasDiagram?.nodes).toHaveLength(3);
+    expect(plan.canvasDiagram?.nodes.filter((node) => node.kind === "terminal")).toHaveLength(2);
     expect(plan.paneLaunchPlan).toBeUndefined();
   });
 

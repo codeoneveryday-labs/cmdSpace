@@ -124,7 +124,7 @@ export function OrchestrationCanvasPanel({
       const proposalSession = await proposalRuntimeRef.current!.start({
         provider,
         cwd: workspaceCwd,
-        prompt: proposalPrompt(goal),
+        prompt: proposalPrompt(goal, provider),
         chatId: `orchestration-proposal-${Date.now().toString(36)}`,
         nativeSessionId: null,
       });
@@ -549,8 +549,8 @@ export function OrchestrationCanvasPanel({
   );
 }
 
-function proposalPrompt(goal: string): string {
-  return `You are the Canvas Orchestrator. Propose a small, dependency-valid coding-agent graph for this goal. Return exactly one JSON manifest inside <cmdspace-orchestration> and </cmdspace-orchestration>. The manifest must use version 1, one orchestrator provider, one or more agents using only codex, claude, or cmd, and tasks with id, title, instructions, assigneeId, dependsOn, writeAccess, doneWhen, and validationCommands. Do not start work or call tools. Goal: ${goal.trim()}`;
+function proposalPrompt(goal: string, provider: OrchestrationProvider): string {
+  return `You are the Canvas Orchestrator CLI agent. Propose a small, dependency-valid coding-agent graph for this goal. Return exactly one JSON object inside <cmdspace-orchestration> and </cmdspace-orchestration>, with no Markdown, comments, JSON Schema, or wrapper object. The top-level object must have version: 1, title: a string, goal: a string, orchestrator: { provider: "${provider}" }, agents: an array, and tasks: an array. Every task must have id, title, instructions, assigneeId, dependsOn, writeAccess, doneWhen, and validationCommands. Use only codex, claude, or cmd providers. Do not start work or call tools. Goal: ${goal.trim()}`;
 }
 
 function workerPrompt(

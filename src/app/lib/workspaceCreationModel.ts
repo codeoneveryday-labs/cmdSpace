@@ -70,7 +70,12 @@ export function resolveWorkspaceCreationPlan({
     canvasDiagram:
       workspaceMode === "canvas"
         ? canvasPurpose === "orchestration"
-          ? createOrchestrationCanvasDiagram(orchestratorProvider)
+          ? createOrchestrationCanvasDiagram(
+              orchestratorProvider,
+              terminalCount,
+              effectiveWorkingFolder,
+              initialCommands,
+            )
           : buildCanvasWorkspaceDiagram(
             terminalCount,
             effectiveWorkingFolder,

@@ -40,7 +40,7 @@ const manifest: OrchestrationManifestV1 = {
 
 describe("orchestrationCanvasModel", () => {
   it("creates an orchestration template with a distinct orchestrator node", () => {
-    const diagram = createOrchestrationCanvasDiagram("codex");
+    const diagram = createOrchestrationCanvasDiagram("codex", 2, "/repo");
 
     expect(diagram).toMatchObject({
       canvasPurpose: "orchestration",
@@ -48,15 +48,14 @@ describe("orchestrationCanvasModel", () => {
       orchestrationRunId: null,
       edges: [],
     });
-    expect(diagram.nodes).toEqual([
-      expect.objectContaining({
-        id: "orchestration:orchestrator",
-        kind: "orchestrator",
-        label: "Orchestrator",
-        technology: "Codex",
-        orchestration: { kind: "orchestrator", entityId: "orchestrator" },
-      }),
-    ]);
+    expect(diagram.nodes.filter((node) => node.kind === "terminal")).toHaveLength(2);
+    expect(diagram.nodes[0]).toMatchObject({
+      id: "orchestration:orchestrator",
+      kind: "orchestrator",
+      label: "Orchestrator",
+      technology: "Codex",
+      orchestration: { kind: "orchestrator", entityId: "orchestrator" },
+    });
   });
 
   it("projects approved agents, tasks, assignments, and dependencies deterministically", () => {

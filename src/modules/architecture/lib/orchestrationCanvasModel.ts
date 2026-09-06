@@ -5,7 +5,25 @@ const ORCHESTRATION_PREFIX = "orchestration:";
 
 export function createOrchestrationCanvasDiagram(
   provider: OrchestrationProvider,
+  terminalCount = 0,
+  workingFolder: string | null = null,
+  initialCommands: string[] = [],
 ): ArchitectureDiagram {
+  const terminalNodes = Array.from({ length: terminalCount }, (_, index) => ({
+    id: `workspace-terminal-${index + 1}`,
+    kind: "terminal" as const,
+    label: `Terminal ${index + 1}`,
+    technology: "",
+    x: 96 + (index % 2) * 668,
+    y: 280 + Math.floor(index / 2) * 448,
+    width: 620,
+    height: 400,
+    ...(workingFolder ? { cwd: workingFolder } : {}),
+    ...(initialCommands[index]
+      ? { initialCommand: initialCommands[index] }
+      : {}),
+    terminalChromeVersion: 2 as const,
+  }));
   return {
     canvasPurpose: "orchestration",
     orchestrationProvider: provider,
@@ -22,6 +40,7 @@ export function createOrchestrationCanvasDiagram(
         height: 96,
         orchestration: { kind: "orchestrator", entityId: "orchestrator" },
       },
+      ...terminalNodes,
     ],
     edges: [],
   };

@@ -410,7 +410,9 @@ export function WorkspaceSetupLayoutStep({
               </section>
 
               {workspaceMode !== "agent" &&
-              (workspaceMode !== "canvas" || canvasPurpose === "architecture") ? (
+              (workspaceMode !== "canvas" ||
+                canvasPurpose === "architecture" ||
+                canvasPurpose === "orchestration") ? (
                 <>
               <section className="space-y-3">
                 <div className="flex items-baseline gap-2">

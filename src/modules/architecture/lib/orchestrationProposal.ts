@@ -37,12 +37,19 @@ function parseManifest(value: unknown): OrchestrationManifestV1 {
   const record = asRecord(value, "Orchestrator manifest must be an object");
   return {
     version: numberAt(record, "version"),
-    title: stringAt(record, "title"),
+    title: displayTitle(record),
     goal: stringAt(record, "goal"),
     orchestrator: parseOrchestrator(asRecord(record.orchestrator, "Orchestrator is required")),
     agents: arrayAt(record, "agents").map((agent) => parseAgent(asRecord(agent, "Agent must be an object"))),
     tasks: arrayAt(record, "tasks").map((task) => parseTask(asRecord(task, "Task must be an object"))),
   } as OrchestrationManifestV1;
+}
+
+function displayTitle(record: Record<string, unknown>): string {
+  if (typeof record.title === "string" && record.title.trim()) {
+    return record.title;
+  }
+  return stringAt(record, "goal");
 }
 
 function parseOrchestrator(record: Record<string, unknown>) {

@@ -27,4 +27,12 @@ describe("extractOrchestrationProposal", () => {
       ),
     ).toMatchObject({ title: "Ship" });
   });
+
+  it("normalizes a provider proposal that omits the display title", () => {
+    const proposal = extractOrchestrationProposal(`<cmdspace-orchestration>
+{"version":1,"goal":"Say hello","orchestrator":{"provider":"codex"},"agents":[{"id":"builder","name":"Builder","role":"Implementation","provider":"codex"}],"tasks":[{"id":"hello","title":"Hello","instructions":"Say hello","assigneeId":"builder","dependsOn":[],"writeAccess":false,"doneWhen":"Report hello","validationCommands":[]}]}
+</cmdspace-orchestration>`);
+
+    expect(proposal.title).toBe("Say hello");
+  });
 });
