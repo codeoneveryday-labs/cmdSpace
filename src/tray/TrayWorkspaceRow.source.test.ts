@@ -18,5 +18,8 @@ describe("TrayWorkspaceRow", () => {
     expect(source).toContain('role="option"');
     expect(source).toContain("min-w-0 flex-1 truncate");
     expect(source).toContain("title={terminal.label}");
+    expect(source).toContain("getWorkspaceModeIcon");
+    expect(source).toContain("borderColor: workspace.accentColor");
+    expect(source).not.toContain("color: workspace.accentColor");
   });
 });

@@ -1,14 +1,10 @@
 import { cn } from "@/lib/utils";
 import { truncateMiddle } from "@/lib/truncateMiddle";
-import {
-  AiChat01Icon,
-  ArrowDown01Icon,
-  CanvasIcon,
-  ComputerTerminal02Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, CommandLineIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { detectCliAgent, type CliAgent } from "@/modules/terminal/lib/cliAgents";
+import { getWorkspaceModeIcon } from "@/modules/workspaces/workspaceModeIcons";
 import type { TrayTerminal, TrayWorkspace } from "./workspaces";
 
 export function TrayWorkspaceRow({
@@ -28,7 +24,7 @@ export function TrayWorkspaceRow({
   onOpenTerminal?: (terminal: TrayTerminal, paneIndex: number) => void;
   onHover: () => void;
 }) {
-  const canvas = workspace.workspaceMode === "canvas";
+  const workspaceMode = workspace.workspaceMode ?? "standard";
   const primaryAgent =
     (workspace.agentProvider as CliAgent | undefined) ||
     (workspace.terminals?.length === 1
@@ -66,14 +62,14 @@ export function TrayWorkspaceRow({
           />
         </span>
         <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background shadow-sm ring-1 ring-border/70"
-          style={{ color: workspace.accentColor ?? undefined }}
+          className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-foreground shadow-sm ring-1 ring-border/70"
+          style={{ borderColor: workspace.accentColor ?? undefined }}
         >
           {primaryAgent ? (
             <AgentCliIcon agent={primaryAgent} size="md" />
           ) : (
             <HugeiconsIcon
-              icon={canvas ? CanvasIcon : workspace.workspaceMode === "agent" ? AiChat01Icon : ComputerTerminal02Icon}
+              icon={getWorkspaceModeIcon(workspaceMode)}
               size={18}
               strokeWidth={1.8}
             />
@@ -118,7 +114,7 @@ export function TrayWorkspaceRow({
                   <AgentCliIcon agent={agent} size="md" className="shrink-0" />
                 ) : (
                   <HugeiconsIcon
-                    icon={ComputerTerminal02Icon}
+                    icon={CommandLineIcon}
                     size={14}
                     strokeWidth={1.8}
                     className="shrink-0"
@@ -146,4 +142,3 @@ function workspaceSubtitle(workspace: TrayWorkspace): string {
     ? "Canvas workspace"
     : "Terminal workspace";
 }
-

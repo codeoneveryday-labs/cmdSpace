@@ -5,14 +5,12 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
-  AiChat01Icon,
-  CanvasIcon,
-  ComputerTerminal02Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 import type { WorkspaceItem } from "./WorkspacesPanel";
+import { getWorkspaceModeIcon } from "./workspaceModeIcons";
 
 export const WORKSPACE_ACCENT_COLORS = [
   "#10B981",
@@ -56,7 +54,7 @@ export function WorkspaceModeIcon({ workspace }: { workspace: WorkspaceItem }) {
       className="flex size-4 shrink-0 items-center justify-center text-muted-foreground/80"
     >
       <HugeiconsIcon
-        icon={canvas ? CanvasIcon : agent ? AiChat01Icon : ComputerTerminal02Icon}
+        icon={getWorkspaceModeIcon(canvas ? "canvas" : agent ? "agent" : "standard")}
         size={13}
         strokeWidth={1.9}
       />

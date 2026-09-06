@@ -64,6 +64,7 @@ describe("WorkspacesPanel", () => {
       readFileSync(path.join(here, "WorkspaceList.tsx"), "utf8"),
       readFileSync(path.join(here, "WorkspaceRow.tsx"), "utf8"),
       readFileSync(path.join(here, "WorkspaceRowPrimitives.tsx"), "utf8"),
+      readFileSync(path.join(here, "workspaceModeIcons.ts"), "utf8"),
       readFileSync(path.join(here, "WorkspaceSetupView.tsx"), "utf8"),
       readFileSync(path.join(here, "WorkspaceSetupLayoutStep.tsx"), "utf8"),
       readFileSync(path.join(here, "WorkspaceAgentSelectionGrid.tsx"), "utf8"),
@@ -173,8 +174,10 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("WorkspaceModeIcon");
     expect(panelSource).toContain('workspace.workspaceMode === "canvas"');
     expect(panelSource).toContain('workspace.workspaceMode === "agent"');
-    expect(panelSource).toContain("CanvasIcon");
-    expect(panelSource).toContain("ComputerTerminal02Icon");
+    expect(panelSource).toContain("WORKSPACE_MODE_ICONS");
+    expect(panelSource).toContain("CommandLineIcon");
+    expect(panelSource).toContain("WorkflowSquare07Icon");
+    expect(panelSource).toContain("AiGenerativeIcon");
     expect(panelSource).toContain("Canvas workspace");
     expect(panelSource).toContain("Standard terminal workspace");
     expect(panelSource).toContain(
