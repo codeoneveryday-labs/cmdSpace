@@ -9,7 +9,7 @@ const source = readFileSync(
 describe("OrchestrationCanvasPanel contract", () => {
   it("keeps draft, approval, and runtime attachment controls inside Canvas", () => {
     expect(source).toContain("Agent orchestration");
-    expect(source).toContain("Create draft");
+    expect(source).toContain("Start boss & create draft");
     expect(source).toContain("Approve & Run");
     expect(source).toContain("createOrchestrationRuntime");
     expect(source).toContain("applyManifestToOrchestrationDiagram");
@@ -27,5 +27,8 @@ describe("OrchestrationCanvasPanel contract", () => {
     expect(source).toContain("WORKER");
     expect(source).toContain("selectedTeamMember");
     expect(source).toContain("Team roster");
+    expect(source).toContain("Orchestrator CLI agent");
+    expect(source).toContain("CLI session active");
+    expect(source).not.toContain('id="orchestration-provider"');
   });
 });
