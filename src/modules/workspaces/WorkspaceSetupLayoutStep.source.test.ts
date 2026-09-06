@@ -21,5 +21,8 @@ describe("WorkspaceSetupLayoutStep contract", () => {
     expect(source).toContain("resolveFolderCommand");
     expect(source).not.toContain("invoke<");
     expect(source).not.toContain("db_save_workspace");
+    expect(source.indexOf("Workspace mode")).toBeLessThan(
+      source.indexOf("Canvas template"),
+    );
   });
 });
