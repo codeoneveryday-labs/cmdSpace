@@ -168,6 +168,22 @@ describe("FloatingVoiceAgent", () => {
     );
   });
 
+  it("opens macOS microphone settings when the system permission was denied", () => {
+    const component = readFileSync(
+      path.join(here, "FloatingVoiceAgent.tsx"),
+      "utf8",
+    );
+    const voiceAgent = readFileSync(
+      path.join(here, "../hooks/useVoicePromptAgent.ts"),
+      "utf8",
+    );
+
+    expect(component).toContain("Open microphone settings");
+    expect(component).toContain('"Allow microphone"');
+    expect(voiceAgent).toContain("isMicrophonePermissionError(message)");
+    expect(voiceAgent).toContain("openUrl(MACOS_MICROPHONE_SETTINGS_URL)");
+  });
+
   it("keeps long status messages inside the floating voice pill", () => {
     const component = readFileSync(
       path.join(here, "FloatingVoiceAgent.tsx"),
