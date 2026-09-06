@@ -1,5 +1,5 @@
 use super::{
-    hive_files, launch, mailbox, memory, now_ms, protocol, router, spawn_queue, wake,
+    hive_files, hook_drain, launch, mailbox, memory, now_ms, protocol, router, spawn_queue, wake,
     OrchestrationEvent, OrchestrationEventType, OrchestrationManifest, OrchestrationRun,
     OrchestrationRuntime,
 };
@@ -665,6 +665,44 @@ fn deliver_pending_mail(run: &OrchestrationRun) -> Result<router::RouteReport, S
     });
     report.skipped.extend(failed);
     Ok(report)
+}
+
+#[tauri::command]
+pub fn orchestration_hook_drain(
+    runtime: tauri::State<'_, OrchestrationRuntime>,
+    db: tauri::State<'_, DbState>,
+    run_id: String,
+    agent_id: String,
+    kind: hook_drain::HookKind,
+    message: Option<String>,
+) -> Result<hook_drain::DrainDecision, String> {
+    let event = hook_drain::HookEvent {
+        run_id: run_id.trim().to_string(),
+        agent_id: agent_id.trim().to_string(),
+        kind,
+        message,
+    };
+    let decision = runtime.handle_stop_hook(&event)?;
+    if matches!(decision, hook_drain::DrainDecision::RouteThenBlock { .. }) {
+        let run = runtime.snapshot(&event.run_id)?;
+        let report = deliver_pending_mail(&run)?;
+        record_event(
+            &runtime,
+            &db,
+            &run.id,
+            None,
+            OrchestrationEventType::TaskActivity,
+            serde_json::json!({
+                "mail": "stop-drain",
+                "agent": event.agent_id,
+                "delivered": report.delivered.len(),
+            }),
+        )?;
+        return Ok(hook_drain::DrainDecision::RouteThenBlock {
+            delivered: report.delivered.len() as u32,
+        });
+    }
+    Ok(decision)
 }
 
 #[tauri::command]

@@ -39,6 +39,7 @@ macro_rules! cmdspace_commands {
             orchestration::commands::orchestration_mail_unread,
             orchestration::commands::orchestration_mail_ack,
             orchestration::commands::orchestration_mail_route,
+            orchestration::commands::orchestration_hook_drain,
             orchestration::commands::orchestration_wake_note_spawn,
             orchestration::commands::orchestration_wake_note_hook,
             orchestration::commands::orchestration_wake_decide,

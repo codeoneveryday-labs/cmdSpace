@@ -9,6 +9,7 @@ use tauri::ipc::Channel;
 
 pub mod commands;
 pub(crate) mod hive_files;
+pub(crate) mod hook_drain;
 pub(crate) mod launch;
 pub(crate) mod mailbox;
 pub(crate) mod memory;
@@ -968,6 +969,30 @@ impl OrchestrationRuntime {
                 nudge: wake::WAKE_NUDGE.to_string(),
             })
             .collect())
+    }
+
+    pub fn handle_stop_hook(
+        &self,
+        event: &hook_drain::HookEvent,
+    ) -> Result<hook_drain::DrainDecision, String> {
+        let run = self.snapshot(&event.run_id)?;
+        let is_orchestrator = event.agent_id == mailbox::ORCHESTRATOR_ID;
+        if is_orchestrator || event.kind == hook_drain::HookKind::Notification {
+            return Ok(hook_drain::decide(
+                event,
+                0,
+                is_orchestrator,
+                wake::WAKE_NUDGE,
+            ));
+        }
+        let root = mailbox::mailbox_root(&run.id)?;
+        let (unread, _) = mailbox::unread_ids(&root, &event.agent_id);
+        Ok(hook_drain::decide(
+            event,
+            unread.len() as u32,
+            false,
+            wake::WAKE_NUDGE,
+        ))
     }
 
     pub fn record_event(

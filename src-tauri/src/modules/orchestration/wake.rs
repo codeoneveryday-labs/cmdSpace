@@ -20,9 +20,13 @@ pub const WAKE_HITL_REARM_MS: u64 = 5 * 60_000;
 pub enum HookClass {
     NeedsHuman,
     Idle,
+    Stop,
 }
 
 pub fn classify_hook(event: Option<&str>, message: Option<&str>) -> Option<HookClass> {
+    if event == Some("Stop") {
+        return Some(HookClass::Stop);
+    }
     if event != Some("Notification") {
         return None;
     }
@@ -179,7 +183,7 @@ mod tests {
             classify_hook(Some("Notification"), None),
             Some(HookClass::Idle)
         );
-        assert_eq!(classify_hook(Some("Stop"), None), None);
+        assert_eq!(classify_hook(Some("Stop"), None), Some(HookClass::Stop));
         assert_eq!(classify_hook(None, None), None);
     }
 

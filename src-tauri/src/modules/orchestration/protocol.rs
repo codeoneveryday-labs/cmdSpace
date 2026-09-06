@@ -213,6 +213,21 @@ for all). Resolve routine traffic yourself. When dispatching, use the
 four-part contract from PROTOCOL.md (objective, output, tools, boundaries).
 At most three tasks run concurrently and each agent runs at most one task —
 the scheduler enforces it, you plan within it.
+
+## Adjudicate
+
+Two agents ping-ponging the same thread (same `conversation`, growing `hops`)
+is a routing failure, not diligence: past 4 hops, read the thread, pick the
+interpretation that unblocks the task, and tell both sides what you decided.
+Never let a `request`/`query`/`propose` bounce more than 8 hops — that is the
+hard cap and your verdict must land before it.
+
+## Escalate
+
+Escalate to the human only what is genuinely critical: destructive actions,
+real spend, scope changes, unresolvable conflicts. Everything else — routine
+routing, retries, clarifications, task sequencing — you decide and record on
+`board.md` so the human reads decisions, not questions.
 "#,
         run_title = run.manifest.title,
         goal = run.manifest.goal,
@@ -315,6 +330,9 @@ mod tests {
         assert!(text.contains("ORCHESTRATE, not to implement"));
         assert!(text.contains("## Awareness"));
         assert!(text.contains("## Delegate"));
+        assert!(text.contains("## Adjudicate"));
+        assert!(text.contains("## Escalate"));
+        assert!(text.contains("8 hops"));
         assert!(text.contains("registry.json"));
         assert!(text.contains("builder"));
         assert!(text.contains("build-1"));
