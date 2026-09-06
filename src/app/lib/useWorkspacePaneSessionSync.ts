@@ -169,7 +169,6 @@ export function useWorkspacePaneSessionSync({
         );
         return resolved;
       }
-      const pending: Promise<unknown>[] = [];
       for (const [_id, timers] of workspacePaneSyncTimersRef.current.entries()) {
         for (const timer of timers) window.clearTimeout(timer);
       }
@@ -180,13 +179,15 @@ export function useWorkspacePaneSessionSync({
         workspacesRef.current,
         persistedWorkspacePanesRef.current,
       );
+      // Sync workspaces sequentially to avoid race conditions when multiple
+      // workspaces share the same cwd. Parallel sync causes session claiming
+      // races where one workspace claims sessions belonging to another.
       for (const [id, cwd] of workspaceCwds) {
         if (cwd) {
-          pending.push(syncWorkspacePaneNativeSessions(id, cwd));
+          await syncWorkspacePaneNativeSessions(id, cwd);
         }
       }
       workspacePaneSyncTimersRef.current.clear();
-      await Promise.all(pending);
       await flushPendingPaneWrites();
       await new Promise<void>((resolve) =>
         window.setTimeout(resolve, SESSION_FLUSH_SETTLE_MS),
