@@ -8,6 +8,26 @@ IME bridge keeps it correct. Read this before debugging any terminal input bug.
 There are **two** ways bytes reach the PTY, and mixing them up is the source of
 most terminal-input bugs:
 
+## Focus ownership and recovery
+
+The active pane state and the browser's actual input focus are separate pieces
+of state. A pane can still render a blinking xterm cursor while its hidden
+helper textarea is not `document.activeElement`; in that state keyboard events
+do not reach either input path.
+
+Standard terminal focus is therefore restored at every renderer boundary:
+
+- pane-body activation updates the active leaf and refocuses the hydrated
+  `TerminalPane` on the next animation frame;
+- renderer-slot unhide/rebind explicitly focuses the xterm helper textarea;
+- returning to the app window refocuses the active visible session even when it
+  already owns a renderer slot;
+- pane-header buttons and drag handles are excluded from body focus capture so
+  slash/permission controls and T/B actions retain their own focus behavior.
+
+Canvas terminals keep their private xterm/PTY focus lifecycle and do not use the
+standard renderer pool recovery path.
+
 ### Path A — xterm `onData` (control keys + everything xterm handles itself)
 
 Control keys (Backspace/DEL, arrows, Enter, Ctrl+*, Escape) do **not** go
@@ -86,10 +106,29 @@ console.warn("[ime-debug]", JSON.stringify(data), "hex=", hex);
 
 Never trust `JSON.stringify` alone — it renders C1/NBSP as plain spaces.
 
+When the cursor is visible but typing is ignored, inspect focus separately from
+pane state before investigating the PTY:
+
+```ts
+const textarea = terminal.textarea;
+console.warn("[terminal-focus]", {
+  paneFocused: session.focusedNow,
+  textareaFocused: textarea?.ownerDocument.activeElement === textarea,
+});
+```
+
+The slash/permission controls and T/B actions write through the existing
+imperative terminal handle, so they can still work while the DOM keyboard path
+is broken. That distinction rules out a dead PTY and points to focus ownership
+or the xterm input bridge.
+
 ## Related
 
 - `rendererPool.ts` — `attachCustomKeyEventHandler`, `onData`, pool lifecycle.
+- `PaneTreeView.tsx` — pane activation and control-vs-body focus boundaries.
+- `rendererSlotLifecycle.ts` — slot unhide/rebind focus restoration.
 - `macImeBridge.ts` — `normalizeMacTerminalInput`, `writeDiff`, `lastValue`.
 - `useTerminalSession.ts` — `writeToSessionPty`, `trackPromptInput`.
+- `terminalSessionRuntime.ts` — visible-session wake/focus recovery.
 - `CanvasTerminalNode.tsx` — canvas terminals own a private xterm + their own
   `attachMacImeBridge`; same normalization rules apply.
