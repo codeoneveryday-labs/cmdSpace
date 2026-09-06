@@ -1,8 +1,12 @@
 use super::events::AgentChatEvent;
-use std::{collections::VecDeque, sync::Mutex};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+};
 use tauri::ipc::Channel;
 
 pub(crate) const REPLAY_EVENT_LIMIT: usize = 128;
+pub(crate) type AgentChatEventObserver = Arc<dyn Fn(AgentChatEvent) + Send + Sync>;
 
 struct AttachState {
     generation: u64,
@@ -22,6 +26,7 @@ struct EventSinkState {
 /// sink, while preserving replay-before-live ordering for the active channel.
 pub(crate) struct AgentChatEventSink {
     state: Mutex<EventSinkState>,
+    observers: Mutex<Vec<AgentChatEventObserver>>,
 }
 
 impl AgentChatEventSink {
@@ -33,6 +38,13 @@ impl AgentChatEventSink {
                 generation: 0,
                 attach: None,
             }),
+            observers: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub(crate) fn subscribe(&self, observer: AgentChatEventObserver) {
+        if let Ok(mut observers) = self.observers.lock() {
+            observers.push(observer);
         }
     }
 
@@ -67,6 +79,14 @@ impl AgentChatEventSink {
     }
 
     pub(crate) fn send(&self, event: AgentChatEvent) {
+        let observers = self
+            .observers
+            .lock()
+            .map(|observers| observers.clone())
+            .unwrap_or_default();
+        for observer in observers {
+            observer(event.clone());
+        }
         let deliver = {
             let Ok(mut state) = self.state.lock() else {
                 return;
@@ -210,6 +230,21 @@ mod tests {
             });
         }
         assert_eq!(sink.replay_len(), REPLAY_EVENT_LIMIT);
+    }
+
+    #[test]
+    fn observers_receive_events_independently_of_the_ui_channel() {
+        use std::sync::{Arc, Mutex};
+
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let captured = Arc::clone(&observed);
+        let sink = AgentChatEventSink::new(Channel::new(|_| Ok(())));
+        sink.subscribe(Arc::new(move |event| {
+            captured.lock().unwrap().push(event);
+        }));
+        sink.send(AgentChatEvent::Done);
+
+        assert_eq!(observed.lock().unwrap().len(), 1);
     }
 
     #[test]

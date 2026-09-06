@@ -1,4 +1,5 @@
-import type { ArchitectureDiagram } from "@/modules/tabs";
+import type { ArchitectureDiagram, CanvasPurpose, OrchestrationProvider } from "@/modules/tabs";
+import { createOrchestrationCanvasDiagram } from "@/modules/architecture/lib/orchestrationCanvasModel";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import {
   DEFAULT_WORKSPACE_ACCENT_COLOR,
@@ -15,6 +16,8 @@ export function resolveWorkspaceCreationPlan({
   initialCommands = [],
   requestedName,
   workspaceMode = "standard",
+  canvasPurpose = "architecture",
+  orchestratorProvider = "codex",
   workspaceAgent,
   workspaceAgents,
   workspaces,
@@ -26,6 +29,8 @@ export function resolveWorkspaceCreationPlan({
   initialCommands?: string[];
   requestedName?: string;
   workspaceMode?: WorkspaceMode;
+  canvasPurpose?: CanvasPurpose;
+  orchestratorProvider?: OrchestrationProvider;
   workspaceAgent?: CliAgent | null;
   workspaceAgents?: CliAgent[];
   workspaces: WorkspaceRecord[];
@@ -35,7 +40,8 @@ export function resolveWorkspaceCreationPlan({
   const name = requestedName?.trim() || fallbackName;
   const effectiveWorkingFolder = workingFolder ?? inheritedCwd ?? null;
   const paneLaunchPlan =
-    initialCommands.length > 0 || workspaceMode === "canvas"
+    initialCommands.length > 0 ||
+    (workspaceMode === "canvas" && canvasPurpose === "architecture")
       ? Array.from({ length: terminalCount }, (_, paneIndex) => ({
           paneIndex,
           workingFolder: effectiveWorkingFolder,
@@ -63,11 +69,14 @@ export function resolveWorkspaceCreationPlan({
     agentProviders,
     canvasDiagram:
       workspaceMode === "canvas"
-        ? buildCanvasWorkspaceDiagram(
+        ? canvasPurpose === "orchestration"
+          ? createOrchestrationCanvasDiagram(orchestratorProvider)
+          : buildCanvasWorkspaceDiagram(
             terminalCount,
             effectiveWorkingFolder,
             initialCommands,
           )
+
         : null,
   };
 }

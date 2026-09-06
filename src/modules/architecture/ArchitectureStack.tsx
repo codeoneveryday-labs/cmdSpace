@@ -7,6 +7,7 @@ import { ArchitectureErrorBoundary } from "./ArchitectureErrorBoundary";
 type Props = {
   tabs: Tab[];
   activeId: number;
+  canvasWorkspaceByTab?: Record<number, { id: string; cwd: string | null }>;
   onDiagramChange?: (tabId: number, diagram: ArchitectureDiagram) => void;
   onTerminalHandleChange?: (
     tabId: number,
@@ -28,6 +29,7 @@ type Props = {
 export function ArchitectureStack({
   tabs,
   activeId,
+  canvasWorkspaceByTab = {},
   onDiagramChange,
   onTerminalHandleChange,
   onActiveTerminalChange,
@@ -57,6 +59,8 @@ export function ArchitectureStack({
               <ArchitectureCanvas
                 active={visible}
                 tabId={tab.id}
+                workspaceId={canvasWorkspaceByTab[tab.id]?.id ?? null}
+                workspaceCwd={canvasWorkspaceByTab[tab.id]?.cwd ?? null}
                 title={tab.title}
                 seed={tab.diagram}
                 onDiagramChange={onDiagramChange}

@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
+import type { CanvasPurpose, OrchestrationProvider } from "@/modules/tabs";
 import type { ImportableAgentSession } from "./importSessions";
 import { buildWorkspaceLaunchCommands } from "./workspaceSetupModel";
 
@@ -10,6 +11,8 @@ export function useWorkspaceSetupOpenWorkspace({
   workspaceName,
   workspaceColor,
   workspaceMode,
+  canvasPurpose,
+  orchestratorProvider,
   selectedChatAgent,
   agentCounts,
   selectedImportSessions,
@@ -27,6 +30,8 @@ export function useWorkspaceSetupOpenWorkspace({
   workspaceName: string;
   workspaceColor: string;
   workspaceMode: "standard" | "canvas" | "agent";
+  canvasPurpose: CanvasPurpose;
+  orchestratorProvider: OrchestrationProvider;
   selectedChatAgent: CliAgent | null;
   agentCounts: Record<string, number>;
   selectedImportSessions: ImportableAgentSession[];
@@ -47,6 +52,8 @@ export function useWorkspaceSetupOpenWorkspace({
     workspaceAgents?: CliAgent[],
     initialAgentDraft?: string,
     initialHistoryAttachments?: AgentChatHistoryAttachment[],
+    canvasPurpose?: CanvasPurpose,
+    orchestratorProvider?: OrchestrationProvider,
   ) => void;
   onCancel: () => void;
 }) {
@@ -56,6 +63,8 @@ export function useWorkspaceSetupOpenWorkspace({
     workspaceName,
     workspaceColor,
     workspaceMode,
+    canvasPurpose,
+    orchestratorProvider,
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
@@ -74,6 +83,8 @@ export function useWorkspaceSetupOpenWorkspace({
     workspaceName,
     workspaceColor,
     workspaceMode,
+    canvasPurpose,
+    orchestratorProvider,
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
@@ -129,6 +140,8 @@ export function useWorkspaceSetupOpenWorkspace({
           : undefined,
         initialAgentDraft,
         current.forkContext ? [current.forkContext.attachment] : undefined,
+        current.canvasPurpose,
+        current.orchestratorProvider,
       );
       current.onCancel();
     },

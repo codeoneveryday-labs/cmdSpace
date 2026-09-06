@@ -11,6 +11,10 @@ describe("WorkspaceSetupLayoutStep contract", () => {
     expect(source).toContain("export function WorkspaceSetupLayoutStep");
     expect(source).toContain("Workspace name");
     expect(source).toContain("Workspace mode");
+    expect(source).toContain("Canvas template");
+    expect(source).toContain("Architecture Canvas");
+    expect(source).toContain("Agent Orchestration");
+    expect(source).toContain("setCanvasPurpose");
     expect(source).toContain("Working folder");
     expect(source).toContain("WORKSPACE_SETUP_PRESETS");
     expect(source).toContain("setTerminalCount(preset.count)");

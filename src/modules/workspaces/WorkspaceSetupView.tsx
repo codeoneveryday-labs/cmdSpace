@@ -11,6 +11,7 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import { worktreeGroup } from "@/modules/ai/lib/agentWorktree";
 import { resolveAgentChatWorkspaceAgents } from "@/modules/ai/lib/agentChatProviders";
 import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
+import type { CanvasPurpose, OrchestrationProvider } from "@/modules/tabs";
 import type { WorkspaceItem, WorkspaceMode } from "./WorkspacesPanel";
 import {
   normalizeWorkspaceAccentColor,
@@ -64,6 +65,8 @@ export function WorkspaceSetupView({
     workspaceAgents?: CliAgent[],
     initialAgentDraft?: string,
     initialHistoryAttachments?: AgentChatHistoryAttachment[],
+    canvasPurpose?: CanvasPurpose,
+    orchestratorProvider?: OrchestrationProvider,
   ) => void;
 }) {
   const [workspaceName, setWorkspaceName] = useState(suggestedWorkspaceName);
@@ -76,6 +79,10 @@ export function WorkspaceSetupView({
     useState<(typeof TERMINAL_COUNTS)[number]>(1);
   const [workspaceMode, setWorkspaceMode] =
     useState<WorkspaceMode>(forkContext ? "agent" : "standard");
+  const [canvasPurpose, setCanvasPurpose] =
+    useState<CanvasPurpose>("architecture");
+  const [selectedOrchestratorProvider, setSelectedOrchestratorProvider] =
+    useState<OrchestrationProvider>("codex");
   const [selectedChatAgent, setSelectedChatAgent] = useState<CliAgent | null>(
     forkContext?.provider ?? null,
   );
@@ -98,6 +105,14 @@ export function WorkspaceSetupView({
     configuredCliAgentIds,
     disabledCliAgentIds,
   );
+  const orchestratorOptions = configuredAgentCliOptions
+    .filter((agent) => agent.id === "codex" || agent.id === "claude" || agent.id === "cmd")
+    .sort((left, right) => ["codex", "claude", "cmd"].indexOf(left.id) - ["codex", "claude", "cmd"].indexOf(right.id));
+  const orchestratorProvider = (orchestratorOptions.some(
+    (agent) => agent.id === selectedOrchestratorProvider,
+  )
+    ? selectedOrchestratorProvider
+    : (orchestratorOptions[0]?.id ?? "codex")) as OrchestrationProvider;
   const {
     storedAgentCommands,
     agentCommandDrafts,
@@ -189,6 +204,8 @@ export function WorkspaceSetupView({
     workspaceName,
     workspaceColor,
     workspaceMode,
+    canvasPurpose,
+    orchestratorProvider,
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
@@ -206,6 +223,10 @@ export function WorkspaceSetupView({
     setupStep,
     plannedAgentCommands,
     selectedChatAgent,
+    workspaceMode,
+    canvasPurpose,
+    selectedOrchestratorProvider: orchestratorProvider,
+    orchestratorAvailable: orchestratorOptions.length > 0,
     setSetupStep,
     openWorkspace,
     onCancel,
@@ -251,14 +272,18 @@ export function WorkspaceSetupView({
               ? "New workspace"
               : setupStep === "layout"
               ? "Set up your workspace"
-              : "Add AI coding agents"}
+              : workspaceMode === "canvas" && canvasPurpose === "orchestration"
+                ? "Choose your orchestrator"
+                : "Add AI coding agents"}
           </h1>
           <p className="max-w-xl text-sm text-muted-foreground">
             {forkContext
               ? "Fork the previous conversation into an independent agent workspace."
               : setupStep === "layout"
               ? "Pick a folder to work in and choose how many terminals you want."
-              : `Pick which agent CLIs should launch in your ${terminalCount} terminals.`}
+              : workspaceMode === "canvas" && canvasPurpose === "orchestration"
+                ? "Choose the CLI agent that will propose the graph and coordinate the workers."
+                : `Pick which agent CLIs should launch in your ${terminalCount} terminals.`}
           </p>
         </header>
 
@@ -281,6 +306,8 @@ export function WorkspaceSetupView({
               setWorkspaceColor={setWorkspaceColor}
               workspaceMode={workspaceMode}
               setWorkspaceMode={setWorkspaceMode}
+              canvasPurpose={canvasPurpose}
+              setCanvasPurpose={setCanvasPurpose}
               agentChatAgents={agentChatAgents}
               setAgentCounts={setAgentCounts}
               terminalCount={terminalCount}
@@ -319,6 +346,15 @@ export function WorkspaceSetupView({
                 setCustomCommand: handleCustomCommandChange,
                 persistCustomCommand,
               }}
+              orchestrator={
+                workspaceMode === "canvas" && canvasPurpose === "orchestration"
+                  ? {
+                      options: orchestratorOptions,
+                      selectedProvider: orchestratorProvider,
+                      onSelect: setSelectedOrchestratorProvider,
+                    }
+                  : undefined
+              }
               importDialog={{
                 open: importSessionPickerOpen,
                 onOpenChange: setImportSessionPickerOpen,
@@ -336,10 +372,12 @@ export function WorkspaceSetupView({
         <WorkspaceSetupFooter
           setupStep={setupStep}
           workspaceMode={workspaceMode}
+          canvasPurpose={canvasPurpose}
           terminalCount={terminalCount}
           plannedAgentCommands={plannedAgentCommands}
           selectedChatAgent={selectedChatAgent}
           selectedFolder={selectedFolder}
+          orchestratorAvailable={orchestratorOptions.length > 0}
           onBack={handleBack}
           onOpenWorkspace={openWorkspace}
           onPrimaryAction={handlePrimaryAction}

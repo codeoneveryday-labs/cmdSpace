@@ -5,6 +5,28 @@ import {
 } from "./architectureDiagramNormalization";
 
 describe("architectureDiagramNormalization", () => {
+  it("hydrates legacy diagrams as architecture canvases", () => {
+    expect(normalizeDiagramSeed({ nodes: [], edges: [] })).toMatchObject({
+      canvasPurpose: "architecture",
+      orchestrationRunId: null,
+    });
+  });
+
+  it("preserves orchestration canvas identity without persisting runtime state", () => {
+    expect(
+      normalizeDiagramSeed({
+        canvasPurpose: "orchestration",
+        orchestrationRunId: "run-1",
+        nodes: [],
+        edges: [],
+      }),
+    ).toMatchObject({
+      canvasPurpose: "orchestration",
+      orchestrationProvider: "codex",
+      orchestrationRunId: "run-1",
+    });
+  });
+
   it("migrates legacy narrow terminal dimensions only once", () => {
     expect(
       needsTerminalSizeMigration({

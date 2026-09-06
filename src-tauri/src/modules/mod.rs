@@ -1,4 +1,5 @@
 pub mod agent_chat;
+pub mod orchestration;
 pub mod agent_usage;
 pub mod db;
 pub mod fs;

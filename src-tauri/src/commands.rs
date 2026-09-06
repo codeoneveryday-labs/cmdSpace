@@ -17,6 +17,23 @@ macro_rules! cmdspace_commands {
             agent_chat::commands::agent_chat_load_history,
             agent_chat::commands::agent_chat_list_models,
             agent_chat::commands::agent_chat_list_slash_options,
+            // Canvas orchestration
+            orchestration::commands::orchestration_create_run,
+            orchestration::commands::orchestration_request_revision,
+            orchestration::commands::orchestration_update_draft,
+            orchestration::commands::orchestration_approve_and_start,
+            orchestration::commands::orchestration_prepare_task_worktree,
+            orchestration::commands::orchestration_complete_task,
+            orchestration::commands::orchestration_fail_task,
+            orchestration::commands::orchestration_bind_task_session,
+            orchestration::commands::orchestration_mark_interrupted,
+            orchestration::commands::orchestration_pause,
+            orchestration::commands::orchestration_resume,
+            orchestration::commands::orchestration_cancel,
+            orchestration::commands::orchestration_retry_task,
+            orchestration::commands::orchestration_snapshot,
+            orchestration::commands::orchestration_attach,
+            orchestration::commands::orchestration_detach,
             // PTY
             pty::pty_open,
             pty::pty_write,
@@ -133,6 +150,7 @@ macro_rules! cmdspace_commands {
             db::db_save_agent_chat_config,
             db::db_load_agent_model_cache,
             db::db_save_agent_model_cache,
+            db::db_load_orchestration_run,
         ]
     };
 }

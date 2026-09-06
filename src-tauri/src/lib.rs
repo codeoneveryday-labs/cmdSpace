@@ -6,7 +6,7 @@ mod modules;
 mod window_commands;
 
 use modules::{
-    agent_chat, agent_usage, db, fs, git, music, net, pty, remote, secrets, shell, sleep, speech,
+    agent_chat, agent_usage, db, fs, git, music, net, orchestration, pty, remote, secrets, shell, sleep, speech,
     workspace,
 };
 use std::sync::Mutex;
@@ -249,6 +249,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(pty::PtyState::default())
         .manage(agent_chat::AgentChatRuntime::default())
+        .manage(orchestration::OrchestrationRuntime::default())
         .manage(remote::RemoteAccessState::default())
         .manage(shell::ShellState::default())
         .manage(secrets::SecretsState::default())

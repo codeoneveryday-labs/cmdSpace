@@ -2,6 +2,12 @@ import type { ShapeKind } from "./architectureCanvasTypes";
 
 export function defaultTechnology(kind: ShapeKind): string {
   switch (kind) {
+    case "orchestrator":
+      return "Coordinator";
+    case "agent":
+      return "Coding agent";
+    case "task":
+      return "Draft task";
     case "actor":
       return "Person / client";
     case "external":

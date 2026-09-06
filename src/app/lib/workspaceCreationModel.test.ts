@@ -15,6 +15,27 @@ describe("workspaceCreationModel", () => {
     expect(diagram.nodes[2]).toMatchObject({ x: 96, y: 544 });
   });
 
+  it("creates an orchestration Canvas template without changing the workspace mode", () => {
+    const plan = resolveWorkspaceCreationPlan({
+      terminalCount: 2,
+      workingFolder: "/repo",
+      inheritedCwd: undefined,
+      initialCommands: [],
+      workspaceMode: "canvas",
+      canvasPurpose: "orchestration",
+      workspaces: [],
+    });
+
+    expect(plan.workspaceMode).toBe("canvas");
+    expect(plan.canvasDiagram).toMatchObject({
+      canvasPurpose: "orchestration",
+      orchestrationProvider: "codex",
+      orchestrationRunId: null,
+    });
+    expect(plan.canvasDiagram?.nodes).toHaveLength(1);
+    expect(plan.paneLaunchPlan).toBeUndefined();
+  });
+
   it("finds the first unused workspace name and cycles accents", () => {
     expect(nextWorkspaceName([
       { id: "workspace-01", name: "workspace-01" } as never,

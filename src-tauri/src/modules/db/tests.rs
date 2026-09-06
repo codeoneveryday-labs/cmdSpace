@@ -65,6 +65,9 @@ fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
         "workspace_setup_preferences",
         "agent_chat_configs",
         "agent_model_cache",
+        "orchestration_runs",
+        "orchestration_task_executions",
+        "orchestration_events",
         "mobile_workspaces",
         "recent_workspaces",
     ] {
@@ -73,6 +76,104 @@ fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
             "{table} should exist after schema initialization"
         );
     }
+}
+
+#[test]
+fn orchestration_run_round_trips_with_task_execution_state() {
+    use crate::modules::orchestration::{
+        AgentSpec, OrchestrationEvent, OrchestrationEventType, OrchestrationManifest,
+        OrchestrationProvider, OrchestrationRun, OrchestratorSpec, TaskSpec,
+    };
+
+    let mut conn = Connection::open_in_memory().expect("open database");
+    initialize_schema(&conn).expect("initialize schema");
+    let manifest = OrchestrationManifest {
+        version: 1,
+        title: "Canvas run".to_string(),
+        goal: "Ship it".to_string(),
+        orchestrator: OrchestratorSpec {
+            provider: OrchestrationProvider::Codex,
+            model: None,
+        },
+        agents: vec![AgentSpec {
+            id: "builder".to_string(),
+            name: "Builder".to_string(),
+            role: "Implementation".to_string(),
+            provider: OrchestrationProvider::Claude,
+            model: None,
+        }],
+        tasks: vec![TaskSpec {
+            id: "build".to_string(),
+            title: "Build".to_string(),
+            instructions: "Implement".to_string(),
+            assignee_id: "builder".to_string(),
+            depends_on: Vec::new(),
+            write_access: true,
+            done_when: "Tests pass".to_string(),
+            validation_commands: vec!["pnpm test".to_string()],
+        }],
+    };
+    let mut run = OrchestrationRun::new("run-1", "workspace-1", "/repo", manifest).unwrap();
+    run.approve_and_start(1).unwrap();
+    assert_eq!(run.admit_ready_tasks(3), vec!["build"]);
+
+    save_orchestration_run_inner(&mut conn, &run).expect("save run");
+
+    assert_eq!(
+        load_active_orchestration_runs_inner(&conn).expect("load active runs"),
+        vec![run.clone()]
+    );
+    append_orchestration_event_inner(
+        &conn,
+        &OrchestrationEvent {
+            sequence: 1,
+            run_id: "run-1".to_string(),
+            task_id: None,
+            event_type: OrchestrationEventType::RunCreated,
+            timestamp: 42,
+            payload: serde_json::json!({ "source": "test" }),
+        },
+    )
+    .expect("append event");
+    assert_eq!(
+        load_orchestration_events_inner(&conn, "run-1")
+            .expect("load event replay")
+            .len(),
+        1
+    );
+
+    assert_eq!(
+        load_orchestration_run_inner(&conn, "run-1").expect("load run"),
+        Some(run)
+    );
+    let task_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM orchestration_task_executions WHERE run_id = 'run-1'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(task_count, 1);
+}
+
+#[test]
+fn orchestration_creation_guard_accepts_canvas_and_rejects_other_workspace_modes() {
+    let conn = Connection::open_in_memory().expect("open database");
+    initialize_schema(&conn).expect("initialize schema");
+    conn.execute(
+        "INSERT INTO workspaces
+            (id, name, terminal_count, created_at, updated_at, workspace_mode)
+         VALUES ('canvas', 'Canvas', 0, 1, 1, 'canvas'),
+                ('agent', 'Agent', 0, 1, 1, 'agent')",
+        [],
+    )
+    .expect("insert workspace modes");
+
+    assert!(ensure_canvas_workspace_inner(&conn, "canvas").is_ok());
+    assert_eq!(
+        ensure_canvas_workspace_inner(&conn, "agent"),
+        Err("Orchestration is available only in Canvas workspaces".to_string())
+    );
 }
 
 #[test]
