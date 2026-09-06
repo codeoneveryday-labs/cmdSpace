@@ -343,15 +343,6 @@ export function createOrchestrationRuntime(
         agentId,
       });
     },
-    breakerBeat(runId: string, inputs: OrchestrationBreakerInput[]) {
-      return invoke<OrchestrationBreakerDecision[]>(
-        "orchestration_breaker_beat",
-        { runId, inputs },
-      );
-    },
-    finalizeRun(runId: string) {
-      return invoke<unknown>("orchestration_finalize_run", { runId });
-    },
     listSpawnRequests(runId: string) {
       return invoke<OrchestrationPendingSpawn[]>("orchestration_spawn_list", {
         runId,

@@ -1,6 +1,6 @@
 use super::{
     breaker, hive_files, hook_drain, launch, mailbox, memory, now_ms, protocol, router,
-    spawn_queue, wake, worktree, OrchestrationEvent, OrchestrationEventType, OrchestrationManifest,
+    spawn_queue, wake, OrchestrationEvent, OrchestrationEventType, OrchestrationManifest,
     OrchestrationRun, OrchestrationRuntime,
 };
 use crate::modules::agent_chat::{events::AgentChatEvent, AgentChatRuntime};
