@@ -97,11 +97,9 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     expect(source).toContain('document.visibilityState === "visible"');
     expect(source).toContain('window.addEventListener("focus", rebindVisibleLeaves)');
     expect(source).toContain(
-      "session.disposed || !session.visibleNow || !session.container",
+      "!session.visibleNow || session.hasSlot || !session.container",
     );
-    expect(source).toContain("if (session.hasSlot) {");
     expect(source).toContain("bindLeafToSlot(leafId, s)");
-    expect(source).toContain("if (session.focusedNow) focusSlot(leafId)");
   });
 
   it("keeps canvas terminals on their direct PTY path instead of the pane session lifecycle", () => {

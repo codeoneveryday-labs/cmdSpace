@@ -30,7 +30,6 @@ export function createRendererSlotLifecycle(runtime: SlotLifecycleRuntime) {
         const leafId = slot.currentLeafId;
         if (leafId !== null && runtime.getAdapter()?.isLeafFocused(leafId)) {
           slot.term.focus();
-          slot.term.textarea?.focus();
         }
       });
     });
