@@ -2,10 +2,6 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { CanvasTerminalHandle } from "./CanvasTerminalNode";
 import { CanvasViewport } from "./components/CanvasViewport";
 import { CanvasToolbar } from "./components/CanvasToolbar";
-import {
-  OrchestrationCanvasPanel,
-  applyOrchestrationRunToCanvas,
-} from "./components/OrchestrationCanvasPanel";
 import type {
   ArchitectureCanvasProps,
   ArchitectureNode,
@@ -66,7 +62,6 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 import {
-  useCallback,
   useRef,
   useState,
   type Dispatch,
@@ -76,8 +71,6 @@ import {
 export function ArchitectureCanvas({
   active,
   tabId,
-  workspaceId = null,
-  workspaceCwd = null,
   seed,
   onDiagramChange,
   onTerminalHandleChange,
@@ -103,7 +96,6 @@ export function ArchitectureCanvas({
     canvasPurpose,
     orchestrationProvider,
     orchestrationRunId,
-    setOrchestrationRunId,
   } = useCanvasDiagramState(seed);
   const {
     clearEdgeSelection,
@@ -593,34 +585,6 @@ export function ArchitectureCanvas({
     handleDockDividerKeyDown,
   });
 
-  const applyOrchestrationRun = useCallback(
-    (run: Parameters<typeof applyOrchestrationRunToCanvas>[1]) => {
-      const next = applyOrchestrationRunToCanvas(
-        {
-          canvasPurpose,
-          orchestrationRunId,
-          nodes,
-          edges,
-          terminalDockGroups,
-        },
-        run,
-      );
-      setNodes(next.nodes);
-      setEdges(next.edges);
-      setOrchestrationRunId(next.orchestrationRunId ?? null);
-    },
-    [
-      canvasPurpose,
-      edges,
-      nodes,
-      orchestrationRunId,
-      setEdges,
-      setNodes,
-      setOrchestrationRunId,
-      terminalDockGroups,
-    ],
-  );
-
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-background text-foreground">
       <CanvasToolbar
@@ -728,15 +692,6 @@ export function ArchitectureCanvas({
           },
         }}
       />
-      {canvasPurpose === "orchestration" ? (
-        <OrchestrationCanvasPanel
-          workspaceId={workspaceId}
-          workspaceCwd={workspaceCwd}
-          orchestratorProvider={orchestrationProvider}
-          runId={orchestrationRunId}
-          onApplyRun={applyOrchestrationRun}
-        />
-      ) : null}
     </div>
   );
 }
