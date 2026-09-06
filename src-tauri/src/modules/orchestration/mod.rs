@@ -7,6 +7,7 @@ use std::{
 };
 use tauri::ipc::Channel;
 
+pub(crate) mod breaker;
 pub mod commands;
 pub(crate) mod hive_files;
 pub(crate) mod hook_drain;
@@ -673,6 +674,7 @@ pub struct OrchestrationRuntime {
     runs: Arc<RwLock<HashMap<String, OrchestrationRun>>>,
     sinks: Arc<RwLock<HashMap<String, Arc<OrchestrationEventSink>>>>,
     wake: Arc<Mutex<wake::WakeWatchdog>>,
+    breaker: Arc<Mutex<breaker::CircuitBreaker>>,
 }
 
 impl OrchestrationRuntime {
@@ -993,6 +995,34 @@ impl OrchestrationRuntime {
             false,
             wake::WAKE_NUDGE,
         ))
+    }
+
+    pub fn breaker_tick(
+        &self,
+        run_id: &str,
+        input: breaker::BreakerInput,
+    ) -> Result<breaker::BreakerDecision, String> {
+        self.snapshot(run_id)?;
+        let now = now_ms();
+        let config = breaker::BreakerConfig::default();
+        Ok(self
+            .breaker
+            .lock()
+            .map_err(|_| "orchestration breaker lock poisoned".to_string())?
+            .tick(&config, &input, now))
+    }
+
+    pub fn breaker_level(
+        &self,
+        run_id: &str,
+        agent_id: &str,
+    ) -> Result<breaker::BreakerLevel, String> {
+        self.snapshot(run_id)?;
+        Ok(self
+            .breaker
+            .lock()
+            .map_err(|_| "orchestration breaker lock poisoned".to_string())?
+            .level_for(agent_id))
     }
 
     pub fn record_event(
