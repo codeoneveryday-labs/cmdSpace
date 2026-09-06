@@ -173,7 +173,7 @@ export function FloatingTerminalOverlay({
       data-pane-drag-handle
       draggable={false}
       onPointerDown={onDragStart}
-      className={`relative z-20 flex shrink-0 items-center justify-center gap-1.5 rounded-none border bg-card/95 px-0 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 @sm:gap-3 ${
+      className={`relative z-20 flex min-w-0 w-full shrink-0 items-center justify-center gap-1 overflow-hidden rounded-none border bg-card/95 px-1 py-0 shadow-[0_8px_24px_rgba(0,0,0,0.12)] backdrop-blur-md pointer-events-auto select-none text-muted-foreground dark:bg-zinc-900/90 dark:text-zinc-300 dark:shadow-[0_8px_24px_rgba(0,0,0,0.28)] font-medium text-xs whitespace-nowrap transition-all duration-200 @sm:gap-1.5 @md:gap-3 ${
         isDragging ? "cursor-grabbing opacity-60" : "cursor-grab"
       } ${
         focused
@@ -188,13 +188,13 @@ export function FloatingTerminalOverlay({
       {/* Compact dir label: only on narrow panes, the full directory +
           branch picker (TerminalNavigationControls) takes over at @sm. */}
       <span
-        className="min-w-0 max-w-32 shrink truncate text-xs font-semibold text-foreground @sm:hidden"
+        className="min-w-0 max-w-24 shrink truncate text-xs font-semibold text-foreground @xs:max-w-32 @sm:hidden"
         title={cwd ?? undefined}
       >
         {cwd?.replace(/\/$/, "").split("/").pop() || "terminal"}
       </span>
       {agentState ? (
-        <span className="hidden @sm:contents">
+        <span className="hidden shrink-0 @md:contents">
           <AgentStateDot state={agentState} />
         </span>
       ) : null}
@@ -202,10 +202,10 @@ export function FloatingTerminalOverlay({
       <TerminalNavigationControls
         cwd={cwd}
         onChangeDirectory={onCd}
-        className="hidden @sm:flex"
+        className="hidden min-w-0 @sm:flex"
       />
       {(additions > 0 || deletions > 0) && (
-        <div className="hidden @md:flex items-center gap-1 font-bold text-[10px] self-center">
+        <div className="hidden shrink-0 @lg:flex items-center gap-1 font-bold text-[10px] self-center">
           {additions > 0 && (
             <span className="text-green-500 flex items-center">+{additions}</span>
           )}
@@ -225,9 +225,9 @@ export function FloatingTerminalOverlay({
       ) : null}
 
       {/* Control Buttons */}
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-0.5 @sm:gap-1">
         {canBroadcast ? (
-          <span className="hidden @sm:contents">
+          <span className="hidden @md:contents">
             <button
               type="button"
               onMouseDown={(event) => {
