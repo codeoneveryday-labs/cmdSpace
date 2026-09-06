@@ -34,6 +34,7 @@ macro_rules! cmdspace_commands {
             orchestration::commands::orchestration_snapshot,
             orchestration::commands::orchestration_attach,
             orchestration::commands::orchestration_detach,
+            orchestration::commands::orchestration_activity_log,
             orchestration::commands::orchestration_mail_send,
             orchestration::commands::orchestration_mail_inbox,
             orchestration::commands::orchestration_mail_unread,
