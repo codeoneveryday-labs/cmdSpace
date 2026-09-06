@@ -330,7 +330,26 @@ export const applyTheme = rendererPreferences.applyTheme;
 
 export function focusSlot(leafId: number): void {
   const slot = slots.find((s) => s.currentLeafId === leafId);
-  slot?.term.focus();
+  if (!slot) return;
+
+  const focusInput = () => {
+    if (slot.currentLeafId !== leafId) return;
+    slot.term.focus();
+    const textarea = slot.term.textarea;
+    if (textarea && textarea.ownerDocument.activeElement !== textarea) {
+      textarea.focus();
+    }
+  };
+
+  focusInput();
+  const textarea = slot.term.textarea;
+  if (
+    textarea &&
+    textarea.ownerDocument.activeElement !== textarea &&
+    typeof requestAnimationFrame === "function"
+  ) {
+    requestAnimationFrame(focusInput);
+  }
 }
 
 export function setSlotFocused(leafId: number, focused: boolean): void {
@@ -371,4 +390,3 @@ export function syncSlotThemeForLeaf(leafId: number): void {
     slot.host.style.backgroundColor = "";
   }
 }
-

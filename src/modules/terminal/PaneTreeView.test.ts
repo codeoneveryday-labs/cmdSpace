@@ -168,6 +168,14 @@ describe("PaneTreeView split resizing", () => {
 });
 
 describe("PaneTreeView header swapping", () => {
+  it("refocuses the hydrated terminal after pane activation without stealing control focus", () => {
+    const source = readPaneTreeSource();
+
+    expect(source).toContain("requestAnimationFrame(() => b.getRef()?.focus())");
+    expect(source).toContain("button,[role=\"button\"],[data-pane-drag-handle]");
+    expect(source).toContain("data-pane-drag-handle");
+  });
+
   it("keeps drag ownership on the header and highlights a leaf drop target", () => {
     const source = readPaneTreeSource();
 
