@@ -3,6 +3,42 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.105] - 2026-09-05
+
+### Added
+
+- Added operating-system file handling for common text and source files:
+  cmdSpace registers as an editor for those types, opens a file passed at launch
+  with its parent directory as workspace context, and opens files chosen while
+  the app is already running in a new editor tab.
+- Added a Refresh action and per-agent availability skeleton to Settings → CLI.
+
+### Changed
+
+- Cached CLI availability results for the Settings window so returning to the
+  CLI tab no longer repeats the login-shell scan, and an explicit refresh always
+  wins over a slower earlier scan.
+- Grouped paired mobile identities that share a display name in Remote access,
+  kept each identity individually revocable by its short id, and made pairing
+  copy platform-neutral with equally sized QR popovers.
+- Revoking a paired device now removes its identity from the persisted registry
+  instead of keeping a revoked record; previously revoked records are pruned and
+  rewritten on load.
+
+### Removed
+
+- Removed the coding-agent count badge from the bottom terminal header.
+
+### Known limitations
+
+- The operating system only offers cmdSpace for text files after an installed
+  build registers with Launch Services, so a fresh install or a Launch Services
+  refresh may be required; Windows and Linux association behavior is unverified.
+- A revoked mobile device must pair again with a new QR code before it can
+  reconnect.
+- The first CLI availability scan per Settings window still runs asynchronously;
+  only repeat scans are removed.
+
 ## [0.7.104] - 2026-09-05
 
 ### Added
