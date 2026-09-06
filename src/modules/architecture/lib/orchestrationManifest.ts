@@ -1,6 +1,7 @@
 import type { OrchestrationProvider as CanvasOrchestrationProvider } from "@/modules/tabs";
+import { CLI_AGENT_IDS } from "@/modules/terminal/lib/cliAgents";
 
-export const ORCHESTRATION_PROVIDERS = ["codex", "claude", "cmd"] as const;
+export const ORCHESTRATION_PROVIDERS = CLI_AGENT_IDS;
 
 export type OrchestrationProvider = CanvasOrchestrationProvider;
 

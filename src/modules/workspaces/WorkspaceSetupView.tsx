@@ -2,7 +2,7 @@ import {
   AiChat01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getEnabledCliAgentDefinitions,
   type CliAgent,
@@ -81,6 +81,11 @@ export function WorkspaceSetupView({
     useState<WorkspaceMode>(forkContext ? "agent" : "standard");
   const [canvasPurpose, setCanvasPurpose] =
     useState<CanvasPurpose>("architecture");
+  const isOrchestrationSetup =
+    workspaceMode === "canvas" && canvasPurpose === "orchestration";
+  const workerTerminalCapacity = isOrchestrationSetup
+    ? Math.max(0, terminalCount - 1)
+    : terminalCount;
   const [selectedOrchestratorProvider, setSelectedOrchestratorProvider] =
     useState<OrchestrationProvider>("codex");
   const [selectedChatAgent, setSelectedChatAgent] = useState<CliAgent | null>(
@@ -105,9 +110,13 @@ export function WorkspaceSetupView({
     configuredCliAgentIds,
     disabledCliAgentIds,
   );
-  const orchestratorOptions = configuredAgentCliOptions
-    .filter((agent) => agent.id === "codex" || agent.id === "claude" || agent.id === "cmd")
-    .sort((left, right) => ["codex", "claude", "cmd"].indexOf(left.id) - ["codex", "claude", "cmd"].indexOf(right.id));
+  const orchestratorOptions = [...configuredAgentCliOptions]
+    .sort((left, right) => {
+      const leftStructured = left.chatTransport ? 0 : 1;
+      const rightStructured = right.chatTransport ? 0 : 1;
+      if (leftStructured !== rightStructured) return leftStructured - rightStructured;
+      return left.name.localeCompare(right.name);
+    });
   const orchestratorProvider = (orchestratorOptions.some(
     (agent) => agent.id === selectedOrchestratorProvider,
   )
@@ -141,7 +150,7 @@ export function WorkspaceSetupView({
     cliTerminalCapacity,
     setAgentCount,
   } = useWorkspaceSetupAgentCapacity({
-    terminalCount,
+    terminalCount: workerTerminalCapacity,
     selectedImportSessionCount: selectedImportSessions.length,
     agentCounts,
     workspaceMode,
@@ -172,12 +181,15 @@ export function WorkspaceSetupView({
     disabledIds: disabledCliAgentIds,
   });
   const visibleAgents = workspaceMode === "agent" ? agentChatAgents : availableAgents;
-
   const selectImportSessions = useWorkspaceSetupImportSelection({
     remainingAgentSlots,
     selectedImportSessions,
     setSelectedImportSessions,
   });
+
+  useEffect(() => {
+    if (isOrchestrationSetup) setSelectedImportSessions([]);
+  }, [isOrchestrationSetup]);
 
   useWorkspaceSetupAgentSelectionSync({
     forkContext,
@@ -206,6 +218,7 @@ export function WorkspaceSetupView({
     workspaceMode,
     canvasPurpose,
     orchestratorProvider,
+    workerTerminalCapacity,
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
@@ -227,6 +240,8 @@ export function WorkspaceSetupView({
     canvasPurpose,
     selectedOrchestratorProvider: orchestratorProvider,
     orchestratorAvailable: orchestratorOptions.length > 0,
+    orchestrationWorkersComplete:
+      !isOrchestrationSetup || assignedAgentTerminals === workerTerminalCapacity,
     setSetupStep,
     openWorkspace,
     onCancel,
@@ -272,8 +287,8 @@ export function WorkspaceSetupView({
               ? "New workspace"
               : setupStep === "layout"
               ? "Set up your workspace"
-              : workspaceMode === "canvas" && canvasPurpose === "orchestration"
-                ? "Choose your orchestrator"
+                : workspaceMode === "canvas" && canvasPurpose === "orchestration"
+                ? "Build your agent team"
                 : "Add AI coding agents"}
           </h1>
           <p className="max-w-xl text-sm text-muted-foreground">
@@ -282,7 +297,7 @@ export function WorkspaceSetupView({
               : setupStep === "layout"
               ? "Pick a folder to work in and choose how many terminals you want."
               : workspaceMode === "canvas" && canvasPurpose === "orchestration"
-                ? "Choose the CLI agent that will propose the graph and coordinate the workers."
+                ? "Choose the Boss CLI, then assign a CLI worker to every remaining terminal."
                 : `Pick which agent CLIs should launch in your ${terminalCount} terminals.`}
           </p>
         </header>
@@ -324,7 +339,7 @@ export function WorkspaceSetupView({
             <WorkspaceSetupAgentsStep
               assignment={{
                 assignedAgentTerminals,
-                terminalCount,
+                terminalCount: workerTerminalCapacity,
                 remainingAgentSlots,
                 isolateAgentWorktrees,
                 setIsolateAgentWorktrees,
@@ -378,6 +393,9 @@ export function WorkspaceSetupView({
           selectedChatAgent={selectedChatAgent}
           selectedFolder={selectedFolder}
           orchestratorAvailable={orchestratorOptions.length > 0}
+          orchestrationWorkersComplete={
+            !isOrchestrationSetup || assignedAgentTerminals === workerTerminalCapacity
+          }
           onBack={handleBack}
           onOpenWorkspace={openWorkspace}
           onPrimaryAction={handlePrimaryAction}

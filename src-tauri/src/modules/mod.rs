@@ -1,11 +1,11 @@
 pub mod agent_chat;
-pub mod orchestration;
 pub mod agent_usage;
 pub mod db;
 pub mod fs;
 pub mod git;
 pub mod music;
 pub mod net;
+pub mod orchestration;
 pub mod proc;
 pub mod pty;
 pub mod remote;

@@ -127,9 +127,7 @@ pub fn set_prevent_sleep(
 }
 
 #[tauri::command]
-pub fn get_prevent_sleep(
-    state: tauri::State<'_, SleepInhibitorState>,
-) -> Result<bool, String> {
+pub fn get_prevent_sleep(state: tauri::State<'_, SleepInhibitorState>) -> Result<bool, String> {
     let inhibitor = state
         .0
         .lock()

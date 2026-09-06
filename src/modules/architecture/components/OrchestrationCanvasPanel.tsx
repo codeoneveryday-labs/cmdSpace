@@ -5,6 +5,10 @@ import type { OrchestrationProvider } from "../lib/orchestrationManifest";
 import type { OrchestrationManifestV1 } from "../lib/orchestrationManifest";
 import {
   createOrchestrationRuntime,
+  ORCHESTRATION_MAIL_BROADCAST,
+  ORCHESTRATION_MAIL_ORCHESTRATOR_ID,
+  type OrchestrationHiveAct,
+  type OrchestrationHiveMessage,
   type OrchestrationRun,
 } from "../lib/orchestrationRuntime";
 import { applyManifestToOrchestrationDiagram } from "../lib/orchestrationCanvasModel";
@@ -13,7 +17,21 @@ import {
   parseOrchestrationManifestJson,
 } from "../lib/orchestrationProposal";
 import { createAgentChatRuntime } from "@/modules/ai/lib/agentChatRuntime";
+import {
+  CLI_AGENT_DEFINITIONS,
+  ORCHESTRATION_FALLBACK_PROVIDERS,
+} from "@/modules/terminal/lib/cliAgents";
 import { useEffect, useRef, useState } from "react";
+
+const ORCHESTRATION_PROVIDER_IDS = CLI_AGENT_DEFINITIONS.map((agent) => agent.id).join(", ");
+
+function isStructuredOrchestrationProvider(provider: OrchestrationProvider): boolean {
+  return !ORCHESTRATION_FALLBACK_PROVIDERS.has(provider);
+}
+
+function providerLabel(provider: OrchestrationProvider): string {
+  return CLI_AGENT_DEFINITIONS.find((agent) => agent.id === provider)?.name ?? provider;
+}
 
 export function OrchestrationCanvasPanel({
   workspaceId,
@@ -51,6 +69,21 @@ export function OrchestrationCanvasPanel({
   const workerRuntimesRef = useRef(
     new Map<string, { runtime: ReturnType<typeof createAgentChatRuntime>; sessionId: string | null }>(),
   );
+  const [manualWorkers, setManualWorkers] = useState<
+    Record<string, { launch: string; cwd: string; prompt: string; agentName: string }>
+  >({});
+  const manualWorkersRef = useRef<Record<string, { launch: string; cwd: string; prompt: string; agentName: string }>>({});
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const [completeDrafts, setCompleteDrafts] = useState<Record<string, string>>({});
+  const [mailIdentity, setMailIdentity] = useState<string>(ORCHESTRATION_MAIL_ORCHESTRATOR_ID);
+  const [mailInbox, setMailInbox] = useState<OrchestrationHiveMessage[]>([]);
+  const [mailTo, setMailTo] = useState<string>(ORCHESTRATION_MAIL_BROADCAST);
+  const [mailAct, setMailAct] = useState<OrchestrationHiveAct>("request");
+  const [mailSubject, setMailSubject] = useState("");
+  const [mailBody, setMailBody] = useState("");
+  const [mailReport, setMailReport] = useState<string | null>(null);
+  const [mailReplyTo, setMailReplyTo] = useState<OrchestrationHiveMessage | null>(null);
+  const [mailUnreadTotal, setMailUnreadTotal] = useState<number | null>(null);
   const runtimeRef = useRef<ReturnType<typeof createOrchestrationRuntime> | null>(null);
   if (runtimeRef.current === null) {
     runtimeRef.current = createOrchestrationRuntime(() => undefined);
@@ -245,14 +278,158 @@ export function OrchestrationCanvasPanel({
     }
   };
 
+  const completeManualTask = async (taskId: string) => {
+    if (!run || busy) return;
+    const result = (completeDrafts[taskId] ?? "").trim();
+    if (!result) {
+      setError("Paste the worker outcome report before completing the task.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await runtimeRef.current!.completeTask(run.id, taskId, result);
+      delete manualWorkersRef.current[taskId];
+      setManualWorkers({ ...manualWorkersRef.current });
+      setCompleteDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[taskId];
+        return next;
+      });
+      setCompletingTaskId(null);
+      updateRun(updated);
+      await startReadyTasks(updated);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const refreshInbox = async (runId: string, agentId: string) => {
+    try {
+      setMailInbox(await runtimeRef.current!.loadInbox(runId, agentId));
+      setMailUnreadTotal((await runtimeRef.current!.loadUnread(runId, agentId)).total);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+
+  const startReply = (message: OrchestrationHiveMessage) => {
+    if (message.from !== mailIdentity) setMailTo(message.from);
+    setMailSubject((subject) =>
+      subject.trim() ? subject : `Re: ${message.subject}`,
+    );
+    setMailReplyTo(message);
+  };
+
+  const sendMail = async () => {
+    if (!run || busy) return;
+    if (!mailSubject.trim() || !mailBody.trim()) {
+      setError("Mail needs a subject and a body.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await runtimeRef.current!.sendMail({
+        runId: run.id,
+        from: mailIdentity,
+        to: mailTo,
+        act: mailAct,
+        subject: mailSubject.trim(),
+        body: mailBody.trim(),
+        conversation: mailReplyTo?.conversation ?? null,
+        inReplyTo: mailReplyTo?.id ?? null,
+      });
+      const report = await runtimeRef.current!.routeMail(run.id);
+      setMailReport(
+        `Delivered ${report.delivered.length}, skipped ${report.skipped.length}.`,
+      );
+      setMailSubject("");
+      setMailBody("");
+      setMailReplyTo(null);
+      await refreshInbox(run.id, mailIdentity);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ackMail = async (messageId: string) => {
+    if (!run || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setMailInbox(await runtimeRef.current!.ackMail(run.id, mailIdentity, messageId));
+      setMailUnreadTotal((await runtimeRef.current!.loadUnread(run.id, mailIdentity)).total);
+      if (mailReplyTo?.id === messageId) setMailReplyTo(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const routeOutbox = async () => {
+    if (!run || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const report = await runtimeRef.current!.routeMail(run.id);
+      setMailReport(
+        `Delivered ${report.delivered.length}, skipped ${report.skipped.length}.`,
+      );
+      await refreshInbox(run.id, mailIdentity);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const startReadyTasks = async (snapshot: OrchestrationRun) => {
     for (const execution of snapshot.tasks) {
-      if (execution.status !== "running" || workerRuntimesRef.current.has(execution.taskId)) {
+      if (
+        execution.status !== "running" ||
+        workerRuntimesRef.current.has(execution.taskId) ||
+        manualWorkersRef.current[execution.taskId]
+      ) {
         continue;
       }
       const task = snapshot.manifest.tasks.find((candidate) => candidate.id === execution.taskId);
       const agent = snapshot.manifest.agents.find((candidate) => candidate.id === task?.assigneeId);
       if (!task || !agent) continue;
+      // CLIs without a structured chat transport run as manual terminal
+      // workers: plain PTY + human completion (munder-difflin style).
+      if (!isStructuredOrchestrationProvider(agent.provider)) {
+        try {
+          const prepared = await runtimeRef.current!.prepareTaskWorktree(snapshot.id, task.id);
+          setRun(prepared);
+          onApplyRunRef.current(prepared);
+          const cwd =
+            prepared.tasks.find((candidate) => candidate.taskId === task.id)?.worktreePath ??
+            snapshot.cwd;
+          const entry = {
+            launch:
+              CLI_AGENT_DEFINITIONS.find((definition) => definition.id === agent.provider)
+                ?.launch ?? agent.provider,
+            cwd,
+            prompt: workerPrompt(snapshot, task, true),
+            agentName: agent.name,
+          };
+          manualWorkersRef.current[task.id] = entry;
+          setManualWorkers({ ...manualWorkersRef.current });
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+          await runtimeRef.current!
+            .failTask(snapshot.id, task.id, cause instanceof Error ? cause.message : String(cause))
+            .then(updateRun)
+            .catch(() => undefined);
+        }
+        continue;
+      }
       try {
         if (execution.chatId && !freshWorkerTasksRef.current.has(task.id)) {
           const reattached = createWorkerRuntime(snapshot, task);
@@ -444,6 +621,9 @@ export function OrchestrationCanvasPanel({
               const assignedTasks = run.tasks.filter((task) =>
                 run.manifest.tasks.some((spec) => spec.id === task.taskId && spec.assigneeId === selectedAgent.id),
               );
+              const manualEntries = assignedTasks
+                .map((task) => ({ task, manual: manualWorkers[task.taskId] }))
+                .filter((entry) => entry.manual);
               return (
                 <div className="rounded-md border border-sky-400/30 bg-sky-500/[0.06] p-2 text-[11px] text-muted-foreground">
                   <div className="flex items-center justify-between gap-2">
@@ -452,6 +632,18 @@ export function OrchestrationCanvasPanel({
                   </div>
                   <p className="mt-1">{selectedAgent.role}</p>
                   <p className="mt-1">Assigned: {assignedTasks.length ? assignedTasks.map((task) => `${task.taskId} (${task.status})`).join(", ") : "No tasks"}</p>
+                  {isStructuredOrchestrationProvider(selectedAgent.provider) ? null : (
+                    <p className="mt-1 text-amber-600 dark:text-amber-300">
+                      Manual terminal worker: no structured session. Run the launch command below in any Canvas terminal.
+                    </p>
+                  )}
+                  {manualEntries.map(({ task, manual }) => (
+                    <div key={task.taskId} className="mt-2 space-y-1 rounded border border-border/60 bg-background/60 p-2">
+                      <p className="font-mono text-[10px] text-foreground">cd {manual!.cwd}</p>
+                      <p className="font-mono text-[10px] text-foreground">{manual!.launch}</p>
+                      <p className="whitespace-pre-wrap text-[10px]">{manual!.prompt}</p>
+                    </div>
+                  ))}
                 </div>
               );
             })()}
@@ -478,22 +670,179 @@ export function OrchestrationCanvasPanel({
           ) : null}
           <div className="space-y-1.5 rounded-md border border-border/60 p-2 text-[11px]">
             {run.tasks.map((task) => (
-              <div className="flex items-center justify-between gap-2" key={task.taskId}>
-                <span className="min-w-0 truncate text-muted-foreground">
-                  {run.manifest.tasks.find((candidate) => candidate.id === task.taskId)?.title ?? task.taskId}
-                </span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  {run.manifest.agents.find((agent) => agent.id === run.manifest.tasks.find((candidate) => candidate.id === task.taskId)?.assigneeId)?.name ?? "Unassigned"}
-                </span>
-                <span className="shrink-0 font-medium text-foreground">{task.status}</span>
-                {run.status !== "running" && ["failed", "blocked", "interrupted"].includes(task.status) ? (
-                  <Button variant="ghost" size="sm" disabled={busy} onClick={() => void retryTask(task.taskId)}>
-                    Retry
-                  </Button>
+              <div key={task.taskId}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {run.manifest.tasks.find((candidate) => candidate.id === task.taskId)?.title ?? task.taskId}
+                  </span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    {run.manifest.agents.find((agent) => agent.id === run.manifest.tasks.find((candidate) => candidate.id === task.taskId)?.assigneeId)?.name ?? "Unassigned"}
+                  </span>
+                  <span className="shrink-0 font-medium text-foreground">{task.status}</span>
+                  {run.status !== "running" && ["failed", "blocked", "interrupted"].includes(task.status) ? (
+                    <Button variant="ghost" size="sm" disabled={busy} onClick={() => void retryTask(task.taskId)}>
+                      Retry
+                    </Button>
+                  ) : null}
+                  {task.status === "running" && manualWorkers[task.taskId] ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => setCompletingTaskId(completingTaskId === task.taskId ? null : task.taskId)}
+                    >
+                      Complete
+                    </Button>
+                  ) : null}
+                </div>
+                {completingTaskId === task.taskId && manualWorkers[task.taskId] ? (
+                  <div className="mt-1.5 space-y-1.5">
+                    <textarea
+                      value={completeDrafts[task.taskId] ?? ""}
+                      onChange={(event) =>
+                        setCompleteDrafts((drafts) => ({ ...drafts, [task.taskId]: event.target.value }))
+                      }
+                      placeholder="Paste the worker outcome report"
+                      className="min-h-20 w-full rounded-md border border-input bg-background p-2 font-mono text-[11px] leading-4"
+                      spellCheck={false}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" disabled={busy} onClick={() => void completeManualTask(task.taskId)}>
+                        {busy ? "Completing…" : "Mark complete"}
+                      </Button>
+                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => setCompletingTaskId(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
                 ) : null}
               </div>
             ))}
           </div>
+          <section aria-labelledby="orchestration-mailbox" className="space-y-2 rounded-md border border-border/60 p-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 id="orchestration-mailbox" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Mailbox{mailUnreadTotal ? ` (${mailUnreadTotal})` : ""}
+              </h3>
+              <div className="flex gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!run) return;
+                    void refreshInbox(run.id, mailIdentity);
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => void routeOutbox()}>
+                  Route outbox
+                </Button>
+              </div>
+            </div>
+            <label className="block text-[11px] text-muted-foreground" htmlFor="orchestration-mail-identity">
+              Reading as
+              <select
+                id="orchestration-mail-identity"
+                value={mailIdentity}
+                onChange={(event) => {
+                  setMailIdentity(event.target.value);
+                  setMailReplyTo(null);
+                  if (run) void refreshInbox(run.id, event.target.value);
+                }}
+                className="mt-1 w-full rounded-md border border-input bg-background p-1.5 text-[11px]"
+              >
+                {[ORCHESTRATION_MAIL_ORCHESTRATOR_ID, ...run.manifest.agents.map((agent) => agent.id)].map((id) => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+            </label>
+            <div className="space-y-1.5">
+              {mailInbox.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">Inbox empty.</p>
+              ) : (
+                mailInbox.map((message) => (
+                  <div key={message.id} className="rounded border border-border/60 bg-background/60 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-[11px] font-medium text-foreground">
+                        [{message.act}] {message.subject}
+                      </span>
+                      <span className="flex shrink-0 gap-1">
+                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => startReply(message)}>
+                          Reply
+                        </Button>
+                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => void ackMail(message.id)}>
+                          Ack
+                        </Button>
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      {message.from} → {message.to} · hops {message.hops}
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">{message.body}</p>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <label className="block text-[11px] text-muted-foreground">
+                To
+                <select
+                  value={mailTo}
+                  onChange={(event) => setMailTo(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-input bg-background p-1.5 text-[11px]"
+                >
+                  {[ORCHESTRATION_MAIL_BROADCAST, ORCHESTRATION_MAIL_ORCHESTRATOR_ID, ...run.manifest.agents.map((agent) => agent.id)]
+                    .filter((id, index, all) => all.indexOf(id) === index && id !== mailIdentity)
+                    .map((id) => (
+                      <option key={id} value={id}>{id}</option>
+                    ))}
+                </select>
+              </label>
+              <label className="block text-[11px] text-muted-foreground">
+                Act
+                <select
+                  value={mailAct}
+                  onChange={(event) => setMailAct(event.target.value as OrchestrationHiveAct)}
+                  className="mt-1 w-full rounded-md border border-input bg-background p-1.5 text-[11px]"
+                >
+                  {(["request", "inform", "propose", "query", "agree", "refuse", "done"] as const).map((act) => (
+                    <option key={act} value={act}>{act}{["request", "query", "propose"].includes(act) ? " (reply expected)" : ""}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {mailReplyTo ? (
+              <p className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <span className="min-w-0 truncate">
+                  Replying to [{mailReplyTo.act}] {mailReplyTo.subject} (hops {mailReplyTo.hops} → {mailReplyTo.hops + 1})
+                </span>
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => setMailReplyTo(null)}>
+                  Cancel
+                </Button>
+              </p>
+            ) : null}
+            <Input
+              value={mailSubject}
+              onChange={(event) => setMailSubject(event.target.value)}
+              placeholder="Subject"
+              className="text-[11px]"
+            />
+            <textarea
+              value={mailBody}
+              onChange={(event) => setMailBody(event.target.value)}
+              placeholder="Message body"
+              className="min-h-16 w-full rounded-md border border-input bg-background p-2 font-mono text-[11px] leading-4"
+              spellCheck={false}
+            />
+            <Button size="sm" className="w-full" disabled={busy} onClick={() => void sendMail()}>
+              {busy ? "Sending…" : `Send as ${mailIdentity}`}
+            </Button>
+            {mailReport ? (
+              <p className="text-[11px] text-muted-foreground">{mailReport}</p>
+            ) : null}
+          </section>
           <div className="flex flex-wrap gap-2">
             {run.status === "running" ? (
               <Button variant="outline" size="sm" disabled={busy} onClick={() => void pauseRun()}>
@@ -540,30 +889,10 @@ export function OrchestrationCanvasPanel({
 }
 
 function proposalPrompt(goal: string, provider: OrchestrationProvider): string {
-  return `You are the Canvas Orchestrator CLI agent. Propose a small, dependency-valid coding-agent graph for this goal. Return exactly one JSON object inside <cmdspace-orchestration> and </cmdspace-orchestration>, with no Markdown, comments, JSON Schema, or wrapper object. The top-level object must have version: 1, title: a string, goal: a string, orchestrator: { provider: "${provider}" }, agents: an array, and tasks: an array. Every task must have id, title, instructions, assigneeId, dependsOn, writeAccess, doneWhen, and validationCommands. Use only codex, claude, or cmd providers. Do not start work or call tools. Goal: ${goal.trim()}`;
+  return `You are the Canvas Orchestrator CLI agent. Propose a small, dependency-valid coding-agent graph for this goal. Return exactly one JSON object inside <cmdspace-orchestration> and </cmdspace-orchestration>, with no Markdown, comments, JSON Schema, or wrapper object. The top-level object must have version: 1, title: a string, goal: a string, orchestrator: { provider: "${provider}" }, agents: an array, and tasks: an array. Every task must have id, title, instructions, assigneeId, dependsOn, writeAccess, doneWhen, and validationCommands. For agent providers use only: ${ORCHESTRATION_PROVIDER_IDS}. Prefer providers with structured sessions (codex, claude, cmd, gemini, opencode, omp); other CLIs run as manual terminal workers. Do not start work or call tools. Goal: ${goal.trim()}`;
 }
 
-function workerPrompt(
-  run: OrchestrationRun,
-  task: OrchestrationManifestV1["tasks"][number],
-): string {
-  const dependencies = task.dependsOn
-    .map((dependency) => run.tasks.find((candidate) => candidate.taskId === dependency)?.result)
-    .filter((result): result is string => Boolean(result));
-  return [
-    "You are a worker in an approved cmdSpace Canvas orchestration.",
-    `Overall goal: ${run.manifest.goal}`,
-    `Task: ${task.title}`,
-    `Instructions: ${task.instructions}`,
-    `Done when: ${task.doneWhen}`,
-    dependencies.length > 0 ? `Dependency reports:\n${dependencies.join("\n\n")}` : "",
-    "Report a concise outcome when the task is complete.",
-  ].filter(Boolean).join("\n\n");
-}
-
-function providerLabel(provider: OrchestrationProvider): string {
-  return provider === "cmd" ? "Command Code" : provider === "codex" ? "Codex" : "Claude Code";
-}
+import { workerPrompt } from "../lib/orchestrationWorkerPrompt";
 
 export function applyOrchestrationRunToCanvas(
   diagram: Parameters<typeof applyManifestToOrchestrationDiagram>[0],

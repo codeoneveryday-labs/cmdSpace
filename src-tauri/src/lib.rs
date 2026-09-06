@@ -6,8 +6,8 @@ mod modules;
 mod window_commands;
 
 use modules::{
-    agent_chat, agent_usage, db, fs, git, music, net, orchestration, pty, remote, secrets, shell, sleep, speech,
-    workspace,
+    agent_chat, agent_usage, db, fs, git, music, net, orchestration, pty, remote, secrets, shell,
+    sleep, speech, workspace,
 };
 use std::sync::Mutex;
 use tauri::Manager;

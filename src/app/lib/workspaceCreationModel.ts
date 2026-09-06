@@ -72,7 +72,7 @@ export function resolveWorkspaceCreationPlan({
         ? canvasPurpose === "orchestration"
           ? createOrchestrationCanvasDiagram(
               orchestratorProvider,
-              terminalCount,
+              Math.max(0, terminalCount - 1),
               effectiveWorkingFolder,
               initialCommands,
             )

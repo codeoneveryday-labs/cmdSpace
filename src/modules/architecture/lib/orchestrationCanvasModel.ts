@@ -162,7 +162,7 @@ function orchestratorLabel(provider: OrchestrationProvider): string {
 
 function providerLabel(provider: OrchestrationProvider): string {
   if (provider === "cmd") return "Command Code";
-  return provider === "codex" ? "Codex" : "Claude";
+  return CLI_AGENT_DEFINITIONS.find((agent) => agent.id === provider)?.name ?? provider;
 }
 
 function taskDepths(manifest: OrchestrationManifestV1): Map<string, number> {

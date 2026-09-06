@@ -13,6 +13,7 @@ export function WorkspaceSetupFooter({
   selectedChatAgent,
   selectedFolder,
   orchestratorAvailable,
+  orchestrationWorkersComplete,
   onBack,
   onOpenWorkspace,
   onPrimaryAction,
@@ -25,6 +26,7 @@ export function WorkspaceSetupFooter({
   selectedChatAgent: string | null;
   selectedFolder: string;
   orchestratorAvailable: boolean;
+  orchestrationWorkersComplete: boolean;
   onBack: () => void;
   onOpenWorkspace: () => void;
   onPrimaryAction: () => void;
@@ -84,7 +86,7 @@ export function WorkspaceSetupFooter({
               type="button"
               disabled={
                 workspaceMode === "canvas" && canvasPurpose === "orchestration"
-                  ? !orchestratorAvailable || !selectedFolder
+                  ? !orchestratorAvailable || !orchestrationWorkersComplete || !selectedFolder
                   : plannedAgentCommands.length === 0 ||
                     (workspaceMode === "agent" &&
                       (!selectedChatAgent || !selectedFolder))

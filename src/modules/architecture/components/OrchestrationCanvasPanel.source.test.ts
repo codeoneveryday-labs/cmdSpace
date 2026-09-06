@@ -27,6 +27,12 @@ describe("OrchestrationCanvasPanel contract", () => {
     expect(source).toContain("WORKER");
     expect(source).toContain("selectedTeamMember");
     expect(source).toContain("Team roster");
+    expect(source).toContain("Mailbox");
+    expect(source).toContain("Route outbox");
+    expect(source).toContain("Reading as");
+    expect(source).toContain("sendMail");
+    expect(source).toContain("ackMail");
+    expect(source).toContain("routeMail");
     expect(source).not.toContain('id="orchestration-provider"');
   });
 });

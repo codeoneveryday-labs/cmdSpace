@@ -14,6 +14,8 @@ describe("WorkspaceSetupAgentsStep", () => {
     expect(source).toContain("WorkspaceAgentAssignmentSummary");
     expect(source).toContain("WorkspaceAgentSelectionGrid");
     expect(source).toContain("ImportSessionDialog");
+    expect(source).toContain("Assign worker CLI agents");
+    expect(source).toContain("Boss uses 1 terminal");
     expect(source).not.toContain("useState(");
     expect(source).not.toContain("invoke(");
   });

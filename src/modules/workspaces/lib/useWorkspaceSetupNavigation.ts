@@ -10,6 +10,7 @@ export function useWorkspaceSetupNavigation({
   canvasPurpose,
   selectedOrchestratorProvider,
   orchestratorAvailable,
+  orchestrationWorkersComplete,
   setSetupStep,
   openWorkspace,
   onCancel,
@@ -21,6 +22,7 @@ export function useWorkspaceSetupNavigation({
   canvasPurpose: CanvasPurpose;
   selectedOrchestratorProvider: OrchestrationProvider;
   orchestratorAvailable: boolean;
+  orchestrationWorkersComplete: boolean;
   setSetupStep: (step: "layout" | "agents") => void;
   openWorkspace: () => void;
   onCancel: () => void;
@@ -42,6 +44,7 @@ export function useWorkspaceSetupNavigation({
       workspaceMode === "canvas" &&
       canvasPurpose === "orchestration" &&
       orchestratorAvailable &&
+      orchestrationWorkersComplete &&
       selectedOrchestratorProvider
     ) {
       openWorkspace();
@@ -54,6 +57,7 @@ export function useWorkspaceSetupNavigation({
     canvasPurpose,
     openWorkspace,
     orchestratorAvailable,
+    orchestrationWorkersComplete,
     plannedAgentCommands,
     selectedChatAgent,
     selectedOrchestratorProvider,

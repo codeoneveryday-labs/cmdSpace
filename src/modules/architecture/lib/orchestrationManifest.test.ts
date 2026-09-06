@@ -61,16 +61,26 @@ describe("validateOrchestrationManifest", () => {
 
   it("rejects unsupported providers and missing assignees", () => {
     const manifest = validManifest();
-    manifest.agents[0]!.provider = "gemini" as never;
+    manifest.agents[0]!.provider = "not-a-cli" as never;
     manifest.tasks[0]!.assigneeId = "missing";
 
     expect(validateOrchestrationManifest(manifest)).toEqual({
       valid: false,
       errors: [
-        "Agent 'builder' uses unsupported provider 'gemini'",
+        "Agent 'builder' uses unsupported provider 'not-a-cli'",
         "Task 'implement' references missing assignee 'missing'",
       ],
     });
+  });
+
+  it("accepts every CLI in the agent catalog", async () => {
+    const { CLI_AGENT_IDS } = await import("@/modules/terminal/lib/cliAgents");
+    for (const provider of CLI_AGENT_IDS) {
+      const manifest = validManifest();
+      manifest.orchestrator.provider = provider;
+      manifest.agents[0]!.provider = provider;
+      expect(validateOrchestrationManifest(manifest)).toEqual({ valid: true });
+    }
   });
 
   it("rejects duplicate ids, empty commands, and dependency cycles", () => {

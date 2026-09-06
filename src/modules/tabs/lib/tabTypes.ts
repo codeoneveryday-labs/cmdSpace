@@ -54,7 +54,7 @@ export type AgentChatTab = {
 };
 
 export type CanvasPurpose = "architecture" | "orchestration";
-export type OrchestrationProvider = "codex" | "claude" | "cmd";
+export type OrchestrationProvider = CliAgent;
 export type ArchitectureShapeKind = "actor" | "external" | "service" | "api" | "worker" | "function" | "ai" | "database" | "cache" | "queue" | "storage" | "gateway" | "security" | "boundary" | "orchestrator" | "agent" | "task" | "rectangle" | "circle" | "frame" | "text" | "image" | "terminal" | "editor" | "line" | "arrow" | "pen";
 export type OrchestrationNodeBinding =
   | { kind: "orchestrator"; entityId: "orchestrator" }

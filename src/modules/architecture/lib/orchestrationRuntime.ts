@@ -54,6 +54,69 @@ export type OrchestrationEvent = {
   payload: unknown;
 };
 
+export type OrchestrationHiveAct =
+  | "request"
+  | "inform"
+  | "propose"
+  | "query"
+  | "agree"
+  | "refuse"
+  | "done";
+
+export type OrchestrationHiveMessage = {
+  id: string;
+  conversation: string;
+  inReplyTo: string | null;
+  from: string;
+  to: string;
+  act: OrchestrationHiveAct;
+  subject: string;
+  body: string;
+  hops: number;
+  requiresReply: boolean;
+  needsHuman: boolean;
+  createdAt: number;
+};
+
+export type OrchestrationRouteReport = {
+  delivered: Array<{ messageId: string; from: string; to: string }>;
+  skipped: string[];
+};
+
+export type OrchestrationMailUnread = {
+  unreadIds: string[];
+  total: number;
+  lastProcessed: string | null;
+};
+
+export const ORCHESTRATION_MAIL_ORCHESTRATOR_ID = "orchestrator";
+export const ORCHESTRATION_MAIL_BROADCAST = "broadcast";
+
+export type OrchestrationMemoryHit = {
+  agentId: string;
+  source: string;
+  snippet: string;
+};
+
+export type OrchestrationMemoryIndexReport = {
+  indexed: number;
+  skippedUnchanged: number;
+};
+
+export type OrchestrationSpawnRequest = {
+  objective: string;
+  cwd?: string | null;
+  name?: string | null;
+  command?: string | null;
+  provider?: string | null;
+  model?: string | null;
+};
+
+export type OrchestrationPendingSpawn = {
+  id: string;
+  request: OrchestrationSpawnRequest;
+};
+
 export function createOrchestrationRuntime(
   onEvent: (event: OrchestrationEvent) => void,
 ) {
@@ -142,6 +205,72 @@ export function createOrchestrationRuntime(
     },
     detach(runId: string, attachmentToken: string) {
       return invoke<void>("orchestration_detach", { runId, attachmentToken });
+    },
+    sendMail(input: {
+      runId: string;
+      from: string;
+      to: string;
+      act: OrchestrationHiveAct;
+      subject: string;
+      body: string;
+      conversation?: string | null;
+      inReplyTo?: string | null;
+    }) {
+      return invoke<OrchestrationHiveMessage>("orchestration_mail_send", {
+        runId: input.runId,
+        from: input.from,
+        to: input.to,
+        act: input.act,
+        subject: input.subject,
+        body: input.body,
+        conversation: input.conversation ?? null,
+        inReplyTo: input.inReplyTo ?? null,
+      });
+    },
+    loadUnread(runId: string, agentId: string) {
+      return invoke<OrchestrationMailUnread>("orchestration_mail_unread", {
+        runId,
+        agentId,
+      });
+    },
+    loadInbox(runId: string, agentId: string) {
+      return invoke<OrchestrationHiveMessage[]>("orchestration_mail_inbox", {
+        runId,
+        agentId,
+      });
+    },
+    ackMail(runId: string, agentId: string, messageId: string) {
+      return invoke<OrchestrationHiveMessage[]>("orchestration_mail_ack", {
+        runId,
+        agentId,
+        messageId,
+      });
+    },
+    routeMail(runId: string) {
+      return invoke<OrchestrationRouteReport>("orchestration_mail_route", { runId });
+    },
+    reindexMemories(runId: string) {
+      return invoke<OrchestrationMemoryIndexReport>("orchestration_memory_reindex", {
+        runId,
+      });
+    },
+    searchMemories(runId: string, query: string, limit = 8) {
+      return invoke<OrchestrationMemoryHit[]>("orchestration_memory_search", {
+        runId,
+        query,
+        limit,
+      });
+    },
+    listSpawnRequests(runId: string) {
+      return invoke<OrchestrationPendingSpawn[]>("orchestration_spawn_list", {
+        runId,
+      });
+    },
+    claimSpawnRequest(runId: string, id: string) {
+      return invoke<OrchestrationPendingSpawn>("orchestration_spawn_claim", {
+        runId,
+        id,
+      });
     },
   };
 }

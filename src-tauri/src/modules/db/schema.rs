@@ -313,6 +313,7 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
         );",
     )
     .map_err(|e| format!("Failed to create orchestration tables: {e}"))?;
+    crate::modules::orchestration::memory::ensure_memory_schema(conn)?;
     init_mobile_workspace_schema(conn)?;
 
     conn.execute(

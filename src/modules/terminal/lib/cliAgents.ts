@@ -60,7 +60,9 @@ export type CliAgentChatTransport =
   | "codex-app-server"
   | "claude-json"
   | "omp-rpc"
-  | "command-code-json";
+  | "command-code-json"
+  | "gemini-stream-json"
+  | "opencode-json";
 
 export type CliAgentDefinition = {
   id: CliAgent;
@@ -318,8 +320,8 @@ const commandCodeLaunch = unattendedLaunch("cmd", "cmd");
 export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "claude", name: "Claude Code", executable: "claude", command: claudeLaunch, launch: claudeLaunch, launchPolicy: "unattended", chatTransport: "claude-json", bannerPatterns: [/\bclaude code\b/i] },
   { id: "codex", name: "Codex", executable: "codex", command: codexLaunch, launch: codexLaunch, launchPolicy: "unattended", chatTransport: "codex-app-server", bannerPatterns: [/\bopenai codex\b/i, /\bask codex\b/i] },
-  { id: "gemini", name: "Gemini CLI", executable: "gemini", command: "gemini", launch: "gemini", launchPolicy: "standard", bannerPatterns: [/\bgemini cli\b/i] },
-  { id: "opencode", name: "OpenCode", executable: "opencode", command: opencodeLaunch, launch: opencodeLaunch, launchPolicy: "unattended", bannerPatterns: [/\bopencode\b/i] },
+  { id: "gemini", name: "Gemini CLI", executable: "gemini", command: "gemini", launch: "gemini", launchPolicy: "standard", chatTransport: "gemini-stream-json", bannerPatterns: [/\bgemini cli\b/i] },
+  { id: "opencode", name: "OpenCode", executable: "opencode", command: opencodeLaunch, launch: opencodeLaunch, launchPolicy: "unattended", chatTransport: "opencode-json", bannerPatterns: [/\bopencode\b/i] },
   { id: "copilot", name: "GitHub Copilot", executable: "copilot", command: "copilot", launch: "copilot", launchPolicy: "standard", bannerPatterns: [/\bgithub copilot\b/i, /\bcopilot cli\b/i] },
   { id: "cursor", name: "Cursor Agent", executable: "cursor-agent", command: "cursor-agent", launch: "cursor-agent", launchPolicy: "standard", bannerPatterns: [/\bcursor agent\b/i] },
   { id: "aider", name: "Aider", executable: "aider", command: "aider", launch: "aider", launchPolicy: "standard", bannerPatterns: [/\baider\b/i] },
@@ -368,6 +370,14 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
 export const CLI_AGENT_BY_ID = Object.fromEntries(
   CLI_AGENT_DEFINITIONS.map((definition) => [definition.id, definition]),
 ) as Record<CliAgent, CliAgentDefinition>;
+
+/// CLI agents without a structured chat transport. They can still join an
+/// orchestration as manual terminal workers (plain PTY + human completion).
+export const ORCHESTRATION_FALLBACK_PROVIDERS: ReadonlySet<CliAgent> = new Set(
+  CLI_AGENT_DEFINITIONS.filter((definition) => !definition.chatTransport).map(
+    (definition) => definition.id,
+  ),
+);
 
 export const CLI_AGENT_CATALOG: readonly CliAgentCatalogEntry[] =
   CLI_AGENT_DEFINITIONS.map((definition) => ({

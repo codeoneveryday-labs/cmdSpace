@@ -109,6 +109,8 @@ export function WorkspaceSetupLayoutStep({
   recentFolders: WorkspaceItem[];
   setAgentCounts: Dispatch<SetStateAction<Record<string, number>>>;
 }) {
+  const isOrchestrationCanvas =
+    workspaceMode === "canvas" && canvasPurpose === "orchestration";
   return (
 
             <>
@@ -417,7 +419,7 @@ export function WorkspaceSetupLayoutStep({
               <section className="space-y-3">
                 <div className="flex items-baseline gap-2">
                   <h3 className="text-sm font-semibold text-foreground">
-                    Presets
+                    {isOrchestrationCanvas ? "Team size" : "Presets"}
                   </h3>
                   <span className="text-[11px] font-medium text-muted-foreground/70">
                     {WORKSPACE_SETUP_PRESETS.length}
@@ -463,18 +465,22 @@ export function WorkspaceSetupLayoutStep({
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-2">
                     <h3 className="text-sm font-semibold text-foreground">
-                      How many terminals?
+                      {isOrchestrationCanvas ? "Team terminals" : "How many terminals?"}
                     </h3>
                     <span className="text-[11px] text-muted-foreground/70">
-                      Tap a tile to choose a layout
+                      {isOrchestrationCanvas
+                        ? "Includes one Boss CLI and the selected worker CLI agents"
+                        : "Tap a tile to choose a layout"}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-medium sm:flex sm:gap-4 md:text-right">
                     <span className="text-primary">
-                      {terminalCount} terminal
+                      {terminalCount} total
                     </span>
                     <span className="text-muted-foreground">
-                      {layoutLabel(terminalCount)}
+                      {isOrchestrationCanvas
+                        ? `1 Boss + ${Math.max(0, terminalCount - 1)} worker slots`
+                        : layoutLabel(terminalCount)}
                     </span>
                   </div>
                 </div>

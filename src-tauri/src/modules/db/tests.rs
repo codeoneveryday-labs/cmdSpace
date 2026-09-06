@@ -82,7 +82,7 @@ fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
 fn orchestration_run_round_trips_with_task_execution_state() {
     use crate::modules::orchestration::{
         AgentSpec, OrchestrationEvent, OrchestrationEventType, OrchestrationManifest,
-        OrchestrationProvider, OrchestrationRun, OrchestratorSpec, TaskSpec,
+        OrchestrationRun, OrchestratorSpec, TaskSpec,
     };
 
     let mut conn = Connection::open_in_memory().expect("open database");
@@ -92,14 +92,14 @@ fn orchestration_run_round_trips_with_task_execution_state() {
         title: "Canvas run".to_string(),
         goal: "Ship it".to_string(),
         orchestrator: OrchestratorSpec {
-            provider: OrchestrationProvider::Codex,
+            provider: "codex".to_string(),
             model: None,
         },
         agents: vec![AgentSpec {
             id: "builder".to_string(),
             name: "Builder".to_string(),
             role: "Implementation".to_string(),
-            provider: OrchestrationProvider::Claude,
+            provider: "claude".to_string(),
             model: None,
         }],
         tasks: vec![TaskSpec {

@@ -13,6 +13,7 @@ export function useWorkspaceSetupOpenWorkspace({
   workspaceMode,
   canvasPurpose,
   orchestratorProvider,
+  workerTerminalCapacity,
   selectedChatAgent,
   agentCounts,
   selectedImportSessions,
@@ -32,6 +33,7 @@ export function useWorkspaceSetupOpenWorkspace({
   workspaceMode: "standard" | "canvas" | "agent";
   canvasPurpose: CanvasPurpose;
   orchestratorProvider: OrchestrationProvider;
+  workerTerminalCapacity: number;
   selectedChatAgent: CliAgent | null;
   agentCounts: Record<string, number>;
   selectedImportSessions: ImportableAgentSession[];
@@ -65,6 +67,7 @@ export function useWorkspaceSetupOpenWorkspace({
     workspaceMode,
     canvasPurpose,
     orchestratorProvider,
+    workerTerminalCapacity,
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
@@ -85,6 +88,7 @@ export function useWorkspaceSetupOpenWorkspace({
     workspaceMode,
     canvasPurpose,
     orchestratorProvider,
+    workerTerminalCapacity,
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
@@ -108,7 +112,7 @@ export function useWorkspaceSetupOpenWorkspace({
         selectedImportSessions: current.selectedImportSessions,
         cliTerminalCapacity: Math.max(
           0,
-          current.terminalCount - current.selectedImportSessions.length,
+          current.workerTerminalCapacity - current.selectedImportSessions.length,
         ),
         isolateAgentWorktrees: current.isolateAgentWorktrees,
         agentWorktreeGroup: current.agentWorktreeGroup,

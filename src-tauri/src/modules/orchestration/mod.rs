@@ -8,18 +8,22 @@ use std::{
 use tauri::ipc::Channel;
 
 pub mod commands;
+pub(crate) mod hive_files;
+pub(crate) mod launch;
+pub(crate) mod mailbox;
+pub(crate) mod memory;
+pub(crate) mod protocol;
+pub(crate) mod router;
+pub(crate) mod spawn_queue;
+pub(crate) mod wake;
 mod worktree;
 
 const SUPPORTED_MANIFEST_VERSION: u32 = 1;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum OrchestrationProvider {
-    Codex,
-    Claude,
-    #[serde(rename = "cmd")]
-    CommandCode,
-}
+/// Provider-agnostic CLI id (mirrors the frontend agent catalog). Structured
+/// transports are resolved at worker start; anything else runs as a manual
+/// terminal worker coordinated through worktrees and the review surface.
+pub type OrchestrationProvider = String;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -667,6 +671,7 @@ impl OrchestrationEventSink {
 pub struct OrchestrationRuntime {
     runs: Arc<RwLock<HashMap<String, OrchestrationRun>>>,
     sinks: Arc<RwLock<HashMap<String, Arc<OrchestrationEventSink>>>>,
+    wake: Arc<Mutex<wake::WakeWatchdog>>,
 }
 
 impl OrchestrationRuntime {
@@ -914,6 +919,57 @@ impl OrchestrationRuntime {
         Ok(interrupted)
     }
 
+    pub fn wake_note_spawn(&self, pty_id: &str, at: u64) -> Result<(), String> {
+        self.wake
+            .lock()
+            .map_err(|_| "orchestration wake lock poisoned".to_string())?
+            .note_spawn(pty_id, at);
+        Ok(())
+    }
+
+    pub fn wake_note_hook(
+        &self,
+        agent_id: &str,
+        event: Option<&str>,
+        message: Option<&str>,
+        at: u64,
+    ) -> Result<(), String> {
+        self.wake
+            .lock()
+            .map_err(|_| "orchestration wake lock poisoned".to_string())?
+            .note_hook(agent_id, event, message, at);
+        Ok(())
+    }
+
+    pub fn wake_forget(&self, agent_id: &str, pty_id: Option<&str>) -> Result<(), String> {
+        self.wake
+            .lock()
+            .map_err(|_| "orchestration wake lock poisoned".to_string())?
+            .forget(agent_id, pty_id);
+        Ok(())
+    }
+
+    pub fn wake_decide(
+        &self,
+        run_id: &str,
+        facts: Vec<wake::WakeFacts>,
+        now: u64,
+    ) -> Result<Vec<wake::WakeCandidate>, String> {
+        self.snapshot(run_id)?;
+        let ids = self
+            .wake
+            .lock()
+            .map_err(|_| "orchestration wake lock poisoned".to_string())?
+            .decide(&facts, now);
+        Ok(ids
+            .into_iter()
+            .map(|agent_id| wake::WakeCandidate {
+                agent_id,
+                nudge: wake::WAKE_NUDGE.to_string(),
+            })
+            .collect())
+    }
+
     pub fn record_event(
         &self,
         run_id: &str,
@@ -974,7 +1030,7 @@ fn is_active_run(status: OrchestrationRunStatus) -> bool {
     )
 }
 
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis().try_into().unwrap_or(i64::MAX))
@@ -985,8 +1041,8 @@ fn now_ms() -> i64 {
 mod tests {
     use super::{
         AgentSpec, OrchestrationEvent, OrchestrationEventType, OrchestrationManifest,
-        OrchestrationProvider, OrchestrationRun, OrchestrationRunStatus, OrchestrationRuntime,
-        OrchestrationTaskStatus, OrchestratorSpec, TaskSpec,
+        OrchestrationRun, OrchestrationRunStatus, OrchestrationRuntime, OrchestrationTaskStatus,
+        OrchestratorSpec, TaskSpec,
     };
     use std::path::Path;
 
@@ -996,7 +1052,7 @@ mod tests {
             title: "Canvas orchestration".to_string(),
             goal: "Build the approved graph".to_string(),
             orchestrator: OrchestratorSpec {
-                provider: OrchestrationProvider::Codex,
+                provider: "codex".to_string(),
                 model: None,
             },
             agents: vec![
@@ -1004,14 +1060,14 @@ mod tests {
                     id: "builder".to_string(),
                     name: "Builder".to_string(),
                     role: "Implementation".to_string(),
-                    provider: OrchestrationProvider::Claude,
+                    provider: "claude".to_string(),
                     model: None,
                 },
                 AgentSpec {
                     id: "reviewer".to_string(),
                     name: "Reviewer".to_string(),
                     role: "Verification".to_string(),
-                    provider: OrchestrationProvider::CommandCode,
+                    provider: "cmd".to_string(),
                     model: None,
                 },
             ],
@@ -1230,5 +1286,103 @@ mod tests {
             .unwrap();
         assert_eq!(task.chat_id.as_deref(), Some("chat-1"));
         assert_eq!(task.runtime_session_id.as_deref(), Some("runtime-1"));
+    }
+
+    #[test]
+    fn resume_sequence_readmits_interrupted_tasks() {
+        let runtime = OrchestrationRuntime::default();
+        runtime
+            .create_run("run-1", "workspace-1", "/repo", manifest())
+            .unwrap();
+        runtime.approve_and_start("run-1", 1).unwrap();
+        let (_, started) = runtime.admit_ready_tasks("run-1", 3).unwrap();
+        assert_eq!(started, vec!["build-1"]);
+
+        runtime.interrupt_active_runs().unwrap();
+        let run = runtime.resume("run-1").unwrap();
+        // Resume alone only re-queues; the command layer must admit after.
+        assert_eq!(
+            run.tasks
+                .iter()
+                .find(|task| task.task_id == "build-1")
+                .map(|task| task.status),
+            Some(OrchestrationTaskStatus::Queued)
+        );
+        let (run, started) = runtime.admit_ready_tasks("run-1", 3).unwrap();
+        assert_eq!(started, vec!["build-1"]);
+        assert_eq!(run.status, OrchestrationRunStatus::Running);
+    }
+
+    #[test]
+    fn retry_sequence_readmits_the_failed_task() {
+        let runtime = OrchestrationRuntime::default();
+        runtime
+            .create_run("run-1", "workspace-1", "/repo", manifest())
+            .unwrap();
+        runtime.approve_and_start("run-1", 1).unwrap();
+        runtime.admit_ready_tasks("run-1", 3).unwrap();
+        runtime.fail_task("run-1", "build-1", "boom").unwrap();
+
+        let run = runtime.retry_task("run-1", "build-1").unwrap();
+        assert_eq!(run.status, OrchestrationRunStatus::Running);
+        let (_, started) = runtime.admit_ready_tasks("run-1", 3).unwrap();
+        assert_eq!(started, vec!["build-1"]);
+    }
+
+    #[test]
+    fn wake_policy_state_lives_on_the_runtime() {
+        use super::wake::{
+            WakeFacts, WAKE_COOLDOWN_MS, WAKE_HITL_REARM_MS, WAKE_IDLE_MS, WAKE_NUDGE,
+        };
+
+        let runtime = OrchestrationRuntime::default();
+        runtime
+            .create_run("run-1", "workspace-1", "/repo", manifest())
+            .unwrap();
+        let facts = WakeFacts {
+            agent_id: "builder".to_string(),
+            is_orchestrator: false,
+            pty_id: Some("pty-1".to_string()),
+            last_output_at: 100_000,
+            inbox_count: 1,
+            delivery_paused: false,
+            paused: false,
+            halted: false,
+        };
+        let now = 100_000 + WAKE_IDLE_MS;
+        let first = runtime
+            .wake_decide("run-1", vec![facts.clone()], now)
+            .unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].agent_id, "builder");
+        assert_eq!(first[0].nudge, WAKE_NUDGE);
+        assert!(runtime
+            .wake_decide("run-1", vec![facts.clone()], now + 1)
+            .unwrap()
+            .is_empty());
+        runtime
+            .wake_note_hook("builder", Some("Notification"), Some("Approve this?"), now)
+            .unwrap();
+        assert!(runtime
+            .wake_decide(
+                "run-1",
+                vec![facts.clone()],
+                now + WAKE_COOLDOWN_MS + WAKE_IDLE_MS
+            )
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            runtime
+                .wake_decide(
+                    "run-1",
+                    vec![facts],
+                    now + WAKE_HITL_REARM_MS + WAKE_COOLDOWN_MS + WAKE_IDLE_MS
+                )
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(runtime.wake_decide("missing", vec![], now).is_err());
+        runtime.wake_note_spawn("pty-1", now).unwrap();
     }
 }
