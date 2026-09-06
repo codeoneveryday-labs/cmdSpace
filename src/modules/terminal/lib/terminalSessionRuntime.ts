@@ -10,7 +10,7 @@ import { createShellIntegrationState, registerCwdHandler, registerPromptTracker 
 import { openPty, type PtySession } from "./pty-bridge";
 import { broadcastTargetsForInput } from "./terminalBroadcastRuntime";
 import { noteTerminalOutput } from "./terminalActivity";
-import { acquireSlot, configureRendererPool, getSlotForLeaf, releaseSlot, syncSlotThemeForLeaf } from "./rendererPool";
+import { acquireSlot, configureRendererPool, focusSlot, getSlotForLeaf, releaseSlot, syncSlotThemeForLeaf } from "./rendererPool";
 import { isInteractiveCodingAgentCommand, isDarkTerminalAgent, detectCliAgent } from "./cliAgents";
 import { processTerminalOutput } from "./terminalOutputModel";
 import { trackTerminalInput } from "./terminalInputTrackingModel";
@@ -32,8 +32,13 @@ export const sessions = new Map<number, Session>();
 
 installTerminalWakeRebind(() => {
   for (const [leafId, session] of sessions) {
-    if (session.disposed || !session.visibleNow || session.hasSlot || !session.container) continue;
+    if (session.disposed || !session.visibleNow || !session.container) continue;
+    if (session.hasSlot) {
+      if (session.focusedNow) focusSlot(leafId);
+      continue;
+    }
     bindLeafToSlot(leafId, session);
+    if (session.focusedNow) focusSlot(leafId);
   }
 });
 

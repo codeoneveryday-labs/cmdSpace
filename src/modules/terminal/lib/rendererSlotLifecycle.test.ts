@@ -53,7 +53,7 @@ function createSlot(host: FakeElement): Slot {
   } as unknown as Slot;
 }
 
-function createLifecycle() {
+function createLifecycle(isLeafFocused = false) {
   const resize = {
     setupResizeObserver: vi.fn(),
     fitSlot: vi.fn(),
@@ -69,7 +69,7 @@ function createLifecycle() {
     getAdapter: () => ({
       resolveLeaf: () => bridge,
       evictLeaf: vi.fn(),
-      isLeafFocused: () => false,
+      isLeafFocused: () => isLeafFocused,
     }),
     getRecycler: () => recycler as HTMLDivElement,
     clearSlotAutoCopyTimer,
@@ -84,6 +84,40 @@ afterEach(() => {
 });
 
 describe("rendererSlotLifecycle", () => {
+  it("focuses an active helper textarea after the slot becomes visible", () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    const host = createElement();
+    const container = createElement(900, 600);
+    const textarea = { focus: vi.fn() };
+    const slot = createSlot(host);
+    Object.defineProperty(slot.term, "textarea", { value: textarea });
+    const { lifecycle } = createLifecycle(true);
+
+    lifecycle.bindSlot(slot, {
+      leafId: 42,
+      container: container as HTMLDivElement,
+      snapshot: null,
+      altScreen: false,
+      drainRing: vi.fn(),
+      shellExited: false,
+      searchQuery: null,
+      cols: 80,
+      rows: 24,
+      registerOsc: () => [],
+      onSearchReady: vi.fn(),
+    });
+
+    expect(slot.term.focus).not.toHaveBeenCalled();
+    rafCallbacks[0]?.(0);
+    rafCallbacks[1]?.(0);
+    expect(slot.term.focus).toHaveBeenCalledOnce();
+    expect(textarea.focus).toHaveBeenCalledOnce();
+  });
+
   it("binds a standard terminal by restoring its snapshot and dormant output before resizing its PTY", () => {
     vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
     const host = createElement();

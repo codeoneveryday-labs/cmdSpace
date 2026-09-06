@@ -134,10 +134,22 @@ export function PaneTreeView({
       onHydrateLeaf(node.id);
       if (!focused) onFocusLeaf(node.id);
     };
+    const focusPaneInput = () => {
+      focusAndHydrate();
+      if (hydrated) {
+        window.requestAnimationFrame(() => b.getRef()?.focus());
+      }
+    };
     return (
       <div
-        onMouseDownCapture={() => {
-          focusAndHydrate();
+        onMouseDownCapture={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest('button,[role="button"],[data-pane-drag-handle]')
+          ) {
+            return;
+          }
+          focusPaneInput();
         }}
         // Catches focus from Tab, programmatic focus, or any path that
         // skips mousedown — keeps activeLeafId in sync with DOM focus.
