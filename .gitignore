@@ -51,3 +51,13 @@ scripts/bin/harness.exe
 
 # Local architecture-study report generated during onboarding
 /docs/reports/codebase-study-2026-08-01.md
+.omx-state-locks/
+.omx-state-locks.identity.json
+.codex/*
+!.codex/agents/
+!.codex/agents/**
+!.codex/skills/
+!.codex/skills/**
+.codex/skills/.system/**
+!.codex/prompts/
+!.codex/prompts/**
