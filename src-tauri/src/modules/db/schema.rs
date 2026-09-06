@@ -274,6 +274,46 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
         [],
     )
     .map_err(|e| format!("Failed to create agent model cache table: {e}"))?;
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS orchestration_runs (
+            run_id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            revision INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL,
+            source_commit TEXT,
+            integration_branch TEXT,
+            integration_worktree TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS orchestration_active_workspace
+            ON orchestration_runs(workspace_id)
+            WHERE status NOT IN ('completed', 'cancelled', 'failed');
+        CREATE TABLE IF NOT EXISTS orchestration_task_executions (
+            run_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            attempt INTEGER NOT NULL,
+            result_json TEXT,
+            chat_id TEXT,
+            runtime_session_id TEXT,
+            branch_name TEXT,
+            worktree_path TEXT,
+            PRIMARY KEY (run_id, task_id)
+        );
+        CREATE TABLE IF NOT EXISTS orchestration_events (
+            run_id TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            task_id TEXT,
+            event_type TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (run_id, sequence)
+        );",
+    )
+    .map_err(|e| format!("Failed to create orchestration tables: {e}"))?;
+    crate::modules::orchestration::memory::ensure_memory_schema(conn)?;
     init_mobile_workspace_schema(conn)?;
 
     conn.execute(

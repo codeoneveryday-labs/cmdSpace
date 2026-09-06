@@ -31,8 +31,15 @@ export function useCanvasDiagramState(seed: ArchitectureCanvasProps["seed"]) {
   const [terminalDockGroups, setTerminalDockGroups] = useState<
     ArchitectureTerminalDockGroup[]
   >(() => initialDiagram.terminalDockGroups);
+  const [orchestrationRunId, setOrchestrationRunId] = useState<string | null>(
+    () => initialDiagram.orchestrationRunId,
+  );
 
   return {
+    canvasPurpose: initialDiagram.canvasPurpose,
+    orchestrationProvider: initialDiagram.orchestrationProvider,
+    orchestrationRunId,
+    setOrchestrationRunId,
     nodes,
     setNodes,
     edges,

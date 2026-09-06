@@ -9,7 +9,7 @@ export type AgentRateLimit = {
 };
 
 export type AgentUsageStatus = {
-  provider: "codex" | "claude" | "omp" | "cmd" | "opencode";
+  provider: "codex" | "claude" | "omp" | "cmd" | "opencode" | "gemini";
   nativeSessionId?: string;
   contextWindow?: number;
   contextTokens?: number;

@@ -188,7 +188,8 @@ fn cmd_status_skips_session_headers() {
 
 #[test]
 fn models_context_window_resolves_models_dev_cache_shape() {
-    let cache = r#"{"hpc-ai":{"models":{"deepseek/deepseek-v4-flash":{"limit":{"context":1048576}}}}}"#;
+    let cache =
+        r#"{"hpc-ai":{"models":{"deepseek/deepseek-v4-flash":{"limit":{"context":1048576}}}}}"#;
 
     assert_eq!(
         models_context_window(cache, "deepseek/deepseek-v4-flash"),
@@ -207,11 +208,11 @@ fn models_context_window_resolves_omp_model_cache_shape() {
 
 #[test]
 fn known_model_context_window_matches_families_case_insensitively() {
-    assert_eq!(known_model_context_window("claude-sonnet-4-5"), Some(200_000));
     assert_eq!(
-        known_model_context_window("Claude-Opus-4-1"),
+        known_model_context_window("claude-sonnet-4-5"),
         Some(200_000)
     );
+    assert_eq!(known_model_context_window("Claude-Opus-4-1"), Some(200_000));
     assert_eq!(known_model_context_window("gpt-4o"), Some(128_000));
     assert_eq!(known_model_context_window("gpt-4.1-mini"), Some(1_048_576));
     assert_eq!(known_model_context_window("gpt-5-mini"), Some(400_000));

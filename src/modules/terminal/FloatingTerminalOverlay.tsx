@@ -230,9 +230,13 @@ export function FloatingTerminalOverlay({
           <span className="hidden @sm:contents">
             <button
               type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+              }}
               onClick={(event) => {
                 event.stopPropagation();
                 onToggleBroadcastTarget();
+                onFocusTerminal?.();
               }}
               aria-pressed={broadcastTargeted}
               title={broadcastTargeted ? "Remove pane from broadcast" : "Add pane to broadcast"}
@@ -247,9 +251,13 @@ export function FloatingTerminalOverlay({
             </button>
             <button
               type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+              }}
               onClick={(event) => {
                 event.stopPropagation();
                 onToggleBroadcast();
+                onFocusTerminal?.();
               }}
               aria-pressed={broadcastEnabled}
               title={broadcastEnabled ? "Disable input broadcast" : "Enable input broadcast"}

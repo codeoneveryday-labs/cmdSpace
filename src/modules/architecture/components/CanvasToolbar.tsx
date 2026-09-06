@@ -12,6 +12,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { PanToolIcon } from "./PanToolIcon";
 import { ToolButton } from "./ToolButton";
+import {
+  OrchestrationToolbarSection,
+  type OrchestrationToolbarControls,
+} from "./OrchestrationToolbarSection";
 import type { CanvasMode, LiveSurfaceKind } from "../lib/architectureCanvasTypes";
 
 const TOOL_SHORTCUTS: Partial<Record<CanvasMode, string>> = {
@@ -39,6 +43,7 @@ export function CanvasToolbar({
   onToggleSelectedLock,
   onUndo,
   onZoomBy,
+  orchestration = null,
 }: {
   mode: CanvasMode;
   pendingSurfaceKind: LiveSurfaceKind | null;
@@ -51,6 +56,7 @@ export function CanvasToolbar({
   onToggleSelectedLock: () => void;
   onUndo: () => void;
   onZoomBy: (delta: number) => void;
+  orchestration?: OrchestrationToolbarControls | null;
 }) {
   const selectMode = (nextMode: CanvasMode) => onModeChange(nextMode);
   return (
@@ -117,6 +123,7 @@ export function CanvasToolbar({
         label="Undo"
         onClick={onUndo}
       />
+      {orchestration ? <OrchestrationToolbarSection controls={orchestration} /> : null}
       <span aria-hidden="true" className="mx-1 h-8 w-px shrink-0 bg-zinc-200 dark:bg-zinc-700" />
       <Button
         type="button"

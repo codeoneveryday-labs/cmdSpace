@@ -71,4 +71,24 @@ describe("macOS microphone signing", () => {
       "com.apple.security.device.audio-input",
     );
   });
+
+  it("allows the voice retry action to open the macOS microphone privacy pane", () => {
+    const capabilities = JSON.parse(
+      readFileSync(path.join(here, "capabilities/default.json"), "utf8"),
+    ) as { permissions: Array<string | { identifier: string; allow?: unknown[] }> };
+    const microphoneSettingsPermission = capabilities.permissions.find(
+      (permission) =>
+        typeof permission === "object" &&
+        permission.identifier === "opener:allow-open-url",
+    );
+
+    expect(microphoneSettingsPermission).toEqual({
+      identifier: "opener:allow-open-url",
+      allow: [
+        {
+          url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+        },
+      ],
+    });
+  });
 });

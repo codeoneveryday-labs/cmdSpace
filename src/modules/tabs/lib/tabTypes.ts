@@ -53,14 +53,23 @@ export type AgentChatTab = {
   initialHistoryAttachments?: AgentChatHistoryAttachment[];
 };
 
-export type ArchitectureShapeKind = "actor" | "external" | "service" | "api" | "worker" | "function" | "ai" | "database" | "cache" | "queue" | "storage" | "gateway" | "security" | "boundary" | "rectangle" | "circle" | "frame" | "text" | "image" | "terminal" | "editor" | "line" | "arrow" | "pen";
-export type ArchitectureDiagramNode = { id: string; kind: ArchitectureShapeKind; label: string; technology: string; x: number; y: number; width: number; height: number; rotation?: number; locked?: boolean; imageUrl?: string; cwd?: string; initialCommand?: string; nativeSessionId?: string; path?: string; terminalChromeVersion?: 2; points?: Array<{ x: number; y: number }>; connectorStartId?: string; connectorEndId?: string; textAnchorId?: string; frameId?: string };
+export type CanvasPurpose = "architecture" | "orchestration";
+export type OrchestrationProvider = CliAgent;
+export type ArchitectureShapeKind = "actor" | "external" | "service" | "api" | "worker" | "function" | "ai" | "database" | "cache" | "queue" | "storage" | "gateway" | "security" | "boundary" | "orchestrator" | "agent" | "task" | "rectangle" | "circle" | "frame" | "text" | "image" | "terminal" | "editor" | "line" | "arrow" | "pen";
+export type OrchestrationNodeBinding =
+  | { kind: "orchestrator"; entityId: "orchestrator" }
+  | { kind: "agent"; entityId: string }
+  | { kind: "task"; entityId: string };
+export type OrchestrationEdgeBinding =
+  | { kind: "assignment"; agentId: string; taskId: string }
+  | { kind: "dependency"; fromTaskId: string; toTaskId: string };
+export type ArchitectureDiagramNode = { id: string; kind: ArchitectureShapeKind; label: string; technology: string; x: number; y: number; width: number; height: number; rotation?: number; locked?: boolean; imageUrl?: string; cwd?: string; initialCommand?: string; nativeSessionId?: string; path?: string; terminalChromeVersion?: 2; points?: Array<{ x: number; y: number }>; connectorStartId?: string; connectorEndId?: string; textAnchorId?: string; frameId?: string; orchestration?: OrchestrationNodeBinding };
 export type ArchitectureTerminalDockTabs = { id: string; kind: "tabs"; terminalIds: string[]; activeTerminalId: string };
 export type ArchitectureTerminalDockSplit = { id: string; kind: "split"; direction: "horizontal" | "vertical"; ratio: number; first: ArchitectureTerminalDockNode; second: ArchitectureTerminalDockNode };
 export type ArchitectureTerminalDockNode = ArchitectureTerminalDockTabs | ArchitectureTerminalDockSplit;
 export type ArchitectureTerminalDockGroup = { id: string; x: number; y: number; width: number; height: number; root: ArchitectureTerminalDockNode };
-export type ArchitectureDiagramEdge = { id: string; from: string; to: string; label: string; locked?: boolean };
-export type ArchitectureDiagram = { nodes: ArchitectureDiagramNode[]; edges: ArchitectureDiagramEdge[]; terminalDockGroups?: ArchitectureTerminalDockGroup[] };
+export type ArchitectureDiagramEdge = { id: string; from: string; to: string; label: string; locked?: boolean; orchestration?: OrchestrationEdgeBinding };
+export type ArchitectureDiagram = { canvasPurpose?: CanvasPurpose; orchestrationProvider?: OrchestrationProvider; orchestrationRunId?: string | null; nodes: ArchitectureDiagramNode[]; edges: ArchitectureDiagramEdge[]; terminalDockGroups?: ArchitectureTerminalDockGroup[] };
 export type GitCommitFileDiffTab = { id: number; kind: "git-commit-file"; title: string; repoRoot: string; sha: string; shortSha: string; subject: string; path: string; originalPath: string | null };
 
 export type Tab = TerminalTab | EditorTab | MarkdownTab | AiDiffTab | GitDiffTab | GitHistoryTab | ArchitectureTab | AgentChatTab | GitCommitFileDiffTab;

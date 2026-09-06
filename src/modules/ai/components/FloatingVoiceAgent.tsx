@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
+  isMicrophonePermissionError,
   useSpeechToTextInput,
   type SpeechInputStatus,
   type SpeechInputTarget,
@@ -56,7 +57,13 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
       insertTranscript,
     });
     const label = status === "error" ? message ?? LABELS[status] : LABELS[status];
-    const visibleLabel = status === "error" ? "…" : LABELS[status];
+    const microphonePermissionBlocked =
+      status === "error" && isMicrophonePermissionError(message);
+    const visibleLabel = microphonePermissionBlocked
+      ? "Allow microphone"
+      : status === "error"
+        ? "…"
+        : LABELS[status];
     const isListening = status === "listening";
     const voiceInputGlow = isListening
       ? `0 0 ${10 + audioLevel * 26}px rgb(251 146 60 / ${0.2 + audioLevel * 0.48}), 0 -${2 + audioLevel * 8}px ${8 + audioLevel * 20}px rgb(239 68 68 / ${0.12 + audioLevel * 0.3})`
@@ -193,7 +200,11 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
       <button
         type="button"
         ref={buttonRef}
-        aria-label="Toggle voice input"
+        aria-label={
+          microphonePermissionBlocked
+            ? "Open microphone settings"
+            : "Toggle voice input"
+        }
         aria-pressed={status === "listening"}
         disabled={busyElsewhere}
         title={label}

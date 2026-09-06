@@ -16,6 +16,7 @@ const PROVIDER_DISPLAY_NAMES: Record<AgentUsageStatus["provider"], string> = {
   omp: "omp",
   cmd: "Command Code",
   opencode: "OpenCode",
+  gemini: "Gemini CLI",
 };
 
 /// Matches OpenCode's default session title as rendered in the TUI sidebar

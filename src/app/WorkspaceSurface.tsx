@@ -41,6 +41,8 @@ export type WorkspaceSurfaceProps = {
   workspaces: Array<{
     id: string;
     tabId: number | null;
+    canvasTabId?: number | null;
+    workingFolder?: string | null;
     agentTabIds?: number[];
   }>;
   apiKeys: ProviderKeys;
@@ -227,6 +229,13 @@ export function WorkspaceSurface({
         <ArchitectureStack
           tabs={tabs}
           activeId={activeId}
+          canvasWorkspaceByTab={Object.fromEntries(
+            workspaces.flatMap((workspace) =>
+              workspace.canvasTabId === null || workspace.canvasTabId === undefined
+                ? []
+                : [[workspace.canvasTabId, { id: workspace.id, cwd: workspace.workingFolder ?? null }]],
+            ),
+          )}
           onDiagramChange={onDiagramChange}
           onRegisterTerminalCreator={onRegisterTerminalCreator}
           onTerminalHandleChange={onTerminalHandleChange}

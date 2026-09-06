@@ -47,7 +47,13 @@ pub(crate) fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         )?)?;
     }
 
-    let new_tab = MenuItem::with_id(app, "cmdspace.new-tab", "New Tab", true, Some("CmdOrCtrl+T"))?;
+    let new_tab = MenuItem::with_id(
+        app,
+        "cmdspace.new-tab",
+        "New Tab",
+        true,
+        Some("CmdOrCtrl+T"),
+    )?;
     let maximize_pane = MenuItem::with_id(
         app,
         "cmdspace.maximize-pane",

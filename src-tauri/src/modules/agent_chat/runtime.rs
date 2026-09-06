@@ -1,5 +1,5 @@
 use super::daemon::{AgentDaemonIndex, IDLE_REAPER_INTERVAL};
-use super::event_sink::AgentChatEventSink;
+use super::event_sink::{AgentChatEventObserver, AgentChatEventSink};
 use super::launch::{
     start_claude as launch_claude, start_codex as launch_codex, start_omp as launch_omp,
     start_print as launch_print,
@@ -190,6 +190,15 @@ impl AgentChatRuntime {
             .get(session_id)
             .cloned()
             .ok_or_else(|| format!("unknown agent chat session '{session_id}'"))
+    }
+
+    pub(crate) fn observe_session(
+        &self,
+        session_id: &str,
+        observer: AgentChatEventObserver,
+    ) -> Result<(), String> {
+        self.session(session_id)?.channel.subscribe(observer);
+        Ok(())
     }
     pub(crate) fn session_for_chat(
         &self,

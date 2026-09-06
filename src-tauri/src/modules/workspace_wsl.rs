@@ -129,11 +129,7 @@ fn run_wsl(args: &[&str]) -> Result<String, String> {
 }
 
 #[cfg(windows)]
-pub fn wsl_exec_capture(
-    distro: &str,
-    program: &str,
-    args: &[&str],
-) -> Result<String, String> {
+pub fn wsl_exec_capture(distro: &str, program: &str, args: &[&str]) -> Result<String, String> {
     validate_wsl_distro_name(distro)?;
     let mut cmd = std::process::Command::new("wsl.exe");
     cmd.arg("-d")

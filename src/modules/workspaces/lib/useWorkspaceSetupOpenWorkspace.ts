@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
+import type { CanvasPurpose, OrchestrationProvider } from "@/modules/tabs";
 import type { ImportableAgentSession } from "./importSessions";
 import { buildWorkspaceLaunchCommands } from "./workspaceSetupModel";
 
@@ -10,6 +11,9 @@ export function useWorkspaceSetupOpenWorkspace({
   workspaceName,
   workspaceColor,
   workspaceMode,
+  canvasPurpose,
+  orchestratorProvider,
+  workerTerminalCapacity,
   selectedChatAgent,
   agentCounts,
   selectedImportSessions,
@@ -27,6 +31,9 @@ export function useWorkspaceSetupOpenWorkspace({
   workspaceName: string;
   workspaceColor: string;
   workspaceMode: "standard" | "canvas" | "agent";
+  canvasPurpose: CanvasPurpose;
+  orchestratorProvider: OrchestrationProvider;
+  workerTerminalCapacity: number;
   selectedChatAgent: CliAgent | null;
   agentCounts: Record<string, number>;
   selectedImportSessions: ImportableAgentSession[];
@@ -47,6 +54,8 @@ export function useWorkspaceSetupOpenWorkspace({
     workspaceAgents?: CliAgent[],
     initialAgentDraft?: string,
     initialHistoryAttachments?: AgentChatHistoryAttachment[],
+    canvasPurpose?: CanvasPurpose,
+    orchestratorProvider?: OrchestrationProvider,
   ) => void;
   onCancel: () => void;
 }) {
@@ -56,6 +65,9 @@ export function useWorkspaceSetupOpenWorkspace({
     workspaceName,
     workspaceColor,
     workspaceMode,
+    canvasPurpose,
+    orchestratorProvider,
+    workerTerminalCapacity,
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
@@ -74,6 +86,9 @@ export function useWorkspaceSetupOpenWorkspace({
     workspaceName,
     workspaceColor,
     workspaceMode,
+    canvasPurpose,
+    orchestratorProvider,
+    workerTerminalCapacity,
     selectedChatAgent,
     agentCounts,
     selectedImportSessions,
@@ -97,7 +112,7 @@ export function useWorkspaceSetupOpenWorkspace({
         selectedImportSessions: current.selectedImportSessions,
         cliTerminalCapacity: Math.max(
           0,
-          current.terminalCount - current.selectedImportSessions.length,
+          current.workerTerminalCapacity - current.selectedImportSessions.length,
         ),
         isolateAgentWorktrees: current.isolateAgentWorktrees,
         agentWorktreeGroup: current.agentWorktreeGroup,
@@ -129,6 +144,8 @@ export function useWorkspaceSetupOpenWorkspace({
           : undefined,
         initialAgentDraft,
         current.forkContext ? [current.forkContext.attachment] : undefined,
+        current.canvasPurpose,
+        current.orchestratorProvider,
       );
       current.onCancel();
     },

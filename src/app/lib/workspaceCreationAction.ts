@@ -23,6 +23,8 @@ export async function createWorkspaceAction(
     initialCommands: input.initialCommands,
     requestedName: input.requestedName,
     workspaceMode: input.workspaceMode,
+    canvasPurpose: input.canvasPurpose,
+    orchestratorProvider: input.orchestratorProvider,
     workspaceAgent: input.workspaceAgent,
     workspaceAgents: input.workspaceAgents,
     workspaces,

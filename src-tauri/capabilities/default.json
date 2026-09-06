@@ -21,6 +21,14 @@
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+        }
+      ]
+    },
     "log:default",
     "os:default",
     "store:default",

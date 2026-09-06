@@ -8,6 +8,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Dispatch, SetStateAction } from "react";
 import type { CliAgentDefinition } from "@/modules/terminal/lib/cliAgents";
+import type { CanvasPurpose } from "@/modules/tabs";
 import type { WorkspaceItem, WorkspaceMode } from "./WorkspacesPanel";
 import {
   WorkspaceColorPicker,
@@ -72,6 +73,8 @@ export function WorkspaceSetupLayoutStep({
   setWorkspaceColor,
   workspaceMode,
   setWorkspaceMode,
+  canvasPurpose,
+  setCanvasPurpose,
   agentChatAgents,
   setTerminalCount,
   terminalCount,
@@ -92,6 +95,8 @@ export function WorkspaceSetupLayoutStep({
   setWorkspaceColor: Dispatch<SetStateAction<string>>;
   workspaceMode: WorkspaceMode;
   setWorkspaceMode: Dispatch<SetStateAction<WorkspaceMode>>;
+  canvasPurpose: CanvasPurpose;
+  setCanvasPurpose: Dispatch<SetStateAction<CanvasPurpose>>;
   agentChatAgents: CliAgentDefinition[];
   setTerminalCount: Dispatch<SetStateAction<(typeof TERMINAL_COUNTS)[number]>>;
   terminalCount: (typeof TERMINAL_COUNTS)[number];
@@ -104,6 +109,8 @@ export function WorkspaceSetupLayoutStep({
   recentFolders: WorkspaceItem[];
   setAgentCounts: Dispatch<SetStateAction<Record<string, number>>>;
 }) {
+  const isOrchestrationCanvas =
+    workspaceMode === "canvas" && canvasPurpose === "orchestration";
   return (
 
             <>
@@ -213,6 +220,56 @@ export function WorkspaceSetupLayoutStep({
                   })}
                 </div>
               </section>
+
+              {workspaceMode === "canvas" ? (
+                <section className="space-y-3">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-2">
+                    <h3 className="text-sm font-semibold text-foreground">
+                      Canvas template
+                    </h3>
+                    <span className="text-[11px] text-muted-foreground/70">
+                      Choose a diagram or an approved agent workflow
+                    </span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      {
+                        purpose: "architecture" as const,
+                        name: "Architecture Canvas",
+                        description: "Diagram systems and arrange live terminals",
+                      },
+                      {
+                        purpose: "orchestration" as const,
+                        name: "Agent Orchestration",
+                        description: "Plan, approve, and monitor an agent task graph",
+                      },
+                    ].map((option) => {
+                      const selected = canvasPurpose === option.purpose;
+                      return (
+                        <button
+                          key={option.purpose}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => setCanvasPurpose(option.purpose)}
+                          className={cn(
+                            "min-h-16 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                            selected
+                              ? "border-primary/60 bg-primary/[0.08] shadow-sm"
+                              : "border-border/50 bg-card/40 hover:border-border/80 hover:bg-card/60",
+                          )}
+                        >
+                          <span className="block text-sm font-semibold text-foreground">
+                            {option.name}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                            {option.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
 
               <section className="space-y-3">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-2">
@@ -354,12 +411,15 @@ export function WorkspaceSetupLayoutStep({
                 ) : null}
               </section>
 
-              {workspaceMode !== "agent" ? (
+              {workspaceMode !== "agent" &&
+              (workspaceMode !== "canvas" ||
+                canvasPurpose === "architecture" ||
+                canvasPurpose === "orchestration") ? (
                 <>
               <section className="space-y-3">
                 <div className="flex items-baseline gap-2">
                   <h3 className="text-sm font-semibold text-foreground">
-                    Presets
+                    {isOrchestrationCanvas ? "Team size" : "Presets"}
                   </h3>
                   <span className="text-[11px] font-medium text-muted-foreground/70">
                     {WORKSPACE_SETUP_PRESETS.length}
@@ -405,18 +465,22 @@ export function WorkspaceSetupLayoutStep({
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-2">
                     <h3 className="text-sm font-semibold text-foreground">
-                      How many terminals?
+                      {isOrchestrationCanvas ? "Team terminals" : "How many terminals?"}
                     </h3>
                     <span className="text-[11px] text-muted-foreground/70">
-                      Tap a tile to choose a layout
+                      {isOrchestrationCanvas
+                        ? "Includes one Boss CLI and the selected worker CLI agents"
+                        : "Tap a tile to choose a layout"}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-medium sm:flex sm:gap-4 md:text-right">
                     <span className="text-primary">
-                      {terminalCount} terminal
+                      {terminalCount} total
                     </span>
                     <span className="text-muted-foreground">
-                      {layoutLabel(terminalCount)}
+                      {isOrchestrationCanvas
+                        ? `1 Boss + ${Math.max(0, terminalCount - 1)} worker slots`
+                        : layoutLabel(terminalCount)}
                     </span>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { ProviderKeys } from "../lib/keyring";
 import {
@@ -26,6 +27,12 @@ type Options = {
 };
 
 const READY_DURATION_MS = 2_800;
+export const MACOS_MICROPHONE_SETTINGS_URL =
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
+
+export function isMicrophonePermissionError(message: string | null): boolean {
+  return message?.startsWith("Microphone access is blocked.") ?? false;
+}
 
 export function useSpeechToTextInput({
   apiKeys,
@@ -110,8 +117,20 @@ export function useSpeechToTextInput({
       recorder.stop();
       return;
     }
+    if (phase === "error" && isMicrophonePermissionError(message)) {
+      try {
+        await openUrl(MACOS_MICROPHONE_SETTINGS_URL);
+      } catch (error) {
+        setError(
+          error instanceof Error && error.message
+            ? error.message
+            : "Could not open macOS Microphone settings. Open System Settings → Privacy & Security → Microphone, then try again.",
+        );
+      }
+      return;
+    }
     await start();
-  }, [recorder, start]);
+  }, [message, phase, recorder, setError, start]);
 
   useEffect(() => {
     return () => {

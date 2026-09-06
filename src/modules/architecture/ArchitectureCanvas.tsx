@@ -30,6 +30,9 @@ import { useCanvasPointerEnd } from "./lib/useCanvasPointerEnd";
 import { useCanvasSurfacePlacementActions } from "./lib/useCanvasSurfacePlacementActions";
 import { useCanvasTerminalLayerActions } from "./lib/useCanvasTerminalLayerActions";
 import { useCanvasTerminalSizeMigration } from "./lib/useCanvasTerminalSizeMigration";
+import { useCanvasOrchestrationRun } from "./lib/useCanvasOrchestrationRun";
+import { useCanvasOrchestrationWorkers } from "./lib/useCanvasOrchestrationWorkers";
+import { OrchestrationMailOverlay } from "./components/OrchestrationMailOverlay";
 import { useCanvasTerminalViewModel } from "./lib/useCanvasTerminalViewModel";
 import { useCanvasDockDividerPointerDown } from "./lib/useCanvasDockDividerPointerDown";
 import { useCanvasEdgePointerDown } from "./lib/useCanvasEdgePointerDown";
@@ -62,6 +65,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -71,6 +75,8 @@ import {
 export function ArchitectureCanvas({
   active,
   tabId,
+  workspaceId = null,
+  workspaceCwd = null,
   seed,
   onDiagramChange,
   onTerminalHandleChange,
@@ -93,6 +99,10 @@ export function ArchitectureCanvas({
     setTerminalDockGroups,
     nextNodeRef,
     nextEdgeRef,
+    canvasPurpose,
+    orchestrationProvider,
+    orchestrationRunId,
+    setOrchestrationRunId,
   } = useCanvasDiagramState(seed);
   const {
     clearEdgeSelection,
@@ -171,9 +181,34 @@ export function ArchitectureCanvas({
     viewHeight,
   });
   useCanvasTerminalSizeMigration(setNodes);
+  useCanvasOrchestrationWorkers({
+    canvasPurpose,
+    orchestrationRunId,
+    nodes,
+    setNodes,
+    terminalHandles: terminalHandleRef,
+  });
+  const orchestration = useCanvasOrchestrationRun({
+    canvasPurpose,
+    orchestrationRunId,
+    workspaceId,
+    workspaceCwd,
+    orchestrationProvider,
+    onRunIdChange: setOrchestrationRunId,
+  });
+  const orchestrationTaskStatuses = useMemo(
+    () =>
+      new Map(
+        (orchestration.run?.tasks ?? []).map((task) => [task.taskId, task.status]),
+      ),
+    [orchestration.run],
+  );
 
   useCanvasDiagramPersistence({
     tabId,
+    canvasPurpose,
+    orchestrationProvider,
+    orchestrationRunId,
     nodes,
     edges,
     terminalDockGroups,
@@ -597,6 +632,22 @@ export function ArchitectureCanvas({
         onToggleSelectedLock={toggleSelectedLock}
         onUndo={undoCanvas}
         onZoomBy={zoomBy}
+        orchestration={
+          canvasPurpose === "orchestration"
+            ? {
+                run: orchestration.run,
+                busy: orchestration.busy,
+                error: orchestration.error,
+                onStartRun: orchestration.startRun,
+                onSaveDraft: orchestration.saveDraft,
+                onApprove: orchestration.approveRun,
+                onCompleteTask: orchestration.completeTask,
+                onRetryTask: orchestration.retryTask,
+                onReindexMemories: orchestration.reindexMemories,
+                onSearchMemories: orchestration.searchMemories,
+              }
+            : null
+        }
       />
 
       <CanvasViewport
@@ -655,6 +706,7 @@ export function ArchitectureCanvas({
           maximizedTerminalGroupId,
           terminalResizePaused,
           actions: terminalLayerActions,
+          taskStatuses: orchestrationTaskStatuses,
         }}
         overlays={{
           terminalDropPreview,
@@ -686,6 +738,17 @@ export function ArchitectureCanvas({
           },
         }}
       />
+      {canvasPurpose === "orchestration" ? (
+        <OrchestrationMailOverlay
+          run={orchestration.run}
+          nodes={nodes}
+          flights={orchestration.mailFlights}
+          view={view}
+          viewWidth={viewWidth}
+          viewHeight={viewHeight}
+          onFlightDone={orchestration.dismissMailFlight}
+        />
+      ) : null}
     </div>
   );
 }

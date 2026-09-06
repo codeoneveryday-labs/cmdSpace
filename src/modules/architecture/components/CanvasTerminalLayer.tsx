@@ -133,6 +133,7 @@ export function CanvasTerminalLayer({
   maximizedTerminalGroupId,
   terminalResizePaused,
   actions,
+  taskStatuses,
 }: {
   active: boolean;
   mode: CanvasMode;
@@ -157,6 +158,7 @@ export function CanvasTerminalLayer({
   maximizedTerminalGroupId: string;
   terminalResizePaused: boolean;
   actions: CanvasTerminalLayerActions;
+  taskStatuses?: ReadonlyMap<string, string>;
 }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -276,6 +278,7 @@ export function CanvasTerminalLayer({
               usesSharedHeader={usesSharedHeader}
               terminalGroupLocked={terminalGroupLocked}
               terminalResizePaused={terminalResizePaused}
+              taskStatuses={taskStatuses}
               panning={mode === "pan"}
               cornerClassName={terminalDockCornerClassName(
                 bounds,

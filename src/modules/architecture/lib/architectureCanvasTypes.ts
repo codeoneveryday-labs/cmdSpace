@@ -47,7 +47,7 @@ export type ResizableShapeKind =
   | "text"
   | "image"
   | "terminal";
-export type ShapeCategory = "Drawing" | "C4" | "Application" | "Data" | "Platform";
+export type ShapeCategory = "Drawing" | "C4" | "Application" | "Data" | "Platform" | "Orchestration";
 export type Point = { x: number; y: number };
 export type ResizeHandle = "nw" | "ne" | "se" | "sw";
 export type ConnectorHandle = "start" | "control" | "end";
@@ -121,6 +121,8 @@ export type HistorySnapshot = {
 export type ArchitectureCanvasProps = {
   active: boolean;
   tabId: number;
+  workspaceId?: string | null;
+  workspaceCwd?: string | null;
   title: string;
   seed?: ArchitectureDiagram;
   onDiagramChange?: (tabId: number, diagram: ArchitectureDiagram) => void;
