@@ -34,6 +34,7 @@ export function CanvasTerminalSurface({
   maximized,
   usesSharedHeader,
   terminalResizePaused,
+  taskStatuses,
   panning,
   onHandleChange,
   onToggleGroupLock,
@@ -66,6 +67,7 @@ export function CanvasTerminalSurface({
   maximized: boolean;
   usesSharedHeader: boolean;
   terminalResizePaused: boolean;
+  taskStatuses?: ReadonlyMap<string, string>;
   panning: boolean;
   onHandleChange: (nodeId: string, handle: CanvasTerminalHandle | null) => void;
   onToggleGroupLock: () => void;
@@ -116,6 +118,11 @@ export function CanvasTerminalSurface({
         initialCwd={node.cwd}
         initialCommand={node.initialCommand}
         orchestrator={node.orchestration?.kind === "orchestrator"}
+        taskStatus={
+          node.orchestration?.kind === "task"
+            ? taskStatuses?.get(node.orchestration.entityId)
+            : undefined
+        }
         onHandleChange={(handle) => onHandleChange(node.id, handle)}
         stackTabs={stackTabs}
         activeTabId={layout?.activeTerminalId ?? node.id}

@@ -615,6 +615,7 @@ pub fn orchestration_mail_route(
         serde_json::json!({
             "mail": "routed",
             "delivered": report.delivered.len(),
+            "deliveries": report.delivered.clone(),
             "skipped": report.skipped,
         }),
     )?;

@@ -294,6 +294,25 @@ pub fn safe_segment(value: &str, fallback: &str) -> String {
     }
 }
 
+/// Unique temp dir for tests. Nanos alone collide across parallel test
+/// threads on coarse clocks; pid + sequence makes every dir unique.
+#[cfg(test)]
+pub(crate) fn temp_test_dir(prefix: &str) -> std::path::PathBuf {
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!(
+        "{prefix}-{}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default(),
+        n
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    root
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -409,13 +428,7 @@ mod tests {
 
     #[test]
     fn outbox_round_trips_and_ack_archives_with_cursor() {
-        let root = std::env::temp_dir().join(format!(
-            "cmdspace-mail-test-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_nanos())
-                .unwrap_or_default()
-        ));
+        let root = super::temp_test_dir("cmdspace-mail-test");
         let _ = fs::remove_dir_all(&root);
         write_outbox(
             &root,
@@ -444,13 +457,7 @@ mod tests {
 
     #[test]
     fn find_message_resolves_across_inbox_archive_and_outbox() {
-        let root = std::env::temp_dir().join(format!(
-            "cmdspace-mail-find-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_nanos())
-                .unwrap_or_default()
-        ));
+        let root = super::temp_test_dir("cmdspace-mail-find");
         let _ = fs::remove_dir_all(&root);
         let members = vec!["builder".to_string(), ORCHESTRATOR_ID.to_string()];
         assert!(find_message(&root, &members, "nope").is_none());
@@ -485,13 +492,7 @@ mod tests {
 
     #[test]
     fn unread_lists_inbox_and_cursor_names_last_ack() {
-        let root = std::env::temp_dir().join(format!(
-            "cmdspace-mail-unread-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_nanos())
-                .unwrap_or_default()
-        ));
+        let root = super::temp_test_dir("cmdspace-mail-unread");
         let _ = fs::remove_dir_all(&root);
         assert_eq!(load_cursor(&root, "builder").last_processed, None);
         fs::create_dir_all(inbox_dir(&root, ORCHESTRATOR_ID)).expect("inbox");

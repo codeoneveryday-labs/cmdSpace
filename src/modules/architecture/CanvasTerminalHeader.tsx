@@ -12,6 +12,7 @@ import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { AgentStateDot } from "@/modules/terminal/AgentStateDot";
 import { TerminalAgentSwitcher } from "@/modules/terminal/TerminalAgentSwitcher";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
+import { taskStatusDot } from "../lib/orchestrationTaskStatus";
 
 type StackTab = {
   id: string;
@@ -26,6 +27,7 @@ export function CanvasTerminalHeader({
   tabLabel,
   detectedAgent,
   orchestrator = false,
+  taskStatus,
   agentResponseState,
   onActivateTab,
   onTabPointerDown,
@@ -45,6 +47,7 @@ export function CanvasTerminalHeader({
   tabLabel: string;
   detectedAgent: CliAgent | null;
   orchestrator?: boolean;
+  taskStatus?: string;
   agentResponseState: "idle" | "responding" | "completed";
   onActivateTab: (terminalId: string) => void;
   onTabPointerDown: (terminalId: string, event: ReactPointerEvent<HTMLElement>) => void;
@@ -59,11 +62,17 @@ export function CanvasTerminalHeader({
   onToggleTerminalGroupMaximize: () => void;
   onRequestCloseTerminalGroup: () => void;
 }) {
+  const taskDot = taskStatus === undefined ? null : taskStatusDot(taskStatus);
   return (
     <div className="relative z-20 flex h-7 shrink-0 items-center gap-0.5 border-b border-border/60 bg-white/95 px-1 text-muted-foreground shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300">
       {orchestrator ? (
         <span className="ml-1 shrink-0 rounded border border-violet-400/70 bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-[0.08em] text-violet-700 dark:text-violet-200">
           ORCHESTRATOR
+        </span>
+      ) : null}
+      {taskDot ? (
+        <span className="ml-1 shrink-0" title={`Task ${taskStatus}`}>
+          <AgentStateDot state={taskDot} />
         </span>
       ) : null}
       <div role="tablist" aria-label="Canvas terminal tabs" className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">

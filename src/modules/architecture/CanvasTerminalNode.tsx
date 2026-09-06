@@ -55,6 +55,7 @@ type Props = {
   initialCwd?: string;
   initialCommand?: string;
   orchestrator?: boolean;
+  taskStatus?: string;
   stackTabs: Array<{
     id: string;
     label: string;
@@ -116,6 +117,7 @@ export function CanvasTerminalNode({
   initialCwd,
   initialCommand,
   orchestrator = false,
+  taskStatus,
   stackTabs,
   activeTabId,
   visible,
@@ -599,6 +601,7 @@ export function CanvasTerminalNode({
         tabLabel={tabLabel}
         detectedAgent={detectedAgent}
         orchestrator={orchestrator}
+        taskStatus={taskStatus}
         agentResponseState={agentResponseState}
         onActivateTab={onActivateTab}
         onTabPointerDown={onTabPointerDown}
