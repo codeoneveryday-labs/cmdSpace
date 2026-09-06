@@ -135,6 +135,21 @@ export type OrchestrationBreakerDecision = {
   changed: boolean;
 };
 
+export type OrchestrationHookKind =
+  | "stop"
+  | "notification"
+  | "preToolUse"
+  | "postToolUse"
+  | "sessionStart"
+  | "status";
+
+export type OrchestrationAgentLiveness = "working" | "idle" | "waitingInput";
+
+export type OrchestrationDrainDecision =
+  | { allowStop: true }
+  | { nudge: string }
+  | { delivered: number };
+
 export type OrchestrationSpawnRequest = {
   objective: string;
   cwd?: string | null;
@@ -238,6 +253,29 @@ export function createOrchestrationRuntime(
     detach(runId: string, attachmentToken: string) {
       return invoke<void>("orchestration_detach", { runId, attachmentToken });
     },
+    activityLog(runId: string, limit?: number) {
+      return invoke<OrchestrationEvent[]>("orchestration_activity_log", {
+        runId,
+        limit: limit ?? 200,
+      });
+    },
+    reportHook(input: {
+      runId: string;
+      agentId: string;
+      kind: OrchestrationHookKind;
+      message?: string | null;
+      tool?: string | null;
+      sessionId?: string | null;
+    }) {
+      return invoke<unknown>("orchestration_hook_drain", {
+        runId: input.runId,
+        agentId: input.agentId,
+        kind: input.kind,
+        message: input.message ?? null,
+        tool: input.tool ?? null,
+        sessionId: input.sessionId ?? null,
+      });
+    },
     sendMail(input: {
       runId: string;
       from: string;
@@ -304,6 +342,15 @@ export function createOrchestrationRuntime(
         runId,
         agentId,
       });
+    },
+    breakerBeat(runId: string, inputs: OrchestrationBreakerInput[]) {
+      return invoke<OrchestrationBreakerDecision[]>(
+        "orchestration_breaker_beat",
+        { runId, inputs },
+      );
+    },
+    finalizeRun(runId: string) {
+      return invoke<unknown>("orchestration_finalize_run", { runId });
     },
     listSpawnRequests(runId: string) {
       return invoke<OrchestrationPendingSpawn[]>("orchestration_spawn_list", {

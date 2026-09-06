@@ -1,6 +1,6 @@
 use super::{
     breaker, hive_files, hook_drain, launch, mailbox, memory, now_ms, protocol, router,
-    spawn_queue, wake, OrchestrationEvent, OrchestrationEventType, OrchestrationManifest,
+    spawn_queue, wake, worktree, OrchestrationEvent, OrchestrationEventType, OrchestrationManifest,
     OrchestrationRun, OrchestrationRuntime,
 };
 use crate::modules::agent_chat::{events::AgentChatEvent, AgentChatRuntime};
@@ -437,6 +437,27 @@ pub fn orchestration_attach(
     runtime.attach(&run_id, on_event)
 }
 
+/// Activity feed for the monitor: newest-first persisted events for a run,
+/// mirroring munder's logTail over log.jsonl. Read-only; records no event.
+#[tauri::command]
+pub fn orchestration_activity_log(
+    runtime: tauri::State<'_, OrchestrationRuntime>,
+    db: tauri::State<'_, DbState>,
+    run_id: String,
+    limit: Option<usize>,
+) -> Result<Vec<OrchestrationEvent>, String> {
+    runtime.snapshot(run_id.trim())?;
+    let conn = db.0.lock().map_err(|_| "DB mutex poisoned")?;
+    let mut events = load_orchestration_events_inner(&conn, run_id.trim())?;
+    events.sort_by_key(|event| event.sequence);
+    let limit = limit.unwrap_or(200).clamp(1, 500);
+    if events.len() > limit {
+        events.drain(..events.len() - limit);
+    }
+    events.reverse();
+    Ok(events)
+}
+
 #[tauri::command]
 pub fn orchestration_detach(
     runtime: tauri::State<'_, OrchestrationRuntime>,
@@ -509,9 +530,8 @@ pub fn orchestration_mail_send(
         &db,
         &run.id,
         None,
-        OrchestrationEventType::TaskActivity,
+        OrchestrationEventType::MailSent,
         serde_json::json!({
-            "mail": "sent",
             "id": id,
             "from": from,
             "to": to,
@@ -590,8 +610,8 @@ pub fn orchestration_mail_ack(
         &db,
         &run.id,
         None,
-        OrchestrationEventType::TaskActivity,
-        serde_json::json!({ "mail": "acked", "id": message_id, "by": agent_id }),
+        OrchestrationEventType::MailAcknowledged,
+        serde_json::json!({ "id": message_id, "by": agent_id }),
     )?;
     Ok(mailbox::read_message_dir(&mailbox::inbox_dir(
         &root, agent_id,
@@ -611,9 +631,8 @@ pub fn orchestration_mail_route(
         &db,
         &run.id,
         None,
-        OrchestrationEventType::TaskActivity,
+        OrchestrationEventType::MailRouted,
         serde_json::json!({
-            "mail": "routed",
             "delivered": report.delivered.len(),
             "deliveries": report.delivered.clone(),
             "skipped": report.skipped,
@@ -668,6 +687,7 @@ fn deliver_pending_mail(run: &OrchestrationRun) -> Result<router::RouteReport, S
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn orchestration_hook_drain(
     runtime: tauri::State<'_, OrchestrationRuntime>,
     db: tauri::State<'_, DbState>,
@@ -675,14 +695,43 @@ pub fn orchestration_hook_drain(
     agent_id: String,
     kind: hook_drain::HookKind,
     message: Option<String>,
+    tool: Option<String>,
+    session_id: Option<String>,
 ) -> Result<hook_drain::DrainDecision, String> {
     let event = hook_drain::HookEvent {
         run_id: run_id.trim().to_string(),
         agent_id: agent_id.trim().to_string(),
         kind,
         message,
+        tool: tool.map(|tool| tool.trim().to_string()),
+        session_id: session_id.map(|session| session.trim().to_string()),
     };
     let decision = runtime.handle_stop_hook(&event)?;
+    record_event(
+        &runtime,
+        &db,
+        &event.run_id,
+        None,
+        OrchestrationEventType::HookReceived,
+        serde_json::json!({
+            "agent": event.agent_id,
+            "hook": format!("{:?}", event.kind),
+            "tool": event.tool,
+            "liveness": format!("{:?}", hook_drain::liveness_for(event.kind)).to_lowercase(),
+        }),
+    )?;
+    if let Some(session_id) = event.session_id.as_deref() {
+        if !session_id.is_empty() {
+            record_event(
+                &runtime,
+                &db,
+                &event.run_id,
+                None,
+                OrchestrationEventType::SessionRecorded,
+                serde_json::json!({ "agent": event.agent_id, "session": session_id }),
+            )?;
+        }
+    }
     if matches!(decision, hook_drain::DrainDecision::RouteThenBlock { .. }) {
         let run = runtime.snapshot(&event.run_id)?;
         let report = deliver_pending_mail(&run)?;
@@ -691,9 +740,8 @@ pub fn orchestration_hook_drain(
             &db,
             &run.id,
             None,
-            OrchestrationEventType::TaskActivity,
+            OrchestrationEventType::MailRouted,
             serde_json::json!({
-                "mail": "stop-drain",
                 "agent": event.agent_id,
                 "delivered": report.delivered.len(),
             }),
@@ -761,10 +809,10 @@ pub fn orchestration_breaker_tick(
             &db,
             &run.id,
             None,
-            OrchestrationEventType::TaskActivity,
+            OrchestrationEventType::BreakerTripped,
             serde_json::json!({
-                "breaker": format!("{:?}", decision.action).to_lowercase(),
                 "agent": decision.state.agent_id,
+                "action": format!("{:?}", decision.action).to_lowercase(),
                 "level": format!("{:?}", decision.state.level).to_lowercase(),
                 "reason": decision.state.reason,
             }),
