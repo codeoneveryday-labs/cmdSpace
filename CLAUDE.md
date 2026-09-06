@@ -82,7 +82,7 @@ BYOK multi-provider: OpenAI, Anthropic, Google, Groq, xAI, Cerebras, LM Studio/O
 
 ### Orchestration (`src-tauri/src/modules/orchestration/` + `src/modules/architecture/`)
 
-Canvas-based multi-agent orchestration: a "boss" CLI agent coordinates worker agents running in canvas terminal nodes. Router, mailbox, spawn queue, and worktree coordination live in Rust; the canvas UI drives it from the frontend.
+Canvas-based multi-agent orchestration: a "boss" CLI agent coordinates worker agents running in canvas terminal nodes. Rust backend handles router (DAG-aware task dispatch), mailbox (inter-worker send/receive/route with delivery reporting), spawn queue (bounded worker creation), wake watchdog (lifecycle tracking), hive files (artifact storage), and worktree isolation. Frontend drives it via `OrchestrationCanvasPanel`, `OrchestrationToolbarSection`, `OrchestrationMailOverlay`, and hooks (`useCanvasOrchestrationRun`, `useCanvasOrchestrationWorkers`). Task status dots render on each canvas terminal header.
 
 ### Persistence
 
@@ -93,6 +93,7 @@ Canvas-based multi-agent orchestration: a "boss" CLI agent coordinates worker ag
 | AI chat sessions | `LazyStore` JSON, scoped by workspace |
 | API keys | OS keychain (`secrets.rs`) |
 | Canvas diagrams | Serialized in workspace `paneLayout` → SQLite |
+| Orchestration runs/tasks/events | SQLite (`db/orchestration.rs`) |
 | Live terminal sessions | In-memory only (die with app) |
 
 Tabs themselves are **not** persisted across restarts.
@@ -117,6 +118,26 @@ Tabs themselves are **not** persisted across restarts.
 - **Windows ConPTY**: `SPAWN_LOCK` required around `openpty + spawn_command`; Job Object in `pty/job.rs` kills descendant processes on app death — don't remove it.
 - **OSC 7 cwd tracking**: ignore cwd updates while `inCommand` is true (command output is untrusted).
 - **Terminal input debugging**: log with hex dumps at the PTY boundary — `JSON.stringify` collapses C1/NBSP into plain spaces and will mislead you.
+- **Parallel cargo test temp dirs**: use `mailbox::temp_test_dir()` helper (pid + atomic sequence) — nanos alone collide across threads on coarse clocks.
+
+## Installed plugins
+
+### superpowers (oh-my-claudecode)
+
+General-purpose workflow skills that auto-trigger at the right moments:
+
+- `brainstorming` — explores intent, requirements, and design before implementation
+- `writing-plans` — designs implementation approach for user approval
+- `executing-plans` — executes a written plan with review checkpoints
+- `subagent-driven-development` — parallelizes independent tasks via subagents
+- `dispatching-parallel-agents` — fans out 2+ independent tasks
+- `test-driven-development` — red-green-refactor workflow
+- `systematic-debugging` — diagnosis loop for hard bugs
+- `using-git-worktrees` — isolated workspace via worktrees
+- `finishing-a-development-branch` — integrate complete work
+- `requesting-code-review` / `receiving-code-review` — review workflows
+- `verification-before-completion` — requires evidence before claiming done
+- `writing-skills` — authoring reference for new skills
 
 ## Further reading
 
@@ -125,3 +146,4 @@ Tabs themselves are **not** persisted across restarts.
 - `docs/architecture/design-patterns.md` — pattern contract (read before structural changes)
 - `docs/RELEASE_RUNBOOK.md` — release procedure
 - `docs/adr/` — architecture decision records
+- `AGENTS.md` — project-specific agent rules (no file deletion, no destructive git, code search via `semble`)
