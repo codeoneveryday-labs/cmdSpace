@@ -9,6 +9,15 @@ import {
   type OrchestrationMemoryIndexReport,
   type OrchestrationRun,
 } from "./orchestrationRuntime";
+import {
+  ORCHESTRATION_MAIL_MAX_FLIGHTS,
+  parseMailSentRoute,
+  type OrchestrationMailRoute,
+} from "./orchestrationMailFlights";
+
+export type OrchestrationMailFlightSeed = OrchestrationMailRoute & {
+  key: string;
+};
 
 /**
  * Run lifecycle for Boss-assigned orchestration, without a side panel: the
@@ -41,17 +50,31 @@ export function useCanvasOrchestrationRun({
   retryTask: (taskId: string) => Promise<void>;
   reindexMemories: () => Promise<OrchestrationMemoryIndexReport | null>;
   searchMemories: (query: string) => Promise<OrchestrationMemoryHit[]>;
+  mailFlights: OrchestrationMailFlightSeed[];
+  dismissMailFlight: (key: string) => void;
 } {
   const [run, setRun] = useState<OrchestrationRun | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mailFlights, setMailFlights] = useState<OrchestrationMailFlightSeed[]>([]);
+  const flightCounterRef = useRef(0);
   const runtimeRef = useRef<ReturnType<typeof createOrchestrationRuntime> | null>(null);
   const runIdRef = useRef<string | null>(null);
   // Lazily created inside effects and event handlers only: constructing the
   // runtime opens a Tauri Channel, which requires a browser window.
   const getRuntime = () => {
     if (runtimeRef.current === null) {
-      runtimeRef.current = createOrchestrationRuntime(() => {
+      runtimeRef.current = createOrchestrationRuntime((event) => {
+        const route = parseMailSentRoute(event);
+        if (route) {
+          flightCounterRef.current += 1;
+          const key = `${route.from}→${route.to}:${flightCounterRef.current}`;
+          setMailFlights((previous) =>
+            previous.length >= ORCHESTRATION_MAIL_MAX_FLIGHTS
+              ? previous
+              : [...previous, { ...route, key }],
+          );
+        }
         const id = runIdRef.current;
         if (id) {
           void runtimeRef
@@ -104,6 +127,9 @@ export function useCanvasOrchestrationRun({
     setError(cause instanceof Error ? cause.message : String(cause));
   };
 
+  const dismissMailFlight = (key: string) => {
+    setMailFlights((previous) => previous.filter((flight) => flight.key !== key));
+  };
   const startRun = async (goal: string) => {
     if (!workspaceId || !workspaceCwd || !goal.trim() || busy) return;
     setBusy(true);
@@ -217,5 +243,7 @@ export function useCanvasOrchestrationRun({
     retryTask,
     reindexMemories,
     searchMemories,
+    mailFlights,
+    dismissMailFlight,
   };
 }

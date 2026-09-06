@@ -19,4 +19,9 @@ describe("ArchitectureCanvas orchestration surface", () => {
     expect(source).toContain("useCanvasOrchestrationRun");
     expect(source).toContain("orchestration={");
   });
+
+  it("flies mail envelopes between worker nodes", () => {
+    expect(source).toContain("OrchestrationMailOverlay");
+    expect(source).toContain("mailFlights");
+  });
 });

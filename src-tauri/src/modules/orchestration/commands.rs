@@ -515,6 +515,7 @@ pub fn orchestration_mail_send(
             "id": id,
             "from": from,
             "to": to,
+            "act": act,
             "auto_routed": auto.as_ref().map(|report| report.delivered.len()).unwrap_or(0),
             "auto_skipped": auto.as_ref().map(|report| report.skipped.clone()).unwrap_or_default(),
         }),

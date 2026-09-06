@@ -32,6 +32,7 @@ import { useCanvasTerminalLayerActions } from "./lib/useCanvasTerminalLayerActio
 import { useCanvasTerminalSizeMigration } from "./lib/useCanvasTerminalSizeMigration";
 import { useCanvasOrchestrationRun } from "./lib/useCanvasOrchestrationRun";
 import { useCanvasOrchestrationWorkers } from "./lib/useCanvasOrchestrationWorkers";
+import { OrchestrationMailOverlay } from "./components/OrchestrationMailOverlay";
 import { useCanvasTerminalViewModel } from "./lib/useCanvasTerminalViewModel";
 import { useCanvasDockDividerPointerDown } from "./lib/useCanvasDockDividerPointerDown";
 import { useCanvasEdgePointerDown } from "./lib/useCanvasEdgePointerDown";
@@ -728,6 +729,17 @@ export function ArchitectureCanvas({
           },
         }}
       />
+      {canvasPurpose === "orchestration" ? (
+        <OrchestrationMailOverlay
+          run={orchestration.run}
+          nodes={nodes}
+          flights={orchestration.mailFlights}
+          view={view}
+          viewWidth={viewWidth}
+          viewHeight={viewHeight}
+          onFlightDone={orchestration.dismissMailFlight}
+        />
+      ) : null}
     </div>
   );
 }
