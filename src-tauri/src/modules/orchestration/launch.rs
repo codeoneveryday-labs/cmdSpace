@@ -18,6 +18,21 @@ pub struct WorkerLaunch {
     pub command: String,
 }
 
+/// Sanitize a string for use as an argv token. Rejects null bytes (truncation
+/// attacks) and ASCII control characters except HT (0x09). The tokenizer and
+/// PTY layer both treat argv as opaque strings passed to `execvp`/`CreateProcess`,
+/// so shell metacharacters (`;`, `|`, `&&`, `$()`) are inert — but null bytes
+/// would silently truncate and control characters could corrupt terminal output.
+fn sanitize_argv_token(value: &str, label: &str) -> Result<(), String> {
+    if value.contains('\0') {
+        return Err(format!("{label} contains a null byte"));
+    }
+    if value.chars().any(|ch| ch.is_ascii_control() && ch != '\t') {
+        return Err(format!("{label} contains a control character"));
+    }
+    Ok(())
+}
+
 /// Quote-aware command-line tokenizer: single/double quotes group words, a
 /// backslash escapes the next character. Errors on unterminated quotes and on
 /// lines with no tokens, so a malformed launch line fails loudly instead of
@@ -98,6 +113,11 @@ pub fn with_model(args: Vec<String>, model: Option<&str>) -> Vec<String> {
     if args.iter().any(|arg| arg == "--model") {
         return args;
     }
+    // Model values come from user-edited manifests; reject null bytes and
+    // control characters to prevent argv truncation or terminal injection.
+    if model.contains('\0') || model.chars().any(|ch| ch.is_ascii_control() && ch != '\t') {
+        return args;
+    }
     let mut out = args;
     out.push("--model".to_string());
     out.push(model.to_string());
@@ -130,12 +150,14 @@ pub fn build_worker_launch(request: WorkerLaunchRequest<'_>) -> Result<WorkerLau
     if command.is_empty() {
         return Err("Launch command has no executable".to_string());
     }
+    sanitize_argv_token(&command, "Launch command")?;
     let tokens = split_command(&command)?;
     if let Some(auto_flag) = request
         .auto_flag
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
+        sanitize_argv_token(auto_flag, "Auto flag")?;
         if !has_flag_stance(&tokens[1..], auto_flag) {
             command.push(' ');
             command.push_str(auto_flag);
@@ -144,7 +166,11 @@ pub fn build_worker_launch(request: WorkerLaunchRequest<'_>) -> Result<WorkerLau
     let tokens = split_command(&command)?;
     let mut tokens = tokens.into_iter();
     let bin = tokens.next().unwrap_or_default();
+    sanitize_argv_token(&bin, "Executable name")?;
     let args = with_model(tokens.collect(), request.model);
+    for (index, arg) in args.iter().enumerate() {
+        sanitize_argv_token(arg, &format!("Argument #{index}"))?;
+    }
     Ok(WorkerLaunch { bin, args, command })
 }
 
@@ -255,5 +281,55 @@ mod tests {
             model: None,
         };
         assert!(build_worker_launch(request).is_err());
+    }
+
+    #[test]
+    fn build_rejects_null_bytes_in_command() {
+        let request = WorkerLaunchRequest {
+            request_command: Some("codex --model opus\0--evil"),
+            default_command: "codex",
+            auto_flag: None,
+            model: None,
+        };
+        assert!(build_worker_launch(request).is_err());
+    }
+
+    #[test]
+    fn build_rejects_control_characters_in_command() {
+        let request = WorkerLaunchRequest {
+            request_command: Some("codex\x07--bell"),
+            default_command: "codex",
+            auto_flag: None,
+            model: None,
+        };
+        assert!(build_worker_launch(request).is_err());
+    }
+
+    #[test]
+    fn build_rejects_null_bytes_in_auto_flag() {
+        let request = WorkerLaunchRequest {
+            request_command: Some("codex"),
+            default_command: "codex",
+            auto_flag: Some("--safe\0--evil"),
+            model: None,
+        };
+        assert!(build_worker_launch(request).is_err());
+    }
+
+    #[test]
+    fn model_silently_drops_when_value_contains_null_or_control() {
+        assert_eq!(
+            with_model(args(&["codex"]), Some("opus\0--evil")),
+            args(&["codex"])
+        );
+        assert_eq!(
+            with_model(args(&["codex"]), Some("opus\x07bell")),
+            args(&["codex"])
+        );
+        // Tab (0x09) is allowed — some model names could theoretically include it
+        assert_eq!(
+            with_model(args(&["codex"]), Some("opus\t4")),
+            args(&["codex", "--model", "opus\t4"])
+        );
     }
 }
