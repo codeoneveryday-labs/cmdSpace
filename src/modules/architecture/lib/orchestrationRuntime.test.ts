@@ -139,4 +139,31 @@ describe("orchestrationRuntime", () => {
       id: "helper-1",
     });
   });
+
+  it("ticks the breaker and finalizes the run", async () => {
+    mocks.invoke.mockResolvedValue({ state: {}, action: "none", changed: false });
+    const runtime = createOrchestrationRuntime(() => undefined);
+
+    await runtime.breakerTick("run-1", { agentId: "builder", progressing: true });
+    expect(mocks.invoke).toHaveBeenCalledWith("orchestration_breaker_tick", {
+      runId: "run-1",
+      input: { agentId: "builder", progressing: true },
+    });
+    await runtime.breakerBeat("run-1", [{ agentId: "builder", progressing: true }]);
+    expect(mocks.invoke).toHaveBeenCalledWith("orchestration_breaker_beat", {
+      runId: "run-1",
+      inputs: [{ agentId: "builder", progressing: true }],
+    });
+    await runtime.breakerLevel("run-1", "builder");
+    expect(mocks.invoke).toHaveBeenCalledWith("orchestration_breaker_level", {
+      runId: "run-1",
+      agentId: "builder",
+    });
+
+    mocks.invoke.mockResolvedValue({ entries: [] });
+    await runtime.finalizeRun("run-1");
+    expect(mocks.invoke).toHaveBeenCalledWith("orchestration_finalize_run", {
+      runId: "run-1",
+    });
+  });
 });

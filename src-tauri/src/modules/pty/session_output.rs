@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) type OutputChunk = (u64, Vec<u8>);
 pub(crate) type OutputSubscription = (mpsc::Receiver<OutputChunk>, Vec<OutputChunk>);
@@ -14,6 +15,14 @@ pub(crate) struct OutputHub {
     subscribers: Mutex<Vec<mpsc::Sender<OutputChunk>>>,
     replay: Mutex<VecDeque<OutputChunk>>,
     sequence: AtomicU64,
+    last_publish_ms: AtomicU64,
+}
+
+fn wall_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().try_into().unwrap_or(u64::MAX))
+        .unwrap_or_default()
 }
 
 impl OutputHub {
@@ -22,6 +31,7 @@ impl OutputHub {
             subscribers: Mutex::new(Vec::new()),
             replay: Mutex::new(VecDeque::new()),
             sequence: AtomicU64::new(1),
+            last_publish_ms: AtomicU64::new(0),
         }
     }
 
@@ -43,6 +53,7 @@ impl OutputHub {
 
     pub(crate) fn publish(&self, bytes: &[u8]) {
         let sequence = self.sequence.fetch_add(1, Ordering::Relaxed);
+        self.last_publish_ms.store(wall_ms(), Ordering::Relaxed);
         let chunk = (sequence, bytes.to_vec());
         let mut subscribers = self.subscribers.lock().unwrap();
         let mut replay = self.replay.lock().unwrap();
@@ -51,6 +62,10 @@ impl OutputHub {
             replay.pop_front();
         }
         subscribers.retain(|sender| sender.send(chunk.clone()).is_ok());
+    }
+
+    pub(crate) fn last_publish_ms(&self) -> u64 {
+        self.last_publish_ms.load(Ordering::Relaxed)
     }
 }
 
@@ -80,5 +95,16 @@ mod tests {
         hub.publish(b"first");
         let (_receiver, replay) = hub.subscribe();
         assert_eq!(replay.len(), 1);
+    }
+
+    #[test]
+    fn last_publish_ms_tracks_output_recency() {
+        let hub = OutputHub::new();
+        assert_eq!(hub.last_publish_ms(), 0);
+        hub.publish(b"hello");
+        let first = hub.last_publish_ms();
+        assert!(first > 0);
+        hub.publish(b"world");
+        assert!(hub.last_publish_ms() >= first);
     }
 }

@@ -6,6 +6,7 @@ import { CLI_AGENT_DEFINITIONS } from "@/modules/terminal/lib/cliAgents";
 import { Task01Icon } from "@hugeicons/core-free-icons";
 
 import { ToolButton } from "./ToolButton";
+import { OrchestrationMemoryGraphView } from "./OrchestrationMemoryGraphView";
 import type {
   OrchestrationMemoryHit,
   OrchestrationMemoryIndexReport,
@@ -249,6 +250,11 @@ export function OrchestrationToolbarSection({
                 {memoryReport ? (
                   <p className="mt-1 text-[10px] text-zinc-500">{memoryReport}</p>
                 ) : null}
+                <OrchestrationMemoryGraphView
+                  run={run}
+                  messages={[]}
+                  memoryHits={memoryHits}
+                />
                 <div className="mt-1.5 max-h-40 space-y-1.5 overflow-y-auto">
                   {memoryHits.map((hit) => (
                     <div

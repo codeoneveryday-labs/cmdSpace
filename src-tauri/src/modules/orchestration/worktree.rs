@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use super::OrchestrationRun;
+use serde::{Deserialize, Serialize};
+
+use super::{OrchestrationRun, OrchestrationTaskStatus};
 use crate::modules::git::run_git;
 use crate::modules::workspace::WorkspaceEnv;
 
@@ -257,9 +259,77 @@ fn safe_segment(value: &str, fallback: &str) -> String {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskFinalizeEntry {
+    pub task_id: String,
+    pub integrated: bool,
+    pub preserved: bool,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunFinalizeReport {
+    pub entries: Vec<TaskFinalizeEntry>,
+}
+
+/// Finalize a run without deleting anything: completed tasks with worktrees
+/// are merged into the integration branch (idempotent — already-merged is a
+/// success); everything else is reported preserved with its branch/path so
+/// the operator can inspect or retry. Nothing is removed here.
+pub fn finalize_run(run: &mut OrchestrationRun) -> RunFinalizeReport {
+    let mut entries = Vec::new();
+    for task in run.tasks.clone() {
+        let entry = match task.status {
+            OrchestrationTaskStatus::Completed => {
+                let has_worktree = task.branch_name.is_some() && task.worktree_path.is_some();
+                if !has_worktree {
+                    TaskFinalizeEntry {
+                        task_id: task.task_id.clone(),
+                        integrated: true,
+                        preserved: false,
+                        reason: "no worktree — nothing to merge".to_string(),
+                    }
+                } else {
+                    match integrate_task(run, &task.task_id) {
+                        Ok(()) => TaskFinalizeEntry {
+                            task_id: task.task_id.clone(),
+                            integrated: true,
+                            preserved: false,
+                            reason: "merged into integration branch".to_string(),
+                        },
+                        Err(error) => TaskFinalizeEntry {
+                            task_id: task.task_id.clone(),
+                            integrated: false,
+                            preserved: true,
+                            reason: format!(
+                                "merge failed, worktree kept at {}: {error}",
+                                task.worktree_path.as_deref().unwrap_or("<unknown>")
+                            ),
+                        },
+                    }
+                }
+            }
+            status => TaskFinalizeEntry {
+                task_id: task.task_id.clone(),
+                integrated: false,
+                preserved: task.worktree_path.is_some(),
+                reason: format!("task is {status:?} — worktree left untouched"),
+            },
+        };
+        entries.push(entry);
+    }
+    RunFinalizeReport { entries }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{integration_commit_message, should_use_task_worktree};
+    use super::{finalize_run, integration_commit_message, should_use_task_worktree};
+    use super::{OrchestrationRun, OrchestrationTaskStatus};
+    use crate::modules::orchestration::{
+        AgentSpec, OrchestrationManifest, OrchestratorSpec, TaskSpec,
+    };
 
     #[test]
     fn writable_tasks_are_integrated_with_a_deterministic_commit_message() {
@@ -269,5 +339,64 @@ mod tests {
             integration_commit_message("task/login"),
             "cmdSpace orchestration: integrate task/login"
         );
+    }
+
+    fn finalize_manifest() -> OrchestrationManifest {
+        OrchestrationManifest {
+            version: 1,
+            title: "finalize".to_string(),
+            goal: "finalize".to_string(),
+            orchestrator: OrchestratorSpec {
+                provider: "codex".to_string(),
+                model: None,
+            },
+            agents: vec![AgentSpec {
+                id: "builder".to_string(),
+                name: "Builder".to_string(),
+                role: "Implementation".to_string(),
+                provider: "codex".to_string(),
+                model: None,
+            }],
+            tasks: vec![TaskSpec {
+                id: "build-1".to_string(),
+                title: "build".to_string(),
+                instructions: "build".to_string(),
+                assignee_id: "builder".to_string(),
+                depends_on: vec![],
+                write_access: true,
+                done_when: "done".to_string(),
+                validation_commands: vec![],
+            }],
+        }
+    }
+
+    #[test]
+    fn finalize_preserves_without_deleting_anything() {
+        let mut run = OrchestrationRun::new("run-1", "ws-1", "/repo", finalize_manifest()).unwrap();
+        let task = run
+            .tasks
+            .iter_mut()
+            .find(|task| task.task_id == "build-1")
+            .unwrap();
+        task.status = OrchestrationTaskStatus::Completed;
+        task.branch_name = None;
+        task.worktree_path = None;
+        let report = finalize_run(&mut run);
+        assert_eq!(report.entries.len(), 1);
+        assert!(report.entries[0].integrated);
+        assert!(!report.entries[0].preserved);
+
+        let task = run
+            .tasks
+            .iter_mut()
+            .find(|task| task.task_id == "build-1")
+            .unwrap();
+        task.status = OrchestrationTaskStatus::Failed;
+        task.branch_name = Some("cmdspace/orch-run-1-build-1".to_string());
+        task.worktree_path = Some("/tmp/wt".to_string());
+        let report = finalize_run(&mut run);
+        assert!(!report.entries[0].integrated);
+        assert!(report.entries[0].preserved);
+        assert!(report.entries[0].reason.contains("Failed"));
     }
 }

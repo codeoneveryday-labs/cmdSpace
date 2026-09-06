@@ -57,6 +57,13 @@ impl Session {
         self.output.subscribe()
     }
 
+    /// S2 wake-beat seam: ms wall-clock of the last published output chunk.
+    /// No consumer yet — the wake beat caller will use it to build WakeFacts.
+    #[allow(dead_code)]
+    pub fn last_output_ms(&self) -> u64 {
+        self.output.last_publish_ms()
+    }
+
     fn publish_output(&self, bytes: &[u8]) {
         self.output.publish(bytes);
     }

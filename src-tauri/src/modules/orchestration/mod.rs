@@ -836,6 +836,22 @@ impl OrchestrationRuntime {
         self.mutate(run_id, |run| worktree::integrate_task(run, task_id))
     }
 
+    pub fn finalize_run(
+        &self,
+        run_id: &str,
+    ) -> Result<(OrchestrationRun, worktree::RunFinalizeReport), String> {
+        let mut report: Option<worktree::RunFinalizeReport> = None;
+        let run = self.mutate(run_id, |run| {
+            let outcome = worktree::finalize_run(run);
+            report = Some(outcome);
+            Ok(())
+        })?;
+        Ok((
+            run,
+            report.unwrap_or(worktree::RunFinalizeReport { entries: vec![] }),
+        ))
+    }
+
     pub fn block_task(
         &self,
         run_id: &str,
@@ -1029,6 +1045,25 @@ impl OrchestrationRuntime {
             .lock()
             .map_err(|_| "orchestration breaker lock poisoned".to_string())?
             .level_for(agent_id))
+    }
+
+    pub fn breaker_beat(
+        &self,
+        run_id: &str,
+        inputs: Vec<breaker::BreakerInput>,
+    ) -> Result<Vec<breaker::BreakerDecision>, String> {
+        self.snapshot(run_id)?;
+        let now = now_ms();
+        let config = breaker::BreakerConfig::default();
+        let mut breaker = self
+            .breaker
+            .lock()
+            .map_err(|_| "orchestration breaker lock poisoned".to_string())?;
+        Ok(inputs
+            .iter()
+            .map(|input| breaker.tick(&config, input, now))
+            .filter(|decision| decision.changed || decision.action != breaker::BreakerAction::None)
+            .collect())
     }
 
     pub fn record_event(
@@ -1445,5 +1480,44 @@ mod tests {
         );
         assert!(runtime.wake_decide("missing", vec![], now).is_err());
         runtime.wake_note_spawn("pty-1", now).unwrap();
+    }
+
+    #[test]
+    fn breaker_beat_returns_only_changed_or_actionable_decisions() {
+        use super::breaker::{BreakerAction, BreakerInput, BreakerLevel, BreakerSample};
+
+        let runtime = OrchestrationRuntime::default();
+        runtime
+            .create_run("run-1", "workspace-1", "/repo", manifest())
+            .unwrap();
+        let storm = BreakerInput {
+            agent_id: "builder".to_string(),
+            sample: Some(BreakerSample {
+                input: 1,
+                output: 1,
+                errors: 5,
+                repeat_key: Some("e".to_string()),
+            }),
+            progressing: true,
+        };
+        let idle = BreakerInput {
+            agent_id: "reviewer".to_string(),
+            sample: None,
+            progressing: true,
+        };
+        let first = runtime
+            .breaker_beat("run-1", vec![storm.clone(), idle.clone()])
+            .unwrap();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].state.agent_id, "builder");
+        assert_eq!(first[0].state.level, BreakerLevel::Steering);
+        assert_eq!(first[0].action, BreakerAction::Steer);
+        let quiet = runtime.breaker_beat("run-1", vec![idle.clone()]).unwrap();
+        assert!(quiet.is_empty());
+        assert!(runtime.breaker_beat("missing", vec![storm]).is_err());
+        assert_eq!(
+            runtime.breaker_level("run-1", "builder").unwrap(),
+            BreakerLevel::Steering
+        );
     }
 }

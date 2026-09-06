@@ -232,6 +232,36 @@ pub async fn orchestration_complete_task(
 }
 
 #[tauri::command]
+pub fn orchestration_finalize_run(
+    runtime: tauri::State<'_, OrchestrationRuntime>,
+    db: tauri::State<'_, DbState>,
+    run_id: String,
+) -> Result<worktree::RunFinalizeReport, String> {
+    let (run, report) = runtime.finalize_run(run_id.trim())?;
+    persist_run(&db, &run)?;
+    record_event(
+        &runtime,
+        &db,
+        &run.id,
+        None,
+        OrchestrationEventType::TaskActivity,
+        serde_json::json!({
+            "finalize": report
+                .entries
+                .iter()
+                .map(|entry| serde_json::json!({
+                    "task": entry.task_id,
+                    "integrated": entry.integrated,
+                    "preserved": entry.preserved,
+                    "reason": entry.reason,
+                }))
+                .collect::<Vec<_>>(),
+        }),
+    )?;
+    Ok(report)
+}
+
+#[tauri::command]
 pub fn orchestration_fail_task(
     runtime: tauri::State<'_, OrchestrationRuntime>,
     db: tauri::State<'_, DbState>,
@@ -828,6 +858,36 @@ pub fn orchestration_breaker_level(
     agent_id: String,
 ) -> Result<breaker::BreakerLevel, String> {
     runtime.breaker_level(run_id.trim(), agent_id.trim())
+}
+
+#[tauri::command]
+pub fn orchestration_breaker_beat(
+    runtime: tauri::State<'_, OrchestrationRuntime>,
+    db: tauri::State<'_, DbState>,
+    run_id: String,
+    inputs: Vec<breaker::BreakerInput>,
+) -> Result<Vec<breaker::BreakerDecision>, String> {
+    let decisions = runtime.breaker_beat(run_id.trim(), inputs)?;
+    let run = runtime.snapshot(run_id.trim())?;
+    for decision in &decisions {
+        if decision.action == breaker::BreakerAction::None {
+            continue;
+        }
+        record_event(
+            &runtime,
+            &db,
+            &run.id,
+            None,
+            OrchestrationEventType::BreakerTripped,
+            serde_json::json!({
+                "agent": decision.state.agent_id,
+                "action": format!("{:?}", decision.action).to_lowercase(),
+                "level": format!("{:?}", decision.state.level).to_lowercase(),
+                "reason": decision.state.reason,
+            }),
+        )?;
+    }
+    Ok(decisions)
 }
 
 /// Resolve a worker launch line into an executable + argv triple without
