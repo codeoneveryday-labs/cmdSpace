@@ -26,11 +26,11 @@ describe("FloatingTerminalOverlay", () => {
   it("keeps the terminal header flush without outer padding or rounding", () => {
     const source = readPaneTreeSource();
 
-    expect(source).toContain("relative z-20 flex shrink-0 items-center");
+    expect(source).toContain("relative z-20 flex min-w-0 w-full shrink-0 items-center");
     expect(source).toContain("relative flex h-full min-h-0 w-full flex-col");
     expect(source).toContain('<div className="min-h-0 flex-1">');
     expect(source).toContain("rounded-none border");
-    expect(source).toContain("px-0 py-0");
+    expect(source).toContain("overflow-hidden");
     expect(source).not.toContain("left-1/2 -translate-x-1/2 z-20");
   });
 
@@ -38,7 +38,7 @@ describe("FloatingTerminalOverlay", () => {
     const source = readPaneTreeSource();
 
     expect(source).toContain("pointer-events-none border-2 z-30");
-    expect(source).toContain("relative z-20 flex shrink-0 items-center");
+    expect(source).toContain("relative z-20 flex min-w-0 w-full shrink-0 items-center");
   });
 
   it("shows the coding CLI identity at the start of the pane header", () => {
@@ -89,6 +89,7 @@ describe("FloatingTerminalOverlay", () => {
 
     expect(source).toContain('title={broadcastEnabled ? "Disable input broadcast"');
     expect(source).toContain('title={broadcastTargeted ? "Remove pane from broadcast"');
+    expect(source).toContain("hidden @md:contents");
     expect(stack).toContain("onToggleBroadcastTarget");
     expect(collaboration).toContain("registerBroadcastTab(");
     expect(collaboration).toContain("unregisterBroadcastLeaves");
