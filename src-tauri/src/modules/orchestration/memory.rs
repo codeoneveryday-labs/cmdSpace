@@ -181,13 +181,7 @@ mod tests {
     use std::fs;
 
     fn temp_hive() -> std::path::PathBuf {
-        let root = std::env::temp_dir().join(format!(
-            "cmdspace-memory-test-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_nanos())
-                .unwrap_or_default()
-        ));
+        let root = crate::modules::orchestration::mailbox::temp_test_dir("cmdspace-memory-test");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("agents").join("builder")).expect("dirs");
         fs::write(

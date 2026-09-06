@@ -350,21 +350,7 @@ mod tests {
     }
 
     fn temp_root() -> std::path::PathBuf {
-        // Nanos alone collide across parallel test threads on coarse clocks;
-        // pid + sequence makes every temp dir unique.
-        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let root = std::env::temp_dir().join(format!(
-            "cmdspace-hive-test-{}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_nanos())
-                .unwrap_or_default(),
-            n
-        ));
-        let _ = fs::remove_dir_all(&root);
-        root
+        crate::modules::orchestration::mailbox::temp_test_dir("cmdspace-hive-test")
     }
 
     #[test]

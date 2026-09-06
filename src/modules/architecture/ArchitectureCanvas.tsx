@@ -698,6 +698,7 @@ export function ArchitectureCanvas({
           maximizedTerminalGroupId,
           terminalResizePaused,
           actions: terminalLayerActions,
+          taskStatuses: orchestrationTaskStatuses,
         }}
         overlays={{
           terminalDropPreview,
