@@ -13,7 +13,6 @@ import {
   parseOrchestrationManifestJson,
 } from "../lib/orchestrationProposal";
 import { createAgentChatRuntime } from "@/modules/ai/lib/agentChatRuntime";
-import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import { useEffect, useRef, useState } from "react";
 
 export function OrchestrationCanvasPanel({
@@ -31,7 +30,6 @@ export function OrchestrationCanvasPanel({
 }) {
   const [goal, setGoal] = useState("");
   const provider = orchestratorProvider ?? "codex";
-  const [orchestratorSessionId, setOrchestratorSessionId] = useState<string | null>(null);
   const [run, setRun] = useState<OrchestrationRun | null>(null);
   const [manifestText, setManifestText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -136,7 +134,6 @@ export function OrchestrationCanvasPanel({
           nativeSessionId: null,
         });
         proposalSessionRef.current = proposalSession.sessionId;
-        setOrchestratorSessionId(proposalSession.sessionId);
       }
       const manifest = await completion;
       const created = await runtimeRef.current!.createRun(workspaceId, workspaceCwd, runId, manifest);
@@ -529,20 +526,8 @@ export function OrchestrationCanvasPanel({
             onChange={(event) => setGoal(event.target.value)}
             placeholder="Describe the outcome"
           />
-          <div className="rounded-lg border border-violet-400/40 bg-violet-500/[0.07] p-3">
-            <p className="text-xs font-semibold text-foreground">Orchestrator CLI agent</p>
-            <div className="mt-2 flex items-center gap-2">
-              <AgentCliIcon agent={provider} size="md" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{providerLabel(provider)} CLI</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {orchestratorSessionId ? "CLI session active" : "Starts when you create the draft"}
-                </p>
-              </div>
-            </div>
-          </div>
           <Button className="w-full" disabled={!workspaceId || !workspaceCwd || !goal.trim() || busy} onClick={() => void createDraft()}>
-            {busy ? "Starting boss…" : "Start boss & create draft"}
+            {busy ? "Asking boss…" : "Ask boss for draft"}
           </Button>
         </div>
       )}

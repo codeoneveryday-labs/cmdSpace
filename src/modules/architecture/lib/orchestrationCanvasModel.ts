@@ -1,4 +1,5 @@
-import type { ArchitectureDiagram } from "@/modules/tabs";
+import type { ArchitectureDiagram, ArchitectureDiagramNode } from "@/modules/tabs";
+import { CLI_AGENT_DEFINITIONS } from "@/modules/terminal/lib/cliAgents";
 import type { OrchestrationManifestV1, OrchestrationProvider } from "./orchestrationManifest";
 
 const ORCHESTRATION_PREFIX = "orchestration:";
@@ -14,8 +15,8 @@ export function createOrchestrationCanvasDiagram(
     kind: "terminal" as const,
     label: `Terminal ${index + 1}`,
     technology: "",
-    x: 96 + (index % 2) * 668,
-    y: 280 + Math.floor(index / 2) * 448,
+    x: index === 0 ? 764 : 96 + ((index - 1) % 2) * 668,
+    y: index === 0 ? 96 : 544 + Math.floor((index - 1) / 2) * 448,
     width: 620,
     height: 400,
     ...(workingFolder ? { cwd: workingFolder } : {}),
@@ -29,17 +30,7 @@ export function createOrchestrationCanvasDiagram(
     orchestrationProvider: provider,
     orchestrationRunId: null,
     nodes: [
-      {
-        id: `${ORCHESTRATION_PREFIX}orchestrator`,
-        kind: "orchestrator",
-        label: "Orchestrator",
-        technology: providerLabel(provider),
-        x: 96,
-        y: 96,
-        width: 220,
-        height: 96,
-        orchestration: { kind: "orchestrator", entityId: "orchestrator" },
-      },
+      createOrchestratorTerminal(provider, workingFolder),
       ...terminalNodes,
     ],
     edges: [],
@@ -53,24 +44,32 @@ export function applyManifestToOrchestrationDiagram(
 ): ArchitectureDiagram {
   const retainedNodes = diagram.nodes.filter((node) => !node.orchestration);
   const retainedEdges = diagram.edges.filter((edge) => !edge.orchestration);
-  const orchestratorNode = {
-    id: `${ORCHESTRATION_PREFIX}orchestrator`,
-    kind: "orchestrator" as const,
-    label: manifest.title || "Orchestrator",
-    technology: providerLabel(manifest.orchestrator.provider),
-    x: 96,
-    y: 96,
-    width: 240,
-    height: 104,
-    orchestration: { kind: "orchestrator" as const, entityId: "orchestrator" as const },
-  };
+  const previousOrchestrator = diagram.nodes.find(
+    (node) => node.orchestration?.kind === "orchestrator",
+  );
+  const orchestratorNode =
+    previousOrchestrator?.kind === "terminal"
+      ? {
+          ...previousOrchestrator,
+          label: orchestratorLabel(manifest.orchestrator.provider),
+          technology: "Orchestrator CLI agent",
+          initialCommand: cliLaunchCommand(manifest.orchestrator.provider),
+        }
+      : createOrchestratorTerminal(manifest.orchestrator.provider, null);
+  const terminalBottom = Math.max(
+    ...[orchestratorNode, ...retainedNodes]
+      .filter((node) => node.kind === "terminal")
+      .map((node) => node.y + node.height),
+    0,
+  );
+  const graphY = terminalBottom + 96;
   const agentNodes = manifest.agents.map((agent, index) => ({
     id: `${ORCHESTRATION_PREFIX}agent:${agent.id}`,
     kind: "agent" as const,
     label: agent.name,
     technology: `${providerLabel(agent.provider)} · ${agent.role}`,
     x: 96 + index * 272,
-    y: 280,
+    y: graphY,
     width: 224,
     height: 96,
     orchestration: { kind: "agent" as const, entityId: agent.id },
@@ -87,7 +86,7 @@ export function applyManifestToOrchestrationDiagram(
       label: task.title,
       technology: task.doneWhen,
       x: 96 + depth * 320,
-      y: 480 + row * 144,
+      y: graphY + 160 + row * 144,
       width: 248,
       height: 104,
       orchestration: { kind: "task" as const, entityId: task.id },
@@ -131,6 +130,34 @@ export function applyManifestToOrchestrationDiagram(
     ],
     edges: [...retainedEdges, ...assignmentEdges, ...dependencyEdges],
   };
+}
+
+function createOrchestratorTerminal(
+  provider: OrchestrationProvider,
+  workingFolder: string | null,
+): ArchitectureDiagramNode {
+  return {
+    id: `${ORCHESTRATION_PREFIX}orchestrator`,
+    kind: "terminal",
+    label: orchestratorLabel(provider),
+    technology: "Orchestrator CLI agent",
+    x: 96,
+    y: 96,
+    width: 620,
+    height: 400,
+    ...(workingFolder ? { cwd: workingFolder } : {}),
+    initialCommand: cliLaunchCommand(provider),
+    terminalChromeVersion: 2,
+    orchestration: { kind: "orchestrator", entityId: "orchestrator" },
+  };
+}
+
+function cliLaunchCommand(provider: OrchestrationProvider): string {
+  return CLI_AGENT_DEFINITIONS.find((agent) => agent.id === provider)?.launch ?? provider;
+}
+
+function orchestratorLabel(provider: OrchestrationProvider): string {
+  return `Boss · ${providerLabel(provider)}`;
 }
 
 function providerLabel(provider: OrchestrationProvider): string {

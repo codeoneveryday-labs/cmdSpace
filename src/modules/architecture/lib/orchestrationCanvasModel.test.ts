@@ -39,7 +39,7 @@ const manifest: OrchestrationManifestV1 = {
 };
 
 describe("orchestrationCanvasModel", () => {
-  it("creates an orchestration template with a distinct orchestrator node", () => {
+  it("creates an orchestration template with the boss as a CLI terminal", () => {
     const diagram = createOrchestrationCanvasDiagram("codex", 2, "/repo");
 
     expect(diagram).toMatchObject({
@@ -48,12 +48,13 @@ describe("orchestrationCanvasModel", () => {
       orchestrationRunId: null,
       edges: [],
     });
-    expect(diagram.nodes.filter((node) => node.kind === "terminal")).toHaveLength(2);
+    expect(diagram.nodes.filter((node) => node.kind === "terminal")).toHaveLength(3);
     expect(diagram.nodes[0]).toMatchObject({
       id: "orchestration:orchestrator",
-      kind: "orchestrator",
-      label: "Orchestrator",
-      technology: "Codex",
+      kind: "terminal",
+      label: "Boss · Codex",
+      technology: "Orchestrator CLI agent",
+      initialCommand: expect.stringMatching(/^codex\b/),
       orchestration: { kind: "orchestrator", entityId: "orchestrator" },
     });
   });
@@ -67,7 +68,7 @@ describe("orchestrationCanvasModel", () => {
 
     expect(diagram.orchestrationRunId).toBe("run-1");
     expect(diagram.nodes.map((node) => [node.kind, node.id])).toEqual([
-      ["orchestrator", "orchestration:orchestrator"],
+      ["terminal", "orchestration:orchestrator"],
       ["agent", "orchestration:agent:builder"],
       ["agent", "orchestration:agent:reviewer"],
       ["task", "orchestration:task:build"],

@@ -33,7 +33,7 @@ describe("workspaceCreationModel", () => {
       orchestrationRunId: null,
     });
     expect(plan.canvasDiagram?.nodes).toHaveLength(3);
-    expect(plan.canvasDiagram?.nodes.filter((node) => node.kind === "terminal")).toHaveLength(2);
+    expect(plan.canvasDiagram?.nodes.filter((node) => node.kind === "terminal")).toHaveLength(3);
     expect(plan.paneLaunchPlan).toBeUndefined();
   });
 

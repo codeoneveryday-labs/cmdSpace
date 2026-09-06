@@ -115,6 +115,7 @@ export function CanvasTerminalSurface({
         terminalId={node.id}
         initialCwd={node.cwd}
         initialCommand={node.initialCommand}
+        orchestrator={node.orchestration?.kind === "orchestrator"}
         onHandleChange={(handle) => onHandleChange(node.id, handle)}
         stackTabs={stackTabs}
         activeTabId={layout?.activeTerminalId ?? node.id}
