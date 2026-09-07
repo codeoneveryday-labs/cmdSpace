@@ -69,6 +69,7 @@
     "@xterm/xterm": "^6.0.0",
     "ai": "^6.0.168",
     "class-variance-authority": "^0.7.1",
+    "cli-spinners": "3.4.0",
     "clsx": "^2.1.1",
     "material-icon-theme": "^5.37.0",
     "motion": "^12.38.0",
