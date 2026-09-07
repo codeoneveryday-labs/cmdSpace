@@ -139,7 +139,7 @@ export function TerminalAgentPermissionPill({
   return (
     <div
       className={cn(
-        "flex items-center h-5.5 rounded border border-border/70 bg-muted/40 dark:bg-zinc-800/60 shadow-xs text-xs select-none transition-colors hover:border-border",
+        "flex shrink-0 items-center h-5.5 rounded border border-border/70 bg-muted/40 dark:bg-zinc-800/60 shadow-xs text-xs select-none transition-colors hover:border-border",
         className,
       )}
       onPointerDown={(e) => e.stopPropagation()}

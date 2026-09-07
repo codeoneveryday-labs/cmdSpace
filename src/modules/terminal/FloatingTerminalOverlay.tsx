@@ -185,10 +185,10 @@ export function FloatingTerminalOverlay({
         currentAgent={cliAgent}
         onSelect={onSwitchAgent}
       />
-      {/* Compact dir label: only on narrow panes, the full directory +
-          branch picker (TerminalNavigationControls) takes over at @sm. */}
+      {/* Compact dir label: the full directory + branch picker only appears
+          after the header has room for the agent controls as well. */}
       <span
-        className="min-w-0 max-w-24 shrink truncate text-xs font-semibold text-foreground @xs:max-w-32 @sm:hidden"
+        className="min-w-0 max-w-24 shrink truncate text-xs font-semibold text-foreground @xs:max-w-32 @[52rem]:hidden"
         title={cwd ?? undefined}
       >
         {cwd?.replace(/\/$/, "").split("/").pop() || "terminal"}
@@ -202,7 +202,7 @@ export function FloatingTerminalOverlay({
       <TerminalNavigationControls
         cwd={cwd}
         onChangeDirectory={onCd}
-        className="hidden min-w-0 @sm:flex"
+        className="hidden min-w-0 flex-1 overflow-hidden @[52rem]:flex"
       />
       {(additions > 0 || deletions > 0) && (
         <div className="hidden shrink-0 @lg:flex items-center gap-1 font-bold text-[10px] self-center">
@@ -221,6 +221,7 @@ export function FloatingTerminalOverlay({
           onWrite={onWrite}
           onGetBuffer={onGetBuffer}
           onFocusTerminal={onFocusTerminal}
+          className="shrink-0"
         />
       ) : null}
 
