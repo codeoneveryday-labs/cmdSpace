@@ -287,6 +287,10 @@ const piLaunch =
 
 const LEGACY_OMP_LAUNCH_COMMAND =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; omp';
+const LEGACY_OMP_LAUNCH_COMMANDS = new Set([
+  LEGACY_OMP_LAUNCH_COMMAND,
+  piLaunch,
+]);
 
 /** Removes the pre-shell-integration OMP bootstrap from persisted preferences. */
 export function normalizeCliAgentLaunchCommand(
@@ -294,7 +298,7 @@ export function normalizeCliAgentLaunchCommand(
   command: string,
 ): string {
   const trimmed = command.trim();
-  return agent === "omp" && trimmed === LEGACY_OMP_LAUNCH_COMMAND
+  return agent === "omp" && LEGACY_OMP_LAUNCH_COMMANDS.has(trimmed)
     ? "omp"
     : trimmed;
 }
