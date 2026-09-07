@@ -167,6 +167,15 @@ describe("CLI agent registry", () => {
     );
   });
 
+  it("migrates the legacy Pi fallback bootstrap when it was saved for OMP", () => {
+    expect(
+      normalizeCliAgentLaunchCommand(
+        "omp",
+        'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; command -v pi >/dev/null 2>&1 && pi || omp',
+      ),
+    ).toBe("omp");
+  });
+
   it("filters enabled workspace agents from configured preferences", () => {
     expect(
       getEnabledCliAgentDefinitions(["cursor", "codex", "claude", "cursor"], ["codex"]).map(
