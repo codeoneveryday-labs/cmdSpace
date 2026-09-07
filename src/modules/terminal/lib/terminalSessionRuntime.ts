@@ -21,7 +21,6 @@ import {
   prepareTerminalSessionRespawn,
   resolveTerminalExitDisposition,
 } from "./terminalSessionRuntimeModel";
-import { flushInitialCommand } from "./terminalSessionCommandLifecycle";
 import { waitForTerminalSessionReady } from "./terminalSessionReady";
 import { resolveAgentOutputActivity } from "./terminalAgentOutputModel";
 import { detachTerminalSession, unbindTerminalSessionFromSlot } from "./terminalSessionAttachment";
@@ -303,7 +302,9 @@ export function bindLeafToSlot(leafId: number, s: Session): void {
       s.shellState = shellState;
       const prompt = registerPromptTracker(term, shellState, () => {
         const hadInitialCommand = Boolean(s.initialCommand);
-        flushInitialCommand(leafId, s);
+        // Native PTY bootstrap has already written the initial command before
+        // this marker reaches the frontend. Re-sending it here races the
+        // `pty_open` response and can launch an interactive agent twice.
         if (hadInitialCommand) return;
 
         // Skip prompt cleanup on the initial shell startup prompt before any command has executed.
