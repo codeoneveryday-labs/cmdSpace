@@ -12,14 +12,14 @@ const spinnerSource = readFileSync(
 );
 
 describe("AgentStateDot", () => {
-  it("renders the three-dot working loader", () => {
+  it("renders the shared cli-spinners dots loader", () => {
     expect(source).toContain('working: { color: "bg-primary"');
     expect(source).toContain("Spinner");
-    expect(spinnerSource).toContain("cmdspace-loading-dot");
-    expect(spinnerSource).toContain("DOT_COUNT = 3");
-    expect(spinnerSource).toContain("left-1/2 top-1/2");
+    expect(spinnerSource).toContain('import cliSpinners from "cli-spinners"');
+    expect(spinnerSource).toContain("cliSpinners.dots.frames");
+    expect(spinnerSource).toContain("cliSpinners.dots.interval");
+    expect(spinnerSource).toContain("prefers-reduced-motion");
     expect(spinnerSource).toContain("h-4 w-3");
-    expect(spinnerSource).toContain("animationDelay: `${index * 120}ms`");
     expect(source).not.toContain("bg-activity");
   });
 
