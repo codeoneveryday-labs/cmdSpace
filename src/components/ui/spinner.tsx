@@ -1,8 +1,37 @@
 import { cn } from "@/lib/utils";
+import cliSpinners from "cli-spinners";
+import { useEffect, useState } from "react";
 
-const DOT_COUNT = 3;
+export const SPINNER_FRAMES = cliSpinners.dots.frames;
+export const SPINNER_FRAME_INTERVAL = cliSpinners.dots.interval;
+
+export function spinnerFrame(index: number): string {
+  return SPINNER_FRAMES[index % SPINNER_FRAMES.length] ?? SPINNER_FRAMES[0];
+}
 
 function Spinner({ className, ...props }: React.ComponentProps<"span">) {
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotionPreference = () => setReducedMotion(mediaQuery.matches);
+    updateMotionPreference();
+    mediaQuery.addEventListener("change", updateMotionPreference);
+    return () => mediaQuery.removeEventListener("change", updateMotionPreference);
+  }, []);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setFrameIndex(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setFrameIndex((current) => (current + 1) % SPINNER_FRAMES.length);
+    }, SPINNER_FRAME_INTERVAL);
+    return () => window.clearInterval(timer);
+  }, [reducedMotion]);
+
   return (
     <span
       role="status"
@@ -13,14 +42,9 @@ function Spinner({ className, ...props }: React.ComponentProps<"span">) {
       )}
       {...props}
     >
-      {Array.from({ length: DOT_COUNT }, (_, index) => (
-        <span
-          key={index}
-          aria-hidden="true"
-          className="cmdspace-loading-dot absolute left-1/2 top-1/2 size-0.5 rounded-full bg-primary"
-          style={{ animationDelay: `${index * 120}ms` }}
-        />
-      ))}
+      <span aria-hidden="true" className="font-mono leading-none">
+        {spinnerFrame(frameIndex)}
+      </span>
     </span>
   );
 }
