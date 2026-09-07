@@ -82,6 +82,14 @@ describe("FloatingTerminalOverlay", () => {
     expect(source).toContain("onChangeDirectory={onCd}");
   });
 
+  it("prioritizes slash controls over full folder and branch navigation in narrow panes", () => {
+    const source = readPaneTreeSource();
+
+    expect(source).toContain("@[52rem]:hidden");
+    expect(source).toContain("@[52rem]:flex");
+    expect(source).toContain("flex-1 overflow-hidden");
+  });
+
   it("exposes explicit broadcast membership and arming controls", () => {
     const source = readPaneTreeSource();
     const stack = readFileSync(terminalStackPath, "utf8");
