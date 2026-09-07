@@ -61,21 +61,14 @@ describe("TerminalStack lazy renderer restore", () => {
     expect(source).toContain("session.focusedNow = false;");
   });
 
-  it("waits for the first shell prompt before sending an initial command", () => {
-    const source = [
-      terminalSessionSource,
-      readFileSync(terminalCommandLifecyclePath, "utf8"),
-    ].join("\n");
+  it("lets native PTY bootstrap be the only initial-command writer", () => {
+    const runtimeSource = readFileSync(terminalSessionRuntimePath, "utf8");
 
-    expect(source).toContain("function flushInitialCommand");
-    expect(source).toContain('session.pty.write(command + "\\r")');
-    expect(source).not.toContain('s.pty.write(command + "\\n")');
-    expect(source).toContain("scheduleInitialCommandFallback");
-    expect(source).toContain("registerPromptTracker(term, shellState, () =>");
-    expect(source).toContain("session.callbacks.onCommand?.(command);");
-    expect(source).not.toContain(
-      "if (s.initialCommand) {\n          pty.write",
-    );
+    expect(runtimeSource).toContain("cwd,\n    s.initialCommand,");
+    expect(runtimeSource).toContain("registerPromptTracker(term, shellState, () =>");
+    expect(runtimeSource).toContain("const hadInitialCommand = Boolean(s.initialCommand);");
+    expect(runtimeSource).not.toContain("flushInitialCommand(leafId, s);");
+    expect(runtimeSource).not.toContain("scheduleInitialCommandFallback");
   });
 
   it("allows Voice to write into an active coding CLI but not a normal busy shell command", () => {
