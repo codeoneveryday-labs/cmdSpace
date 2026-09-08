@@ -3,6 +3,29 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.106] - 2026-09-08
+
+### Changed
+
+- Rebased the engineering quality baseline on the post-removal codebase and
+  added a warn-only quality inventory for test taxonomy and structural-guard
+  drift in CI.
+- Retired 18 CLI agents that are no longer offered from the frontend and Rust
+  provider catalogs.
+
+### Removed
+
+- Removed the unused Canvas orchestration feature, including its worker,
+  mailbox, memory-graph, workspace orchestrator, Rust runtime, Tauri commands,
+  and related planning artifacts.
+
+### Known limitations
+
+- ESLint, Prettier, and coverage tooling remain reporting-only until the
+  corresponding quality-gate approvals are granted; CI does not block on them
+  yet.
+- The retired orchestration snapshots and commands are no longer supported.
+
 ## [0.7.105] - 2026-09-05
 
 ### Added
