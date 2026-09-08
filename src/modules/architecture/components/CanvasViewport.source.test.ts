@@ -8,12 +8,14 @@ const sourcePath = path.join(
 );
 
 describe("CanvasViewport", () => {
-  it("composes canvas surfaces without owning IPC or persistence", () => {
+  it("preserves the compatibility facade without owning layer composition", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("CanvasDiagramSvg");
-    expect(source).toContain("CanvasTerminalLayer");
-    expect(source).toContain("CanvasInteractionOverlays");
+    expect(source).toContain("CanvasRenderSurface");
+    expect(source).toContain("CanvasLayerProps");
+    expect(source).not.toContain("CanvasDiagramSvg");
+    expect(source).not.toContain("CanvasTerminalLayer");
+    expect(source).not.toContain("CanvasInteractionOverlays");
     expect(source).not.toContain("invoke(");
     expect(source).not.toContain("useState(");
     expect(source).not.toContain("useEffect(");

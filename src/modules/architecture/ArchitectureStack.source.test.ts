@@ -25,6 +25,7 @@ const relatedCanvasSource = [
   "components/CanvasSurfaceSelectionOverlay.tsx",
   "components/CanvasStatusOverlay.tsx",
   "components/CanvasTerminalLayer.tsx",
+  "components/CanvasRenderSurface.tsx",
   "components/CanvasViewport.tsx",
   "components/CanvasTerminalSurface.tsx",
   "components/ConnectorHandles.tsx",

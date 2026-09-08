@@ -1,6 +1,6 @@
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { CanvasTerminalHandle } from "./CanvasTerminalNode";
-import { CanvasViewport } from "./components/CanvasViewport";
+import { CanvasRenderSurface } from "./components/CanvasRenderSurface";
 import { CanvasToolbar } from "./components/CanvasToolbar";
 import type {
   ArchitectureCanvasProps,
@@ -21,31 +21,28 @@ import { shapeFor } from "./lib/architectureShapeCatalog";
 import { useCanvasCamera } from "./lib/useCanvasCamera";
 import { useCanvasDocking } from "./lib/useCanvasDocking";
 import { useCanvasDiagramHistory } from "./lib/useCanvasDiagramHistory";
-import { useCanvasDiagramPersistence } from "./lib/useCanvasDiagramPersistence";
 import { useCanvasNodeActions } from "./lib/useCanvasNodeActions";
-import { useCanvasNodePointerDown } from "./lib/useCanvasNodePointerDown";
 import { useCanvasTerminalGroupPointerDown } from "./lib/useCanvasTerminalGroupPointerDown";
-import { useCanvasPointerMove } from "./lib/useCanvasPointerMove";
-import { useCanvasPointerEnd } from "./lib/useCanvasPointerEnd";
+import { useCanvasNodePointerDown } from "./lib/useCanvasNodePointerDown";
 import { useCanvasSurfacePlacementActions } from "./lib/useCanvasSurfacePlacementActions";
 import { useCanvasTerminalLayerActions } from "./lib/useCanvasTerminalLayerActions";
-import { useCanvasTerminalSizeMigration } from "./lib/useCanvasTerminalSizeMigration";
-import { useCanvasOrchestrationRun } from "./lib/useCanvasOrchestrationRun";
-import { useCanvasOrchestrationWorkers } from "./lib/useCanvasOrchestrationWorkers";
-import { OrchestrationMailOverlay } from "./components/OrchestrationMailOverlay";
+import { useCanvasLifecycle } from "./lib/useCanvasLifecycle";
+import { useCanvasPointerCoordination } from "./lib/useCanvasPointerCoordination";
+import { useCanvasTerminalCreatorRegistration } from "./lib/useCanvasTerminalCreatorRegistration";
+import {
+  buildOrchestrationToolbarControls,
+  CanvasOrchestrationPresentation,
+} from "./components/CanvasOrchestrationPresentation";
 import { useCanvasTerminalViewModel } from "./lib/useCanvasTerminalViewModel";
 import { useCanvasDockDividerPointerDown } from "./lib/useCanvasDockDividerPointerDown";
 import { useCanvasEdgePointerDown } from "./lib/useCanvasEdgePointerDown";
 import { useCanvasDeleteShortcut } from "./lib/useCanvasDeleteShortcut";
 import { useCanvasUndoShortcut } from "./lib/useCanvasUndoShortcut";
-import { useCanvasSurfaceDockTarget } from "./lib/useCanvasSurfaceDockTarget";
 import { useCanvasTextEditing } from "./lib/useCanvasTextEditing";
-import { useCanvasPointerDown } from "./lib/useCanvasPointerDown";
 import { useCanvasSelection } from "./lib/useCanvasSelection";
 import { useCanvasToolShortcuts } from "./lib/useCanvasToolShortcuts";
 import { useCanvasShapeGestures } from "./lib/useCanvasShapeGestures";
 import { useCanvasTerminalNavigation } from "./lib/useCanvasTerminalNavigation";
-import { useCanvasTerminalCreatorRegistration } from "./lib/useCanvasTerminalCreatorRegistration";
 import { useCanvasDiagramState } from "./lib/useCanvasDiagramState";
 import { useCanvasPlacement } from "./lib/useCanvasPlacement";
 import { isShapeDrawingMode } from "./lib/architectureCanvasModel";
@@ -65,7 +62,6 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 import {
-  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -124,7 +120,6 @@ export function ArchitectureCanvas({
   const {
     centerViewOnPlacement,
     drawableBounds,
-    pan,
     setView,
     terminalTransform,
     view,
@@ -180,40 +175,25 @@ export function ArchitectureCanvas({
     viewWidth,
     viewHeight,
   });
-  useCanvasTerminalSizeMigration(setNodes);
-  useCanvasOrchestrationWorkers({
-    canvasPurpose,
-    orchestrationRunId,
-    nodes,
-    setNodes,
-    terminalHandles: terminalHandleRef,
-  });
-  const orchestration = useCanvasOrchestrationRun({
+  const orchestration = useCanvasLifecycle({
+    tabId,
     canvasPurpose,
     orchestrationRunId,
     workspaceId,
     workspaceCwd,
     orchestrationProvider,
-    onRunIdChange: setOrchestrationRunId,
-  });
-  const orchestrationTaskStatuses = useMemo(
-    () =>
-      new Map(
-        (orchestration.run?.tasks ?? []).map((task) => [task.taskId, task.status]),
-      ),
-    [orchestration.run],
-  );
-
-  useCanvasDiagramPersistence({
-    tabId,
-    canvasPurpose,
-    orchestrationProvider,
-    orchestrationRunId,
     nodes,
+    setNodes,
+    terminalHandles: terminalHandleRef,
     edges,
     terminalDockGroups,
     onDiagramChange,
+    onRunIdChange: setOrchestrationRunId,
   });
+  const orchestrationToolbar = buildOrchestrationToolbarControls(
+    canvasPurpose === "orchestration",
+    orchestration,
+  );
 
   const terminalInteractions = useCanvasTerminalTabState({
     onActiveTerminalChange,
@@ -258,7 +238,7 @@ export function ArchitectureCanvas({
     undoHistory();
     shapeGestures.clear();
   };
-  const { drawing, resize } = shapeGestures;
+  const { resize } = shapeGestures;
 
   const docking = useCanvasDocking({
     nodes,
@@ -366,7 +346,6 @@ export function ArchitectureCanvas({
     setTerminalDropPreview,
     setDrag,
   });
-
   const handleTerminalGroupHeaderPointerDown =
     useCanvasTerminalGroupPointerDown({
       mode,
@@ -436,34 +415,6 @@ export function ArchitectureCanvas({
     setConnectSourceId,
   });
 
-  const resolveLiveSurfaceDockTarget = useCanvasSurfaceDockTarget({
-    svgRef,
-    terminalLayouts,
-    view,
-    viewWidth,
-    viewHeight,
-    clearTarget: docking.clearTerminalDockDropTarget,
-    resolveTarget: docking.resolveTerminalDockDropTargetAtPoint,
-  });
-
-  const handlePointerMove = useCanvasPointerMove({
-    panActive: Boolean(pan),
-    drag,
-    nodes,
-    selectedNodeIds,
-    terminalDockGroups,
-    terminalLayouts,
-    panFromPointer: camera.panFromPointer,
-    updateShapeGesture: shapeGestures.updatePointer,
-    svgPointFromClient: camera.svgPointFromClient,
-    drawableBounds,
-    updateTerminalGroupBounds,
-    resolveLiveSurfaceDockTarget,
-    setTerminalDockGroups,
-    setTerminalDropPreview,
-    setNodes,
-  });
-
   function createNode(
     kind: ShapeKind,
     point: Point,
@@ -510,6 +461,39 @@ export function ArchitectureCanvas({
     resetPlacement,
   });
 
+  const pointerCoordination = useCanvasPointerCoordination({
+    mode,
+    selectedNodeIds,
+    svgRef,
+    camera,
+    docking,
+    updateTerminalGroupBounds,
+    shapeGestures,
+    drag,
+    nodes,
+    terminalDockGroups,
+    terminalLayouts,
+    terminalNodes,
+    terminalDropPreview,
+    pendingSurfaceKind,
+    terminalPlacements,
+    isFreeTerminalPlacement,
+    commitFreeSurfacePlacement,
+    beginSurfacePlacement,
+    createNode,
+    setNodes,
+    setTerminalDockGroups,
+    setTerminalDropPreview,
+    setDrag,
+    setMode,
+    selectSingleNode,
+    pushHistory,
+    clearSelection,
+    setConnectSourceId,
+    resetPlacement,
+  });
+  const handlePointerMove = pointerCoordination.pointerMove;
+
   useCanvasTerminalCreatorRegistration({
     tabId,
     nodes,
@@ -517,6 +501,7 @@ export function ArchitectureCanvas({
     beginSurfacePlacement,
     onRegisterTerminalCreator,
   });
+
 
   useCanvasToolShortcuts({
     active,
@@ -532,24 +517,7 @@ export function ArchitectureCanvas({
     onResetPlacement: resetPlacement,
   });
 
-  const handleCanvasPointerDown = useCanvasPointerDown({
-    mode,
-    terminalPlacements,
-    isFreeTerminalPlacement,
-    pendingSurfaceKind,
-    svgPointFromClient: camera.svgPointFromClient,
-    startPan: camera.startPan,
-    commitFreeSurfacePlacement,
-    beginSurfacePlacement,
-    pushHistory,
-    createNode,
-    setNodes,
-    beginDrawing: shapeGestures.beginDrawing,
-    selectSingleNode,
-    setConnectSourceId,
-    clearSelection,
-    resetPlacement,
-  });
+  const handleCanvasPointerDown = pointerCoordination.canvasPointerDown;
 
   const {
     editingTextId,
@@ -568,26 +536,7 @@ export function ArchitectureCanvas({
   });
   resetEditingTextRef.current = setEditingTextId;
 
-  const handlePointerEnd = useCanvasPointerEnd({
-    drawing,
-    drag,
-    nodes,
-    terminalDockGroups,
-    terminalLayouts,
-    terminalNodes,
-    terminalDropPreview,
-    selectedNodeIds,
-    getTerminalDockDropTarget: docking.getTerminalDockDropTarget,
-    setMode,
-    setDrag,
-    setTerminalDropPreview,
-    clearTerminalDockDropTarget: docking.clearTerminalDockDropTarget,
-    stopPan: camera.stopPan,
-    clearShapeGestures: shapeGestures.clear,
-    setNodes,
-    setTerminalDockGroups,
-    drawableBounds,
-  });
+  const handlePointerEnd = pointerCoordination.pointerEnd;
 
   const terminalLayerActions = useCanvasTerminalLayerActions({
     tabId,
@@ -632,25 +581,10 @@ export function ArchitectureCanvas({
         onToggleSelectedLock={toggleSelectedLock}
         onUndo={undoCanvas}
         onZoomBy={zoomBy}
-        orchestration={
-          canvasPurpose === "orchestration"
-            ? {
-                run: orchestration.run,
-                busy: orchestration.busy,
-                error: orchestration.error,
-                onStartRun: orchestration.startRun,
-                onSaveDraft: orchestration.saveDraft,
-                onApprove: orchestration.approveRun,
-                onCompleteTask: orchestration.completeTask,
-                onRetryTask: orchestration.retryTask,
-                onReindexMemories: orchestration.reindexMemories,
-                onSearchMemories: orchestration.searchMemories,
-              }
-            : null
-        }
+        orchestration={orchestrationToolbar}
       />
 
-      <CanvasViewport
+      <CanvasRenderSurface
         backgroundImageId={canvasBackgroundImageId}
         diagram={{
           svgRef,
@@ -706,7 +640,7 @@ export function ArchitectureCanvas({
           maximizedTerminalGroupId,
           terminalResizePaused,
           actions: terminalLayerActions,
-          taskStatuses: orchestrationTaskStatuses,
+          taskStatuses: orchestration.taskStatuses,
         }}
         overlays={{
           terminalDropPreview,
@@ -738,17 +672,16 @@ export function ArchitectureCanvas({
           },
         }}
       />
-      {canvasPurpose === "orchestration" ? (
-        <OrchestrationMailOverlay
-          run={orchestration.run}
-          nodes={nodes}
-          flights={orchestration.mailFlights}
-          view={view}
-          viewWidth={viewWidth}
-          viewHeight={viewHeight}
-          onFlightDone={orchestration.dismissMailFlight}
-        />
-      ) : null}
+      <CanvasOrchestrationPresentation
+        enabled={canvasPurpose === "orchestration"}
+        run={orchestration.run}
+        nodes={nodes}
+        flights={orchestration.mailFlights}
+        view={view}
+        viewWidth={viewWidth}
+        viewHeight={viewHeight}
+        onFlightDone={orchestration.dismissMailFlight}
+      />
     </div>
   );
 }

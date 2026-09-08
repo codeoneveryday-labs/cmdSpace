@@ -5,6 +5,14 @@ const source = readFileSync(
   new URL("./ArchitectureCanvas.tsx", import.meta.url),
   "utf8",
 );
+const integrationSource = readFileSync(
+  new URL("./lib/useCanvasOrchestrationIntegration.ts", import.meta.url),
+  "utf8",
+);
+const presentationSource = readFileSync(
+  new URL("./components/CanvasOrchestrationPresentation.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("ArchitectureCanvas orchestration surface", () => {
   it("keeps the Boss terminal as the only orchestration interaction surface", () => {
@@ -12,22 +20,24 @@ describe("ArchitectureCanvas orchestration surface", () => {
   });
 
   it("spawns worker terminals for running orchestration tasks", () => {
-    expect(source).toContain("useCanvasOrchestrationWorkers");
+    expect(integrationSource).toContain("useCanvasOrchestrationWorkers");
+    expect(source).toContain("useCanvasLifecycle");
   });
 
   it("drives toolbar run controls without a side panel", () => {
-    expect(source).toContain("useCanvasOrchestrationRun");
+    expect(integrationSource).toContain("useCanvasOrchestrationRun");
     expect(source).toContain("orchestration={");
   });
 
   it("flies mail envelopes between worker nodes", () => {
-    expect(source).toContain("OrchestrationMailOverlay");
-    expect(source).toContain("mailFlights");
+    expect(presentationSource).toContain("OrchestrationMailOverlay");
+    expect(source).toContain("CanvasOrchestrationPresentation");
+    expect(presentationSource).toContain("flights");
   });
 
   it("builds a task status map from the run snapshot for worker terminals", () => {
-    expect(source).toContain("orchestrationTaskStatuses");
-    expect(source).toContain("orchestration.run?.tasks");
-    expect(source).toContain("taskStatuses: orchestrationTaskStatuses");
+    expect(integrationSource).toContain("orchestration.run?.tasks");
+    expect(integrationSource).toContain("taskStatuses");
+    expect(source).toContain("taskStatuses: orchestration.taskStatuses");
   });
 });

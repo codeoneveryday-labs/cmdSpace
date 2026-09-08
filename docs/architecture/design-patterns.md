@@ -132,6 +132,15 @@ must preserve the listed interface and invariant.
 | Strategy | Agent providers, discovery modes, platform shell behavior | The caller selects behavior through a stable contract; branching stays behind the seam | `src-tauri/src/modules/agent_chat/providers/`, `shell_init.rs` |
 | State | Tabs, PTYs, agent runtime, workspace mode | State transitions are explicit and invalid combinations are rejected or represented in the model | `src/modules/tabs/lib/tabTypes.ts`, `src-tauri/src/modules/agent_chat/daemon.rs` |
 
+Canvas orchestration uses the same pattern contract through focused Rust seams:
+`model.rs` owns serializable records, `run_state.rs` owns pure State
+transitions, `runtime.rs` owns the process-scoped registry Facade,
+`runtime_tasks.rs` and `runtime_lifecycle.rs` own runtime operation groups,
+`runtime_coordination.rs` owns policy and Observer coordination, and
+`commands/{lifecycle,tasks,attachment,mailbox,hooks,worker}.rs` own Tauri
+Command adapters. `commands::core` is implementation-only and is not a command
+registration surface.
+
 ### Pattern relationships
 
 The most important combinations are:

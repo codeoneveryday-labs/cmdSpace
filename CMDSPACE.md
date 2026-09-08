@@ -65,6 +65,17 @@ Each module is self-contained, exports a thin barrel via `index.ts`, and owns it
 - **updater/** — auto-updater UI built on `tauri-plugin-updater`.
 - **ai/** — see below.
 
+Canvas orchestration Rust ownership is split under
+`src-tauri/src/modules/orchestration/`: `model.rs` contains serializable
+contracts, `manifest.rs` validates task graphs, `run_state.rs` contains the
+pure run state machine, `runtime.rs` owns the runtime registry,
+`runtime_tasks.rs` and `runtime_lifecycle.rs` group runtime operations,
+`runtime_coordination.rs` owns wake/breaker/event attachment coordination,
+`event_sink.rs` owns bounded replay, and `commands/` contains the Tauri command
+adapters. `commands::core` is private implementation code. Keep persisted
+snapshots metadata-only and keep command names/contracts synchronized with
+`src-tauri/src/commands.rs`.
+
 ### AI subsystem (`src/modules/ai/`)
 
 BYOK. Multi-provider via `@ai-sdk/*`: **OpenAI, Anthropic, Google, Groq, xAI, Cerebras, OpenAI-compatible** (LM Studio for local/offline). Provider list in `config.ts` (`PROVIDERS`); model registry includes `DEFAULT_MODEL_ID` + `DEFAULT_AUTOCOMPLETE_MODEL`.

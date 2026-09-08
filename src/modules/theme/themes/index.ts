@@ -3,7 +3,6 @@ import { caffeine } from "./caffeine";
 import { catppuccin } from "./catppuccin";
 import { claude } from "./claude";
 import { gruvbox } from "./gruvbox";
-import { liquidGlass } from "./liquid-glass";
 import { nord } from "./nord";
 import { rosePine } from "./rose-pine";
 import { sage } from "./sage";
@@ -22,7 +21,6 @@ const BUILTIN: Theme[] = [
   gruvbox,
   rosePine,
   caffeine,
-  liquidGlass,
 ];
 
 const BY_ID = new Map<string, Theme>(BUILTIN.map((t) => [t.id, t]));

@@ -90,7 +90,8 @@ describe("menu bar workspace switcher wiring", () => {
     expect(theme).toContain("surfaceLayer = true");
     expect(source).toContain("tray-panel");
     expect(styles).toContain('html[data-tray-window] body');
-    expect(styles).toContain(".tray-panel");
+    expect(styles).toContain('html[data-tray-window] #tray-root');
+    expect(styles).not.toContain('html[data-tray-window][data-theme-id="liquid-glass"] .tray-panel');
   });
 
   it("groups workspaces sharing a directory under one collapsible header", () => {

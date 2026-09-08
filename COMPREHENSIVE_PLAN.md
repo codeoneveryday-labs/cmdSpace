@@ -144,7 +144,7 @@ All feature modules live in `src/modules/<name>/`, each with a barrel
 | `workspaces/` / `workspace/` | Left rail + env (local/WSL) scope | `WorkspacesPanel.tsx`, `env.ts` |
 | `settings/` | Preferences store (LazyStore) + window | `preferences.ts`, `store.ts` |
 | `shortcuts/` | Global shortcut engine | `useGlobalShortcuts.ts` |
-| `theme/` | Themes + liquid-glass blur + bg image/video | `ThemeProvider.tsx` |
+| `theme/` | Themes + background media | `ThemeProvider.tsx` |
 | `updater/` | Auto-update dialog | `useUpdater.ts` |
 
 **The one rule:** `src/app/App.tsx` coordinates workspace/tab/pane state and

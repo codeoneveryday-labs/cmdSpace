@@ -140,6 +140,28 @@ mod native_command_registration_tests {
     }
 
     #[test]
+    fn orchestration_commands_are_registered_from_responsibility_modules() {
+        let source = include_str!("commands.rs");
+        for group in [
+            "lifecycle",
+            "tasks",
+            "attachment",
+            "mailbox",
+            "hooks",
+            "worker",
+        ] {
+            assert!(
+                source.contains(&format!("orchestration::commands::{group}::")),
+                "orchestration commands should stay registered through {group}"
+            );
+        }
+        assert!(
+            !source.contains("orchestration::commands::core::"),
+            "private orchestration command core must not be a registration surface"
+        );
+    }
+
+    #[test]
     fn macos_new_tab_menu_routes_to_the_react_tab_event() {
         let source = include_str!("app_menu.rs");
 
