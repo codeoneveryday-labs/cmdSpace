@@ -5,5 +5,3 @@ mod parser;
 mod process;
 mod types;
 mod utils;
-pub(crate) use process::run_git;
-pub(crate) use types::GitOutput;

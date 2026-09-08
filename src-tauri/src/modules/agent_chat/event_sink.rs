@@ -42,12 +42,6 @@ impl AgentChatEventSink {
         }
     }
 
-    pub(crate) fn subscribe(&self, observer: AgentChatEventObserver) {
-        if let Ok(mut observers) = self.observers.lock() {
-            observers.push(observer);
-        }
-    }
-
     pub(crate) fn attach(&self, next_channel: Channel<AgentChatEvent>) -> Result<String, String> {
         let (generation, replay) = self.begin_attach(next_channel)?;
         self.finish_attach(generation, replay)?;
@@ -230,21 +224,6 @@ mod tests {
             });
         }
         assert_eq!(sink.replay_len(), REPLAY_EVENT_LIMIT);
-    }
-
-    #[test]
-    fn observers_receive_events_independently_of_the_ui_channel() {
-        use std::sync::{Arc, Mutex};
-
-        let observed = Arc::new(Mutex::new(Vec::new()));
-        let captured = Arc::clone(&observed);
-        let sink = AgentChatEventSink::new(Channel::new(|_| Ok(())));
-        sink.subscribe(Arc::new(move |event| {
-            captured.lock().unwrap().push(event);
-        }));
-        sink.send(AgentChatEvent::Done);
-
-        assert_eq!(observed.lock().unwrap().len(), 1);
     }
 
     #[test]
