@@ -29,10 +29,6 @@ import { useCanvasTerminalLayerActions } from "./lib/useCanvasTerminalLayerActio
 import { useCanvasLifecycle } from "./lib/useCanvasLifecycle";
 import { useCanvasPointerCoordination } from "./lib/useCanvasPointerCoordination";
 import { useCanvasTerminalCreatorRegistration } from "./lib/useCanvasTerminalCreatorRegistration";
-import {
-  buildOrchestrationToolbarControls,
-  CanvasOrchestrationPresentation,
-} from "./components/CanvasOrchestrationPresentation";
 import { useCanvasTerminalViewModel } from "./lib/useCanvasTerminalViewModel";
 import { useCanvasDockDividerPointerDown } from "./lib/useCanvasDockDividerPointerDown";
 import { useCanvasEdgePointerDown } from "./lib/useCanvasEdgePointerDown";
@@ -71,8 +67,6 @@ import {
 export function ArchitectureCanvas({
   active,
   tabId,
-  workspaceId = null,
-  workspaceCwd = null,
   seed,
   onDiagramChange,
   onTerminalHandleChange,
@@ -95,10 +89,6 @@ export function ArchitectureCanvas({
     setTerminalDockGroups,
     nextNodeRef,
     nextEdgeRef,
-    canvasPurpose,
-    orchestrationProvider,
-    orchestrationRunId,
-    setOrchestrationRunId,
   } = useCanvasDiagramState(seed);
   const {
     clearEdgeSelection,
@@ -175,25 +165,14 @@ export function ArchitectureCanvas({
     viewWidth,
     viewHeight,
   });
-  const orchestration = useCanvasLifecycle({
+  useCanvasLifecycle({
     tabId,
-    canvasPurpose,
-    orchestrationRunId,
-    workspaceId,
-    workspaceCwd,
-    orchestrationProvider,
     nodes,
     setNodes,
-    terminalHandles: terminalHandleRef,
     edges,
     terminalDockGroups,
     onDiagramChange,
-    onRunIdChange: setOrchestrationRunId,
   });
-  const orchestrationToolbar = buildOrchestrationToolbarControls(
-    canvasPurpose === "orchestration",
-    orchestration,
-  );
 
   const terminalInteractions = useCanvasTerminalTabState({
     onActiveTerminalChange,
@@ -581,7 +560,6 @@ export function ArchitectureCanvas({
         onToggleSelectedLock={toggleSelectedLock}
         onUndo={undoCanvas}
         onZoomBy={zoomBy}
-        orchestration={orchestrationToolbar}
       />
 
       <CanvasRenderSurface
@@ -640,7 +618,6 @@ export function ArchitectureCanvas({
           maximizedTerminalGroupId,
           terminalResizePaused,
           actions: terminalLayerActions,
-          taskStatuses: orchestration.taskStatuses,
         }}
         overlays={{
           terminalDropPreview,
@@ -671,16 +648,6 @@ export function ArchitectureCanvas({
             }
           },
         }}
-      />
-      <CanvasOrchestrationPresentation
-        enabled={canvasPurpose === "orchestration"}
-        run={orchestration.run}
-        nodes={nodes}
-        flights={orchestration.mailFlights}
-        view={view}
-        viewWidth={viewWidth}
-        viewHeight={viewHeight}
-        onFlightDone={orchestration.dismissMailFlight}
       />
     </div>
   );

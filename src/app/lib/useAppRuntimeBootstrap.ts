@@ -4,7 +4,6 @@ import { getAllKeys, type ProviderKeys } from "@/modules/ai/lib/keyring";
 import { onKeysChanged } from "@/modules/settings/store";
 import { native } from "@/modules/ai/lib/native";
 import { remoteAccessStart, remoteAccessStatus } from "@/modules/settings/remoteAccess";
-import { invoke } from "@tauri-apps/api/core";
 
 type AppRuntimeBootstrapProps = {
   onHomeChange: (home: string | null) => void;
@@ -25,12 +24,6 @@ export function useAppRuntimeBootstrap({
   prefsHydrated,
   remoteAccessEnabled,
 }: AppRuntimeBootstrapProps): void {
-  useEffect(() => {
-    void invoke("orchestration_mark_interrupted").catch(() => {
-      // Older databases/builds may not have orchestration tables yet.
-    });
-  }, []);
-
   useEffect(() => {
     homeDir()
       .then(async (path) => {

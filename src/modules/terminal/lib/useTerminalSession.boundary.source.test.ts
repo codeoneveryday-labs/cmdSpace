@@ -116,7 +116,7 @@ describe("useTerminalSession PTY lifecycle boundaries", () => {
     expect(canvasSource).not.toContain("releaseSlot(");
     expect(canvasSource).toContain("sessionRef.current = session;");
     expect(canvasSource).toContain("sessionRef.current = null;");
-    expect(canvasSource).toContain("void sessionRef.current?.write(normalized);");
+    expect(canvasSource).toContain("void sessionRef.current?.write(data);");
   });
 
   it("broadcasts only xterm user input and leaves imperative writes direct", () => {

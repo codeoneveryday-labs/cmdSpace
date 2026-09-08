@@ -11,8 +11,6 @@ export {
   type GitHistoryTab,
   type ArchitectureTab,
   type ArchitectureDiagram,
-  type CanvasPurpose,
-  type OrchestrationProvider,
   type ArchitectureDiagramEdge,
   type ArchitectureDiagramNode,
   type ArchitectureShapeKind,

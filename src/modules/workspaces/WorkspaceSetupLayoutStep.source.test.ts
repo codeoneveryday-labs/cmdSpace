@@ -11,18 +11,11 @@ describe("WorkspaceSetupLayoutStep contract", () => {
     expect(source).toContain("export function WorkspaceSetupLayoutStep");
     expect(source).toContain("Workspace name");
     expect(source).toContain("Workspace mode");
-    expect(source).toContain("Canvas template");
-    expect(source).toContain("Architecture Canvas");
-    expect(source).toContain("Agent Orchestration");
-    expect(source).toContain("setCanvasPurpose");
     expect(source).toContain("Working folder");
     expect(source).toContain("WORKSPACE_SETUP_PRESETS");
     expect(source).toContain("setTerminalCount(preset.count)");
     expect(source).toContain("resolveFolderCommand");
     expect(source).not.toContain("invoke<");
     expect(source).not.toContain("db_save_workspace");
-    expect(source.indexOf("Workspace mode")).toBeLessThan(
-      source.indexOf("Canvas template"),
-    );
   });
 });

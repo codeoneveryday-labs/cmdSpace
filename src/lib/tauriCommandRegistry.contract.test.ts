@@ -158,36 +158,6 @@ function staticPayloadKeys(source: string): Array<{ command: string; keys: strin
 }
 
 describe("Tauri command registry contract", () => {
-  it("registers the Canvas-only orchestration lifecycle commands", () => {
-    const registry = readFileSync(registryPath, "utf8");
-    const commandGroups = {
-      lifecycle: [
-        "orchestration_create_run",
-        "orchestration_request_revision",
-        "orchestration_update_draft",
-        "orchestration_approve_and_start",
-        "orchestration_mark_interrupted",
-        "orchestration_pause",
-        "orchestration_resume",
-        "orchestration_cancel",
-        "orchestration_retry_task",
-      ],
-      tasks: [
-        "orchestration_prepare_task_worktree",
-        "orchestration_complete_task",
-        "orchestration_fail_task",
-        "orchestration_bind_task_session",
-      ],
-      attachment: ["orchestration_snapshot", "orchestration_attach", "orchestration_detach"],
-    } as const;
-
-    for (const [group, commands] of Object.entries(commandGroups)) {
-      for (const command of commands) {
-        expect(registry).toContain(`orchestration::commands::${group}::${command}`);
-      }
-    }
-  });
-
   it("registers every statically invoked production command", () => {
     const registered = registeredCommandNames(readFileSync(registryPath, "utf8"));
     const invoked = new Set(

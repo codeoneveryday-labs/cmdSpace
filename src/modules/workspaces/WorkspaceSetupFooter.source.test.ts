@@ -12,7 +12,6 @@ describe("WorkspaceSetupFooter contract", () => {
     expect(source).toContain("Open without AI");
     expect(source).toContain("Open agent chat");
     expect(source).toContain("plannedAgentCommands.length === 0");
-    expect(source).toContain("orchestrationWorkersComplete");
     expect(source).not.toContain("invoke(");
   });
 });

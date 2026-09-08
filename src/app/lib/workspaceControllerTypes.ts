@@ -1,4 +1,4 @@
-import type { ArchitectureDiagram, CanvasPurpose, OrchestrationProvider, Tab } from "@/modules/tabs";
+import type { ArchitectureDiagram, Tab } from "@/modules/tabs";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { WorkspaceItem, WorkspaceMode } from "@/modules/workspaces";
 import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
@@ -30,8 +30,6 @@ export type CreateWorkspaceInput = {
   requestedName?: string;
   requestedColor?: string;
   workspaceMode?: WorkspaceMode;
-  canvasPurpose?: CanvasPurpose;
-  orchestratorProvider?: OrchestrationProvider;
   workspaceAgent?: CliAgent | null;
   workspaceAgents?: CliAgent[];
   initialAgentDraft?: string;

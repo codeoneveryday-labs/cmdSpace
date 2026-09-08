@@ -13,8 +13,6 @@ const source = readFileSync(
 describe("useCanvasDiagramPersistence contract", () => {
   it("persists the complete diagram snapshot when any owned part changes", () => {
     expect(source).toContain("buildPersistedCanvasDiagram");
-    expect(source).toContain("canvasPurpose");
-    expect(source).toContain("orchestrationRunId");
     expect(source).toContain("terminalDockGroups");
   });
 });

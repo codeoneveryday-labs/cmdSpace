@@ -16,8 +16,4 @@ describe("CanvasTerminalLayer contract", () => {
     expect(source).not.toContain("invoke(");
   });
 
-  it("forwards task statuses to each worker terminal surface", () => {
-    expect(source).toContain("taskStatuses");
-    expect(source).toContain("taskStatuses={taskStatuses}");
-  });
 });

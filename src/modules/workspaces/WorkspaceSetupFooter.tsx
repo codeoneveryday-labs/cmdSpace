@@ -2,31 +2,24 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft02Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { WorkspaceMode } from "./WorkspacesPanel";
-import type { CanvasPurpose } from "@/modules/tabs";
 
 export function WorkspaceSetupFooter({
   setupStep,
   workspaceMode,
-  canvasPurpose,
   terminalCount,
   plannedAgentCommands,
   selectedChatAgent,
   selectedFolder,
-  orchestratorAvailable,
-  orchestrationWorkersComplete,
   onBack,
   onOpenWorkspace,
   onPrimaryAction,
 }: {
   setupStep: "layout" | "agents";
   workspaceMode: WorkspaceMode;
-  canvasPurpose: CanvasPurpose;
   terminalCount: number;
   plannedAgentCommands: string[];
   selectedChatAgent: string | null;
   selectedFolder: string;
-  orchestratorAvailable: boolean;
-  orchestrationWorkersComplete: boolean;
   onBack: () => void;
   onOpenWorkspace: () => void;
   onPrimaryAction: () => void;
@@ -45,8 +38,7 @@ export function WorkspaceSetupFooter({
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
         {setupStep === "layout" ? (
           <>
-            {workspaceMode !== "agent" &&
-            !(workspaceMode === "canvas" && canvasPurpose === "orchestration") ? (
+            {workspaceMode !== "agent" ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -72,36 +64,28 @@ export function WorkspaceSetupFooter({
           </>
         ) : (
           <>
-            {!(workspaceMode === "canvas" && canvasPurpose === "orchestration") ? (
-              <Button
+            <Button
                 type="button"
                 variant="ghost"
                 onClick={onOpenWorkspace}
                 className="w-full justify-center text-muted-foreground sm:w-auto"
               >
                 {workspaceMode === "agent" ? "Back to workspace" : "Skip - no agents"}
-              </Button>
-            ) : null}
+            </Button>
             <Button
               type="button"
               disabled={
-                workspaceMode === "canvas" && canvasPurpose === "orchestration"
-                  ? !orchestratorAvailable || !orchestrationWorkersComplete || !selectedFolder
-                  : plannedAgentCommands.length === 0 ||
-                    (workspaceMode === "agent" &&
-                      (!selectedChatAgent || !selectedFolder))
+                plannedAgentCommands.length === 0 ||
+                (workspaceMode === "agent" &&
+                  (!selectedChatAgent || !selectedFolder))
               }
               onClick={onPrimaryAction}
               aria-label={
-                workspaceMode === "canvas" && canvasPurpose === "orchestration"
-                  ? "Create orchestration Canvas"
-                  : `Launch ${plannedAgentCommands.length} configured agents in ${terminalCount} terminals`
+                `Launch ${plannedAgentCommands.length} configured agents in ${terminalCount} terminals`
               }
               className="w-full justify-center sm:w-auto"
             >
-              {workspaceMode === "canvas" && canvasPurpose === "orchestration"
-                ? "Create orchestration Canvas"
-                : workspaceMode === "agent"
+              {workspaceMode === "agent"
                 ? "Open agent chat"
                 : `Launch ${terminalCount} terminals`}
               <HugeiconsIcon

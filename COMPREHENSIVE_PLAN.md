@@ -274,7 +274,7 @@ Follow [`docs/RELEASE_RUNBOOK.md`](docs/RELEASE_RUNBOOK.md) exactly:
 ## 14. Backlog & open issues
 
 See `ROADMAP.md` for the shipped/planned matrix. Known open items:
-- SSH support, terminal auto-suggestions, meta-orchestration of external agents.
+- SSH support and terminal auto-suggestions.
 
 ## 15. Risks & open questions
 
