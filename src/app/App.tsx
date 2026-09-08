@@ -712,6 +712,9 @@ export default function App() {
   const deleteWorkspace = useWorkspaceDeletion({
     workspacesRef,
     tabsRef,
+    recentWorkspaces,
+    activeWorkspaceId,
+    selectWorkspace: handleSelectWorkspace,
     removeWorkspace,
     disposeTab,
     resetWorkspace,
