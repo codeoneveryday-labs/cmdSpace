@@ -817,7 +817,7 @@ permission, and several rows below are deletions.
 | **[A10]** | Choose ESLint+Prettier vs. Biome | Toolchain lock-in; expensive to reverse | TBD (`@crynta`) | **Pending** |
 | **[A11]** | Ratchet exception process (who can waive, for how long) | Defines the escape hatch; needs a named adjudicator | `@crynta` | **Pending** |
 | **[A12]** | Reconcile `docs/CODEBASE_MAP.md`: stamp its snapshot SHA and correct its `orchestration` / working-tree figures | That doc is this plan's cited evidence base but was generated from the working tree; it currently contradicts the pinned baseline | `@crynta` | **Pending** |
-| **[A13]** | Commit this plan (currently untracked) and pin a clean-tree SHA once **[A1]** resolves | Untracked file can be lost; also blocks re-pinning the baseline | `@crynta` | **Pending** |
+| **[A13]** | Commit this plan (was untracked) and pin a clean-tree SHA once **[A1]** resolves | Untracked file can be lost; also blocks re-pinning the baseline | `@crynta` | **Approved 2026-09-08** — committed `dd1d0d616`; re-pin still pending **[A1]** |
 
 **Recording an approval:** add the approver's verbatim instruction plus date to
 the `## Decisions` section below, then flip Status to `Approved YYYY-MM-DD`.
@@ -880,6 +880,12 @@ Do not start the work before both are present.
 - 2026-09-08: **`docs/CODEBASE_MAP.md` is not authoritative for figures.** It
   was generated from the working tree; it now carries a snapshot banner
   pointing here. Reconciling it is **[A12]**.
+- 2026-09-08: **Approved and committed (authorization: user selected "Commit +
+  gitignore `.workbuddy-ai/`" in response to the review question).** Committed
+  as `dd1d0d616` — `docs(quality): add codebase map and engineering capability
+  plan`, 3 files, docs-only, no source/build/CI touched. `.workbuddy-ai/` added
+  to `.gitignore`. **Code-metric baseline remains `9f390ad83`** — `dd1d0d616`
+  changes only documentation and therefore does not move any measurement.
 
 ## Progress
 
@@ -891,7 +897,8 @@ Do not start the work before both are present.
 - [x] Coverage carve-outs defined; target changed to changed-executable-lines
 - [x] Owners normalised to `@crynta` / `TBD`; approval register created
 - [x] `CODEBASE_MAP.md` stamped with snapshot warning (reconcile = **[A12]**)
-- [ ] **Commit this plan file — currently untracked** **[A13]**
+- [x] **Committed as `dd1d0d616` (docs-only)** **[A13]** — baseline still
+      `9f390ad83` for code metrics until **[A1]** resolves
 - [ ] Confirm team size, seniority mix, and assign every `TBD` role
 - [ ] Resolve the working-tree divergence from HEAD **[A1]**
 - [ ] Publish Axis B (PR history) baseline
