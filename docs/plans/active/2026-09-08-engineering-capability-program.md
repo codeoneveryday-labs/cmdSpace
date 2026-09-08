@@ -457,7 +457,7 @@ Counts are `src/` only, at `82e439a8c`; they are mutually exclusive and sum to
 
 **The headline rule: test behavior, not source text.**
 
-- **No new `*.source.test.ts`.** Existing 287 are grandfathered; delete them
+- **No new `*.source.test.ts`.** Existing 280 are grandfathered; delete them
   opportunistically when the covered code changes. Add a CI grep gate so the
   count cannot rise.
 - **Every bug fix ships an executable test that fails before the fix and passes
@@ -883,7 +883,7 @@ permission, and several rows below are deletions.
 | **[A6]** | CI gate banning new `*.source.test.ts` | Rejects PRs on a naming rule | `@crynta` | **Pending** |
 | **[A7]** | Delete dead module `src/modules/git/` (43 LOC, 0 importers) | **`AGENTS.md` Rule 1 — deletion requires express permission** | `@crynta` | **Pending** |
 | **[A8]** | Delete or replace stale docs: `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/TEST_MATRIX.md` | Deletion rule; also merge blocker B2 already asks for this | `@crynta` | **Pending** |
-| **[A9]** | Delete grandfathered `*.source.test.ts` files opportunistically | Deletion rule; 287 files affected over time | `@crynta` | **Pending** |
+| **[A9]** | Delete grandfathered `*.source.test.ts` files opportunistically | Deletion rule; 280 files affected over time | `@crynta` | **Pending** |
 | **[A10]** | Choose ESLint+Prettier vs. Biome | Toolchain lock-in; expensive to reverse | TBD (`@crynta`) | **Pending** |
 | **[A11]** | Ratchet exception process (who can waive, for how long) | Defines the escape hatch; needs a named adjudicator | `@crynta` | **Pending** |
 | **[A12]** | Reconcile `docs/CODEBASE_MAP.md`: restate its figures against the post-removal pinned SHA `82e439a8c` and remove the retired orchestration section | That doc was generated from the pre-removal working tree; its counts and `orchestration` section are now stale | `@crynta` | **Open — deliberately deferred** |
