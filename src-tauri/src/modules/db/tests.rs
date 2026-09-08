@@ -287,6 +287,18 @@ fn test_sqlite_crud_operations() {
     save_pane_inner(&conn, &p1).expect("save pane 1");
     save_pane_inner(&conn, &p2).expect("save pane 2");
 
+    let stale_pane = WorkspacePaneRow {
+        workspace_id: "ws-1".to_string(),
+        pane_index: 4,
+        working_folder: None,
+        last_command: Some("claude".to_string()),
+        auto_launch: true,
+        agent_provider: Some("claude".to_string()),
+        native_session_id: None,
+    };
+    save_pane_inner(&conn, &stale_pane).expect("save stale pane");
+    save_workspace_inner(&conn, &w1).expect("resave workspace and prune stale panes");
+
     let panes = list_panes_inner(&conn, "ws-1").expect("list workspace panes");
     assert_eq!(panes.len(), 2);
     assert_eq!(panes[0], p1);

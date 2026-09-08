@@ -30,6 +30,24 @@ describe("tabPaneModel", () => {
     expect(result.paneTree.kind).toBe("split");
   });
 
+  it("restores a launch command from the layout when pane metadata is missing", () => {
+    let nextId = 1;
+    const result = createPaneTree(
+      1,
+      "/repo",
+      () => nextId++,
+      [],
+      JSON.stringify({
+        kind: "leaf",
+        lastCommand: "codex",
+        autoLaunch: true,
+      }),
+    );
+
+    expect(findLeafLastCommand(result.paneTree, result.activeLeafId)).toBe("codex");
+    expect(result.paneTree).toMatchObject({ autoLaunch: true });
+  });
+
   it("normalizes native pane metadata before restoring commands", () => {
     let nextId = 1;
     const result = createPaneTree(4, "/repo", () => nextId++, [

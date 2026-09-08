@@ -20,6 +20,12 @@ type SavedPaneInfoPayload = Partial<SavedPaneInfo> & {
   auto_launch?: boolean;
 };
 
+type SavedPaneLayoutLeaf = {
+  cwd?: unknown;
+  lastCommand?: unknown;
+  autoLaunch?: unknown;
+};
+
 function normalizeSavedPaneInfo(pane: SavedPaneInfoPayload): SavedPaneInfo | null {
   const lastCommand = pane.lastCommand ?? pane.last_command ?? null;
   const paneIndex = Number(pane.paneIndex ?? pane.pane_index);
@@ -60,6 +66,34 @@ function parseSavedPaneLayout(layout: string | null | undefined): unknown {
   try { return JSON.parse(layout); } catch { return null; }
 }
 
+function buildSavedLeaf(
+  id: number,
+  cwd: string | undefined,
+  savedPane: SavedPaneInfo | undefined,
+  layoutLeaf?: SavedPaneLayoutLeaf,
+  size?: number,
+): PaneNode {
+  const lastCommand = savedPane
+    ? savedPane.lastCommand
+    : typeof layoutLeaf?.lastCommand === "string"
+      ? layoutLeaf.lastCommand
+      : null;
+  const autoLaunch = savedPane
+    ? savedPane.autoLaunch
+    : layoutLeaf?.autoLaunch === true || Boolean(lastCommand);
+
+  return {
+    kind: "leaf",
+    id,
+    cwd:
+      savedPane?.workingFolder ??
+      (typeof layoutLeaf?.cwd === "string" ? layoutLeaf.cwd : cwd),
+    lastCommand: lastCommand ?? undefined,
+    autoLaunch,
+    ...(size !== undefined && { size }),
+  };
+}
+
 export function createPaneTree(
   count: number,
   cwd: string | undefined,
@@ -77,11 +111,16 @@ export function createPaneTree(
     let currentPaneIdx = 0;
     const buildFromSavedLayout = (value: unknown): PaneNode | null => {
       if (typeof value !== "object" || value === null) return null;
-      const savedNode = value as { kind?: unknown; dir?: unknown; children?: unknown; size?: unknown };
+      const savedNode = value as SavedPaneLayoutLeaf & {
+        kind?: unknown;
+        dir?: unknown;
+        children?: unknown;
+        size?: unknown;
+      };
       const size = sanitizePaneSize(savedNode.size);
       if (savedNode.kind === "leaf") {
         const savedPane = normalizedPanes[currentPaneIdx++];
-        return { kind: "leaf", id: nextId(), cwd: savedPane?.workingFolder ?? cwd, lastCommand: savedPane?.lastCommand ?? undefined, autoLaunch: savedPane?.autoLaunch ?? false, ...(size !== undefined && { size }) };
+        return buildSavedLeaf(nextId(), cwd, savedPane, savedNode, size);
       }
       if (savedNode.kind !== "split" || (savedNode.dir !== "row" && savedNode.dir !== "col") || !Array.isArray(savedNode.children)) return null;
       const children = savedNode.children.map(buildFromSavedLayout).filter((child): child is PaneNode => child !== null);
@@ -101,7 +140,7 @@ export function createPaneTree(
   let currentPaneIdx = 0;
   const buildColumn = (leafCount: number): PaneNode => buildStack(Array.from({ length: leafCount }, () => {
     const savedPane = normalizedPanes[currentPaneIdx++];
-    return { kind: "leaf", id: nextId(), cwd: savedPane?.workingFolder ?? cwd, lastCommand: savedPane?.lastCommand ?? undefined, autoLaunch: savedPane?.autoLaunch ?? false };
+    return buildSavedLeaf(nextId(), cwd, savedPane);
   }), "col");
   const paneTree = buildStack(columnCounts.map(buildColumn), "row");
   return { paneTree, activeLeafId: leafIds(paneTree)[0] };
