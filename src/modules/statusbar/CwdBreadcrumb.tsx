@@ -46,7 +46,7 @@ function basename(path: string): string {
   return i === -1 ? path : path.slice(i + 1);
 }
 
-export function CwdBreadcrumb({ cwd, filePath, home, workspaceFolder, onCd }: Props) {
+export function CwdBreadcrumb({ cwd, filePath, home, onCd }: Props) {
   // File mode: dir segments navigate; filename is the terminal leaf.
   if (filePath) {
     const dir = dirname(filePath);
@@ -125,7 +125,6 @@ export function CwdBreadcrumb({ cwd, filePath, home, workspaceFolder, onCd }: Pr
           <CurrentSegmentDropdown
              label={current.label}
              path={current.fullPath}
-             workspaceFolder={workspaceFolder}
              onCd={onCd}
           />
         </BreadcrumbItem>
@@ -176,12 +175,10 @@ function BreadcrumbSegment({
 function CurrentSegmentDropdown({
   label,
   path,
-  workspaceFolder,
   onCd,
 }: {
   label: string;
   path: string;
-  workspaceFolder?: string | null;
   onCd: (p: string) => void;
 }) {
   const showHidden = usePreferencesStore((s) => s.showHidden);
@@ -248,11 +245,6 @@ function CurrentSegmentDropdown({
         <DropdownMenuItem className="rounded-none" onSelect={() => void chooseFolder()}>
           Choose folder…
         </DropdownMenuItem>
-        {workspaceFolder ? (
-          <DropdownMenuItem className="rounded-none" onSelect={() => onCd(workspaceFolder)}>
-            Use workspace folder
-          </DropdownMenuItem>
-        ) : null}
         <DropdownMenuItem
           className="rounded-none"
           onSelect={() => onCd(parentPath)}
