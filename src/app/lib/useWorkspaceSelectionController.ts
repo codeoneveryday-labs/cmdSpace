@@ -118,7 +118,7 @@ export function useWorkspaceSelectionController(
   });
 
   const selectWorkspaceById = useCallback(
-    (workspaceId: string) => {
+    async (workspaceId: string) => {
       const requestId = ++selectionRequestRef.current;
       window.localStorage.setItem("cmdspace.active-workspace", workspaceId);
       const workspace = workspacesRef.current.find((item) => item.id === workspaceId);
@@ -129,7 +129,7 @@ export function useWorkspaceSelectionController(
       }
       if (openGateRef.current.isOpening(workspaceId)) return;
       setOpeningWorkspaceId(workspaceId);
-      void openGateRef.current
+      await openGateRef.current
         .open(workspaceId, () =>
           selectWorkspace(workspaceId, () => requestId === selectionRequestRef.current),
         )

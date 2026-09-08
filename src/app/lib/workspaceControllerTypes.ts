@@ -23,6 +23,10 @@ export type WorkspaceRecord = WorkspaceItem & {
 
 export type PersistedPaneRecord = WorkspaceSelectionPane & { workspaceId: string };
 
+export type DisposeTabOptions = {
+  flushWorkspaceSession?: boolean;
+};
+
 export type CreateWorkspaceInput = {
   terminalCount: number;
   workingFolder: string | null;
@@ -85,7 +89,7 @@ export type DeleteWorkspaceInput = {
   workspaceId: string;
   tabIds: ReadonlySet<number>;
   wouldLeaveNoTabs: boolean;
-  disposeTab: (tabId: number) => void;
+  disposeTab: (tabId: number, options?: DisposeTabOptions) => void;
   resetWorkspace: (cwd?: string) => void;
   fallbackCwd?: string;
 };

@@ -129,7 +129,11 @@ export function useWorkspaceController({
       if (workspaces.length <= 1) return;
       if (!workspaces.some((workspace) => workspace.id === workspaceId)) return;
       if (wouldLeaveNoTabs) resetWorkspace(fallbackCwd);
-      else for (const tabId of tabIds) disposeTab(tabId);
+      else {
+        for (const tabId of tabIds) {
+          disposeTab(tabId, { flushWorkspaceSession: false });
+        }
+      }
       setWorkspaces((current) =>
         current.filter((workspace) => workspace.id !== workspaceId),
       );

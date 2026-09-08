@@ -19,7 +19,8 @@ export function useTabCloseActions({
     let toDispose: number[] = [];
     setTabs((tabs) => {
       const index = tabs.findIndex((tab) => tab.id === id);
-      const result = closeTabState(tabs, -1, id);
+      const activeId = tabs.find((tab) => tab.id === id)?.id ?? -1;
+      const result = closeTabState(tabs, activeId, id);
       if (index < 0 || tabs.length <= 1) return tabs;
       toDispose = result.disposedLeafIds;
       setActiveId((active) => (id === active ? result.activeId : active));

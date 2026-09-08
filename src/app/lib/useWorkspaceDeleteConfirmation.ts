@@ -14,7 +14,7 @@ export function useWorkspaceDeleteConfirmation({
 }: {
   workspacesRef: MutableRefObject<readonly WorkspaceRecord[]>;
   skipConfirmation: boolean;
-  deleteWorkspace: (workspaceId: string) => void;
+  deleteWorkspace: (workspaceId: string) => void | Promise<void>;
   pendingWorkspaceId: string | null;
   doNotAskAgain: boolean;
   setPendingWorkspaceId: Dispatch<SetStateAction<string | null>>;
