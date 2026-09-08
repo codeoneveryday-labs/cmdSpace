@@ -8,11 +8,13 @@ pub use models::*;
 
 mod schema;
 #[cfg(test)]
-use schema::{
-    get_db_path, initialize_schema, migrate_workspace_panes, migrate_workspace_setup_preferences,
-};
+use schema::{get_db_path, migrate_workspace_panes, migrate_workspace_setup_preferences};
 #[allow(unused_imports)]
 pub use schema::{init_db, init_mobile_workspace_schema};
+#[cfg(test)]
+pub(crate) fn initialize_schema(conn: &rusqlite::Connection) -> Result<(), String> {
+    schema::initialize_schema(conn)
+}
 // Inner logic functions, decoupled from tauri::State for direct, easy unit testing
 mod workspaces;
 pub use workspaces::{

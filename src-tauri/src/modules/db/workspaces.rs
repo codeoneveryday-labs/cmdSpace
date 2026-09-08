@@ -65,6 +65,23 @@ pub fn save_workspace_inner(conn: &Connection, workspace: &WorkspaceRow) -> Resu
         ],
     )
     .map_err(|e| format!("Failed to save workspace: {e}"))?;
+    let has_pane_table = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table' AND name = 'workspace_panes'
+            )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|e| format!("Failed to inspect workspace panes schema: {e}"))?;
+    if has_pane_table {
+        conn.execute(
+            "DELETE FROM workspace_panes WHERE workspace_id = ?1 AND pane_index >= ?2",
+            params![workspace.id, workspace.count],
+        )
+        .map_err(|e| format!("Failed to prune workspace panes: {e}"))?;
+    }
     Ok(())
 }
 
