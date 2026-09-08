@@ -5,45 +5,43 @@
 > chỗ nào đang có vấn đề**.
 >
 > Nguồn chân lý vẫn là `CMDSPACE.md`, `COMPREHENSIVE_PLAN.md`,
-> `docs/architecture/design-patterns.md`. File này chỉ là bản đồ + các chỗ
-> thực tế lệch khỏi tài liệu.
+> `docs/architecture/design-patterns.md`. File này là bản đồ kiến trúc, không
+> thay thế các tài liệu nguồn chân lý.
 
 ---
 
-## ⚠️ Snapshot status — đọc trước khi dùng làm bằng chứng
+## Snapshot status — authoritative
 
 | | |
 |---|---|
-| **Nguồn đo** | **Working tree**, không phải commit |
-| **Thời điểm** | 2026-09-08 ~16:58 (GMT+7) |
-| **Commit tại thời điểm đo** | `9f390ad83` (`chore/398-add-ecc-project-skills`) |
-| **Trạng thái tree lúc đo** | 79 deleted / 54 modified — **đang WIP, không sạch** |
+| **Nguồn đo** | **Clean committed tree**, measured from `git archive` |
+| **Thời điểm** | 2026-09-08 18:10 (GMT+7) |
+| **Pinned commit** | `82e439a8cdd88036252d18e52a56aed18c57a6e5` (`82e439a8c`) |
+| **Branch** | `chore/398-add-ecc-project-skills` |
+| **Tree status after measurement** | 3 deliberate documentation/WIP modifications; no code changes |
 
-**Hệ quả — những chỗ tài liệu này KHÔNG đáng tin:**
+All KPI figures in this map use the same canonical scope as the engineering
+capability plan: frontend tests under `src/` only. The orchestration feature was
+intentionally removed and committed in `fd4a61f81`; the CLI catalog pruning was
+committed in `82e439a8c`.
 
-1. **Số liệu (LOC, số file, số command)** đo trên working tree. Working tree đã
-   đổi ít nhất 2 lần ngay trong phiên làm việc đó (79D/54M → 93D/59M). Số tại
-   commit `9f390ad83` khác đáng kể:
+| Metric | At `82e439a8c` |
+|---|---:|
+| Test files (`src/`) | **479** |
+| `*.source.test.ts` | **280** |
+| Executable test files | **199 (41.5%)** |
+| File `.rs` (`src-tauri/src`) | **185** |
+| Rust LOC | **30,444** |
+| `src` production LOC | **67,653** |
+| Registered Tauri commands | **117** |
+| Orchestration feature | **removed** |
 
-   | Metric | Working tree (tài liệu này) | Tại `9f390ad83` |
-   |---|---|---|
-   | Test files (`src/`) | 479 | **498** |
-   | `*.source.test.ts` | 280 | **289** |
-   | File `.rs` (`src-tauri/src`) | 185 | **218** |
-   | Rust LOC | 30.570 | **37.660** |
-   | `src` prod LOC | 67.807 | **71.771** |
+For KPI work, use this map and the plan only when the referenced SHA matches.
+The plan provides the detailed taxonomy and reproduce commands.
 
-2. **Phần `orchestration` (§7.1)** mô tả đúng trạng thái HEAD, nhưng tree đang
-   xóa module này. Xem quyết định tại
-   [`docs/plans/active/2026-09-08-engineering-capability-program.md`](plans/active/2026-09-08-engineering-capability-program.md)
-   mục **[A1]**.
-
-3. **Nơi cần số liệu chính xác** (đặt KPI, báo cáo, plan) → dùng bảng baseline
-   trong plan nói trên, đã pin theo SHA `9f390ad83`. **Bảng đó là authoritative
-   khi hai tài liệu mâu thuẫn.**
-
-**Reconcile:** cập nhật file này về đúng một SHA sau khi tree sạch — tracking
-tại **[A12]**.
+**A12 is resolved.** The previous working-tree snapshot and orchestration
+section were stale after the intentional removal. This file now describes the
+post-removal tree at `82e439a8c`.
 
 ---
 
@@ -59,9 +57,9 @@ tại **[A12]**.
 3. **Terminal có 2 đường đời khác nhau**: terminal thường → renderer pool +
    session map; canvas terminal → mỗi node có xterm + PTY riêng. Đừng trộn.
 4. **Snapshot chỉ chứa metadata** — không bao giờ chứa PTY/process handle sống.
-5. **Đang có 133 file chưa commit** (79 xóa, 54 sửa) — trong đó **63 file liên
-   quan tới `orchestration` đang bị xóa**. Xem §7. Đây là việc quan trọng nhất
-   cần giải quyết trước khi làm gì khác.
+5. **Orchestration canvas đã bị loại bỏ có chủ đích** trong `fd4a61f81`; không
+   khôi phục các module, command, UI hoặc plan đã xóa. Những hạng mục còn lại
+   trong §7 là các rủi ro độc lập.
 6. **Product là `cmdSpace`, thư mục là `terax-ai`**, bundle id
    `app.tranhoangpich.cmdspace`, package `cmdspace` v0.7.105. Đừng bối rối.
 
@@ -299,29 +297,19 @@ module path. Nhớ đọc `mod.rs` để biết mapping.
 
 ## 7. ⚠️ Rủi ro & chỗ lệch tài liệu (quan trọng nhất)
 
-### 7.1 Đang có 133 file chưa commit, 63 liên quan `orchestration`
+### 7.1 Post-removal state
 
-Branch hiện tại: `chore/398-add-ecc-project-skills` @ `9f390ad83`.
+The orchestration canvas, mailbox, worker lifecycle, memory graph, related Rust
+commands, and associated planning documents were intentionally removed in
+`fd4a61f81` after explicit user authorization. **Do not restore them.** The
+post-removal tree has no `src-tauri/src/modules/orchestration/` directory and
+no orchestration Tauri commands. The remaining architecture canvas is the
+terminal/diagram canvas only.
 
-```
-79 D   (deleted, uncommitted)
-54 M   (modified, uncommitted)
-```
-
-`src-tauri/src/modules/orchestration/` **vẫn tồn tại ở HEAD** (32 file, ~6.900
-LOC) nhưng **đã bị xóa khỏi working tree**. Docs (`CMDSPACE.md`,
-`design-patterns.md`) mô tả module này rất chi tiết — vì vậy docs **đúng với
-HEAD, sai với working tree**.
-
-Bị xóa cùng lúc: `modules/db/orchestration.rs`, 7 tài liệu/plan
-orchestration, và 22 file `src/modules/architecture/orchestration*`.
-`commands.rs` hiện tại **không còn** command `orchestration::*` nào (trước đó
-36 command).
-
-> **Hành động**: hoặc restore (`git checkout HEAD -- <paths>`) hoặc commit việc
-> xóa này một cách có chủ đích + cập nhật docs. Hiện tại repo ở trạng thái nửa
-> chừng: build được nhưng docs nói về code không còn tồn tại.
-> Lưu ý `AGENTS.md` cấm xóa file mà không có sự cho phép rõ ràng.
+The code removal was validated before commit with `cargo check --all-targets
+--locked`, TypeScript compilation, the production Vite build, and the full
+Vitest suite. This is a completed product decision, not an unresolved working-
+tree divergence.
 
 ### 7.2 Các lệch khác
 
