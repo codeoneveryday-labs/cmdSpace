@@ -28,7 +28,7 @@ session:
 
 | Snapshot | Test files | Structural guards | Rust files (`src-tauri/src`) | Tree state |
 |---|---|---|---|---|
-| **HEAD `9f390ad83` (pinned — authoritative)** | **498** | **289** | **218** | committed |
+| **HEAD `9f390ad83` (pinned — authoritative)** | **498** | **287** | **218** | committed |
 | Working tree @ 17:00 | 479 | 280 | 185 | 79 D / 54 M |
 | Working tree @ 17:30 | 479 | 280 | 185 | 93 D / 59 M / 3 ?? |
 
@@ -38,12 +38,45 @@ tree are almost entirely the **uncommitted removal of
 frontend counterparts. Any figure measured from the working tree is therefore a
 statement about *work in progress*, not about the product.
 
-Reproduce the pinned baseline:
+#### Counting scope — one scope, stated explicitly
+
+**Canonical scope for every test metric in this plan is `src/` and only
+`src/`.** An earlier revision mixed scopes (a `src/` total divided by a
+repo-wide guard count) and produced wrong arithmetic. The scope is now fixed
+and the excluded files are enumerated so the repo-wide number is derivable.
+
+| Scope | Contents | Test files | Structural guards |
+|---|---|---|---|
+| **`src/` — canonical** | React/TS frontend of the Tauri app | **498** | **287** |
+| `mobile/ios/` | Swift iOS client; separate `Cargo.lock`, not in the app workspace | 1 | 1 |
+| `src-tauri/` | Rust crate; 2 root-level TS test files | 2 | 1 |
+| **Repo-wide** | sum of the above | 501 | 289 |
+
+Files **outside** the canonical scope (all three, by name):
+
+- `mobile/ios/HomeView.source.test.ts` — structural guard
+- `src-tauri/tauri.conf.test.ts` — executable
+- `src-tauri/windows-paths.source.test.ts` — structural guard
+
+`services/cmdspace-relay` is a Cloudflare Worker with `.js` tests; it is out of
+scope for these metrics entirely and is measured separately by `pnpm test`.
+
+#### Reproduce the pinned baseline
 
 ```bash
 git archive 9f390ad83 | tar -x -C /tmp/cmdspace-baseline
-cd /tmp/cmdspace-baseline && find src -name '*.test.ts*' | wc -l
+cd /tmp/cmdspace-baseline
+
+# canonical scope — src/ only
+find src -name '*.test.ts'  -o -name '*.test.tsx' | wc -l   # 498 total
+find src -name '*.source.test.ts'                  | wc -l   # 287 guards
+find src -name '*.test.tsx'                        | wc -l   #   8 render
+find src -name '*.contract.test.ts'                | wc -l   #   1 contract
 ```
+
+Executable = total − guards = **211**. Do not use `-name '*.test.ts*'`; the
+trailing wildcard makes the scope ambiguous and is what caused the earlier
+error.
 
 **Do not update these numbers from the working tree.** Re-pin the whole table
 to a new SHA when the tree is clean.
@@ -60,10 +93,10 @@ that file carries its own snapshot marker; see §"Evidence status" below.
 | Rust (`src-tauri/src`) | 218 files · 37,660 LOC |
 | — of which `orchestration/` | 27 files · 6,666 LOC (present at HEAD, absent in working tree) |
 | Tauri commands registered | 117 |
-| Test files that **execute code** | **209 of 498 (42.0%)** |
+| Test files that **execute code** | **211 of 498 (42.4%)** |
 | — of those, rendering React (`.test.tsx`) | 8 |
 | — IPC contract tests | 1 |
-| Test files that assert **source text** | **289 of 498 (58.0%)** (`*.source.test.ts`) |
+| Test files that assert **source text** | **287 of 498 (57.6%)** (`*.source.test.ts`) |
 | E2E runner | **none installed** |
 | Linters installed | **none** (no ESLint, Prettier, Biome, husky, commitlint) |
 | Coverage tooling | **none** |
@@ -77,9 +110,11 @@ that file carries its own snapshot marker; see §"Evidence status" below.
 
 > **Evidence status:** this plan cites `docs/CODEBASE_MAP.md` as its evidence
 > base. That document was generated from the *working tree*, so its
-> `orchestration` section and a few counts reflect WIP rather than
-> `9f390ad83`. **This plan's own baseline table above is authoritative where
-> the two disagree.** Reconciling `CODEBASE_MAP.md` is tracked as **[A12]**.
+> `orchestration` section and its counts reflect WIP rather than `9f390ad83`.
+> **This plan's own baseline table above is authoritative where the two
+> disagree.** Reconciling `CODEBASE_MAP.md` is **[A12]** — *open and
+> deliberately deferred* until **[A1]** stabilises the tree, not a hidden
+> contradiction. See the status legend in Part 7.
 
 Reused seams: `MERGE_BLOCKERS.md` (already the merge gate), the pattern
 contract in `design-patterns.md` (already mandatory), the IPC contract test
@@ -161,14 +196,27 @@ design.
 see the pin table in Context). See §2.5.1 for the test taxonomy: **"executable"
 is not the same as "render"**, and an earlier draft conflated the two.
 
+Scope: **`src/` only** (canonical — see Context, "Counting scope").
+
+The four test rows are **mutually exclusive and exhaustive** — every file
+matches exactly one category, decided by filename alone:
+
+```
+498 total = 287 guards + 202 unit + 8 render + 1 contract
+211 executable      = 202 unit + 8 render + 1 contract   (57.6% + 42.4% = 100%)
+```
+
+No `*.source.test.tsx` exists, so the guard and render sets cannot overlap; the
+contract file is a `.ts` file but is excluded from the unit count by name.
+
 | Metric | Baseline @ `9f390ad83` | Target (90 days) |
 |---|---|---|
-| Frontend test files, total | **498** | — |
-| — **structural guards** (`*.source.test.ts`) | **289 (58.0%)** | ≤ 289 (no new); −50 by day 90 |
-| — **executable tests** | **209 (42.0%)** | ≥ 310 |
-| — — unit / pure logic (`.test.ts`) | 200 | — |
-| — — render / component (`.test.tsx`) | 8 | ≥ 25 |
-| — — IPC contract (`*.contract.test.ts`) | 1 | ≥ 3 |
+| Frontend test files, total (`src/`) | **498** | — |
+| — **structural guards** (`*.source.test.ts`) | **287 (57.6%)** | ≤ 287 (no new); −50 by day 90 |
+| — **executable tests** | **211 (42.4%)** | ≥ 310 |
+| — — unit / pure logic (`.test.ts`, excl. contract) | **202** | — |
+| — — render / component (`.test.tsx`) | **8** | ≥ 25 |
+| — — IPC contract (`*.contract.test.ts`) | **1** | ≥ 3 |
 | E2E tests | **0** (no runner installed) | 1 pilot flow |
 | Rust `#[test]` functions | ~341 | ≥ 400 |
 | Rust `#[tokio::test]` | 0 | as needed |
@@ -181,12 +229,17 @@ is not the same as "render"**, and an earlier draft conflated the two.
 
 **Two caveats on this table:**
 
-1. Rust `#[test]` count, module LOCs, and the unit/render split are carried over
-   from the working-tree measurement and marked `~`. Re-derive them from
-   `9f390ad83` when **[A12]** reconciles `CODEBASE_MAP.md`.
+1. Only the Rust `#[test]` count and the per-module LOCs are carried over from
+   the working-tree measurement; they are marked `~`. Every test-file figure
+   above is measured directly at `9f390ad83` in `src/`. Re-derive the Rust
+   figures from the pinned commit when **[A12]** reconciles `CODEBASE_MAP.md`.
 2. **Do not re-measure from the working tree.** It changed twice in one session
    (79D/54M → 93D/59M). Re-pin to a new SHA once the tree is clean (§6A week 1,
    **[A1]**).
+
+**Do not mix scopes when re-deriving these numbers.** Subtracting the
+repo-wide guard count (289) from the `src/` total (498) yields 209, which is
+wrong; the correct `src/` arithmetic is 498 − 287 = 211.
 
 **Axis B — Engineering practice (measured from PR history)**
 
@@ -219,7 +272,7 @@ against two real PRs. Re-calibrate quarterly.
 Ranked gaps this stack reliably produces:
 
 1. **Test design** — writing tests that prove behavior instead of restating
-   implementation. Directly evidenced by 289 source-text guards.
+   implementation. Directly evidenced by 287 source-text guards (in `src/`).
 2. **The two-process boundary** — knowing what belongs in Rust vs React, and
    keeping `invoke` contracts synchronized (`commands.rs`, capabilities,
    frontend client).
@@ -341,37 +394,62 @@ cannot fail CI will not survive a deadline.
 #### 2.5.1 Test taxonomy
 
 Two orthogonal axes. **Every test file must be classifiable on both**, and the
-class must be visible from the filename.
+class must be visible from the filename. **Scope is `src/` only** (Context,
+"Counting scope").
 
 **Axis 1 — Strength: what does it actually prove?**
 
 | Class | Definition | Counts toward coverage & DoD? | @ `9f390ad83` |
 |---|---|---|---|
-| **Executable** | Runs the code under test, asserts on its output or observable behavior | **Yes** | **209 (42.0%)** |
-| **Structural guard** | Reads source text and asserts on its contents — `expect(source).toContain(...)` | **No** | **289 (58.0%)** |
+| **Executable** | Runs the code under test, asserts on its output or observable behavior | **Yes** | **211 (42.4%)** |
+| **Structural guard** | Reads source text and asserts on its contents — `expect(source).toContain(...)` | **No** | **287 (57.6%)** |
 
 A structural guard is a lint rule wearing a test costume. It can catch an
 accidental deletion; **it cannot catch wrong behavior**. It is never acceptable
 as the only proof for a bug fix, and it must never be counted as coverage.
 
 This distinction is the reason an earlier baseline of "1.3% behavior tests" was
-wrong: it counted only the 8 files that *render React*, ignoring the ~200 unit
+wrong: it counted only the 8 files that *render React*, ignoring the 202 unit
 tests that execute code perfectly well. Correct baseline at `9f390ad83` is
-**209 executable / 498 total (42.0%)**.
+**211 executable / 498 total (42.4%)**.
+
+**The two axes are orthogonal, but Axis 2's classes are mutually exclusive.**
+
+- Axis 1 (executable vs guard) and Axis 2 (unit / component / contract / …) vary
+  independently: a given file has one value on each axis.
+- **Within Axis 2, the classes do not overlap** — each file lands in exactly one
+  bucket, decided by filename. This is what makes the counts summable:
+
+  ```
+  498 = 287 guards + 202 unit + 8 component + 1 contract
+  211 executable = 202 unit + 8 component + 1 contract
+  ```
+
+- A `.test.tsx` file is always Axis-2 **component**; there are no
+  `*.source.test.tsx` files, so component and guard never collide.
+- A `*.contract.test.ts` file is a `.ts` file but is **excluded** from the unit
+  count by name, so 202 + 1 stays correct.
+- If a future filename could match two classes, **update this taxonomy first**,
+  then re-derive the baseline. Do not silently pick one.
 
 **Axis 2 — Scope: where does it run?**
 
 Pick the **lowest** scope that proves the behavior. Component tests are not
 "better" than unit tests — they are just more expensive.
 
-| Class | Scope | Tooling | FE today | Rust today |
+Counts are `src/` only, at `9f390ad83`; they are mutually exclusive and sum to
+498 with the 287 structural guards.
+
+| Class | Scope | Tooling | @ `9f390ad83` | Rust today |
 |---|---|---|---|---|
-| **Unit** | One function / reducer / parser / state machine | Vitest (node env) | 193 | 341 `#[test]` |
-| **Component** | Renders React, asserts DOM + behavior | Vitest + **jsdom (not installed)** | 6 | — |
-| **Contract** | Cross-layer agreement (frontend `invoke` ↔ Rust `generate_handler`) | Vitest + filesystem scan | 1 | — |
+| **Structural guard** | Not a scope — an Axis-1 class, listed here only so the sum is visible | `readFileSync` + `toContain` | **287** | — |
+| **Unit** | One function / reducer / parser / state machine | Vitest (node env) | **202** | ~341 `#[test]` |
+| **Component** | Renders React, asserts DOM + behavior | Vitest + **jsdom (not installed)** | **8** | — |
+| **Contract** | Cross-layer agreement (frontend `invoke` ↔ Rust `generate_handler`) | Vitest + filesystem scan | **1** | — |
 | **Integration** | Rust command + SQLite + real parser/provider | `cargo test` | 0 | colocated |
 | **E2E** | User-visible desktop flow, end to end | **none installed** | 0 | 0 |
 | **Platform** | Only what lower layers cannot prove: shell init, PTY, IME, ConPTY / Job Objects | targeted + manual | 0 | partial |
+| | | **Total** | **498** | |
 
 **Filename convention:**
 
@@ -387,7 +465,7 @@ Pick the **lowest** scope that proves the behavior. Component tests are not
 
 **The headline rule: test behavior, not source text.**
 
-- **No new `*.source.test.ts`.** Existing 289 are grandfathered; delete them
+- **No new `*.source.test.ts`.** Existing 287 are grandfathered; delete them
   opportunistically when the covered code changes. Add a CI grep gate so the
   count cannot rise.
 - **Every bug fix ships an executable test that fails before the fix and passes
@@ -587,7 +665,7 @@ or people will `--no-verify`.
 ### 4.2 Test coverage expectations
 
 **Do not set a global percentage target on a 72k LOC codebase.** That produces
-coverage theater — exactly the failure mode the 289 source-text tests
+coverage theater — exactly the failure mode the 287 source-text tests
 represent. Use a **ratchet** plus **critical-path floors**:
 
 1. **Instrument now**: add `@vitest/coverage-v8` and `cargo-llvm-cov`. Publish
@@ -606,8 +684,8 @@ represent. Use a **ratchet** plus **critical-path floors**:
    `proxyFetch.ts`, `macImeBridge.ts`, `rendererPool.ts`. **No carve-out applies
    to this list** — these are the modules where a missed branch leaks a secret
    or orphans a process.
-5. **Executable-test ratio**: executable tests ÷ total test files. 42.0% at
-   `9f390ad83` (209/498) → 65% at 90 days → 85% at 6 months. Structural guards
+5. **Executable-test ratio**: executable tests ÷ total test files. 42.4% at
+   `9f390ad83` (211/498) → 65% at 90 days → 85% at 6 months. Structural guards
    do not count as coverage (§2.5.1).
 
 #### 4.2.1 Coverage carve-outs
@@ -813,15 +891,39 @@ permission, and several rows below are deletions.
 | **[A6]** | CI gate banning new `*.source.test.ts` | Rejects PRs on a naming rule | `@crynta` | **Pending** |
 | **[A7]** | Delete dead module `src/modules/git/` (43 LOC, 0 importers) | **`AGENTS.md` Rule 1 — deletion requires express permission** | `@crynta` | **Pending** |
 | **[A8]** | Delete or replace stale docs: `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/TEST_MATRIX.md` | Deletion rule; also merge blocker B2 already asks for this | `@crynta` | **Pending** |
-| **[A9]** | Delete grandfathered `*.source.test.ts` files opportunistically | Deletion rule; 289 files affected over time | `@crynta` | **Pending** |
+| **[A9]** | Delete grandfathered `*.source.test.ts` files opportunistically | Deletion rule; 287 files affected over time | `@crynta` | **Pending** |
 | **[A10]** | Choose ESLint+Prettier vs. Biome | Toolchain lock-in; expensive to reverse | TBD (`@crynta`) | **Pending** |
 | **[A11]** | Ratchet exception process (who can waive, for how long) | Defines the escape hatch; needs a named adjudicator | `@crynta` | **Pending** |
-| **[A12]** | Reconcile `docs/CODEBASE_MAP.md`: stamp its snapshot SHA and correct its `orchestration` / working-tree figures | That doc is this plan's cited evidence base but was generated from the working tree; it currently contradicts the pinned baseline | `@crynta` | **Pending** |
+| **[A12]** | Reconcile `docs/CODEBASE_MAP.md`: restate its figures against `9f390ad83` (or a newer pinned SHA) | That doc is this plan's cited evidence base but was generated from the working tree; its counts and `orchestration` section contradict the pinned baseline | `@crynta` | **Open — deliberately deferred** |
 | **[A13]** | Commit this plan (was untracked) and pin a clean-tree SHA once **[A1]** resolves | Untracked file can be lost; also blocks re-pinning the baseline | `@crynta` | **Approved 2026-09-08** — committed `dd1d0d616`; re-pin still pending **[A1]** |
 
 **Recording an approval:** add the approver's verbatim instruction plus date to
 the `## Decisions` section below, then flip Status to `Approved YYYY-MM-DD`.
 Do not start the work before both are present.
+
+#### Status values
+
+| Status | Meaning |
+|---|---|
+| **Pending** | Needs a decision before any work starts. |
+| **Approved YYYY-MM-DD** | Decision recorded in `## Decisions`; work may proceed. |
+| **Open — deliberately deferred** | Known and accepted, not an oversight. Blocked on a prerequisite; the risk is documented and owned. |
+
+**[A12] is currently "Open — deliberately deferred", not hidden.** It cannot be
+closed yet because reconciling `CODEBASE_MAP.md` requires re-measuring the
+codebase, and re-measuring is only meaningful once the working tree is stable —
+which is what **[A1]** resolves. Interim mitigation is in place:
+
+- `CODEBASE_MAP.md` carries a snapshot banner at the top stating its provenance
+  and pointing here.
+- The "Evidence status" note in Context declares this plan authoritative where
+  the two disagree.
+- This plan's baseline table is self-contained: it does not depend on
+  `CODEBASE_MAP.md` for any figure.
+
+So the divergence is a **known, bounded, documented** gap — not a silent
+contradiction. Close it after **[A1]**, before using `CODEBASE_MAP.md` as a KPI
+source.
 
 ---
 
@@ -840,7 +942,7 @@ Do not start the work before both are present.
 ## Decisions
 
 - 2026-09-08: Chose **coverage ratchet over a global percentage target**. A
-  72k LOC codebase where 58.0% of test files prove nothing about behavior
+  72k LOC codebase where 57.6% of test files prove nothing about behavior
   would game any fixed
   target; a ratchet plus new-code rule improves monotonically and is
   enforceable immediately.
@@ -864,7 +966,7 @@ Do not start the work before both are present.
 - 2026-09-08: **Re-pinned the entire baseline to commit `9f390ad83`.** The
   working tree changed twice during a single session (79D/54M → 93D/59M), so
   working-tree figures were never reproducible. Authoritative figures: 498 test
-  files, 289 structural guards, 209 executable (42.0%), 218 Rust files,
+  files, 287 structural guards, 211 executable (42.4%), 218 Rust files,
   71,771 LOC frontend production. Command to reproduce is in Context. Any
   future update must re-pin to a new SHA, never re-measure the tree.
 - 2026-09-08: **Coverage target is changed *executable lines*, not whole
@@ -880,6 +982,19 @@ Do not start the work before both are present.
 - 2026-09-08: **`docs/CODEBASE_MAP.md` is not authoritative for figures.** It
   was generated from the working tree; it now carries a snapshot banner
   pointing here. Reconciling it is **[A12]**.
+- 2026-09-08: **Fixed a scope-mixing error in the test counts.** An earlier
+  revision subtracted the *repo-wide* structural-guard count (289) from the
+  `src/`-only total (498), producing 209 executable instead of the correct
+  **211**. All four test rows are now measured in one scope (`src/`), the three
+  out-of-scope files are enumerated by name, and the groups are documented as
+  mutually exclusive: `498 = 287 guards + 202 unit + 8 component + 1 contract`.
+  The reproduce command no longer uses `-name '*.test.ts*'`, whose trailing
+  wildcard made the scope ambiguous.
+- 2026-09-08: **Canonical counting scope is `src/` only.** `mobile/ios/`
+  (separate Swift/Rust iOS project with its own `Cargo.lock`) and the two
+  root-level `src-tauri/*.test.ts` files are excluded, with the repo-wide
+  totals (501 / 289) recorded for transparency. `services/cmdspace-relay` is a
+  Cloudflare Worker with `.js` tests and is out of scope entirely.
 - 2026-09-08: **Approved and committed (authorization: user selected "Commit +
   gitignore `.workbuddy-ai/`" in response to the review question).** Committed
   as `dd1d0d616` — `docs(quality): add codebase map and engineering capability
