@@ -21,6 +21,7 @@ import {
 type Props = {
   currentAgent: CliAgent | null;
   onSelect: (agent: CliAgent | null, command: string | null) => void;
+  onFocusTerminal?: () => void;
   trigger?: ReactNode;
   allowSameSelection?: boolean;
 };
@@ -40,6 +41,7 @@ export function resolveAgentSwitchCommand(
 export function TerminalAgentSwitcher({
   currentAgent,
   onSelect,
+  onFocusTerminal,
   trigger,
   allowSameSelection = false,
 }: Props) {
@@ -68,6 +70,8 @@ export function TerminalAgentSwitcher({
     pendingSwitchRef.current = true;
     setOpen(false);
     onSelect(agent, resolveAgentSwitchCommand(agent, commandOverrides));
+    onFocusTerminal?.();
+    window.requestAnimationFrame(() => onFocusTerminal?.());
     window.setTimeout(() => {
       pendingSwitchRef.current = false;
     }, 400);

@@ -24,6 +24,7 @@ export function unregisterBroadcastLeaves(leafIds: readonly number[]): void {
 export function broadcastTargetsForInput(
   sourceLeafId: number,
   liveLeafIds: readonly number[],
+  input?: string,
 ): number[] {
   const config = configByLeaf.get(sourceLeafId);
   return resolveBroadcastTargets(
@@ -31,6 +32,7 @@ export function broadcastTargetsForInput(
     sourceLeafId,
     config?.selectedLeafIds ?? [],
     liveLeafIds,
+    input,
   );
 }
 
