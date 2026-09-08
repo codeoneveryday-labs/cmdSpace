@@ -28,6 +28,6 @@ describe("CwdBreadcrumb", () => {
     expect(source).toContain('title="Choose folder"');
     expect(source).toContain("void chooseFolder()");
     expect(source).toContain("Choose folder…");
-    expect(source).toContain("Use workspace folder");
+    expect(source).not.toContain("Use workspace folder");
   });
 });
