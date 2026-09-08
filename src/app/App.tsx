@@ -537,7 +537,10 @@ export default function App() {
   }, []);
 
   const disposeTab = useCallback(
-    (id: number) => {
+    (
+      id: number,
+      { flushWorkspaceSession = true }: { flushWorkspaceSession?: boolean } = {},
+    ) => {
       const tab = tabsRef.current.find((item) => item.id === id);
       const workspace = workspacesRef.current.find(
         (item) => item.tabId === id || item.canvasTabId === id || item.agentTabIds?.includes(id),
@@ -546,6 +549,7 @@ export default function App() {
         workspace?.workingFolder ??
         (tab?.kind === "terminal" ? tab.cwd ?? null : null);
       if (
+        flushWorkspaceSession &&
         workspace &&
         (workspace.workspaceMode === "standard" || workspace.workspaceMode === "canvas") &&
         workspaceCwd

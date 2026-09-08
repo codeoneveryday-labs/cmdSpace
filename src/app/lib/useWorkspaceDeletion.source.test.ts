@@ -16,4 +16,9 @@ describe("useWorkspaceDeletion contract", () => {
     expect(source).toContain("resetWorkspace");
     expect(source).toContain("removeWorkspace");
   });
+
+  it("does not wait for fallback restoration before disposing deleted workspace tabs", () => {
+    expect(source).toContain("void selectWorkspace(fallback.id)");
+    expect(source).not.toContain("await selectWorkspace(fallback.id)");
+  });
 });

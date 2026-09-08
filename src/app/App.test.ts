@@ -137,6 +137,20 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("agentSessionIds");
   });
 
+  it("closes workspace-owned tabs immediately while deleting the workspace", () => {
+    const appSource = readFileSync(appPath, "utf8");
+    const controller = readFileSync(
+      path.join(here, "lib/useWorkspaceController.ts"),
+      "utf8",
+    );
+
+    expect(appSource).toContain("flushWorkspaceSession = true");
+    expect(appSource).toContain("flushWorkspaceSession &&");
+    expect(controller).toContain(
+      "disposeTab(tabId, { flushWorkspaceSession: false })",
+    );
+  });
+
   it("auto-activates the first workspace only once so standalone tabs remain selectable", () => {
     const source = [
       readFileSync(appPath, "utf8"),
