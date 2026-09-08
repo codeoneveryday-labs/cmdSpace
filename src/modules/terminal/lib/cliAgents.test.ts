@@ -37,31 +37,13 @@ describe("CLI agent registry", () => {
       grok: "grok",
       herdr: "herdr",
       cmd: "cmd --dangerously-skip-permissions",
-      agoragentic: "agoragentic",
       auggie: "auggie",
-      autohand: "autohand",
-      codebuddy: "codebuddy",
-      codewhale: "codewhale",
+      codebuddy: "codebuddy-code",
       cortex: "cortex",
-      corust: "corust",
-      crow: "crow",
       deepagents: "deepagents",
-      dimcode: "dimcode",
-      dirac: "dirac",
-      "factory-droid": "droid",
-      "fast-agent": "fast-agent",
       glm: "glm",
       junie: "junie",
-      kilo: "kilo",
-      minion: "minion",
       "mistral-vibe": "vibe",
-      nova: "nova",
-      poolside: "poolside",
-      qoder: "qoder",
-      sigit: "sigit",
-      stakpak: "stakpak",
-      trae: "trae",
-      "vt-code": "vt",
     } as const;
 
     expect(CLI_AGENT_DEFINITIONS.map(({ id }) => id)).toEqual(
@@ -118,13 +100,13 @@ describe("CLI agent registry", () => {
   });
 
   it("keeps newly added marketplace agents opt-in", () => {
-    expect(CLI_AGENT_DEFINITIONS).toHaveLength(47);
+    expect(CLI_AGENT_DEFINITIONS).toHaveLength(29);
     expect(DEFAULT_CONFIGURED_CLI_AGENT_IDS).toHaveLength(7);
     expect(
       CLI_AGENT_DEFINITIONS.filter(
         ({ id }) => !DEFAULT_CONFIGURED_CLI_AGENT_IDS.includes(id),
       ),
-    ).toHaveLength(40);
+    ).toHaveLength(22);
   });
 
   it("makes unattended launch behavior an explicit catalog policy", () => {
@@ -165,6 +147,15 @@ describe("CLI agent registry", () => {
     expect(normalizeCliAgentLaunchCommand("omp", "omp --model test")).toBe(
       "omp --model test",
     );
+  });
+
+  it("migrates the legacy Pi fallback bootstrap when it was saved for OMP", () => {
+    expect(
+      normalizeCliAgentLaunchCommand(
+        "omp",
+        'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; command -v pi >/dev/null 2>&1 && pi || omp',
+      ),
+    ).toBe("omp");
   });
 
   it("filters enabled workspace agents from configured preferences", () => {

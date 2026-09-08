@@ -45,7 +45,7 @@ webview (React)
 src-tauri (Rust)
   lib.rs  (~110 commands, managed state, plugins)
   modules: pty/ shell/ fs/ git/ secrets/ speech/ remote/ net/ db/
-           workspace/ agent_usage/ music/ proc/ orchestration/
+           workspace/ agent_usage/ music/ proc/
   PtyState: RwLock<HashMap<u32, Session>>
 ```
 
@@ -80,10 +80,6 @@ src-tauri (Rust)
 
 BYOK multi-provider: OpenAI, Anthropic, Google, Groq, xAI, Cerebras, LM Studio/Ollama. Keys stored in OS keychain (`secrets.rs`), never persisted to disk or localStorage. Agent built on Vercel AI SDK v6 `Experimental_Agent`. Tools with `needsApproval: true` pause for in-UI confirmation. AI-proposed edits open as `ai-diff` tabs — user accepts/rejects per hunk.
 
-### Orchestration (`src-tauri/src/modules/orchestration/` + `src/modules/architecture/`)
-
-Canvas-based multi-agent orchestration: a "boss" CLI agent coordinates worker agents running in canvas terminal nodes. Rust backend handles router (DAG-aware task dispatch), mailbox (inter-worker send/receive/route with delivery reporting), spawn queue (bounded worker creation), wake watchdog (lifecycle tracking), hive files (artifact storage), and worktree isolation. Frontend drives it via `OrchestrationCanvasPanel`, `OrchestrationToolbarSection`, `OrchestrationMailOverlay`, and hooks (`useCanvasOrchestrationRun`, `useCanvasOrchestrationWorkers`). Task status dots render on each canvas terminal header.
-
 ### Persistence
 
 | Concern | Mechanism |
@@ -93,7 +89,6 @@ Canvas-based multi-agent orchestration: a "boss" CLI agent coordinates worker ag
 | AI chat sessions | `LazyStore` JSON, scoped by workspace |
 | API keys | OS keychain (`secrets.rs`) |
 | Canvas diagrams | Serialized in workspace `paneLayout` → SQLite |
-| Orchestration runs/tasks/events | SQLite (`db/orchestration.rs`) |
 | Live terminal sessions | In-memory only (die with app) |
 
 Tabs themselves are **not** persisted across restarts.

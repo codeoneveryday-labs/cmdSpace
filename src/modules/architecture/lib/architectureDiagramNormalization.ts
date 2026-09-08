@@ -31,9 +31,6 @@ export function needsTerminalSizeMigration(item: Partial<ArchitectureNode>): boo
 }
 
 export function normalizeDiagramSeed(seed?: ArchitectureDiagram): {
-  canvasPurpose: "architecture" | "orchestration";
-  orchestrationProvider: ArchitectureDiagram["orchestrationProvider"];
-  orchestrationRunId: string | null;
   nodes: ArchitectureNode[];
   edges: ArchitectureEdge[];
   terminalDockGroups: ArchitectureTerminalDockGroup[];
@@ -95,9 +92,6 @@ export function normalizeDiagramSeed(seed?: ArchitectureDiagram): {
         ? { textAnchorId: item.textAnchorId }
         : {}),
       ...(typeof item.frameId === "string" ? { frameId: item.frameId } : {}),
-      ...(isOrchestrationNodeBinding(item.orchestration)
-        ? { orchestration: item.orchestration }
-        : {}),
       ...(Array.isArray(item.points)
         ? {
             points: item.points.filter(
@@ -130,30 +124,11 @@ export function normalizeDiagramSeed(seed?: ArchitectureDiagram): {
       to: item.to,
       label: typeof item.label === "string" ? item.label : "",
       ...(typeof item.locked === "boolean" ? { locked: item.locked } : {}),
-      ...(isOrchestrationEdgeBinding(item.orchestration)
-        ? { orchestration: item.orchestration }
-        : {}),
     });
     return result;
   }, []);
 
-  const canvasPurpose =
-    seed?.canvasPurpose === "orchestration" ? "orchestration" : "architecture";
   return {
-    canvasPurpose,
-    orchestrationProvider:
-      canvasPurpose === "orchestration" &&
-      (seed?.orchestrationProvider === "codex" ||
-        seed?.orchestrationProvider === "claude" ||
-        seed?.orchestrationProvider === "cmd")
-        ? seed.orchestrationProvider
-        : canvasPurpose === "orchestration"
-          ? "codex"
-          : undefined,
-    orchestrationRunId:
-      typeof seed?.orchestrationRunId === "string"
-        ? seed.orchestrationRunId
-        : null,
     nodes,
     edges,
     terminalDockGroups: normalizeTerminalDockGroups(
@@ -161,32 +136,4 @@ export function normalizeDiagramSeed(seed?: ArchitectureDiagram): {
       seed?.terminalDockGroups,
     ),
   };
-}
-
-function isOrchestrationNodeBinding(
-  value: unknown,
-): value is NonNullable<ArchitectureNode["orchestration"]> {
-  if (!value || typeof value !== "object") return false;
-  const binding = value as Record<string, unknown>;
-  return (
-    typeof binding.entityId === "string" &&
-    (binding.kind === "orchestrator" ||
-      binding.kind === "agent" ||
-      binding.kind === "task")
-  );
-}
-
-function isOrchestrationEdgeBinding(
-  value: unknown,
-): value is NonNullable<ArchitectureEdge["orchestration"]> {
-  if (!value || typeof value !== "object") return false;
-  const binding = value as Record<string, unknown>;
-  if (binding.kind === "assignment") {
-    return typeof binding.agentId === "string" && typeof binding.taskId === "string";
-  }
-  return (
-    binding.kind === "dependency" &&
-    typeof binding.fromTaskId === "string" &&
-    typeof binding.toTaskId === "string"
-  );
 }

@@ -136,41 +136,4 @@ describe("createWorkspaceAction", () => {
     ]);
   });
 
-  it("creates an orchestration Canvas without terminal launch panes", async () => {
-    const newArchitectureTab = vi.fn(() => 43);
-    const persisted = vi.fn();
-    mocks.invoke.mockResolvedValue(undefined);
-
-    await createWorkspaceAction(
-      {
-        terminalCount: 2,
-        workingFolder: "/repo",
-        initialCommands: [],
-        workspaceMode: "canvas",
-        canvasPurpose: "orchestration",
-        inheritedCwd: undefined,
-        nextWorkspaceName: () => "workspace-01",
-        tabs: [],
-        newAgentChatTab: vi.fn(() => 0),
-        newWorkspaceTab: vi.fn(),
-        newArchitectureTab,
-        closeTab: vi.fn(),
-        setActiveId: vi.fn(),
-        closeSetup: vi.fn(),
-        alert: vi.fn(),
-      },
-      {
-        workspaces: [],
-        setWorkspaces: vi.fn(),
-        persistPaneRecord: persisted,
-        saveRecentWorkspace: vi.fn(),
-      },
-    );
-
-    expect(persisted).not.toHaveBeenCalled();
-    expect(newArchitectureTab).toHaveBeenCalledWith(
-      expect.objectContaining({ canvasPurpose: "orchestration" }),
-      "workspace-01",
-    );
-  });
 });

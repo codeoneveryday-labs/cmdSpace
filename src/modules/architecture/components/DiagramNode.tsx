@@ -32,39 +32,6 @@ function textNodeLines(value: string): string[] {
   return value.split("\n").slice(0, 12);
 }
 
-type OrchestrationNodeRole = {
-  label: "ORCHESTRATOR" | "WORKER" | "TASK";
-  badge: string;
-  border: string;
-};
-
-function orchestrationRole(
-  kind: ArchitectureNode["kind"],
-): OrchestrationNodeRole | null {
-  switch (kind) {
-    case "orchestrator":
-      return {
-        label: "ORCHESTRATOR",
-        badge: "border-violet-400/50 bg-violet-500/15 text-violet-700 dark:text-violet-200",
-        border: "stroke-violet-400/80",
-      };
-    case "agent":
-      return {
-        label: "WORKER",
-        badge: "border-sky-400/50 bg-sky-500/15 text-sky-700 dark:text-sky-200",
-        border: "stroke-sky-400/80",
-      };
-    case "task":
-      return {
-        label: "TASK",
-        badge: "border-amber-400/50 bg-amber-500/15 text-amber-700 dark:text-amber-200",
-        border: "stroke-amber-400/80",
-      };
-    default:
-      return null;
-  }
-}
-
 export function DiagramNode({
   node,
   shape,
@@ -113,7 +80,6 @@ export function DiagramNode({
     selected && "text-primary",
   );
   const transform = nodeTransform(node);
-  const orchestrationNodeRole = orchestrationRole(node.kind);
 
   if (isConnectorKind(node.kind)) {
     const path = connectorPath(node);
@@ -458,12 +424,11 @@ export function DiagramNode({
           rx={node.kind === "database" ? 18 : 10}
           className={cn(
             "fill-background stroke-border",
-            orchestrationNodeRole?.border,
             selected && "stroke-primary",
             pendingConnect && "stroke-amber-500",
           )}
           strokeDasharray={node.locked ? "6 5" : undefined}
-          strokeWidth={selected || pendingConnect ? 3 : orchestrationNodeRole ? 2.5 : 1.5}
+          strokeWidth={selected || pendingConnect ? 3 : 1.5}
         />
       )}
       {node.kind === "database" ? (
@@ -476,22 +441,8 @@ export function DiagramNode({
       ) : null}
       <foreignObject x="12" y="12" width={node.width - 24} height={node.height - 24}>
         <div className={cn(
-          "flex h-full min-w-0 gap-2",
-          orchestrationNodeRole ? "flex-col justify-center gap-2" : "items-center",
+          "flex h-full min-w-0 items-center gap-2",
         )}>
-          {orchestrationNodeRole ? (
-            <div className="flex min-w-0 items-center gap-2">
-              <span className={cn(
-                "w-fit shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold tracking-[0.08em]",
-                orchestrationNodeRole.badge,
-              )}>
-                {orchestrationNodeRole.label}
-              </span>
-              <span className="truncate text-[10px] text-muted-foreground">
-                {node.technology || shape.description}
-              </span>
-            </div>
-          ) : null}
           <div className="flex min-w-0 items-center gap-2">
           <div
             className={cn(

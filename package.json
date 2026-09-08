@@ -14,6 +14,8 @@
     "harness:status": "pnpm harness status",
     "harness:update": "pnpm harness update",
     "harness:doctor": "pnpm harness doctor",
+    "quality:warn": "node scripts/quality-gates-warn.mjs",
+    "skills:check": "node scripts/check-skills.mjs",
     "test": "vitest run --exclude \"services/**\" && pnpm --dir services/cmdspace-relay test",
     "test:watch": "vitest"
   },

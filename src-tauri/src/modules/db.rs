@@ -8,11 +8,13 @@ pub use models::*;
 
 mod schema;
 #[cfg(test)]
-use schema::{
-    get_db_path, initialize_schema, migrate_workspace_panes, migrate_workspace_setup_preferences,
-};
+use schema::{get_db_path, migrate_workspace_panes, migrate_workspace_setup_preferences};
 #[allow(unused_imports)]
 pub use schema::{init_db, init_mobile_workspace_schema};
+#[cfg(test)]
+pub(crate) fn initialize_schema(conn: &rusqlite::Connection) -> Result<(), String> {
+    schema::initialize_schema(conn)
+}
 // Inner logic functions, decoupled from tauri::State for direct, easy unit testing
 mod workspaces;
 pub use workspaces::{
@@ -114,12 +116,6 @@ pub use agent_chat::{
     __cmd__db_load_agent_chat_config, __cmd__db_load_agent_model_cache,
     __cmd__db_save_agent_chat_config, __cmd__db_save_agent_model_cache, db_load_agent_chat_config,
     db_load_agent_model_cache, db_save_agent_chat_config, db_save_agent_model_cache,
-};
-mod orchestration;
-pub use orchestration::{
-    __cmd__db_load_orchestration_run, append_orchestration_event_inner, db_load_orchestration_run,
-    ensure_canvas_workspace_inner, load_active_orchestration_runs_inner,
-    load_orchestration_events_inner, load_orchestration_run_inner, save_orchestration_run_inner,
 };
 #[cfg(test)]
 mod tests;

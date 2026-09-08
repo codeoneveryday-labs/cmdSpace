@@ -2176,25 +2176,6 @@ private struct CmdSpaceSettingsView: View {
                         }
                     }
 
-                    Text("THEME").sectionLabel()
-                    settingsCard {
-                        HStack(spacing: 12) {
-                            HStack(spacing: 4) {
-                                Capsule().fill(Color(red: 0.20, green: 0.54, blue: 0.76)).frame(width: 8, height: 28)
-                                Capsule().fill(Color(red: 0.32, green: 0.40, blue: 0.48)).frame(width: 8, height: 28)
-                                Capsule().fill(Color(red: 0.84, green: 0.92, blue: 0.98)).frame(width: 8, height: 28)
-                            }
-                            .frame(width: 50, height: 50)
-                            .background(Color(red: 0.93, green: 0.97, blue: 1), in: RoundedRectangle(cornerRadius: 16))
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Liquid Glass").font(.system(size: 15, weight: .bold))
-                                Text("Iridescent glass surfaces").font(.system(size: 12)).foregroundStyle(CmdSpaceTheme.homeMuted)
-                            }
-                            Spacer()
-                            Text("Soon").comingSoon()
-                        }
-                    }
-
                     Text("TERMINAL BACKGROUND").sectionLabel()
                     settingsCard {
                         VStack(alignment: .leading, spacing: 12) {

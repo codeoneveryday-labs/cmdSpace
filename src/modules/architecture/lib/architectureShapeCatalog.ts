@@ -1,7 +1,7 @@
 import {
   ApiIcon,
-  ArrowRight01Icon,
   ArtificialIntelligence04Icon,
+  ArrowRight01Icon,
   BoundingBoxIcon,
   CircleIcon,
   CloudIcon,
@@ -26,30 +26,6 @@ import {
 import type { ShapeConfig, ShapeKind } from "./architectureCanvasTypes";
 
 export const ARCHITECTURE_SHAPES: ShapeConfig[] = [
-  {
-    kind: "orchestrator",
-    label: "Orchestrator",
-    category: "Orchestration",
-    description: "Plans and coordinates the approved graph",
-    icon: ArtificialIntelligence04Icon,
-    tone: "border-purple-400/40 bg-purple-500/[0.10] text-purple-700 dark:text-purple-200",
-  },
-  {
-    kind: "agent",
-    label: "Agent",
-    category: "Orchestration",
-    description: "Reusable coding-agent worker",
-    icon: UserIcon,
-    tone: "border-blue-400/40 bg-blue-500/[0.10] text-blue-700 dark:text-blue-200",
-  },
-  {
-    kind: "task",
-    label: "Task",
-    category: "Orchestration",
-    description: "Approved unit of work",
-    icon: WorkflowSquare01Icon,
-    tone: "border-amber-400/40 bg-amber-500/[0.10] text-amber-700 dark:text-amber-200",
-  },
   {
     kind: "rectangle",
     label: "Rectangle",

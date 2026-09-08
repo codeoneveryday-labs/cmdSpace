@@ -190,17 +190,6 @@ html[data-chrome="borderless"] .cmdspace-bg-surface {
   border-radius: 12px;
 }
 
-/* Liquid Glass theme: translucent tokens do the heavy lifting, while this
- * layer adds the frosted blur and soft aurora reflections only for that theme. */
-html[data-theme-id="liquid-glass"] body {
-  background-color: transparent;
-  background:
-    radial-gradient(circle at 8% -8%, color-mix(in oklch, #9cecff 22%, transparent), transparent 34%),
-    radial-gradient(circle at 94% 8%, color-mix(in oklch, #b8a3ff 20%, transparent), transparent 32%),
-    radial-gradient(circle at 52% 112%, color-mix(in oklch, #5ee7d8 14%, transparent), transparent 38%),
-    var(--background);
-}
-
 html[data-desktop-blur-overlay],
 html[data-desktop-blur-overlay] body {
   background: transparent !important;
@@ -224,45 +213,9 @@ html[data-desktop-blur-overlay][data-desktop-blur-state="on"] #root {
   }
 }
 
-html[data-theme-id="liquid-glass"] #root,
-html[data-theme-id="liquid-glass"] #settings-root {
-  background: transparent;
-  -webkit-backdrop-filter: blur(12px) saturate(135%);
-  backdrop-filter: blur(12px) saturate(135%);
-}
-html[data-theme-id="liquid-glass"] [class*="bg-card"],
-html[data-theme-id="liquid-glass"] [class*="bg-popover"],
-html[data-theme-id="liquid-glass"] [class*="bg-sidebar"] {
-  -webkit-backdrop-filter: blur(18px) saturate(145%);
-  backdrop-filter: blur(18px) saturate(145%);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklch, white 18%, transparent),
-    0 10px 34px color-mix(in oklch, #06101f 14%, transparent);
-}
-html[data-theme-id="liquid-glass"] [class*="bg-background"] {
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  backdrop-filter: blur(16px) saturate(140%);
-}
-html[data-theme-id="liquid-glass"] [class*="border-border"],
-html[data-theme-id="liquid-glass"] [class*="border-sidebar"] {
-  border-color: color-mix(in oklch, var(--border) 68%, white 32%);
-  box-shadow: inset 0 1px 0 color-mix(in oklch, white 14%, transparent);
-}
-html[data-theme-id="liquid-glass"] [class*="rounded"] {
-  border-radius: max(var(--radius), 0.75rem);
-}
-html[data-theme-id="liquid-glass"] button:hover,
-html[data-theme-id="liquid-glass"] [role="button"]:hover {
-  background-image: linear-gradient(
-    120deg,
-    color-mix(in oklch, white 10%, transparent),
-    transparent 58%
-  );
-}
-
 /* The menu-bar switcher is a transparent native window. It must paint only its
- * floating panel: app backgrounds and Liquid Glass effects would otherwise
- * become a second rectangular surface behind that panel after a theme change. */
+ * floating panel: app backgrounds and theme effects would otherwise become a
+ * second rectangular surface behind that panel after a theme change. */
 html[data-tray-window],
 html[data-tray-window] body,
 html[data-tray-window] #tray-root {
@@ -271,21 +224,6 @@ html[data-tray-window] #tray-root {
 html[data-tray-window] #tray-root {
   display: block;
   height: 100%;
-}
-html[data-tray-window][data-theme-id="liquid-glass"] .tray-panel {
-  background-color: #f8fdff;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  box-shadow: 0 6px 16px -8px rgb(15 23 42 / 0.38);
-}
-html[data-tray-window][data-theme-id="liquid-glass"].dark .tray-panel {
-  background-color: #11233e;
-  box-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.48);
-}
-@media (prefers-reduced-motion: reduce) {
-  html[data-theme-id="liquid-glass"] * {
-    scroll-behavior: auto !important;
-  }
 }
 .zoom-content {
   width: calc(100% * var(--app-zoom-inverse));

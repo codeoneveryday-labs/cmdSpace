@@ -66,31 +66,13 @@ describe("brand icon catalog", () => {
 
   it("bundles Paseo artwork for the expanded marketplace agents", () => {
     const marketplaceAgents = [
-      "agoragentic",
       "auggie",
-      "autohand",
       "codebuddy",
-      "codewhale",
       "cortex",
-      "corust",
-      "crow",
       "deepagents",
-      "dimcode",
-      "dirac",
-      "factory-droid",
-      "fast-agent",
       "glm",
       "junie",
-      "kilo",
-      "minion",
       "mistral-vibe",
-      "nova",
-      "poolside",
-      "qoder",
-      "sigit",
-      "stakpak",
-      "trae",
-      "vt-code",
     ] as const;
 
     for (const agent of marketplaceAgents) {

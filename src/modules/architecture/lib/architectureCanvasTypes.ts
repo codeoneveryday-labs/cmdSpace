@@ -47,7 +47,7 @@ export type ResizableShapeKind =
   | "text"
   | "image"
   | "terminal";
-export type ShapeCategory = "Drawing" | "C4" | "Application" | "Data" | "Platform" | "Orchestration";
+export type ShapeCategory = "Drawing" | "C4" | "Application" | "Data" | "Platform";
 export type Point = { x: number; y: number };
 export type ResizeHandle = "nw" | "ne" | "se" | "sw";
 export type ConnectorHandle = "start" | "control" | "end";

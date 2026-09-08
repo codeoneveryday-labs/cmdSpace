@@ -54,8 +54,6 @@ type Props = {
   terminalId: string;
   initialCwd?: string;
   initialCommand?: string;
-  orchestrator?: boolean;
-  taskStatus?: string;
   stackTabs: Array<{
     id: string;
     label: string;
@@ -116,8 +114,6 @@ export function CanvasTerminalNode({
   terminalId,
   initialCwd,
   initialCommand,
-  orchestrator = false,
-  taskStatus,
   stackTabs,
   activeTabId,
   visible,
@@ -433,11 +429,11 @@ export function CanvasTerminalNode({
           : data;
         if (shouldIgnoreMacPrintableTerminalData(normalized)) return;
         if (!compositionCommitFilter.shouldForward(normalized)) return;
-        trackPromptInput(normalized);
         void invoke("pty_trace_input", {
           source: "canvas-xterm-ondata",
           data: normalized,
         });
+        trackPromptInput(normalized);
         if (macTextInput) macTextInput.writeXtermData(normalized);
         else void sessionRef.current?.write(normalized);
       });
@@ -542,7 +538,6 @@ export function CanvasTerminalNode({
         agentResponseState === "completed"
           ? "shadow-[0_0_18px_rgba(16,185,129,0.55)]"
           : "shadow-[0_12px_36px_-14px_rgba(0,0,0,0.32)]",
-        orchestrator && "border-2 border-violet-400 shadow-[0_0_24px_rgba(139,92,246,0.38)]",
         cornerClassName,
       )}
       onPointerDownCapture={(event) => {
@@ -600,8 +595,6 @@ export function CanvasTerminalNode({
         activeTabId={activeTabId}
         tabLabel={tabLabel}
         detectedAgent={detectedAgent}
-        orchestrator={orchestrator}
-        taskStatus={taskStatus}
         agentResponseState={agentResponseState}
         onActivateTab={onActivateTab}
         onTabPointerDown={onTabPointerDown}

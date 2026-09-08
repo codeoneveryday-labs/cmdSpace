@@ -1,7 +1,7 @@
 import { useCallback, type MutableRefObject } from "react";
 import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
-import type { CanvasPurpose, OrchestrationProvider, Tab } from "@/modules/tabs";
+import type { Tab } from "@/modules/tabs";
 import type { WorkspaceMode } from "@/modules/workspaces";
 import type {
   CreateWorkspaceInput,
@@ -56,8 +56,6 @@ export function useWorkspaceSetupActions({
       workspaceAgents: CliAgent[] = [],
       initialAgentDraft = "",
       initialHistoryAttachments: AgentChatHistoryAttachment[] = [],
-      canvasPurpose: CanvasPurpose = "architecture",
-      orchestratorProvider: OrchestrationProvider = "codex",
     ) =>
       createWorkspace({
         terminalCount,
@@ -66,8 +64,6 @@ export function useWorkspaceSetupActions({
         requestedName,
         requestedColor,
         workspaceMode,
-        canvasPurpose,
-        orchestratorProvider,
         workspaceAgent,
         workspaceAgents,
         initialAgentDraft,

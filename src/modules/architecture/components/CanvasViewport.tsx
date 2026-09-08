@@ -1,15 +1,7 @@
-import type { ComponentProps } from "react";
-import { CanvasBackgroundMedia } from "./CanvasBackgroundMedia";
-import { CanvasDiagramSvg } from "./CanvasDiagramSvg";
-import { CanvasInteractionOverlays } from "./CanvasInteractionOverlays";
-import { CanvasTerminalLayer } from "./CanvasTerminalLayer";
+import type { CanvasLayerProps } from "../lib/useCanvasLayerProps";
+import { CanvasRenderSurface } from "./CanvasRenderSurface";
 
-type CanvasViewportProps = {
-  backgroundImageId: ComponentProps<typeof CanvasBackgroundMedia>["imageId"];
-  diagram: ComponentProps<typeof CanvasDiagramSvg>;
-  terminalLayer: ComponentProps<typeof CanvasTerminalLayer>;
-  overlays: ComponentProps<typeof CanvasInteractionOverlays>;
-};
+export type CanvasViewportProps = CanvasLayerProps;
 
 export function CanvasViewport({
   backgroundImageId,
@@ -18,16 +10,11 @@ export function CanvasViewport({
   overlays,
 }: CanvasViewportProps) {
   return (
-    <div className="min-h-0 flex-1">
-      <main
-        data-canvas-surface-viewport="true"
-        className="relative h-full min-h-0 overflow-hidden bg-[#fbfdfc] dark:bg-zinc-950"
-      >
-        <CanvasBackgroundMedia imageId={backgroundImageId} />
-        <CanvasDiagramSvg {...diagram} />
-        <CanvasTerminalLayer {...terminalLayer} />
-        <CanvasInteractionOverlays {...overlays} />
-      </main>
-    </div>
+    <CanvasRenderSurface
+      backgroundImageId={backgroundImageId}
+      diagram={diagram}
+      terminalLayer={terminalLayer}
+      overlays={overlays}
+    />
   );
 }

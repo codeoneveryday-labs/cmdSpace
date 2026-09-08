@@ -6,25 +6,23 @@ import {
 
 describe("architectureDiagramNormalization", () => {
   it("hydrates legacy diagrams as architecture canvases", () => {
-    expect(normalizeDiagramSeed({ nodes: [], edges: [] })).toMatchObject({
-      canvasPurpose: "architecture",
-      orchestrationRunId: null,
+    expect(normalizeDiagramSeed({ nodes: [], edges: [] })).toEqual({
+      nodes: [],
+      edges: [],
+      terminalDockGroups: [],
     });
   });
 
-  it("preserves orchestration canvas identity without persisting runtime state", () => {
-    expect(
-      normalizeDiagramSeed({
-        canvasPurpose: "orchestration",
-        orchestrationRunId: "run-1",
-        nodes: [],
-        edges: [],
-      }),
-    ).toMatchObject({
-      canvasPurpose: "orchestration",
-      orchestrationProvider: "codex",
-      orchestrationRunId: "run-1",
-    });
+  it("drops unknown metadata from persisted diagrams", () => {
+    const normalized = normalizeDiagramSeed(({
+      legacyCanvasMode: "retired",
+      legacyRunId: "run-1",
+      nodes: [],
+      edges: [],
+    } as unknown) as Parameters<typeof normalizeDiagramSeed>[0]);
+
+    expect(normalized).not.toHaveProperty("legacyCanvasMode");
+    expect(normalized).not.toHaveProperty("legacyRunId");
   });
 
   it("migrates legacy narrow terminal dimensions only once", () => {
