@@ -168,6 +168,8 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("Canvas workspace");
     expect(appSource).not.toContain("sendAgentWorkspacePrompt");
     expect(panelSource).toContain("WorkspaceModeIcon");
+    expect(panelSource).toContain("SkillsLauncher");
+    expect(panelSource).toContain("onOpenSkills");
     expect(panelSource).toContain('workspace.workspaceMode === "canvas"');
     expect(panelSource).toContain("WORKSPACE_MODE_ICONS");
     expect(panelSource).toContain("CommandLineIcon");
@@ -438,7 +440,7 @@ describe("WorkspacesPanel", () => {
     expect(appSource).toContain("handleRenameWorkspace");
     expect(panelSource).not.toContain("border-r border-border/60");
     expect(appSource).toMatch(
-      /<WorkspacesPanel[\s\S]*workspaces=\{workspaceItems\}[\s\S]*onRenameWorkspace=\{handleRenameWorkspace\}[\s\S]*onStartWorkspaceSetup=\{\(\) => setWorkspaceSetupOpen\(true\)\}/,
+      /<WorkspacesPanel[\s\S]*workspaces=\{workspaceItems\}[\s\S]*onRenameWorkspace=\{handleRenameWorkspace\}[\s\S]*onOpenSkills=\{toggleSkillsCatalog\}[\s\S]*onStartWorkspaceSetup=\{\(\) => \{/,
     );
     expect(appSource).toContain("recentWorkspaces={recentWorkspaces}");
     expect(workspaceControllerContract).toContain("db_list_recent_workspaces");

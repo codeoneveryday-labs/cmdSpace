@@ -15,6 +15,9 @@ describe("WorkspaceList contract", () => {
     expect(source).toContain("Pinned workspaces");
     expect(source).toContain("pinnedExpanded");
     expect(source).toContain("setPinnedExpanded");
+    expect(source).toContain('const workspaceRowInset = compact ? "mx-1.5" : "mx-2"');
+    expect(source).toContain('className={cn("space-y-0.5 pb-2", workspaceRowInset)}');
+    expect(source).toContain('rounded-md px-2 text-left text-[11px] font-semibold');
     expect(source).toContain("aria-expanded={pinnedExpanded}");
     expect(source).toContain("aria-controls=\"pinned-workspaces-list\"");
     expect(source).toContain("DragDropVerticalIcon");
