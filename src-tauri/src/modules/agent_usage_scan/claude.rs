@@ -32,8 +32,7 @@ pub(super) fn scan(
 pub(super) fn scan_exact(home: &Path, native_session_id: &str) -> Option<AgentUsageStatus> {
     let roots = claude_project_roots(home);
     roots.iter().find_map(|root| {
-        let path =
-            crate::modules::agent_chat::find_resumable_session_file(root, native_session_id)?;
+        let path = super::find_resumable_session_file(root, native_session_id)?;
         tail_lines(&path)
             .into_iter()
             .rev()

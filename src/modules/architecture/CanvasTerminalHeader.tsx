@@ -47,7 +47,7 @@ export function CanvasTerminalHeader({
   onActivateTab: (terminalId: string) => void;
   onTabPointerDown: (terminalId: string, event: ReactPointerEvent<HTMLElement>) => void;
   onRequestCloseTab: (terminalId: string) => void;
-  onAgentCommandChange: (command: string) => void;
+  onAgentCommandChange: (command?: string) => void;
   onAddTab: (initialCommand?: string) => void;
   onSplitRight: () => void;
   singleTerminalGroup: boolean;
@@ -61,11 +61,11 @@ export function CanvasTerminalHeader({
     <div className="relative z-20 flex h-7 shrink-0 items-center gap-0.5 border-b border-border/60 bg-white/95 px-1 text-muted-foreground shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-300">
       <div role="tablist" aria-label="Canvas terminal tabs" className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
         {stackTabs.map((tab) => {
-          const tabAgent = tab.id === activeTabId ? detectedAgent ?? tab.agent : tab.agent;
+          const tabAgent = tab.id === activeTabId ? detectedAgent : tab.agent;
           return (
             <div key={tab.id} data-canvas-surface-tab-kind={tab.kind} className={cn("flex max-w-52 shrink-0 items-center rounded-full py-0.5 pr-1 text-[11px] font-normal transition-colors", tab.id === activeTabId ? "bg-muted text-foreground shadow-sm dark:bg-zinc-800 dark:text-zinc-100" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:hover:bg-zinc-800/70")}>
               <button type="button" role="tab" aria-selected={tab.id === activeTabId} className="flex min-w-0 items-center gap-1 px-2" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); onActivateTab(tab.id); onTabPointerDown(tab.id, event); }} onClick={(event) => { event.stopPropagation(); onActivateTab(tab.id); }}>
-                {tab.id === activeTabId ? <TerminalAgentSwitcher currentAgent={tabAgent ?? null} onSelect={(_agent, command) => { if (command) onAgentCommandChange(command); }} trigger={<span className="inline-flex shrink-0 cursor-pointer" aria-label="Switch coding agent" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>{tabAgent ? <AgentCliIcon agent={tabAgent} size="sm" /> : <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} />}</span>} /> : tabAgent ? <AgentCliIcon agent={tabAgent} size="sm" /> : <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} className="shrink-0" />}
+                {tab.id === activeTabId ? <TerminalAgentSwitcher currentAgent={tabAgent ?? null} onSelect={(_agent, command) => onAgentCommandChange(command ?? undefined)} trigger={<span className="inline-flex shrink-0 cursor-pointer" aria-label="Switch coding agent" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>{tabAgent ? <AgentCliIcon agent={tabAgent} size="sm" /> : <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} />}</span>} /> : tabAgent ? <AgentCliIcon agent={tabAgent} size="sm" /> : <HugeiconsIcon icon={TerminalIcon} size={12} strokeWidth={1.8} className="shrink-0" />}
                 <span className="truncate">{tab.id === activeTabId ? tabLabel : tab.label}</span>
               </button>
               <button type="button" aria-label={`Close ${tab.label}`} title={`Close ${tab.label}`} className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground/70 transition-colors hover:bg-foreground/10 hover:text-foreground" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }} onClick={(event) => { event.stopPropagation(); onRequestCloseTab(tab.id); }}><HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={1.8} /></button>

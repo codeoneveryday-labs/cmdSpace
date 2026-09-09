@@ -24,6 +24,23 @@ pub(super) fn get_db_path() -> std::path::PathBuf {
     }
 }
 
+fn drop_column_if_exists(conn: &Connection, table: &str, column: &str) -> Result<(), String> {
+    let mut stmt = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .map_err(|e| format!("Failed to inspect {table} table: {e}"))?;
+    let columns = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| format!("Failed to read {table} table columns: {e}"))?;
+    for name in columns {
+        if name.map_err(|e| format!("Failed to read column name: {e}"))? == column {
+            conn.execute_batch(&format!("ALTER TABLE {table} DROP COLUMN {column}"))
+                .map_err(|e| format!("Failed to drop {column}: {e}"))?;
+            break;
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS workspace_panes (
@@ -149,27 +166,13 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
             updated_at INTEGER NOT NULL,
             display_order INTEGER NOT NULL DEFAULT 0,
             pane_layout TEXT,
-            workspace_mode TEXT,
-            agent_provider TEXT,
-            agent_session_id TEXT
-            ,agent_providers TEXT
-            ,agent_session_ids TEXT
-            ,agent_chat_ids TEXT
+            workspace_mode TEXT
         );",
         [],
     )
     .map_err(|e| format!("Failed to create table: {e}"))?;
 
-    let (
-        has_accent_color,
-        has_pane_layout,
-        has_workspace_mode,
-        has_agent_provider,
-        has_agent_session_id,
-        has_agent_providers,
-        has_agent_session_ids,
-        has_agent_chat_ids,
-    ) = {
+    let (has_accent_color, has_pane_layout, has_workspace_mode) = {
         let mut stmt = conn
             .prepare("PRAGMA table_info(workspaces)")
             .map_err(|e| format!("Failed to inspect workspaces table: {e}"))?;
@@ -179,11 +182,6 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
         let mut found_accent_color = false;
         let mut found_pane_layout = false;
         let mut found_workspace_mode = false;
-        let mut found_agent_provider = false;
-        let mut found_agent_session_id = false;
-        let mut found_agent_providers = false;
-        let mut found_agent_session_ids = false;
-        let mut found_agent_chat_ids = false;
         for column in columns {
             match column
                 .map_err(|e| format!("Failed to read column name: {e}"))?
@@ -192,24 +190,10 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
                 "accent_color" => found_accent_color = true,
                 "pane_layout" => found_pane_layout = true,
                 "workspace_mode" => found_workspace_mode = true,
-                "agent_provider" => found_agent_provider = true,
-                "agent_session_id" => found_agent_session_id = true,
-                "agent_providers" => found_agent_providers = true,
-                "agent_session_ids" => found_agent_session_ids = true,
-                "agent_chat_ids" => found_agent_chat_ids = true,
                 _ => {}
             }
         }
-        (
-            found_accent_color,
-            found_pane_layout,
-            found_workspace_mode,
-            found_agent_provider,
-            found_agent_session_id,
-            found_agent_providers,
-            found_agent_session_ids,
-            found_agent_chat_ids,
-        )
+        (found_accent_color, found_pane_layout, found_workspace_mode)
     };
     if !has_accent_color {
         conn.execute("ALTER TABLE workspaces ADD COLUMN accent_color TEXT", [])
@@ -223,57 +207,25 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
         conn.execute("ALTER TABLE workspaces ADD COLUMN workspace_mode TEXT", [])
             .map_err(|e| format!("Failed to add workspace_mode column: {e}"))?;
     }
-    if !has_agent_provider {
-        conn.execute("ALTER TABLE workspaces ADD COLUMN agent_provider TEXT", [])
-            .map_err(|e| format!("Failed to add agent_provider column: {e}"))?;
+
+    // Agent chat was removed: drop its workspace columns and tables from
+    // databases that predate the removal.
+    for column in [
+        "agent_provider",
+        "agent_session_id",
+        "agent_providers",
+        "agent_session_ids",
+        "agent_chat_ids",
+    ] {
+        drop_column_if_exists(conn, "workspaces", column)?;
     }
-    if !has_agent_session_id {
-        conn.execute(
-            "ALTER TABLE workspaces ADD COLUMN agent_session_id TEXT",
-            [],
-        )
-        .map_err(|e| format!("Failed to add agent_session_id column: {e}"))?;
-    }
-    if !has_agent_providers {
-        conn.execute("ALTER TABLE workspaces ADD COLUMN agent_providers TEXT", [])
-            .map_err(|e| format!("Failed to add agent_providers column: {e}"))?;
-    }
-    if !has_agent_session_ids {
-        conn.execute(
-            "ALTER TABLE workspaces ADD COLUMN agent_session_ids TEXT",
-            [],
-        )
-        .map_err(|e| format!("Failed to add agent_session_ids column: {e}"))?;
-    }
-    if !has_agent_chat_ids {
-        conn.execute("ALTER TABLE workspaces ADD COLUMN agent_chat_ids TEXT", [])
-            .map_err(|e| format!("Failed to add agent_chat_ids column: {e}"))?;
+    for table in ["agent_chat_configs", "agent_model_cache"] {
+        conn.execute_batch(&format!("DROP TABLE IF EXISTS {table}"))
+            .map_err(|e| format!("Failed to drop {table}: {e}"))?;
     }
 
     migrate_workspace_panes(conn)?;
     migrate_workspace_setup_preferences(conn)?;
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS agent_chat_configs (
-            chat_id TEXT PRIMARY KEY,
-            provider TEXT NOT NULL,
-            model TEXT,
-            effort TEXT,
-            permission_mode TEXT,
-            fast_mode INTEGER NOT NULL DEFAULT 0,
-            plan_mode INTEGER NOT NULL DEFAULT 0
-        )",
-        [],
-    )
-    .map_err(|e| format!("Failed to create agent chat config table: {e}"))?;
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS agent_model_cache (
-            provider TEXT PRIMARY KEY,
-            models_json TEXT NOT NULL,
-            updated_at INTEGER NOT NULL
-        )",
-        [],
-    )
-    .map_err(|e| format!("Failed to create agent model cache table: {e}"))?;
     init_mobile_workspace_schema(conn)?;
 
     conn.execute(

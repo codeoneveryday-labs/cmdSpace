@@ -114,7 +114,6 @@ import { useWorkspaceDeletion } from "./lib/useWorkspaceDeletion";
 import { useWorkspaceDeleteConfirmation } from "./lib/useWorkspaceDeleteConfirmation";
 import { useAppTabClose } from "./lib/useAppTabClose";
 import { useBootstrapTabCleanup } from "./lib/useBootstrapTabCleanup";
-import { useAppAgentSessionIdentity } from "./lib/useAppAgentSessionIdentity";
 import { useWorkspaceSetupActions } from "./lib/useWorkspaceSetupActions";
 import { useWorkspaceSetupAutoOpen } from "./lib/useWorkspaceSetupAutoOpen";
 import { useBottomTerminalController } from "./lib/useBottomTerminalController";
@@ -129,10 +128,6 @@ import { useAppVoiceIntegration } from "./lib/useAppVoiceIntegration";
 import { useAppWindowEvents } from "./lib/useAppWindowEvents";
 import { useWorkspaceEnvironmentSwitch } from "./lib/useWorkspaceEnvironmentSwitch";
 import { useSplitPanePersistence } from "./lib/useSplitPanePersistence";
-import {
-  useWorkspaceForkActions,
-  type WorkspaceForkContext,
-} from "./lib/useWorkspaceForkActions";
 
 function canvasTerminalRefKey(tabId: number, terminalId: string): string {
   return `${tabId}:${terminalId}`;
@@ -162,7 +157,6 @@ export default function App() {
     newTab,
     newPrivateTab,
     newWorkspaceTab,
-    newAgentChatTab,
     openFileTab,
     pinTab,
     newMarkdownTab,
@@ -420,8 +414,6 @@ export default function App() {
   );
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
   const [savingWorkspaceSessions, setSavingWorkspaceSessions] = useState(false);
-  const [workspaceForkContext, setWorkspaceForkContext] =
-    useState<WorkspaceForkContext | null>(null);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const persistCanvasDiagramRef = useRef<
     ((tabId: number, diagram: ArchitectureDiagram) => void) | null
@@ -508,16 +500,9 @@ export default function App() {
     activeCanvasTerminalIds: activeCanvasTerminalIds.current,
     canvasTerminalSelectionVersion,
     canvasTerminalRefs,
-    closeTabActionRef,
     closePaneByLeaf,
     canvasTerminalRefKey,
   });
-  const handleAgentNativeSessionId = useAppAgentSessionIdentity({
-    workspacesRef,
-    setWorkspaces,
-    updateTab,
-  });
-
   const { explorerRoot, inheritedCwdForNewTab } = useWorkspaceCwd(
     activeTab,
     tabs,
@@ -543,7 +528,7 @@ export default function App() {
     ) => {
       const tab = tabsRef.current.find((item) => item.id === id);
       const workspace = workspacesRef.current.find(
-        (item) => item.tabId === id || item.canvasTabId === id || item.agentTabIds?.includes(id),
+        (item) => item.tabId === id || item.canvasTabId === id,
       );
       const workspaceCwd =
         workspace?.workingFolder ??
@@ -653,7 +638,6 @@ export default function App() {
     createWorkspace,
     inheritedCwdForNewTab,
     tabsRef,
-    newAgentChatTab,
     newWorkspaceTab,
     newArchitectureTab,
     closeTab,
@@ -663,17 +647,8 @@ export default function App() {
     setWorkspaceSetupOpen,
     workspacesHydrated,
     workspacesLength: workspaces.length,
-    setWorkspaceForkContext,
   });
 
-  const { handleForkAgentResponse } = useWorkspaceForkActions({
-    workspacesRef,
-    setWorkspaces,
-    newAgentChatTab,
-    saveRecentWorkspace,
-    setWorkspaceForkContext,
-    setWorkspaceSetupOpen,
-  });
   const {
     handleSelectWorkspace,
     openingWorkspaceId,
@@ -703,7 +678,6 @@ export default function App() {
       persistCanvasDiagramRef.current?.(tabId, diagram);
     },
     createCanvasTab: newArchitectureTab,
-    createAgentChatTab: newAgentChatTab,
     createWorkspaceTab: newWorkspaceTab,
     syncWorkspacePaneNativeSessions,
     buildCanvasWorkspaceDiagram,
@@ -1145,7 +1119,6 @@ export default function App() {
       canvasFocused={canvasFocused}
       activeWorkspaceAccentColor={activeWorkspaceAccentColor}
       workspaces={workspaces}
-      apiKeys={apiKeys}
       terminalProps={{
         registerHandle: registerTerminalHandle,
         onSearchReady: handleSearchReady,
@@ -1160,17 +1133,6 @@ export default function App() {
         onSplitPane: splitActivePaneInActiveTab,
         onPaneTreeChange: handleTerminalPaneTreeChange,
       }}
-      onAgentForkResponse={(workspaceId, provider, cwd, destination, attachment) =>
-        handleForkAgentResponse({
-          workspaceId,
-          provider,
-          cwd,
-          destination: destination as "tab" | "workspace",
-          attachment,
-        })
-      }
-      onAgentNativeSessionId={handleAgentNativeSessionId}
-      onOpenFileDiff={openGitDiffTab}
       onDiagramChange={handleArchitectureDiagramChange}
       onRegisterTerminalCreator={(tabId, creator) => {
         if (creator) canvasTerminalCreatorRef.current.set(tabId, creator);
@@ -1205,11 +1167,10 @@ export default function App() {
   const workspaceSetup = workspaceSetupOpen ? (
     <div className="absolute inset-0 z-30 bg-background">
       <WorkspaceSetupView
-        workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}
+        workingFolder={workspaceSetupFolder}
         suggestedWorkspaceName={nextWorkspaceName(workspaces) ?? "workspace"}
         suggestedWorkspaceColor={workspaceAccentForIndex(workspaces.length)}
         recentWorkspaces={recentWorkspaces}
-        forkContext={workspaceForkContext}
         onCancel={handleWorkspaceSetupCancel}
         onOpenWithoutAi={handleOpenWorkspaceWithoutAi}
       />

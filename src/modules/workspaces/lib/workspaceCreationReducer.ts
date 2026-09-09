@@ -1,4 +1,3 @@
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { WorkspaceMode } from "../WorkspacesPanel";
 import { TERMINAL_COUNTS } from "./workspaceSetupModel";
 
@@ -10,7 +9,6 @@ export type WorkspaceSetupState = {
   workspaceColor: string;
   terminalCount: (typeof TERMINAL_COUNTS)[number];
   workspaceMode: WorkspaceMode;
-  selectedChatAgent: CliAgent | null;
   selectedFolder: string;
   isolateAgentWorktrees: boolean;
 };
@@ -21,7 +19,6 @@ export type WorkspaceSetupAction =
   | { type: "SET_COLOR"; color: string }
   | { type: "SET_TERMINAL_COUNT"; count: (typeof TERMINAL_COUNTS)[number] }
   | { type: "SET_MODE"; mode: WorkspaceMode }
-  | { type: "SET_SELECTED_CHAT_AGENT"; agent: CliAgent | null }
   | { type: "SET_SELECTED_FOLDER"; folder: string }
   | { type: "SET_ISOLATE_WORKTREES"; isolate: boolean }
   | { type: "RESET"; initialState: WorkspaceSetupState };
@@ -40,13 +37,7 @@ export function workspaceSetupReducer(
     case "SET_TERMINAL_COUNT":
       return { ...state, terminalCount: action.count };
     case "SET_MODE":
-      return {
-        ...state,
-        workspaceMode: action.mode,
-        step: action.mode === "agent" ? "agents" : state.step,
-      };
-    case "SET_SELECTED_CHAT_AGENT":
-      return { ...state, selectedChatAgent: action.agent };
+      return { ...state, workspaceMode: action.mode };
     case "SET_SELECTED_FOLDER":
       return { ...state, selectedFolder: action.folder };
     case "SET_ISOLATE_WORKTREES":

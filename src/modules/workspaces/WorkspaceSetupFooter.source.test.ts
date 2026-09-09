@@ -10,7 +10,6 @@ describe("WorkspaceSetupFooter contract", () => {
   it("keeps setup navigation and launch gates in a presentational seam", () => {
     expect(source).toContain("export function WorkspaceSetupFooter");
     expect(source).toContain("Open without AI");
-    expect(source).toContain("Open agent chat");
     expect(source).toContain("plannedAgentCommands.length === 0");
     expect(source).not.toContain("invoke(");
   });

@@ -181,9 +181,12 @@ export function useCanvasTerminalLayerActions({
     onInitialCommandChange: (nodeId, command) => {
       pushHistory();
       setNodes((current) =>
-        current.map((item) =>
-          item.id === nodeId ? { ...item, initialCommand: command } : item,
-        ),
+        current.map((item) => {
+          if (item.id !== nodeId) return item;
+          if (command) return { ...item, initialCommand: command };
+          const { initialCommand: _initialCommand, ...terminal } = item;
+          return terminal;
+        }),
       );
     },
     onResizePointerDown: handleResizePointerDown,

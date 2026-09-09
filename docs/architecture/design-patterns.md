@@ -117,9 +117,9 @@ must preserve the listed interface and invariant.
 
 | Pattern | cmdSpace seam | Invariant | Key locations |
 |---|---|---|---|
-| Simple Factory | Tab creation and provider profile lookup | Defaults and creation rules stay centralized | `src/modules/tabs/lib/tabFactories.ts`, `src-tauri/src/modules/agent_chat/providers/mod.rs` |
+| Simple Factory | Tab creation and provider profile lookup | Defaults and creation rules stay centralized | `src/modules/tabs/lib/tabFactories.ts` |
 | Singleton | Process-scoped Tauri state, PTY/session registries, renderer pool | Share only genuinely process-scoped resources; every resource still has explicit cleanup | `src-tauri/src/lib.rs`, `useTerminalSession.ts`, `rendererPool.ts` |
-| Adapter | Agent protocols and native/platform differences | Provider and platform quirks stay behind a stable common interface/event shape | `src-tauri/src/modules/agent_chat/adapter.rs`, `src/modules/ai/lib/native.ts` |
+| Adapter | Native/platform differences | Provider and platform quirks stay behind a stable common interface/event shape | `src/modules/ai/lib/native.ts` |
 | Bridge | React ↔ Rust, xterm ↔ PTY, desktop ↔ remote client | Transport and privilege boundaries remain explicit; no parallel privileged path | `src-tauri/src/commands.rs`, `src/modules/terminal/lib/pty-bridge.ts` |
 | Composite | Terminal pane trees and canvas dock trees | Leaves and groups use the same tree traversal/update model | `src/modules/terminal/lib/panes.ts`, `src/modules/tabs/lib/tabTypes.ts` |
 | Facade | App coordinator, native client, remote facade | Callers use a small workflow surface instead of reimplementing subsystem coordination | `src/app/App.tsx`, `src/modules/ai/lib/native.ts`, `src-tauri/src/modules/remote.rs` |
@@ -129,8 +129,8 @@ must preserve the listed interface and invariant.
 | Mediator | App/workspace coordination and event buses | Cross-module coordination goes through a coordinator/event seam, not uncontrolled direct calls | `src/app/App.tsx`, `src/modules/git/events.ts` |
 | Memento | Canvas undo/history and workspace layout snapshots | Snapshots contain serializable layout/domain state, never live PTY/process handles | `src/modules/architecture/lib/useCanvasHistory.ts`, `src/modules/tabs/` |
 | Observer | PTY channels, Tauri events, DOM events, Zustand subscriptions | Subscribers detach with their owner; events do not become a second source of truth | `src/modules/terminal/lib/pty-bridge.ts`, `src/modules/git/events.ts` |
-| Strategy | Agent providers, discovery modes, platform shell behavior | The caller selects behavior through a stable contract; branching stays behind the seam | `src-tauri/src/modules/agent_chat/providers/`, `shell_init.rs` |
-| State | Tabs, PTYs, agent runtime, workspace mode | State transitions are explicit and invalid combinations are rejected or represented in the model | `src/modules/tabs/lib/tabTypes.ts`, `src-tauri/src/modules/agent_chat/daemon.rs` |
+| Strategy | Discovery modes, platform shell behavior | The caller selects behavior through a stable contract; branching stays behind the seam | `shell_init.rs` |
+| State | Tabs, PTYs, workspace mode | State transitions are explicit and invalid combinations are rejected or represented in the model | `src/modules/tabs/lib/tabTypes.ts` |
 
 ### Pattern relationships
 

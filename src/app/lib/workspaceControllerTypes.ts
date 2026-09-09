@@ -1,7 +1,5 @@
 import type { ArchitectureDiagram, Tab } from "@/modules/tabs";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { WorkspaceItem, WorkspaceMode } from "@/modules/workspaces";
-import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import type { ImportableAgentSession } from "@/modules/workspaces";
 import type { WorkspaceSelectionPane } from "./useWorkspaceSelection";
 
@@ -13,12 +11,6 @@ export type WorkspaceRecord = WorkspaceItem & {
   paneLayout: string | null;
   tabId: number | null;
   canvasTabId: number | null;
-  agentProvider: CliAgent | null;
-  agentSessionId: string | null;
-  agentTabIds?: number[];
-  agentProviders?: CliAgent[];
-  agentSessionIds?: Array<string | null>;
-  agentChatIds?: string[];
 };
 
 export type PersistedPaneRecord = WorkspaceSelectionPane & { workspaceId: string };
@@ -34,22 +26,9 @@ export type CreateWorkspaceInput = {
   requestedName?: string;
   requestedColor?: string;
   workspaceMode?: WorkspaceMode;
-  workspaceAgent?: CliAgent | null;
-  workspaceAgents?: CliAgent[];
-  initialAgentDraft?: string;
-  initialHistoryAttachments?: AgentChatHistoryAttachment[];
   inheritedCwd: string | undefined;
   nextWorkspaceName: (workspaces: WorkspaceRecord[]) => string | null;
   tabs: Tab[];
-  newAgentChatTab: (input: {
-    title: string;
-    provider: CliAgent;
-    cwd: string;
-    nativeSessionId: null;
-    chatId: string;
-    initialDraft?: string;
-    initialHistoryAttachments?: AgentChatHistoryAttachment[];
-  }) => number;
   newWorkspaceTab: (
     cwd: string | undefined,
     paneCount: number,
@@ -104,13 +83,6 @@ export type CreateWorkspaceTerminalInput = {
     cwd: string | undefined,
     initialCommand: string,
   ) => { paneTree: unknown } | null;
-  newAgentChatTab: (input: {
-    title: string;
-    provider: CliAgent;
-    cwd: string;
-    nativeSessionId: null;
-    chatId: string;
-  }) => number;
   setActiveId: (tabId: number) => void;
   persistPaneRecord: (pane: PersistedPaneRecord) => Promise<unknown>;
   persistedPaneFor: (

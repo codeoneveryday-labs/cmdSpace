@@ -14,24 +14,16 @@ describe("useWorkspaceHydration", () => {
         displayOrder: 0,
         paneLayout: null,
         accentColor: null,
-        workspaceMode: "agent",
-        agentProvider: null,
-        agentSessionId: null,
-        agentProviders: ["codex"],
-        agentSessionIds: ["session-1"],
-        agentChatIds: ["chat-1"],
+        workspaceMode: "canvas",
       } as never,
       0,
     );
 
     expect(workspace).toMatchObject({
-      workspaceMode: "agent",
+      workspaceMode: "canvas",
       accentColor: expect.any(String),
       tabId: null,
       canvasTabId: null,
-      agentTabIds: [],
-      agentProviders: ["codex"],
-      agentSessionIds: ["session-1"],
     });
   });
 });

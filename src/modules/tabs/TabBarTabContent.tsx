@@ -1,12 +1,11 @@
 import { cn } from "@/lib/utils";
 import { fileIconUrl } from "@/modules/explorer/lib/iconResolver";
+import { getWorkspaceModeIcon } from "@/modules/workspaces/workspaceModeIcons";
 import { AgentStateDot, type AgentDisplayState } from "@/modules/terminal/AgentStateDot";
 import { findLeafLastCommand, leafIds } from "@/modules/terminal/lib/panes";
-import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
+import { detectTrackedCliAgent } from "@/modules/terminal/lib/cliAgents";
 import { AgentCliIcon } from "@/modules/terminal/AgentCliIcon";
 import {
-  AiChat01Icon,
-  CanvasIcon,
   Clock01Icon,
   ComputerTerminal02Icon,
   GitCompareIcon,
@@ -22,11 +21,13 @@ export function TabBarTabContent({
   compact,
   musicPlaying,
   agentState,
+  agentCommands,
 }: {
   tab: Tab;
   compact?: boolean;
   musicPlaying: boolean;
   agentState?: AgentDisplayState;
+  agentCommands: ReadonlyMap<number, string>;
 }) {
   const isPreview = tab.kind === "editor" && (tab as EditorTab).preview;
   const rawLabel = labelFor(tab);
@@ -40,7 +41,7 @@ export function TabBarTabContent({
       title={rawLabel}
     >
       {agentState ? <AgentStateDot state={agentState} /> : null}
-      <TabIcon tab={tab} musicPlaying={musicPlaying} />
+      <TabIcon tab={tab} musicPlaying={musicPlaying} agentCommands={agentCommands} />
       {/* Preview tabs use italic to signal the transient state,
           matching the visual convention from VSCode. */}
       <span className={cn("truncate", isPreview && "italic")}>
@@ -56,10 +57,23 @@ export function TabBarTabContent({
   );
 }
 
-function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
+function TabIcon({
+  tab,
+  musicPlaying,
+  agentCommands,
+}: {
+  tab: Tab;
+  musicPlaying: boolean;
+  agentCommands: ReadonlyMap<number, string>;
+}) {
   if (tab.kind === "terminal") {
     const agent = leafIds(tab.paneTree)
-      .map((leafId) => detectCliAgent(findLeafLastCommand(tab.paneTree, leafId) ?? undefined))
+      .map((leafId) =>
+        detectTrackedCliAgent(
+          agentCommands.get(leafId),
+          findLeafLastCommand(tab.paneTree, leafId),
+        ),
+      )
       .find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
     if (agent) return <AgentCliIcon agent={agent} size="xxs" className="shrink-0" />;
   }
@@ -120,15 +134,12 @@ function TabIcon({ tab, musicPlaying }: { tab: Tab; musicPlaying: boolean }) {
   if (tab.kind === "architecture") {
     return (
       <HugeiconsIcon
-        icon={CanvasIcon}
+        icon={getWorkspaceModeIcon("canvas")}
         size={14}
         strokeWidth={2}
         className="shrink-0"
       />
     );
-  }
-  if (tab.kind === "agent-chat") {
-    return <HugeiconsIcon icon={AiChat01Icon} size={14} strokeWidth={2} className="shrink-0" />;
   }
   return (
     <HugeiconsIcon
@@ -147,7 +158,6 @@ function labelFor(t: Tab): string {
   if (t.kind === "git-diff") return t.title;
   if (t.kind === "git-history") return t.title;
   if (t.kind === "architecture") return t.title;
-  if (t.kind === "agent-chat") return t.title;
   if (t.kind === "git-commit-file") return t.title;
   if (t.kind === "terminal" && t.title !== "shell" && t.title !== "workspace") {
     return t.title;

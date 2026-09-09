@@ -1,6 +1,5 @@
 import { parseCanvasWorkspaceDiagram } from "@/modules/architecture";
 import type { ArchitectureDiagram } from "@/modules/tabs";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type {
   WorkspaceSelectionPane,
   WorkspaceSelectionPort,
@@ -282,79 +281,6 @@ export function restoreStandardWorkspace<
     });
 }
 
-export async function restoreAgentWorkspace<
-  TWorkspace extends WorkspaceSelectionRecord,
-  TTab extends WorkspaceSelectionTab,
->(
-  port: WorkspaceSelectionPort<TWorkspace, TTab>,
-  workspace: TWorkspace,
-  workspaceId: string,
-): Promise<void> {
-  if (workspace.tabId !== null) {
-    if (!selectionIsCurrent(port)) return;
-    port.activateTab(workspace.tabId);
-    return;
-  }
-  if (!workspace.agentProvider || !workspace.workingFolder) return;
-  if (!selectionIsCurrent(port)) return;
-  const count = Math.max(1, workspace.count);
-  const providers = workspace.agentProviders?.length
-    ? workspace.agentProviders
-    : Array.from({ length: count }, () => workspace.agentProvider).filter(
-      (provider): provider is CliAgent => Boolean(provider),
-      );
-  const usedNativeSessionIds = new Set<string>();
-  const chatIds = workspace.agentChatIds?.length
-    ? workspace.agentChatIds
-    : Array.from({ length: count }, (_, index) => `${workspace.id}:chat:${index + 1}`);
-  const usedChatIds = new Set<string>();
-  const restoredChats = Array.from({ length: count }, (_, index) => {
-    const chatId = chatIds[index] ?? `${workspace.id}:chat:${index + 1}`;
-    if (usedChatIds.has(chatId)) return null;
-    usedChatIds.add(chatId);
-    return {
-      index,
-      chatId,
-      provider: providers[index] ?? workspace.agentProvider!,
-      nativeSessionId: (() => {
-        const candidate =
-          workspace.agentSessionIds?.[index] ??
-          (index === 0 ? workspace.agentSessionId ?? null : null);
-        if (!candidate || usedNativeSessionIds.has(candidate)) return null;
-        usedNativeSessionIds.add(candidate);
-        return candidate;
-      })(),
-    };
-  }).filter((chat): chat is {
-    index: number;
-    chatId: string;
-    provider: CliAgent;
-    nativeSessionId: string | null;
-  } => chat !== null);
-  const tabIds = restoredChats.map((chat) =>
-    port.createAgentChatTab({
-      title: `${workspace.name} Agent${count > 1 ? ` · ${chat.index + 1}` : ""}`,
-      provider: chat.provider,
-      cwd: workspace.workingFolder!,
-      chatId: chat.chatId,
-      nativeSessionId: chat.nativeSessionId,
-    }),
-  );
-  const tabId = tabIds[0];
-  if (tabId !== undefined) {
-    port.replaceWorkspace(workspaceId, {
-      tabId,
-      agentTabIds: tabIds,
-      agentProviders: restoredChats.map((chat) => chat.provider),
-      agentSessionIds: restoredChats.map(
-        (chat) => workspace.agentSessionIds?.[chat.index] ?? null,
-      ),
-      agentChatIds: restoredChats.map((chat) => chat.chatId),
-    });
-  }
-  await new Promise<void>((resolve) => setTimeout(resolve, 0));
-}
-
 export async function selectWorkspace<
   TWorkspace extends WorkspaceSelectionRecord,
   TTab extends WorkspaceSelectionTab,
@@ -372,11 +298,6 @@ export async function selectWorkspace<
 
   if (workspace.workspaceMode === "canvas") {
     await restoreCanvasWorkspace(selectionPort, workspace, workspaceId);
-    return;
-  }
-
-  if (workspace.workspaceMode === "agent") {
-    await restoreAgentWorkspace(selectionPort, workspace, workspaceId);
     return;
   }
 

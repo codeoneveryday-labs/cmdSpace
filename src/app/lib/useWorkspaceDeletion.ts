@@ -54,7 +54,7 @@ export function useWorkspaceDeletion({
         if (fallback) void selectWorkspace(fallback.id);
       }
       const tabIds = new Set(
-        [workspace.tabId, workspace.canvasTabId, ...(workspace.agentTabIds ?? [])].filter(
+        [workspace.tabId, workspace.canvasTabId].filter(
           (tabId): tabId is number => tabId !== null,
         ),
       );

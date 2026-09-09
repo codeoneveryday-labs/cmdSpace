@@ -18,10 +18,6 @@ import {
 } from "./workspaceRecordModel";
 import { useWorkspaceRecordActions } from "./useWorkspaceRecordActions";
 import { createWorkspaceAction } from "./workspaceCreationAction";
-import {
-  appendAgentWorkspaceTerminal,
-  prepareAgentWorkspaceTerminal,
-} from "./workspaceAgentSessionModel";
 import { useWorkspaceHydration } from "./useWorkspaceHydration";
 import type {
   CreateWorkspaceInput,
@@ -149,36 +145,6 @@ export function useWorkspaceController({
       const workspace = workspaces.find((item) => item.id === input.workspaceId);
       if (!workspace) return false;
       const command = input.initialCommand;
-      if (workspace.workspaceMode === "agent") {
-        const tabs = input.tabsRef.current.filter(
-          (tab) =>
-            tab.kind === "agent-chat" &&
-            (tab.id === workspace.tabId || workspace.agentTabIds?.includes(tab.id)),
-        );
-        const plan = prepareAgentWorkspaceTerminal(workspace, command, tabs.length);
-        if (!plan) return false;
-        const tabId = input.newAgentChatTab({
-          title: plan.title,
-          provider: plan.provider,
-          cwd: plan.cwd,
-          nativeSessionId: null,
-          chatId: plan.chatId,
-        });
-        const updated = appendAgentWorkspaceTerminal(
-          workspace,
-          tabId,
-          plan.provider,
-          plan.chatId,
-          tabs.length + 1,
-        );
-        setWorkspaces((current) =>
-          current.map((item) => (item.id === workspace.id ? updated : item)),
-        );
-        input.saveRecentWorkspace(updated);
-        void invoke("db_save_workspace", { workspace: updated });
-        input.setActiveId(tabId);
-        return true;
-      }
       if (workspace.workspaceMode === "canvas") {
         const tabId = workspace.canvasTabId;
         if (tabId === null || tabId === undefined) return false;

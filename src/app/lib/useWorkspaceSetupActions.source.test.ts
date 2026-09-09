@@ -14,6 +14,5 @@ describe("useWorkspaceSetupActions contract", () => {
     expect(source).toContain("nextWorkspaceName");
     expect(source).toContain("closeSetup");
     expect(source).toContain("workspacesHydrated && workspacesLength === 0");
-    expect(source).toContain("setWorkspaceForkContext(null)");
   });
 });

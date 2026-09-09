@@ -1,6 +1,4 @@
 import { cn } from "@/lib/utils";
-import { AgentChatWorkspace } from "@/modules/ai/components/AgentChatWorkspace";
-import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import {
   ArchitectureStack,
   type CanvasTerminalHandle,
@@ -19,8 +17,6 @@ import type {
 import {
   TerminalStack,
 } from "@/modules/terminal";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
-import type { ProviderKeys } from "@/modules/ai/lib/keyring";
 import type { ComponentProps } from "react";
 
 type TerminalStackProps = ComponentProps<typeof TerminalStack>;
@@ -43,25 +39,8 @@ export type WorkspaceSurfaceProps = {
     tabId: number | null;
     canvasTabId?: number | null;
     workingFolder?: string | null;
-    agentTabIds?: number[];
   }>;
-  apiKeys: ProviderKeys;
   terminalProps: Omit<TerminalStackProps, "tabs" | "activeId" | "focusAccentColor">;
-  onAgentForkResponse: (
-    workspaceId: string,
-    provider: CliAgent,
-    cwd: string,
-    destination: string,
-    attachment: AgentChatHistoryAttachment,
-  ) => void;
-  onAgentNativeSessionId: (
-    workspaceId: string,
-    tabId: number,
-    chatId: string,
-    provider: CliAgent,
-    nativeSessionId: string,
-  ) => void;
-  onOpenFileDiff?: ComponentProps<typeof AgentChatWorkspace>["onOpenFileDiff"];
   onDiagramChange?: (tabId: number, diagram: ArchitectureDiagram) => void;
   onRegisterTerminalCreator?: (
     tabId: number,
@@ -95,11 +74,7 @@ export function WorkspaceSurface({
   canvasFocused,
   activeWorkspaceAccentColor,
   workspaces,
-  apiKeys,
   terminalProps,
-  onAgentForkResponse,
-  onAgentNativeSessionId,
-  onOpenFileDiff,
   onDiagramChange,
   onRegisterTerminalCreator,
   onTerminalHandleChange,
@@ -127,53 +102,6 @@ export function WorkspaceSurface({
           focusAccentColor={activeWorkspaceAccentColor}
         />
       </div>
-
-      {tabs.flatMap((tab) => {
-        if (tab.kind !== "agent-chat") return [];
-        const workspace = workspaces.find(
-          (item) => item.tabId === tab.id || item.agentTabIds?.includes(tab.id),
-        );
-        if (!workspace) return [];
-        const active = tab.id === activeId;
-        return [
-          <div
-            key={tab.id}
-            className={cn("absolute inset-0", !active && "invisible pointer-events-none")}
-            aria-hidden={!active}
-          >
-            <AgentChatWorkspace
-              workspaceId={workspace.id}
-              chatId={tab.chatId}
-              active={active}
-              provider={tab.provider}
-              cwd={tab.cwd}
-              nativeSessionId={tab.nativeSessionId}
-              apiKeys={apiKeys}
-              initialDraft={tab.initialDraft}
-              initialHistoryAttachments={tab.initialHistoryAttachments}
-              onForkResponse={(destination, response) =>
-                onAgentForkResponse(
-                  workspace.id,
-                  tab.provider,
-                  tab.cwd,
-                  destination,
-                  response,
-                )
-              }
-              onNativeSessionId={(nativeSessionId) =>
-                onAgentNativeSessionId(
-                  workspace.id,
-                  tab.id,
-                  tab.chatId,
-                  tab.provider,
-                  nativeSessionId,
-                )
-              }
-              onOpenFileDiff={onOpenFileDiff}
-            />
-          </div>,
-        ];
-      })}
 
       <div
         data-editor-file-drop-region

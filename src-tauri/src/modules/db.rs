@@ -111,11 +111,5 @@ pub fn db_save_workspace_setup_custom_command(
     save_workspace_setup_custom_command_inner(&conn, &command)
 }
 
-mod agent_chat;
-pub use agent_chat::{
-    __cmd__db_load_agent_chat_config, __cmd__db_load_agent_model_cache,
-    __cmd__db_save_agent_chat_config, __cmd__db_save_agent_model_cache, db_load_agent_chat_config,
-    db_load_agent_model_cache, db_save_agent_chat_config, db_save_agent_model_cache,
-};
 #[cfg(test)]
 mod tests;

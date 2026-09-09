@@ -30,6 +30,44 @@ pub use parsers::{
 };
 use std::path::{Path, PathBuf};
 
+/// Finds a resumable native agent session file by its session id, skipping
+/// checkpoint sidecar files. Relocated from the removed `agent_chat` module;
+/// used by the terminal agent-usage tracker to resolve exact sessions.
+pub(crate) fn find_resumable_session_file(
+    root: &Path,
+    session_id: &str,
+) -> Option<PathBuf> {
+    find_native_session_file(root, session_id)
+        .ok()
+        .flatten()
+        .filter(|path| std::fs::metadata(path).is_ok_and(|metadata| metadata.len() > 0))
+}
+
+fn find_native_session_file(
+    root: &Path,
+    session_id: &str,
+) -> Result<Option<PathBuf>, String> {
+    let entries = std::fs::read_dir(root).map_err(|error| error.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(found) = find_native_session_file(&path, session_id)? {
+                return Ok(Some(found));
+            }
+        } else if path.extension().and_then(|extension| extension.to_str()) == Some("jsonl") {
+            let file_name = path.file_name().and_then(|name| name.to_str());
+            if file_name.is_some_and(|name| name.ends_with(".checkpoints.jsonl")) {
+                continue;
+            }
+            if file_name.is_some_and(|name| name.contains(session_id)) {
+                return Ok(Some(path));
+            }
+        }
+    }
+    Ok(None)
+}
+
 const MAX_PROVIDER_LIMIT_TAIL_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_CODEX_SESSION_START_DRIFT_MS: u64 = 10 * 60 * 1_000;
 

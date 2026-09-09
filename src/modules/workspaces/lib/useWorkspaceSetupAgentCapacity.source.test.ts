@@ -12,7 +12,6 @@ describe("useWorkspaceSetupAgentCapacity contract", () => {
     expect(source).toContain("regularTerminalCount");
     expect(source).toContain("cliTerminalCapacity");
     expect(source).toContain("setAgentCount");
-    expect(source).toContain("setSelectedChatAgent");
     expect(source).not.toContain("invoke(");
   });
 });

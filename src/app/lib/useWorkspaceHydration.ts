@@ -1,5 +1,4 @@
 import { useEffect, type Dispatch, type SetStateAction } from "react";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import {
   normalizeWorkspaceAccentColor,
   type WorkspaceItem,
@@ -12,14 +11,9 @@ import { buildRecentWorkspaceItem } from "./workspaceRecordModel";
 
 export type PersistedWorkspaceRecord = Omit<
   WorkspaceRecord,
-  "accentColor" | "tabId" | "canvasTabId" | "agentProvider" | "agentSessionId" | "agentTabIds"
+  "accentColor" | "tabId" | "canvasTabId"
 > & {
   accentColor?: string | null;
-  agentProvider?: CliAgent | null;
-  agentSessionId?: string | null;
-  agentProviders?: CliAgent[] | null;
-  agentSessionIds?: Array<string | null> | null;
-  agentChatIds?: string[] | null;
 };
 
 type PersistedRecentWorkspaceRecord = WorkspaceItem & {
@@ -48,15 +42,7 @@ export function normalizeHydratedWorkspace(
     workspaceMode:
       workspace.workspaceMode === "canvas"
         ? "canvas"
-        : workspace.workspaceMode === "agent"
-          ? "agent"
-          : ("standard" as WorkspaceMode),
-    agentProvider: workspace.agentProvider ?? null,
-    agentSessionId: workspace.agentSessionId ?? null,
-    agentTabIds: [],
-    agentProviders: workspace.agentProviders ?? [],
-    agentSessionIds: workspace.agentSessionIds ?? [],
-    agentChatIds: workspace.agentChatIds ?? [],
+        : ("standard" as WorkspaceMode),
   };
 }
 

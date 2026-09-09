@@ -79,7 +79,7 @@ type Props = {
   onRequestCloseTerminalGroup: () => void;
   onHeaderPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onCwdChange: (cwd: string) => void;
-  onInitialCommandChange?: (command: string) => void;
+  onInitialCommandChange?: (command?: string) => void;
   onHandleChange?: (handle: CanvasTerminalHandle | null) => void;
   cornerClassName: string;
   resizePaused: boolean;
@@ -184,6 +184,14 @@ export function CanvasTerminalNode({
     setDetectedAgent(nextAgent);
     onInitialCommandChange?.(command);
     return nextAgent;
+  };
+  const changeAgentCommand = (command?: string) => {
+    setDetectedAgent(command ? detectCliAgent(command) : null);
+    interactiveCodingAgentRef.current = isInteractiveCodingAgentCommand(command);
+    agentOutputTailRef.current = "";
+    setAgentResponseState("idle");
+    onInitialCommandChange?.(command);
+    setLaunchCommand(command);
   };
   const trackPromptInput = (data: string) => {
     lastLocalInputAtRef.current = Date.now();
@@ -599,10 +607,7 @@ export function CanvasTerminalNode({
         onActivateTab={onActivateTab}
         onTabPointerDown={onTabPointerDown}
         onRequestCloseTab={onRequestCloseTab}
-        onAgentCommandChange={(command) => {
-          rememberDetectedAgentCommand(command);
-          setLaunchCommand(command);
-        }}
+        onAgentCommandChange={changeAgentCommand}
         onAddTab={onAddTab}
         onSplitRight={onSplitRight}
         singleTerminalGroup={singleTerminalGroup}

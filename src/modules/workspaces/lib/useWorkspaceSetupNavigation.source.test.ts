@@ -11,7 +11,6 @@ describe("useWorkspaceSetupNavigation contract", () => {
     expect(source).toContain("useWorkspaceSetupNavigation");
     expect(source).toContain('setupStep === "agents"');
     expect(source).toContain("plannedAgentCommands");
-    expect(source).toContain("selectedChatAgent");
     expect(source).toContain("openWorkspace");
     expect(source).toContain("plannedAgentCommands.length > 0");
     expect(source).toContain("openWorkspace()");

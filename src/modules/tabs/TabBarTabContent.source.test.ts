@@ -11,6 +11,10 @@ describe("TabBarTabContent contract", () => {
     expect(source).toContain("export function TabBarTabContent");
     expect(source).toContain("AgentStateDot");
     expect(source).toContain("AgentCliIcon");
+    expect(source).toContain("agentCommands");
+    expect(source).toContain("detectTrackedCliAgent");
+    expect(source).toContain("getWorkspaceModeIcon");
+    expect(source).toContain('getWorkspaceModeIcon("canvas")');
     expect(source).toContain("Unsaved changes");
     expect(source).toContain("cmdspace-music-tab-icon");
   });

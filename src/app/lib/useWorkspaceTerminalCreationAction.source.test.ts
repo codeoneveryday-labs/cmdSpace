@@ -12,7 +12,6 @@ describe("useWorkspaceTerminalCreationAction contract", () => {
     expect(source).toContain("createWorkspaceTerminal({");
     expect(source).toContain("canvasTerminalCreators");
     expect(source).toContain("appendTerminalPane");
-    expect(source).toContain("newAgentChatTab");
     expect(source).toContain("persistPaneRecord");
     expect(source).toContain("scheduleWorkspacePaneSessionSync");
     expect(source).toContain("window.alert(message)");

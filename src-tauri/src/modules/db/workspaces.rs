@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, String> {
     let mut stmt = conn
-        .prepare("SELECT id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode, agent_provider, agent_session_id, agent_providers, agent_session_ids, agent_chat_ids FROM workspaces ORDER BY display_order ASC, created_at ASC")
+        .prepare("SELECT id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode FROM workspaces ORDER BY display_order ASC, created_at ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -19,17 +19,6 @@ pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, Str
                 display_order: row.get(7)?,
                 pane_layout: row.get(8)?,
                 workspace_mode: row.get(9)?,
-                agent_provider: row.get(10)?,
-                agent_session_id: row.get(11)?,
-                agent_providers: row
-                    .get::<_, Option<String>>(12)?
-                    .and_then(|value| serde_json::from_str(&value).ok()),
-                agent_session_ids: row
-                    .get::<_, Option<String>>(13)?
-                    .and_then(|value| serde_json::from_str(&value).ok()),
-                agent_chat_ids: row
-                    .get::<_, Option<String>>(14)?
-                    .and_then(|value| serde_json::from_str(&value).ok()),
             })
         })
         .map_err(|e| e.to_string())?;
@@ -44,8 +33,8 @@ pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, Str
 
 pub fn save_workspace_inner(conn: &Connection, workspace: &WorkspaceRow) -> Result<(), String> {
     conn.execute(
-        "INSERT OR REPLACE INTO workspaces (id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode, agent_provider, agent_session_id, agent_providers, agent_session_ids, agent_chat_ids)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        "INSERT OR REPLACE INTO workspaces (id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             workspace.id,
             workspace.name,
@@ -57,11 +46,6 @@ pub fn save_workspace_inner(conn: &Connection, workspace: &WorkspaceRow) -> Resu
             workspace.display_order,
             workspace.pane_layout,
             workspace.workspace_mode,
-            workspace.agent_provider,
-            workspace.agent_session_id,
-            workspace.agent_providers.as_ref().and_then(|value| serde_json::to_string(value).ok()),
-            workspace.agent_session_ids.as_ref().and_then(|value| serde_json::to_string(value).ok()),
-            workspace.agent_chat_ids.as_ref().and_then(|value| serde_json::to_string(value).ok())
         ],
     )
     .map_err(|e| format!("Failed to save workspace: {e}"))?;

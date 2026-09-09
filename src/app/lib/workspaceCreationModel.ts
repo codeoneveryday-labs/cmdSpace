@@ -1,5 +1,4 @@
 import type { ArchitectureDiagram } from "@/modules/tabs";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import {
   DEFAULT_WORKSPACE_ACCENT_COLOR,
   WORKSPACE_ACCENT_COLORS,
@@ -15,8 +14,6 @@ export function resolveWorkspaceCreationPlan({
   initialCommands = [],
   requestedName,
   workspaceMode = "standard",
-  workspaceAgent,
-  workspaceAgents,
   workspaces,
   nextWorkspaceName: resolveNextWorkspaceName = nextWorkspaceName,
 }: {
@@ -26,8 +23,6 @@ export function resolveWorkspaceCreationPlan({
   initialCommands?: string[];
   requestedName?: string;
   workspaceMode?: WorkspaceMode;
-  workspaceAgent?: CliAgent | null;
-  workspaceAgents?: CliAgent[];
   workspaces: WorkspaceRecord[];
   nextWorkspaceName?: (workspaces: WorkspaceRecord[]) => string | null;
 }) {
@@ -44,15 +39,6 @@ export function resolveWorkspaceCreationPlan({
           autoLaunch: Boolean(initialCommands[paneIndex]),
         }))
       : undefined;
-  const agentProviders =
-    workspaceMode === "agent"
-      ? (workspaceAgents?.length
-          ? workspaceAgents
-          : workspaceAgent
-            ? [workspaceAgent]
-            : []
-        ).slice(0, 12)
-      : [];
 
   return {
     fallbackName,
@@ -61,7 +47,6 @@ export function resolveWorkspaceCreationPlan({
     initialCommands,
     effectiveWorkingFolder,
     paneLaunchPlan,
-    agentProviders,
     canvasDiagram:
       workspaceMode === "canvas"
         ? buildCanvasWorkspaceDiagram(

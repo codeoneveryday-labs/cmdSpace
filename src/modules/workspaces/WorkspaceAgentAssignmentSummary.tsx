@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Cancel01Icon,
-  ComputerTerminal02Icon,
   Download01Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
@@ -17,7 +16,6 @@ export function WorkspaceAgentAssignmentSummary({
   remainingAgentSlots,
   isolateAgentWorktrees,
   setIsolateAgentWorktrees,
-  regularTerminals,
   selectedImportSessions,
   setSelectedImportSessions,
   setImportSessionPickerOpen,
@@ -27,7 +25,6 @@ export function WorkspaceAgentAssignmentSummary({
   remainingAgentSlots: number;
   isolateAgentWorktrees: boolean;
   setIsolateAgentWorktrees: Dispatch<SetStateAction<boolean>>;
-  regularTerminals: number;
   selectedImportSessions: ImportableAgentSession[];
   setSelectedImportSessions: Dispatch<SetStateAction<ImportableAgentSession[]>>;
   setImportSessionPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -80,24 +77,6 @@ export function WorkspaceAgentAssignmentSummary({
           </span>
         </span>
       </button>
-
-      <div
-        className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/35 px-3 py-2.5"
-        aria-label={`${regularTerminals} regular terminals`}
-      >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground/[0.06] text-muted-foreground">
-          <HugeiconsIcon icon={ComputerTerminal02Icon} size={16} strokeWidth={2} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-foreground">Regular terminals</div>
-          <div className="text-[11px] text-muted-foreground">
-            Unassigned slots open as normal shell terminals
-          </div>
-        </div>
-        <span className="min-w-8 text-center text-sm font-semibold tabular-nums text-foreground">
-          {regularTerminals}
-        </span>
-      </div>
 
       <div className="space-y-2 rounded-lg border border-dashed border-primary/35 bg-primary/[0.035] p-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

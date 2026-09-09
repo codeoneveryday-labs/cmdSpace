@@ -20,8 +20,7 @@ export function useAppActiveContext({
       workspaces.find(
         (workspace) =>
           workspace.tabId === activeId ||
-          workspace.canvasTabId === activeId ||
-          workspace.agentTabIds?.includes(activeId),
+          workspace.canvasTabId === activeId,
       ),
     [activeId, workspaces],
   );

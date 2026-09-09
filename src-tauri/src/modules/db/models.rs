@@ -20,16 +20,6 @@ pub struct WorkspaceRow {
     pub pane_layout: Option<String>,
     #[serde(rename = "workspaceMode")]
     pub workspace_mode: Option<String>,
-    #[serde(rename = "agentProvider")]
-    pub agent_provider: Option<String>,
-    #[serde(rename = "agentSessionId")]
-    pub agent_session_id: Option<String>,
-    #[serde(rename = "agentProviders", default)]
-    pub agent_providers: Option<Vec<String>>,
-    #[serde(rename = "agentSessionIds", default)]
-    pub agent_session_ids: Option<Vec<Option<String>>>,
-    #[serde(rename = "agentChatIds", default)]
-    pub agent_chat_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -59,36 +49,6 @@ pub struct RecentWorkspaceRow {
     pub working_folder: String,
     #[serde(rename = "updatedAt")]
     pub updated_at: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AgentChatConfigRow {
-    #[serde(rename = "chatId")]
-    pub chat_id: String,
-    pub provider: String,
-    pub model: Option<String>,
-    pub effort: Option<String>,
-    #[serde(rename = "permissionMode")]
-    pub permission_mode: Option<String>,
-    #[serde(rename = "fastMode")]
-    pub fast_mode: bool,
-    #[serde(rename = "planMode")]
-    pub plan_mode: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AgentModelCacheRow {
-    pub provider: String,
-    pub models: Vec<AgentModelCacheEntry>,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct AgentModelCacheEntry {
-    pub id: String,
-    pub label: String,
-    pub description: Option<String>,
 }
 
 /// A workspace created from a paired native device. It deliberately has no

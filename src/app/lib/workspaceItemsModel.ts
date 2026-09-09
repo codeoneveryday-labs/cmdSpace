@@ -28,7 +28,6 @@ type Input = {
   activeCanvasTerminalIds: ReadonlyMap<number, string>;
   closePaneByLeaf: (leafId: number) => void;
   closeCanvasTerminal: (tabId: number, nodeId: string) => void;
-  closeAgentTab: (tabId: number) => void;
 };
 
 function terminalState(
@@ -159,23 +158,6 @@ function terminalsForCanvas(
   );
 }
 
-function terminalsForAgentTabs(
-  agentTabs: Extract<Tab, { kind: "agent-chat" }>[],
-  input: Input,
-): WorkspaceTerminalItem[] {
-  return agentTabs.map((agentTab, index) => ({
-    leafId: -(index + 1),
-    cwd: agentTab.cwd,
-    tabId: agentTab.id,
-    label: agentTab.title,
-    onClose: () => input.closeAgentTab(agentTab.id),
-    agent: agentTab.provider,
-    active: agentTab.id === input.activeId,
-    responding: false,
-    completed: false,
-  }));
-}
-
 function terminalsForPersistedPanes(
   workspace: WorkspaceRecord,
   persistedPanes: WorkspaceSelectionPane[],
@@ -203,7 +185,7 @@ export function buildWorkspaceItems(input: Input): WorkspaceItem[] {
     const liveWorkingFolder = workspace.workingFolder
       ?? (workspaceTab?.kind === "terminal"
         ? findLeafCwd(workspaceTab.paneTree, workspaceTab.activeLeafId) ?? workspaceTab.cwd ?? null
-        : workspaceTab?.kind === "agent-chat" ? workspaceTab.cwd : null);
+        : null);
 
     if (workspace.id === input.activeWorkspaceId && input.activeWorkspaceTerminals.length > 0) {
       const terminals = input.activeWorkspaceTerminals;
@@ -223,19 +205,6 @@ export function buildWorkspaceItems(input: Input): WorkspaceItem[] {
     if (workspace.workspaceMode === "canvas" && canvasTab?.kind === "architecture") {
       const terminals = terminalsForCanvas(workspace, canvasTab, input);
       return { ...workspace, workingFolder: liveWorkingFolder, count: terminals.length, terminals };
-    }
-
-    const agentTabs = input.tabs.filter(
-      (tab): tab is Extract<Tab, { kind: "agent-chat" }> =>
-        tab.kind === "agent-chat" &&
-        (tab.id === workspace.tabId || workspace.agentTabIds?.includes(tab.id) === true),
-    );
-    if (workspace.workspaceMode === "agent" && agentTabs.length > 0) {
-      const terminals = terminalsForAgentTabs(agentTabs, input);
-      return { ...workspace, workingFolder: liveWorkingFolder, count: terminals.length, terminals };
-    }
-    if (workspace.workspaceMode === "agent") {
-      return { ...workspace, workingFolder: liveWorkingFolder, count: agentTabs.length, terminals: [] };
     }
 
     if (!workspaceTab || workspaceTab.kind !== "terminal") {
