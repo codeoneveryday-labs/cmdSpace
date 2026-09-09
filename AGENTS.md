@@ -49,6 +49,132 @@ before staging and committing.
   — mandatory pattern contract. Before coding, identify the applicable pattern
   seam and preserve its invariants; report affected patterns and verification.
 
+## Development Commands
+
+### Frontend (pnpm)
+- `pnpm dev` — start Vite dev server on port 1420 (frontend only)
+- `pnpm tauri dev` — full app dev (Tauri + Vite)
+- `pnpm build` — type-check (`tsc`) then Vite build
+- `pnpm exec tsc --noEmit` — type-check only
+- `pnpm test` — run Vitest once (excludes `services/**`) + relay service tests
+- `pnpm test:watch` — Vitest in watch mode
+- `pnpm vitest run src/path/to/file.test.ts` — run a single test file
+- `pnpm vitest run -t "test name pattern"` — run tests matching a name pattern
+- `pnpm quality:warn` — quality gates (warn-only)
+- `pnpm skills:check` — validate project skills
+
+### Rust (src-tauri/)
+- `cd src-tauri && cargo check --all-targets --locked` — compile check
+- `cd src-tauri && cargo clippy --all-targets --locked -- -D warnings` — lint
+- `cd src-tauri && cargo test` — run Rust tests (inline `#[cfg(test)]` + `*_test.rs`)
+
+### Relay Service (services/cmdspace-relay/)
+- `pnpm --dir services/cmdspace-relay test` — run relay service tests
+
+### Full verification (as CI runs)
+- `pnpm exec tsc --noEmit && pnpm test && pnpm build`
+- `cd src-tauri && cargo check --all-targets --locked && cargo clippy --all-targets --locked -- -D warnings`
+
+## High-Level Architecture
+
+**cmdSpace** — an AI-native terminal workspace desktop app. Tauri 2 (Rust backend)
++ React 19 / Vite 7 / TypeScript (frontend). Package name: `cmdspace`. Bundle id:
+`app.tranhoangpich.cmdspace`. Package manager: **pnpm**.
+
+### Two-process rule (the fundamental contract)
+
+The webview (React) never touches the filesystem, processes, or shells directly.
+All privileged operations go through `invoke()` to Rust commands registered in
+`src-tauri/src/lib.rs`. Never build a parallel IPC path.
+
+Three existing IPC entry points on the frontend:
+- `src/modules/ai/lib/native.ts` — the de-facto client: `fs_*`, `shell_*`,
+  `git_*`, `workspace_*` commands
+- `src/modules/terminal/lib/pty-bridge.ts` — PTY lifecycle: `pty_open/write/
+  resize/close`, streams raw bytes via `Channel<ArrayBuffer>`
+- Ad-hoc `invoke()` calls elsewhere: `db_*`, `secrets_*`, `remote_access_*`,
+  `speech_*`, `net_*`
+
+### Frontend (`src/`)
+
+Path alias: `@/*` → `src/*`. Four Vite HTML entries (main, settings, remote,
+tray). `src/app/App.tsx` is the coordinator — it owns workspace/tab/pane state
+and threads it down via props. Feature modules live in `src/modules/<name>/`,
+each self-contained with a barrel `index.ts` and hooks under `lib/`.
+
+Key modules: `terminal/` (xterm + PTY bridge + renderer pool), `architecture/`
+(infinite-canvas terminal nodes), `ai/` (chat store, agent, tools, voice),
+`editor/` (CodeMirror 6), `explorer/` (file tree), `tabs/` (tab state machine),
+`git/` + `source-control/`, `settings/` (LazyStore prefs).
+
+State: Zustand 5 for prefs/chat/env; `useState` in App.tsx for tabs/workspaces.
+Tabs are tagged-union (`terminal` | `editor` | `ai-diff`) and hidden on switch
+(not unmounted) so PTYs and dev servers keep running.
+
+### Backend (`src-tauri/src/`)
+
+~100 Tauri commands registered via the `cmdspace_commands!` macro in
+`src-tauri/src/commands.rs` (invoked from `lib.rs::run()`). Modules under
+`src/modules/`: `pty/` (interactive shells via portable-pty), `shell/`
+(one-shot + session + background), `fs/` (tree, file, search, grep), `git/`,
+`agent_chat/` (structured CLI agent sessions), `secrets.rs` (OS keychain),
+`speech.rs` (voice), `remote.rs` (WebSocket tunnel + auth), `net.rs` (AI HTTP
+proxy with SSRF guard), `db.rs` (SQLite workspaces/panes), `workspace.rs`,
+`agent_usage.rs`, `music.rs`, `sleep.rs` (sleep inhibition), `app_exit.rs`
+(coordinated shutdown), `commands.rs` (grouped command macro).
+
+PTY shell integration: injected init scripts emit OSC 7 (cwd) + OSC 133 (prompt
+boundaries). Windows uses ConPTY with a Job Object for process-tree cleanup.
+
+### Canvas terminals vs standard terminals
+
+Standard terminals (`src/modules/terminal/`) use a shared renderer pool (12 xterm
+instances). Canvas terminals (`src/modules/architecture/CanvasTerminalNode.tsx`)
+own private xterm + PTY instances — do not route them through TerminalPane or the
+shared renderer pool.
+
+### Persistence
+
+Workspaces + pane launch plans → SQLite (Rust). Preferences → Tauri LazyStore.
+AI sessions → LazyStore. API keys → OS keychain. Live terminal sessions →
+in-memory only (die with the app). Tabs are NOT persisted across restarts.
+
+### Cross-platform gotchas
+
+- Path normalization: use `.split(/[\\/]/)`, never `.split("/")`. Canonical form
+  on the frontend is forward-slash.
+- Terminal Enter: send `\r` (CR), not `\n` (LF) — PowerShell requires CR.
+- macOS IME: normalize C1/NBSP space corruption at the PTY boundary
+  (`normalizeMacTerminalInput` in `macImeBridge.ts`), not elsewhere.
+- Windows ConPTY: requires `SPAWN_LOCK` mutex + per-session Job Object.
+- Use `dirs` crate for HOME/cache, never raw `$HOME`/`%USERPROFILE%`.
+
+### Non-obvious gotchas
+
+- **React 19 strict mode** double-spawns PTYs in dev — expected, not a bug.
+  `SPAWN_LOCK` mutex serializes it.
+- **OSC 7 cwd tracking**: ignore cwd updates while `inCommand` is true
+  (command output is untrusted).
+- **Terminal input debugging**: log with hex dumps at the PTY boundary —
+  `JSON.stringify` collapses C1/NBSP into plain spaces and will mislead you.
+- **Parallel cargo test temp dirs**: use `mailbox::temp_test_dir()` helper
+  (pid + atomic sequence) — nanos alone collide across threads on coarse
+  clocks.
+
+### Conventions
+
+- **Path imports**: always `@/…` (aliased to `src/`), never relative paths
+  across modules.
+- **Tailwind v4**: config lives in CSS via `@theme` (no `tailwind.config.*`).
+  Use `cn()` from `@/lib/utils`.
+- **shadcn/ui components** in `src/components/ui/` — regenerate via
+  `pnpm dlx shadcn add`, don't hand-edit.
+- **New Rust commands**: add to the `cmdspace_commands!` macro in
+  `src-tauri/src/commands.rs` + add capability in
+  `src-tauri/capabilities/default.json`.
+- **Platform-specific Rust**: gate behind `#[cfg(unix)]` / `#[cfg(windows)]`
+  — see `pty/shell_init.rs`.
+
 ## cmdSpace Project Guidance
 
 ### Design pattern contract
