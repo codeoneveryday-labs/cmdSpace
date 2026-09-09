@@ -53,4 +53,9 @@ describe("TerminalAgentSwitcher debouncing and controlled menu", () => {
     expect(switcherSource).toContain("requestAnimationFrame");
     expect(overlaySource).toContain("onFocusTerminal={onFocusTerminal}");
   });
+
+  it("does not restore focus to the logo trigger when the menu closes", () => {
+    expect(switcherSource).toContain("onCloseAutoFocus={(event) => {");
+    expect(switcherSource).toContain("event.preventDefault();");
+  });
 });

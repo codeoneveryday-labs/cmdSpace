@@ -39,7 +39,16 @@ export function createMacTextInputDeduplicator(
   writeToPty: (data: string) => void,
 ) {
   let pendingXtermData: string | null = null;
-  let recentBridgeData: string | null = null;
+  const pendingBridgeData: Array<{ data: string; expiresAt: number }> = [];
+  const DEDUPE_WINDOW_MS = 250;
+  const MAX_PENDING_BRIDGE_DATA = 64;
+
+  const prunePendingBridgeData = () => {
+    const now = Date.now();
+    while (pendingBridgeData[0]?.expiresAt <= now) {
+      pendingBridgeData.shift();
+    }
+  };
 
   return {
     writeXtermData(data: string) {
@@ -47,7 +56,14 @@ export function createMacTextInputDeduplicator(
         writeToPty(data);
         return;
       }
-      if (recentBridgeData === data) return;
+      prunePendingBridgeData();
+      const duplicateIndex = pendingBridgeData.findIndex(
+        (entry) => entry.data === data,
+      );
+      if (duplicateIndex >= 0) {
+        pendingBridgeData.splice(duplicateIndex, 1);
+        return;
+      }
       pendingXtermData = data;
       queueMicrotask(() => {
         if (pendingXtermData !== data) return;
@@ -57,11 +73,20 @@ export function createMacTextInputDeduplicator(
     },
     writeBridgeData(data: string) {
       if (!data) return;
+      prunePendingBridgeData();
+      if (isPrintableTerminalData(data)) {
+        pendingBridgeData.push({
+          data,
+          expiresAt: Date.now() + DEDUPE_WINDOW_MS,
+        });
+        if (pendingBridgeData.length > MAX_PENDING_BRIDGE_DATA) {
+          pendingBridgeData.splice(
+            0,
+            pendingBridgeData.length - MAX_PENDING_BRIDGE_DATA,
+          );
+        }
+      }
       if (pendingXtermData === data) pendingXtermData = null;
-      recentBridgeData = data;
-      queueMicrotask(() => {
-        if (recentBridgeData === data) recentBridgeData = null;
-      });
       writeToPty(data);
     },
   };
@@ -70,13 +95,37 @@ export function createMacTextInputDeduplicator(
 export function attachMacImeBridge(
   terminal: Terminal,
   writeToPty: (data: string) => void,
-): void {
-  if (!IS_MAC_TEXT_INPUT_PLATFORM || !terminal.textarea) return;
+): (() => void) | undefined {
+  if (!IS_MAC_TEXT_INPUT_PLATFORM || !terminal.textarea) return undefined;
 
   const textarea = terminal.textarea;
   let lastValue = textarea.value;
   let composing = false;
   let compositionStartValue = textarea.value;
+
+  const resetCompositionState = () => {
+    composing = false;
+    compositionStartValue = textarea.value;
+    lastValue = textarea.value;
+  };
+
+  const cancelCompositionOnBlur = () => {
+    if (!composing) return;
+
+    // xterm clears the helper textarea during blur, but its CompositionHelper
+    // does not receive a matching compositionend in every WebKit path. Clear
+    // any marked text and send a synthetic end so xterm drops its composing
+    // state before the next refocus.
+    textarea.value = "";
+    resetCompositionState();
+    textarea.dispatchEvent(new Event("compositionend", { bubbles: true }));
+  };
+
+  const ownerWindow = textarea.ownerDocument?.defaultView;
+  ownerWindow?.addEventListener("blur", cancelCompositionOnBlur);
+  const removeWindowBlurListener = () => {
+    ownerWindow?.removeEventListener("blur", cancelCompositionOnBlur);
+  };
 
   const writeDiff = (fromValue: string) => {
     const from = normalizeMacTerminalInput(fromValue);
@@ -95,24 +144,24 @@ export function attachMacImeBridge(
     lastValue = textarea.value;
   };
 
-  textarea.addEventListener("compositionstart", (event) => {
-    event.stopImmediatePropagation();
+  // xterm's CompositionHelper owns the visible preedit. These listeners only
+  // mirror lifecycle state for the fallback writer and intentionally do not
+  // stop propagation, so compositionupdate can repaint immediately.
+  textarea.addEventListener("compositionstart", () => {
     composing = true;
     compositionStartValue = textarea.value;
   }, true);
-  textarea.addEventListener("compositionupdate", (event) => {
-    event.stopImmediatePropagation();
-  }, true);
   textarea.addEventListener("compositionend", (event) => {
-    event.stopImmediatePropagation();
+    // Synthetic compositionend events are only used to cancel a composition
+    // that was interrupted by blur; never turn the marked text into PTY input.
+    if (event.isTrusted === false) {
+      resetCompositionState();
+      return;
+    }
     composing = false;
     writeDiff(compositionStartValue);
   }, true);
-  for (const eventName of ["beforeinput", "textInput", "textinput"] as const) {
-    textarea.addEventListener(eventName, (event) => event.stopImmediatePropagation(), true);
-  }
   textarea.addEventListener("input", (event) => {
-    event.stopImmediatePropagation();
     const input = event as InputEvent;
     if (composing || input.inputType === "insertFromPaste") {
       lastValue = textarea.value;
@@ -131,6 +180,8 @@ export function attachMacImeBridge(
   textarea.addEventListener("focus", () => {
     lastValue = textarea.value;
   });
+  textarea.addEventListener("blur", cancelCompositionOnBlur);
+  return removeWindowBlurListener;
 }
 
 function isPrintableTerminalData(data: string): boolean {

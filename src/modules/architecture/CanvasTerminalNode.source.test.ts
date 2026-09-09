@@ -61,6 +61,8 @@ describe("CanvasTerminalNode", () => {
     expect(source).toContain("sharedTerminalOptions");
     expect(source).toContain("terminalRef.current?.focus()");
     expect(source).toContain("attachMacImeBridge");
+    expect(source).toContain("disposeMacImeBridge = attachMacImeBridge(");
+    expect(source).toContain("disposeMacImeBridge?.();");
     expect(source).toContain("createMacTextInputDeduplicator");
     expect(source).toContain("shouldUseMacTextInputPath");
     expect(source).toContain("shouldIgnoreMacPrintableTerminalData");

@@ -35,6 +35,13 @@ keydown (printable, no modifiers)
   → backspaces (DEL) + appended text → writeToPty
 ```
 
+If the textarea or its host window loses focus while an IME composition is
+still marked, WebKit may omit `compositionend`. The bridge clears the
+interrupted marked text on blur and dispatches a synthetic `compositionend` so
+xterm's internal `CompositionHelper` resets before the next focus. Synthetic
+cancellation never writes the unfinished composition to the PTY; trusted
+composition commits keep the normal `writeDiff` path.
+
 ## The diff algorithm (`writeDiff`)
 
 ```ts

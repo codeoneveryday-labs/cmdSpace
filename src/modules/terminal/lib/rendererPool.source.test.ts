@@ -101,7 +101,7 @@ describe("rendererPool WebGL stability", () => {
     expect(source).toContain("createMacTextInputDeduplicator");
     expect(source).toContain("shouldUseMacTextInputPath");
     expect(source).toContain("shouldIgnoreMacPrintableTerminalData");
-    expect(imeSource).toContain("stopImmediatePropagation");
+    expect(imeSource).not.toContain("stopImmediatePropagation");
     expect(imeSource).toContain("IS_MAC_TEXT_INPUT_PLATFORM");
     expect(source).toContain("macTextInput.writeXtermData(normalized);");
   });

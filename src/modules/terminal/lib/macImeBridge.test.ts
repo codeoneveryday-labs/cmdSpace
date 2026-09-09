@@ -52,13 +52,40 @@ describe("normalizeMacTerminalInput", () => {
 
 type FakeTextarea = {
   value: string;
+  addEventListener: (name: string, cb: (event: unknown) => void) => void;
   fire: (name: string, event: Record<string, unknown>) => void;
+  dispatchEvent: (event: { type: string; isTrusted?: boolean }) => boolean;
 };
 
-function createFakeTextarea() {
+type FakeWindow = {
+  addEventListener: (name: string, cb: () => void) => void;
+  removeEventListener: (name: string, cb: () => void) => void;
+  fire: (name: string) => void;
+};
+
+function createFakeWindow(): FakeWindow {
+  const listeners = new Map<string, Array<() => void>>();
+  return {
+    addEventListener: (name, cb) => {
+      const arr = listeners.get(name) ?? [];
+      arr.push(cb);
+      listeners.set(name, arr);
+    },
+    removeEventListener: (name, cb) => {
+      const arr = listeners.get(name) ?? [];
+      listeners.set(name, arr.filter((listener) => listener !== cb));
+    },
+    fire: (name) => {
+      for (const cb of listeners.get(name) ?? []) cb();
+    },
+  };
+}
+
+function createFakeTextarea(ownerWindow?: FakeWindow) {
   const listeners = new Map<string, Array<(e: unknown) => void>>();
   const textarea = {
     value: "",
+    ownerDocument: ownerWindow ? { defaultView: ownerWindow } : undefined,
     addEventListener: (name: string, cb: (e: unknown) => void) => {
       const arr = listeners.get(name) ?? [];
       arr.push(cb);
@@ -68,6 +95,10 @@ function createFakeTextarea() {
       for (const cb of listeners.get(name) ?? []) {
         cb({ stopImmediatePropagation: () => undefined, ...event });
       }
+    },
+    dispatchEvent: (event: { type: string; isTrusted?: boolean }) => {
+      for (const cb of listeners.get(event.type) ?? []) cb(event);
+      return true;
     },
   };
   return textarea as FakeTextarea & { value: string };
@@ -105,5 +136,81 @@ describe("attachMacImeBridge focus resync", () => {
     textarea.fire("input", { inputType: "insertText" });
 
     expect(writes).toEqual(["g", "i", "t", "!"]);
+  });
+
+  it("cancels a lost composition on blur so refocus can resume Telex input", async () => {
+    vi.stubGlobal("navigator", { userAgent: "Macintosh" });
+    const { attachMacImeBridge } = await import("./macImeBridge");
+
+    const writes: string[] = [];
+    const textarea = createFakeTextarea();
+    let xtermSawSyntheticEnd = false;
+    textarea.addEventListener("compositionend", (event) => {
+      if ((event as { isTrusted?: boolean }).isTrusted === false) {
+        xtermSawSyntheticEnd = true;
+      }
+    });
+    attachMacImeBridge(
+      { textarea } as unknown as Parameters<typeof attachMacImeBridge>[0],
+      (data) => writes.push(data),
+    );
+
+    textarea.value = "t";
+    textarea.fire("compositionstart", { isTrusted: true });
+    textarea.value = "te";
+    textarea.fire("input", {
+      inputType: "insertCompositionText",
+      isTrusted: true,
+    });
+
+    // xterm clears its textarea during blur, but WebKit can omit compositionend.
+    textarea.value = "";
+    textarea.fire("blur", {});
+    textarea.fire("focus", {});
+    textarea.value = "t";
+    textarea.fire("input", { inputType: "insertText", isTrusted: true });
+
+    expect(xtermSawSyntheticEnd).toBe(true);
+    expect(writes).toEqual(["t"]);
+  });
+
+  it("forwards a trusted composition commit unchanged", async () => {
+    vi.stubGlobal("navigator", { userAgent: "Macintosh" });
+    const { attachMacImeBridge } = await import("./macImeBridge");
+
+    const writes: string[] = [];
+    const textarea = createFakeTextarea();
+    attachMacImeBridge(
+      { textarea } as unknown as Parameters<typeof attachMacImeBridge>[0],
+      (data) => writes.push(data),
+    );
+
+    textarea.fire("compositionstart", { isTrusted: true });
+    textarea.value = "tiếng";
+    textarea.fire("compositionend", { isTrusted: true });
+
+    expect(writes).toEqual(["tiếng"]);
+  });
+
+  it("cancels a composition when the host window blurs before the textarea does", async () => {
+    vi.stubGlobal("navigator", { userAgent: "Macintosh" });
+    const { attachMacImeBridge } = await import("./macImeBridge");
+
+    const writes: string[] = [];
+    const ownerWindow = createFakeWindow();
+    const textarea = createFakeTextarea(ownerWindow);
+    attachMacImeBridge(
+      { textarea } as unknown as Parameters<typeof attachMacImeBridge>[0],
+      (data) => writes.push(data),
+    );
+
+    textarea.value = "te";
+    textarea.fire("compositionstart", { isTrusted: true });
+    ownerWindow.fire("blur");
+    textarea.fire("focus", {});
+    textarea.value = "t";
+    textarea.fire("input", { inputType: "insertText", isTrusted: true });
+
+    expect(writes).toEqual(["t"]);
   });
 });

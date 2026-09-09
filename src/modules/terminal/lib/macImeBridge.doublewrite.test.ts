@@ -7,10 +7,9 @@ import {
 } from "./macImeBridge";
 
 /**
- * Regression test for duplicate Telex batches and trailing spaces. xterm's
- * native CompositionHelper already owns its textarea, composition events, and
- * onData emission. Installing a second textarea writer recreates two PTY input
- * sources and makes event-order deduplication inherently timing-dependent.
+ * Regression tests for duplicate Telex batches and deferred xterm commits. The
+ * bridge remains a commit fallback, while xterm's native CompositionHelper
+ * must keep ownership of composition rendering.
  */
 
 describe("macOS IME bridge", () => {
@@ -25,13 +24,27 @@ describe("macOS IME bridge", () => {
     expect(writes).toEqual(["tiếng"]);
   });
 
+  it("suppresses xterm's deferred duplicate after a bridge commit", async () => {
+    const writes: string[] = [];
+    const input = createMacTextInputDeduplicator((data) => writes.push(data));
+
+    input.writeBridgeData("tiếng");
+    await Promise.resolve();
+    input.writeXtermData("tiếng");
+    await Promise.resolve();
+
+    expect(writes).toEqual(["tiếng"]);
+  });
+
   it("owns committed textarea input and suppresses xterm's duplicate", () => {
     const here = path.dirname(new URL(import.meta.url).pathname);
     const imeSource = readFileSync(path.join(here, "macImeBridge.ts"), "utf8");
 
     expect(imeSource).toContain("attachMacImeBridge");
     expect(imeSource).toContain("createMacTextInputDeduplicator");
-    expect(imeSource).toContain("stopImmediatePropagation");
+    expect(imeSource).toContain('textarea.addEventListener("blur", cancelCompositionOnBlur)');
+    expect(imeSource).toContain('ownerWindow?.addEventListener("blur", cancelCompositionOnBlur)');
+    expect(imeSource).not.toContain("stopImmediatePropagation");
   });
 
   it("renders active composition as terminal input instead of a selection block", () => {
