@@ -137,6 +137,65 @@ describe("CLI agent registry", () => {
     });
   });
 
+  it("launches Pi without replaying the PATH bootstrap or the OMP fallback", () => {
+    const pi = CLI_AGENT_DEFINITIONS.find(({ id }) => id === "pi");
+
+    expect(pi).toMatchObject({
+      command: "pi",
+      launch: "pi",
+    });
+    expect(pi?.launch).not.toContain("command -v pi");
+  });
+
+  it("launches Kimi, Grok, and Muse without replaying the zsh bootstrap", () => {
+    for (const id of ["kimi", "grok", "muse"] as const) {
+      const agent = CLI_AGENT_DEFINITIONS.find((entry) => entry.id === id);
+      expect(agent?.command).toBe(id);
+      expect(agent?.launch).toBe(id);
+    }
+  });
+
+  it("normalizes the legacy bootstrap for every agent that shipped one", () => {
+    const preamble =
+      'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; ';
+    expect(
+      normalizeCliAgentLaunchCommand(
+        "kimi",
+        `${preamble}export PATH="$HOME/.kimi-code/bin:$HOME/.local/bin:$PATH"; kimi`,
+      ),
+    ).toBe("kimi");
+    expect(
+      normalizeCliAgentLaunchCommand(
+        "grok",
+        `${preamble}export PATH="$HOME/.local/bin:$PATH"; grok`,
+      ),
+    ).toBe("grok");
+    expect(
+      normalizeCliAgentLaunchCommand(
+        "muse",
+        `${preamble}export PATH="$HOME/.local/bin:$PATH"; muse`,
+      ),
+    ).toBe("muse");
+    expect(
+      normalizeCliAgentLaunchCommand(
+        "pi",
+        `${preamble}export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; command -v pi >/dev/null 2>&1 && pi || omp`,
+      ),
+    ).toBe("pi");
+  });
+
+  it("keeps custom launch commands untouched for agents with a legacy bootstrap", () => {
+    expect(normalizeCliAgentLaunchCommand("grok", "grok --model test")).toBe(
+      "grok --model test",
+    );
+    expect(normalizeCliAgentLaunchCommand("kimi", "kimi --yolo")).toBe(
+      "kimi --yolo",
+    );
+    expect(normalizeCliAgentLaunchCommand("claude", "claude --fast")).toBe(
+      "claude --fast",
+    );
+  });
+
   it("migrates the legacy OMP bootstrap without changing custom commands", () => {
     expect(
       normalizeCliAgentLaunchCommand(
