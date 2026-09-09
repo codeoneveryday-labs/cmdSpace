@@ -57,11 +57,15 @@ describe("App sidebar toggle", () => {
     expect(matches).toHaveLength(2);
   });
 
-  it("flushes a terminal workspace before disposing its tab", () => {
+  it("syncs workspace sessions without waiting to close the tab", () => {
     const source = readFileSync(appPath, "utf8");
     expect(source).toContain("flushWorkspacePaneSessionSync(workspace.id, workspaceCwd)");
     expect(source).toContain('workspace.workspaceMode === "canvas"');
-    expect(source).toContain("pendingTabCloseIdsRef");
+    expect(source).not.toContain("pendingTabCloseIdsRef");
+    const disposeTab = source.slice(source.indexOf("const disposeTab = useCallback("), source.indexOf("// Drives session disposal"));
+    expect(disposeTab).toContain("closeTab(id);");
+    expect(disposeTab).not.toContain(".finally(");
+    expect(disposeTab).not.toContain("await ");
   });
 
   it("paints a save-session loader before acknowledging app exit", () => {

@@ -27,6 +27,9 @@ jobs:
 
       - name: Install shell test dependencies
         run: |
+          # The runner's Chrome source is unused here and can publish a stale
+          # index while the package mirror is refreshing.
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f -name 'google-chrome*' -exec mv {} /tmp/ \;
           sudo apt-get update
           sudo apt-get install -y zsh
 
@@ -66,6 +69,9 @@ jobs:
 
       - name: Install Linux build dependencies
         run: |
+          # The runner's Chrome source is unused here and can publish a stale
+          # index while the package mirror is refreshing.
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f -name 'google-chrome*' -exec mv {} /tmp/ \;
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \

@@ -106,6 +106,12 @@ export function TerminalAgentSwitcher({
         sideOffset={6}
         className="max-h-[min(70vh,22rem)] min-w-44 overflow-y-auto rounded-xl p-1"
         onPointerDown={(event) => event.stopPropagation()}
+        onCloseAutoFocus={(event) => {
+          // Radix otherwise restores focus to the logo trigger after a
+          // selection, leaving the header looking active instead of the pane.
+          event.preventDefault();
+          onFocusTerminal?.();
+        }}
       >
         <DropdownMenuRadioGroup
           value={currentValue}

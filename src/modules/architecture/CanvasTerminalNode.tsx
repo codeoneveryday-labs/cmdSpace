@@ -270,6 +270,7 @@ export function CanvasTerminalNode({
     let disposeSelectionCopy: (() => void) | null = null;
     let disposeCwdHandler: (() => void) | null = null;
     let disposePromptTracker: (() => void) | null = null;
+    let disposeMacImeBridge: (() => void) | undefined;
     let disposeCompositionFocusListeners: (() => void) | null = null;
     const outputDecoder = new TextDecoder();
 
@@ -313,7 +314,10 @@ export function CanvasTerminalNode({
           })
         : null;
       if (macTextInput) {
-        attachMacImeBridge(terminal, (data) => macTextInput.writeBridgeData(data));
+        disposeMacImeBridge = attachMacImeBridge(
+          terminal,
+          (data) => macTextInput.writeBridgeData(data),
+        );
       }
       const compositionCommitFilter = createMacCompositionCommitFilter();
       if (IS_MAC_TEXT_INPUT_PLATFORM) {
@@ -504,6 +508,7 @@ export function CanvasTerminalNode({
       disposeCompositionFocusListeners?.();
       if (fitFrame !== null) cancelAnimationFrame(fitFrame);
       disposeSelectionCopy?.();
+      disposeMacImeBridge?.();
       if (agentActivityTimerRef.current !== null) {
         window.clearTimeout(agentActivityTimerRef.current);
         agentActivityTimerRef.current = null;

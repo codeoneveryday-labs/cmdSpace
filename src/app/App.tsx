@@ -188,7 +188,6 @@ export default function App() {
   tabsRef.current = tabs;
 
   const workspaceRef = useRef<HTMLDivElement>(null);
-  const pendingTabCloseIdsRef = useRef<Set<number>>(new Set());
 
   const activeTerminalTab = useMemo(() => {
     const t = tabs.find((x) => x.id === activeId);
@@ -528,6 +527,7 @@ export default function App() {
       { flushWorkspaceSession = true }: { flushWorkspaceSession?: boolean } = {},
     ) => {
       const tab = tabsRef.current.find((item) => item.id === id);
+      if (!tab || tabsRef.current.length <= 1) return;
       const workspace = workspacesRef.current.find(
         (item) => item.tabId === id || item.canvasTabId === id,
       );
@@ -540,17 +540,8 @@ export default function App() {
         (workspace.workspaceMode === "standard" || workspace.workspaceMode === "canvas") &&
         workspaceCwd
       ) {
-        if (pendingTabCloseIdsRef.current.has(id)) return;
-        pendingTabCloseIdsRef.current.add(id);
         void flushWorkspacePaneSessionSync(workspace.id, workspaceCwd)
-          .catch((error) => console.error("Failed to flush workspace before tab close:", error))
-          .finally(() => {
-            editorRefs.current.delete(id);
-            clearWorkspaceTabOwnership(id);
-            closeTab(id);
-            pendingTabCloseIdsRef.current.delete(id);
-          });
-        return;
+          .catch((error) => console.error("Failed to sync workspace after tab close:", error));
       }
       // Terminal-leaf-keyed maps (terminalRefs/searchAddons) are pruned by
       // the effect below as the pane tree changes; only the tab-id-keyed
