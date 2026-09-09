@@ -92,7 +92,7 @@ export type CanvasTerminalLayerActions = {
     maximized: boolean,
   ) => void;
   onCwdChange: (nodeId: string, cwd: string) => void;
-  onInitialCommandChange: (nodeId: string, command: string) => void;
+  onInitialCommandChange: (nodeId: string, command?: string) => void;
   onResizePointerDown: (
     event: ReactPointerEvent<SVGRectElement>,
     node: ArchitectureNode,

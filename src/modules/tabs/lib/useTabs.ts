@@ -35,7 +35,6 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     newTab,
     newPrivateTab,
     newWorkspaceTab,
-    newAgentChatTab,
     newMarkdownTab,
     newArchitectureTab,
   } = useTabCreationActions({
@@ -112,7 +111,6 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     newTab,
     newPrivateTab,
     newWorkspaceTab,
-    newAgentChatTab,
     openFileTab,
     pinTab,
     newMarkdownTab,

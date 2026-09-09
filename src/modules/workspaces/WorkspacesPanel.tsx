@@ -25,7 +25,7 @@ export type WorkspaceItem = {
   terminals?: WorkspaceTerminalItem[];
 };
 
-export type WorkspaceMode = "standard" | "canvas" | "agent";
+export type WorkspaceMode = "standard" | "canvas";
 export type WorkspaceTerminalItem = {
   leafId: number;
   cwd?: string | null;

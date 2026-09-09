@@ -1,6 +1,4 @@
 import { useCallback, type MutableRefObject } from "react";
-import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { Tab } from "@/modules/tabs";
 import type { WorkspaceMode } from "@/modules/workspaces";
 import type {
@@ -17,7 +15,6 @@ export function useWorkspaceSetupActions({
   createWorkspace,
   inheritedCwdForNewTab,
   tabsRef,
-  newAgentChatTab,
   newWorkspaceTab,
   newArchitectureTab,
   closeTab,
@@ -27,12 +24,10 @@ export function useWorkspaceSetupActions({
   setWorkspaceSetupOpen,
   workspacesHydrated,
   workspacesLength,
-  setWorkspaceForkContext,
 }: {
   createWorkspace: CreateWorkspace;
   inheritedCwdForNewTab: () => string | undefined;
   tabsRef: MutableRefObject<readonly Tab[]>;
-  newAgentChatTab: CreateWorkspaceInput["newAgentChatTab"];
   newWorkspaceTab: CreateWorkspaceInput["newWorkspaceTab"];
   newArchitectureTab: CreateWorkspaceInput["newArchitectureTab"];
   closeTab: CreateWorkspaceInput["closeTab"];
@@ -42,7 +37,6 @@ export function useWorkspaceSetupActions({
   setWorkspaceSetupOpen: (open: boolean) => void;
   workspacesHydrated: boolean;
   workspacesLength: number;
-  setWorkspaceForkContext: (context: null) => void;
 }) {
   const handleOpenWorkspaceWithoutAi = useCallback(
     async (
@@ -52,10 +46,6 @@ export function useWorkspaceSetupActions({
       requestedName?: string,
       requestedColor?: string,
       workspaceMode: WorkspaceMode = "standard",
-      workspaceAgent: CliAgent | null = null,
-      workspaceAgents: CliAgent[] = [],
-      initialAgentDraft = "",
-      initialHistoryAttachments: AgentChatHistoryAttachment[] = [],
     ) =>
       createWorkspace({
         terminalCount,
@@ -64,14 +54,9 @@ export function useWorkspaceSetupActions({
         requestedName,
         requestedColor,
         workspaceMode,
-        workspaceAgent,
-        workspaceAgents,
-        initialAgentDraft,
-        initialHistoryAttachments,
         inheritedCwd: inheritedCwdForNewTab(),
         nextWorkspaceName,
         tabs: [...tabsRef.current],
-        newAgentChatTab,
         newWorkspaceTab,
         newArchitectureTab,
         closeTab,
@@ -85,7 +70,6 @@ export function useWorkspaceSetupActions({
       closeTab,
       createWorkspace,
       inheritedCwdForNewTab,
-      newAgentChatTab,
       newArchitectureTab,
       newWorkspaceTab,
       onStandardWorkspaceReady,
@@ -99,8 +83,7 @@ export function useWorkspaceSetupActions({
   const handleWorkspaceSetupCancel = useCallback(() => {
     if (workspacesHydrated && workspacesLength === 0) return;
     setWorkspaceSetupOpen(false);
-    setWorkspaceForkContext(null);
-  }, [setWorkspaceForkContext, setWorkspaceSetupOpen, workspacesHydrated, workspacesLength]);
+  }, [setWorkspaceSetupOpen, workspacesHydrated, workspacesLength]);
 
   return { handleOpenWorkspaceWithoutAi, handleWorkspaceSetupCancel };
 }

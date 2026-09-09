@@ -43,7 +43,6 @@ fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
     assert_eq!(workspaces.len(), 1);
     assert_eq!(workspaces[0].id, "legacy");
     assert_eq!(workspaces[0].working_folder.as_deref(), Some("/tmp/legacy"));
-    assert!(table_columns(&conn, "workspaces").contains(&"agent_chat_ids".to_string()));
     assert_eq!(
         table_columns(&conn, "workspace_panes"),
         vec![
@@ -63,8 +62,6 @@ fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
 
     for table in [
         "workspace_setup_preferences",
-        "agent_chat_configs",
-        "agent_model_cache",
         "mobile_workspaces",
         "recent_workspaces",
     ] {
@@ -151,11 +148,6 @@ fn test_sqlite_crud_operations() {
         display_order: 0,
         pane_layout: Some("{\"kind\":\"leaf\",\"size\":100}".to_string()),
         workspace_mode: Some("canvas".to_string()),
-        agent_provider: Some("claude".to_string()),
-        agent_session_id: Some("claude-session".to_string()),
-        agent_chat_ids: None,
-        agent_providers: Some(vec!["claude".to_string()]),
-        agent_session_ids: Some(vec![Some("claude-session".to_string())]),
     };
     save_workspace_inner(&conn, &w1).expect("save workspace");
 
@@ -221,42 +213,6 @@ fn test_sqlite_crud_operations() {
     assert_eq!(panes.len(), 0); // Cascading deleted successfully!
 
     let _ = std::fs::remove_file(&test_path);
-}
-
-#[test]
-fn agent_workspace_frontend_payload_deserializes_and_persists() {
-    let payload = serde_json::json!({
-        "id": "agent-workspace",
-        "name": "Agent Workspace",
-        "count": 0,
-        "accentColor": "#10B981",
-        "workingFolder": "/tmp/project",
-        "createdAt": 10,
-        "updatedAt": 11,
-        "displayOrder": 0,
-        "paneLayout": null,
-        "workspaceMode": "agent",
-        "agentProvider": "codex",
-        "agentSessionId": null,
-        "agentProviders": ["codex", "cmd"],
-        "agentSessionIds": [null, null],
-        "tabId": 99,
-        "canvasTabId": null
-    });
-    let workspace: WorkspaceRow = serde_json::from_value(payload).unwrap();
-    let conn = Connection::open_in_memory().unwrap();
-    conn.execute_batch(
-        "CREATE TABLE workspaces (
-                id TEXT PRIMARY KEY, name TEXT NOT NULL, terminal_count INTEGER NOT NULL,
-                accent_color TEXT, working_folder TEXT, created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL, display_order INTEGER NOT NULL,
-                pane_layout TEXT, workspace_mode TEXT, agent_provider TEXT, agent_session_id TEXT,
-                agent_providers TEXT, agent_session_ids TEXT, agent_chat_ids TEXT
-            );",
-    )
-    .unwrap();
-    save_workspace_inner(&conn, &workspace).unwrap();
-    assert_eq!(list_workspaces_inner(&conn).unwrap(), vec![workspace]);
 }
 
 #[test]

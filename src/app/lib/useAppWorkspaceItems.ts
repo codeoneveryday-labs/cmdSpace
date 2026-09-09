@@ -23,7 +23,6 @@ export function useAppWorkspaceItems({
   activeCanvasTerminalIds,
   canvasTerminalSelectionVersion,
   canvasTerminalRefs,
-  closeTabActionRef,
   closePaneByLeaf,
   canvasTerminalRefKey,
 }: {
@@ -41,7 +40,6 @@ export function useAppWorkspaceItems({
   activeCanvasTerminalIds: ReadonlyMap<number, string>;
   canvasTerminalSelectionVersion: number;
   canvasTerminalRefs: MutableRefObject<Map<string, { close: () => void }>>;
-  closeTabActionRef: MutableRefObject<(tabId: number) => void>;
   closePaneByLeaf: (leafId: number) => void;
   canvasTerminalRefKey: (tabId: number, nodeId: string) => string;
 }): WorkspaceItem[] {
@@ -65,7 +63,6 @@ export function useAppWorkspaceItems({
           canvasTerminalRefs.current
             .get(canvasTerminalRefKey(tabId, nodeId))
             ?.close(),
-        closeAgentTab: (tabId) => closeTabActionRef.current(tabId),
       }),
     [
       activeCanvasTerminalIds,

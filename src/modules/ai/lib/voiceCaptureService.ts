@@ -18,7 +18,7 @@ import { canRecordCloudAudio, createCloudCaptureSession } from "./voiceCloudCapt
 import { bindVoiceCaptureListeners, type VoiceCaptureListen } from "./voiceCaptureListeners";
 import { hasDetectedVoiceActivity } from "./voiceActivity";
 
-export type VoiceCaptureOwner = "floating" | `agent-chat:${string}`;
+export type VoiceCaptureOwner = "floating";
 
 export type VoiceCaptureStartOptions = {
   ownerKey: VoiceCaptureOwner;

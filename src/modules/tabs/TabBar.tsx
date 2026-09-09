@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   useAgentBlockedLeaves,
+  useAgentCliCommands,
   useAgentCompletedLeaves,
   useAgentResponseLeaves,
   useAgentResponseRequestedLeaves,
@@ -82,6 +83,7 @@ export function TabBar({
   const requestedLeaves = useAgentResponseRequestedLeaves();
   const blockedLeaves = useAgentBlockedLeaves();
   const completedLeaves = useAgentCompletedLeaves();
+  const agentCommands = useAgentCliCommands();
   const userShortcuts = usePreferencesStore((s) => s.shortcuts);
   const isMusicPlaying = useTabBarMusicState(tabs);
 
@@ -187,6 +189,7 @@ export function TabBar({
                     compact={compact}
                     musicPlaying={isMusicPlaying}
                     agentState={agentState}
+                    agentCommands={agentCommands}
                   />
                   {tabs.length > 1 && (
                     <span
@@ -282,7 +285,12 @@ export function TabBar({
             width: dragVisual.width,
           }}
         >
-          <TabBarTabContent tab={draggedTab} compact={compact} musicPlaying={isMusicPlaying} />
+          <TabBarTabContent
+            tab={draggedTab}
+            compact={compact}
+            musicPlaying={isMusicPlaying}
+            agentCommands={agentCommands}
+          />
         </div>
       ) : null}
     </div>

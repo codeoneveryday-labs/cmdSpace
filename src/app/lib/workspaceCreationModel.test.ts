@@ -39,24 +39,22 @@ describe("workspaceCreationModel", () => {
     expect(workspaceAccentForIndex(0)).toBeTruthy();
   });
 
-  it("builds a canvas/agent-aware creation plan without creating tabs", () => {
+  it("builds a canvas-aware creation plan without creating tabs", () => {
     const plan = resolveWorkspaceCreationPlan({
       terminalCount: 2,
       workingFolder: null,
       inheritedCwd: "/repo",
       initialCommands: ["codex"],
       requestedName: "  Project  ",
-      workspaceMode: "agent",
-      workspaceAgents: ["codex", "claude", "gemini"],
+      workspaceMode: "canvas",
       workspaces: [],
     });
 
     expect(plan).toMatchObject({
       name: "Project",
       effectiveWorkingFolder: "/repo",
-      agentProviders: ["codex", "claude", "gemini"],
     });
     expect(plan.paneLaunchPlan).toHaveLength(2);
-    expect(plan.canvasDiagram).toBeNull();
+    expect(plan.canvasDiagram).not.toBeNull();
   });
 });

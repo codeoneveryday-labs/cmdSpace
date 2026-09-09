@@ -75,7 +75,7 @@ describe("workspace session import wiring", () => {
     expect(panel).toContain("Import existing session");
     expect(panel).toContain("selectedImportSessions");
     expect(panel).toContain("regularTerminalCount");
-    expect(panel).toContain("Regular terminals");
+    expect(panel).not.toContain("Regular terminals");
     expect(panel).toContain("selectImportSessions");
     expect(panel).toContain("multiple");
     expect(panel).toContain("onImportMany: selectImportSessions");

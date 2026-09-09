@@ -19,8 +19,6 @@ const workspace = (overrides: Partial<WorkspaceRecord> = {}): WorkspaceRecord =>
     paneLayout: null,
     tabId: null,
     canvasTabId: null,
-    agentProvider: null,
-    agentSessionId: null,
     ...overrides,
   }) as WorkspaceRecord;
 
@@ -39,7 +37,6 @@ const baseInput = (): Parameters<typeof buildWorkspaceItems>[0] => ({
   activeCanvasTerminalIds: new Map(),
   closePaneByLeaf: vi.fn(),
   closeCanvasTerminal: vi.fn(),
-  closeAgentTab: vi.fn(),
 });
 
 describe("workspaceItemsModel", () => {
@@ -100,14 +97,5 @@ describe("workspaceItemsModel", () => {
     expect(item.count).toBe(1);
     expect(item.terminals).toBe(input.activeWorkspaceTerminals);
     expect(item.state).toBe("blocked");
-  });
-
-  it("keeps an agent workspace empty when its agent tabs are not loaded", () => {
-    const items = buildWorkspaceItems({
-      ...baseInput(),
-      workspaces: [workspace({ workspaceMode: "agent" })],
-    });
-
-    expect(items[0]).toMatchObject({ count: 0, terminals: [] });
   });
 });

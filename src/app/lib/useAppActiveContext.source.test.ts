@@ -11,7 +11,6 @@ describe("useAppActiveContext contract", () => {
     expect(source).toContain("useAppActiveContext");
     expect(source).toContain("workspace.tabId === activeId");
     expect(source).toContain("workspace.canvasTabId === activeId");
-    expect(source).toContain("workspace.agentTabIds?.includes(activeId)");
     expect(source).toContain("activeWorkspaceId");
     expect(source).toContain("isTerminalTab");
     expect(source).toContain("isGitDiffTab");

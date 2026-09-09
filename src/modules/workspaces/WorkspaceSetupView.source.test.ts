@@ -7,7 +7,6 @@ const source = [
   readFileSync(new URL("./WorkspaceAgentSelectionGrid.tsx", import.meta.url), "utf8"),
   readFileSync(new URL("./WorkspaceAgentAssignmentSummary.tsx", import.meta.url), "utf8"),
   readFileSync(new URL("./WorkspaceSetupFooter.tsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./WorkspaceForkSetup.tsx", import.meta.url), "utf8"),
   readFileSync(
     new URL("./lib/useWorkspaceSetupAgentCapacity.ts", import.meta.url),
     "utf8",
@@ -23,10 +22,6 @@ const source = [
   ),
   readFileSync(
     new URL("./lib/useWorkspaceSetupOpenWorkspace.ts", import.meta.url),
-    "utf8",
-  ),
-  readFileSync(
-    new URL("./lib/useWorkspaceSetupAgentSelectionSync.ts", import.meta.url),
     "utf8",
   ),
   readFileSync(

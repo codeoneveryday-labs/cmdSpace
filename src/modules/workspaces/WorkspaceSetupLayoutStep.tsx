@@ -7,7 +7,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Dispatch, SetStateAction } from "react";
-import type { CliAgentDefinition } from "@/modules/terminal/lib/cliAgents";
 import type { WorkspaceItem, WorkspaceMode } from "./WorkspacesPanel";
 import {
   WorkspaceColorPicker,
@@ -72,7 +71,6 @@ export function WorkspaceSetupLayoutStep({
   setWorkspaceColor,
   workspaceMode,
   setWorkspaceMode,
-  agentChatAgents,
   setTerminalCount,
   terminalCount,
   selectedFolder,
@@ -82,7 +80,6 @@ export function WorkspaceSetupLayoutStep({
   handleBrowse,
   handleApplyFolderCommand,
   recentFolders,
-  setAgentCounts,
 }: {
   workspaceName: string;
   suggestedWorkspaceName: string;
@@ -92,7 +89,6 @@ export function WorkspaceSetupLayoutStep({
   setWorkspaceColor: Dispatch<SetStateAction<string>>;
   workspaceMode: WorkspaceMode;
   setWorkspaceMode: Dispatch<SetStateAction<WorkspaceMode>>;
-  agentChatAgents: CliAgentDefinition[];
   setTerminalCount: Dispatch<SetStateAction<(typeof TERMINAL_COUNTS)[number]>>;
   terminalCount: (typeof TERMINAL_COUNTS)[number];
   selectedFolder: string;
@@ -102,7 +98,6 @@ export function WorkspaceSetupLayoutStep({
   handleBrowse: () => void;
   handleApplyFolderCommand: () => void;
   recentFolders: WorkspaceItem[];
-  setAgentCounts: Dispatch<SetStateAction<Record<string, number>>>;
 }) {
   return (
 
@@ -144,10 +139,10 @@ export function WorkspaceSetupLayoutStep({
                     Workspace mode
                   </h3>
                   <span className="text-[11px] text-muted-foreground/70">
-                    Choose a terminal, canvas, or standalone chat surface
+                    Choose a terminal or canvas surface
                   </span>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   {[
                     {
                       mode: "standard" as const,
@@ -159,11 +154,6 @@ export function WorkspaceSetupLayoutStep({
                       name: "Canvas workspace",
                       description: "The same workspace, plus a canvas tab",
                     },
-                    {
-                      mode: "agent" as const,
-                      name: "Agent chat workspace",
-                      description: "A calm agent timeline over your terminals",
-                    },
                   ].map((option) => {
                     const selected = workspaceMode === option.mode;
                     return (
@@ -172,16 +162,6 @@ export function WorkspaceSetupLayoutStep({
                         type="button"
                         onClick={() => {
                           setWorkspaceMode(option.mode);
-                          if (option.mode === "agent") {
-                            setTerminalCount(12);
-                            setAgentCounts((current) =>
-                              Object.fromEntries(
-                                Object.entries(current).filter(([id]) =>
-                                  agentChatAgents.some((agent) => agent.id === id),
-                                ),
-                              ),
-                            );
-                          }
                         }}
                         aria-pressed={selected}
                         className={cn(
@@ -354,8 +334,6 @@ export function WorkspaceSetupLayoutStep({
                 ) : null}
               </section>
 
-              {workspaceMode !== "agent" ? (
-                <>
               <section className="space-y-3">
                 <div className="flex items-baseline gap-2">
                   <h3 className="text-sm font-semibold text-foreground">
@@ -444,8 +422,6 @@ export function WorkspaceSetupLayoutStep({
                   })}
                 </div>
               </section>
-                </>
-              ) : null}
             </>
   );
 }

@@ -1,25 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft02Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { WorkspaceMode } from "./WorkspacesPanel";
 
 export function WorkspaceSetupFooter({
   setupStep,
-  workspaceMode,
   terminalCount,
   plannedAgentCommands,
-  selectedChatAgent,
-  selectedFolder,
   onBack,
   onOpenWorkspace,
   onPrimaryAction,
 }: {
   setupStep: "layout" | "agents";
-  workspaceMode: WorkspaceMode;
   terminalCount: number;
   plannedAgentCommands: string[];
-  selectedChatAgent: string | null;
-  selectedFolder: string;
   onBack: () => void;
   onOpenWorkspace: () => void;
   onPrimaryAction: () => void;
@@ -38,16 +31,14 @@ export function WorkspaceSetupFooter({
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
         {setupStep === "layout" ? (
           <>
-            {workspaceMode !== "agent" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onOpenWorkspace}
-                className="w-full justify-center text-muted-foreground sm:w-auto"
-              >
-                Open without AI
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onOpenWorkspace}
+              className="w-full justify-center text-muted-foreground sm:w-auto"
+            >
+              Open without AI
+            </Button>
             <Button
               type="button"
               onClick={onPrimaryAction}
@@ -70,24 +61,18 @@ export function WorkspaceSetupFooter({
                 onClick={onOpenWorkspace}
                 className="w-full justify-center text-muted-foreground sm:w-auto"
               >
-                {workspaceMode === "agent" ? "Back to workspace" : "Skip - no agents"}
+                Skip - no agents
             </Button>
             <Button
               type="button"
-              disabled={
-                plannedAgentCommands.length === 0 ||
-                (workspaceMode === "agent" &&
-                  (!selectedChatAgent || !selectedFolder))
-              }
+              disabled={plannedAgentCommands.length === 0}
               onClick={onPrimaryAction}
               aria-label={
                 `Launch ${plannedAgentCommands.length} configured agents in ${terminalCount} terminals`
               }
               className="w-full justify-center sm:w-auto"
             >
-              {workspaceMode === "agent"
-                ? "Open agent chat"
-                : `Launch ${terminalCount} terminals`}
+              Launch {terminalCount} terminals
               <HugeiconsIcon
                 icon={ArrowRight01Icon}
                 size={14}

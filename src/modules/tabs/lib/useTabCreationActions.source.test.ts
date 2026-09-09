@@ -15,7 +15,6 @@ describe("useTabs creation seam", () => {
     expect(useTabsSource).toContain("useTabCreationActions({");
     expect(useTabsSource).not.toContain("const newWorkspaceTab = useCallback");
     expect(creationSource).toContain("createPaneTree");
-    expect(creationSource).toContain("createAgentChatTab");
     expect(creationSource).toContain("openMarkdownTabState");
     expect(creationSource).toContain("createArchitectureTab");
   });

@@ -1,5 +1,3 @@
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
-import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import type {
   ArchitectureTab,
   AiDiffTab,
@@ -79,38 +77,6 @@ export function createInitialTerminalTab({
     cwd,
     paneTree: { kind: "leaf", id: leafId, cwd },
     activeLeafId: leafId,
-  };
-}
-
-export function createAgentChatTab({
-  id,
-  title,
-  provider,
-  cwd,
-  chatId,
-  nativeSessionId,
-  initialDraft,
-  initialHistoryAttachments,
-}: {
-  id: number;
-  title: string;
-  provider: CliAgent;
-  cwd: string;
-  chatId?: string;
-  nativeSessionId?: string | null;
-  initialDraft?: string;
-  initialHistoryAttachments?: AgentChatHistoryAttachment[];
-}) {
-  return {
-    id,
-    chatId: chatId ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-    kind: "agent-chat" as const,
-    title,
-    provider,
-    cwd,
-    nativeSessionId: nativeSessionId ?? null,
-    initialDraft,
-    initialHistoryAttachments,
   };
 }
 

@@ -40,7 +40,7 @@ pub(super) fn scan(
 }
 
 pub(super) fn scan_exact(home: &Path, native_session_id: &str) -> Option<AgentUsageStatus> {
-    let path = crate::modules::agent_chat::find_resumable_session_file(
+    let path = super::find_resumable_session_file(
         &home.join(".commandcode").join("projects"),
         native_session_id,
     )?;

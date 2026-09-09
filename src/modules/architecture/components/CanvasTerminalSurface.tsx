@@ -86,7 +86,7 @@ export function CanvasTerminalSurface({
   onSplitRight: () => void;
   onHeaderPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onCwdChange: (cwd: string) => void;
-  onInitialCommandChange: (command: string) => void;
+  onInitialCommandChange: (command?: string) => void;
   onResizePointerDown: (
     event: ReactPointerEvent<SVGRectElement>,
     node: ArchitectureNode,

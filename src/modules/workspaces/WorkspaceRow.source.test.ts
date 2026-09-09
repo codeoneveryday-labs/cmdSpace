@@ -7,9 +7,19 @@ const source = readFileSync(
 );
 
 describe("WorkspaceRow contract", () => {
-  it("preserves workspace actions without terminal expansion", () => {
+  it("opens a rename dialog from the workspace action menu", () => {
     expect(source).toContain("export function WorkspaceRow");
-    expect(source).toContain("commitRename");
+    expect(source).toContain("DropdownMenu");
+    expect(source).toContain("MoreHorizontalIcon");
+    expect(source).toContain("onSelect={() => setRenameDialogOpen(true)}");
+    expect(source).toContain('className="w-36 min-w-0 rounded-lg p-1"');
+    expect(source).toContain("Rename Workspace");
+    expect(source).toContain(
+      "Only the display name changes. The actual folder path will stay the same.",
+    );
+    expect(source).toContain("Confirm");
+    expect(source).toContain("DialogContent");
+    expect(source.match(/\{renameDialog\}/g)).toHaveLength(2);
     expect(source).toContain("WorkspaceColorPicker");
     expect(source).toContain("getWorkspaceCliAgent");
     expect(source).toContain("AgentCliIcon");

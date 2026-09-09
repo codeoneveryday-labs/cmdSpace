@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import { regularTerminalCount } from "./importSessions";
 import {
   calculateAssignedCliTerminals,
@@ -14,20 +13,16 @@ export function useWorkspaceSetupAgentCapacity({
   terminalCount,
   selectedImportSessionCount,
   agentCounts,
-  workspaceMode,
   configuredAgentIds,
   disabledAgentIds,
   setAgentCounts,
-  setSelectedChatAgent,
 }: {
   terminalCount: number;
   selectedImportSessionCount: number;
   agentCounts: Record<string, number>;
-  workspaceMode: "standard" | "canvas" | "agent";
   configuredAgentIds: string[];
   disabledAgentIds: string[];
   setAgentCounts: Dispatch<SetStateAction<Record<string, number>>>;
-  setSelectedChatAgent: Dispatch<SetStateAction<CliAgent | null>>;
 }) {
   const assignedCliTerminals = calculateAssignedCliTerminals(agentCounts);
   const assignedAgentTerminals =
@@ -58,13 +53,10 @@ export function useWorkspaceSetupAgentCapacity({
         );
         const next = { ...current, [id]: clamped };
         if (clamped === 0) delete next[id];
-        if (workspaceMode === "agent" && clamped > 0) {
-          setSelectedChatAgent(id as CliAgent);
-        }
         return next;
       });
     },
-    [cliTerminalCapacity, setAgentCounts, setSelectedChatAgent, workspaceMode],
+    [cliTerminalCapacity, setAgentCounts],
   );
 
   useEffect(() => {

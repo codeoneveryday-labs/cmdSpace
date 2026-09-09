@@ -1,19 +1,14 @@
 import { useCallback } from "react";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 
 export function useWorkspaceSetupNavigation({
   setupStep,
   plannedAgentCommands,
-  selectedChatAgent,
-  workspaceMode,
   setSetupStep,
   openWorkspace,
   onCancel,
 }: {
   setupStep: "layout" | "agents";
   plannedAgentCommands: string[];
-  selectedChatAgent: CliAgent | null;
-  workspaceMode: "standard" | "canvas" | "agent";
   setSetupStep: (step: "layout" | "agents") => void;
   openWorkspace: () => void;
   onCancel: () => void;
@@ -31,17 +26,10 @@ export function useWorkspaceSetupNavigation({
       setSetupStep("agents");
       return;
     }
-    if (plannedAgentCommands.length > 0 && selectedChatAgent) {
+    if (plannedAgentCommands.length > 0) {
       openWorkspace();
     }
-  }, [
-    openWorkspace,
-    plannedAgentCommands,
-    selectedChatAgent,
-    setSetupStep,
-    setupStep,
-    workspaceMode,
-  ]);
+  }, [openWorkspace, plannedAgentCommands, setSetupStep, setupStep]);
 
   return { handleBack, handlePrimaryAction };
 }

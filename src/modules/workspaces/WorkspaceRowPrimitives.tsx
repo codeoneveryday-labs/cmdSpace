@@ -39,12 +39,9 @@ export function normalizeWorkspaceAccentColor(
 
 export function WorkspaceModeIcon({ workspace }: { workspace: WorkspaceItem }) {
   const canvas = workspace.workspaceMode === "canvas";
-  const agent = workspace.workspaceMode === "agent";
   const label = canvas
     ? "Canvas workspace"
-    : agent
-      ? "Agent chat workspace"
-      : "Standard terminal workspace";
+    : "Standard terminal workspace";
 
   return (
     <span
@@ -54,7 +51,7 @@ export function WorkspaceModeIcon({ workspace }: { workspace: WorkspaceItem }) {
       className="flex size-4 shrink-0 items-center justify-center text-muted-foreground/80"
     >
       <HugeiconsIcon
-        icon={getWorkspaceModeIcon(canvas ? "canvas" : agent ? "agent" : "standard")}
+        icon={getWorkspaceModeIcon(canvas ? "canvas" : "standard")}
         size={13}
         strokeWidth={1.9}
       />

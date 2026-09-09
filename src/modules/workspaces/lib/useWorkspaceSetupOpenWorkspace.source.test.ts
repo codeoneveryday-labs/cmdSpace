@@ -9,8 +9,6 @@ const source = readFileSync(
 describe("useWorkspaceSetupOpenWorkspace contract", () => {
   it("owns workspace payload assembly without owning the workspace state", () => {
     expect(source).toContain("useWorkspaceSetupOpenWorkspace");
-    expect(source).toContain("selectedWorkspaceAgents");
-    expect(source).toContain("selectedImportSessions.map");
     expect(source).toContain("onOpenWithoutAi");
     expect(source).toContain("buildWorkspaceLaunchCommands");
     expect(source).toContain("launchCommands");

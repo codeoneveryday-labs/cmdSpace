@@ -20,13 +20,7 @@ export type WorkspaceSelectionRecord = {
   paneLayout: string | null;
   tabId: number | null;
   canvasTabId: number | null;
-  workspaceMode?: "standard" | "canvas" | "agent";
-  agentProvider?: CliAgent | null;
-  agentSessionId?: string | null;
-  agentProviders?: CliAgent[] | null;
-  agentSessionIds?: Array<string | null> | null;
-  agentChatIds?: string[] | null;
-  agentTabIds?: number[];
+  workspaceMode?: "standard" | "canvas";
 };
 
 export type WorkspaceSelectionTab = {
@@ -48,13 +42,6 @@ export type WorkspaceSelectionPort<
   persistCanvasDiagram?: (tabId: number, diagram: ArchitectureDiagram) => void;
   isSelectionCurrent?: () => boolean;
   createCanvasTab: (diagram: ArchitectureDiagram, title: string) => number;
-  createAgentChatTab: (input: {
-    title: string;
-    provider: CliAgent;
-    cwd: string;
-    nativeSessionId: string | null;
-    chatId?: string;
-  }) => number;
   createWorkspaceTab: (
     workingFolder: string | undefined,
     count: number,
@@ -64,7 +51,7 @@ export type WorkspaceSelectionPort<
   ) => number;
   replaceWorkspace: (
     workspaceId: string,
-    patch: Partial<Pick<TWorkspace, "tabId" | "canvasTabId" | "agentTabIds" | "agentProviders" | "agentSessionIds" | "agentChatIds">>,
+    patch: Partial<Pick<TWorkspace, "tabId" | "canvasTabId">>,
   ) => void;
   listWorkspacePanes: (workspaceId: string) => Promise<WorkspaceSelectionPane[]>;
   resolvePaneResumeCommands?: (

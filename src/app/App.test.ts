@@ -57,28 +57,6 @@ describe("App sidebar toggle", () => {
     expect(matches).toHaveLength(2);
   });
 
-  it("persists agent chat session identity for every CLI provider instead of Codex only", () => {
-    const source = readFileSync(appPath, "utf8");
-    const surface = readFileSync(path.join(here, "WorkspaceSurface.tsx"), "utf8");
-
-    expect(source).not.toContain('if (provider !== "codex") return;');
-    expect(surface).toContain("nativeSessionId={tab.nativeSessionId}");
-  });
-
-  it("closing an agent chat tab preserves its persisted chat descriptor", () => {
-    const source = [
-      readFileSync(appPath, "utf8"),
-      readFileSync(path.join(here, "lib/workspaceAgentSessionModel.ts"), "utf8"),
-      readFileSync(workspaceDeletionPath, "utf8"),
-      readFileSync(path.join(here, "lib/workspaceOwnershipModel.ts"), "utf8"),
-    ].join("\n");
-
-    expect(source).toContain("const agentTabIds = workspace.agentTabIds.filter((id) => id !== tabId);");
-    expect(source).not.toContain("const agentProviders = (workspace.agentProviders ?? []).filter(");
-    expect(source).not.toContain("const agentSessionIds = (workspace.agentSessionIds ?? []).filter(");
-    expect(source).toContain("const tabIndex =");
-  });
-
   it("flushes a terminal workspace before disposing its tab", () => {
     const source = readFileSync(appPath, "utf8");
     expect(source).toContain("flushWorkspacePaneSessionSync(workspace.id, workspaceCwd)");
@@ -98,22 +76,6 @@ describe("App sidebar toggle", () => {
     );
   });
 
-  it("opens the Paseo-style draft workspace flow before creating a forked agent session", () => {
-    const source = [
-      readFileSync(appPath, "utf8"),
-      readFileSync(workspaceSetupActionsPath, "utf8"),
-    ].join("\n");
-    const controller = [
-      readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
-      readFileSync(workspaceCreationActionPath, "utf8"),
-    ].join("\n");
-
-    expect(source).toContain("workspaceForkContext");
-    expect(source).toContain("forkContext={workspaceForkContext}");
-    expect(source).toContain("initialAgentDraft = \"\"");
-    expect(controller).toContain("initialDraft: index === 0 ? input.initialAgentDraft : undefined");
-  });
-
   it("activates a freshly created workspace instead of leaving the previous tab selected", () => {
     const controller = [
       readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
@@ -122,19 +84,6 @@ describe("App sidebar toggle", () => {
 
     expect(controller).toContain("const activatedTabId = openedWorkspace.tabId ?? openedWorkspace.canvasTabId;");
     expect(controller).toContain("if (activatedTabId !== null) input.setActiveId(activatedTabId);");
-  });
-
-  it("deletes every agent tab owned by a workspace", () => {
-    const source = [
-      readFileSync(appPath, "utf8"),
-      readFileSync(path.join(here, "lib/workspaceAgentSessionModel.ts"), "utf8"),
-      readFileSync(workspaceDeletionPath, "utf8"),
-    ].join("\n");
-    const controller = readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8");
-
-    expect(source).toContain("...(workspace.agentTabIds ?? [])");
-    expect(controller).toContain("for (const tabId of tabIds");
-    expect(source).toContain("agentSessionIds");
   });
 
   it("closes workspace-owned tabs immediately while deleting the workspace", () => {
@@ -249,7 +198,6 @@ describe("App sidebar toggle", () => {
 
     expect(source).toContain("activeWorkspaceFolder: activeWorkspace?.workingFolder ?? null");
     expect(source).toContain("activeWorkspaceFolder ??");
-    expect(source).toContain("workspace.agentTabIds?.includes(activeId)");
   });
 
   it("refreshes provider keys when the main window becomes active again", () => {

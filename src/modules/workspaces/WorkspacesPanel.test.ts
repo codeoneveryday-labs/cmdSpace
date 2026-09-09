@@ -70,7 +70,6 @@ describe("WorkspacesPanel", () => {
       readFileSync(path.join(here, "WorkspaceAgentSelectionGrid.tsx"), "utf8"),
       readFileSync(path.join(here, "WorkspaceAgentAssignmentSummary.tsx"), "utf8"),
       readFileSync(path.join(here, "WorkspaceSetupFooter.tsx"), "utf8"),
-      readFileSync(path.join(here, "WorkspaceForkSetup.tsx"), "utf8"),
       readFileSync(
         path.join(here, "lib/useWorkspaceSetupAgentCapacity.ts"),
         "utf8",
@@ -85,11 +84,11 @@ describe("WorkspacesPanel", () => {
         "utf8",
       ),
       readFileSync(
-        path.join(here, "lib/useWorkspaceSetupOpenWorkspace.ts"),
+        path.join(here, "lib/useWorkspaceSetupNavigation.ts"),
         "utf8",
       ),
       readFileSync(
-        path.join(here, "lib/useWorkspaceSetupAgentSelectionSync.ts"),
+        path.join(here, "lib/useWorkspaceSetupOpenWorkspace.ts"),
         "utf8",
       ),
       readFileSync(
@@ -158,10 +157,8 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("WORKSPACES");
     expect(panelSource).toContain("TerminalAgentSwitcher");
     expect(panelSource).toContain("onCreateTerminal(command ?? undefined)");
-    expect(panelSource).toContain("canCreate={");
     expect(panelSource).not.toContain('workspace.workspaceMode !== "agent"');
     expect(panelSource).not.toContain('workspace.workspaceMode !== "canvas"');
-    expect(workspaceItemsModelSource).toContain('workspace.workspaceMode === "agent"');
     expect(workspaceItemsModelSource).toContain('workspace.workspaceMode === "canvas"');
     expect(appSource).toContain("canvasTerminalCreatorRef");
     expect(workspaceControllerSource).toContain("Failed to persist created workspace terminal");
@@ -169,24 +166,16 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("Workspace mode");
     expect(panelSource).toContain("Standard workspace");
     expect(panelSource).toContain("Canvas workspace");
-    expect(panelSource).toContain("Agent chat workspace");
     expect(appSource).not.toContain("sendAgentWorkspacePrompt");
     expect(panelSource).toContain("WorkspaceModeIcon");
     expect(panelSource).toContain('workspace.workspaceMode === "canvas"');
-    expect(panelSource).toContain('workspace.workspaceMode === "agent"');
     expect(panelSource).toContain("WORKSPACE_MODE_ICONS");
     expect(panelSource).toContain("CommandLineIcon");
     expect(panelSource).toContain("WorkflowSquare07Icon");
     expect(panelSource).toContain("AiGenerativeIcon");
     expect(panelSource).toContain("Canvas workspace");
     expect(panelSource).toContain("Standard terminal workspace");
-    expect(panelSource).toContain(
-      'useState<WorkspaceMode>(forkContext ? "agent" : "standard")',
-    );
-    expect(panelSource).toContain("Chat history");
-    expect(panelSource).toContain("Previous conversation");
-    expect(panelSource).toContain("Fork workspace message");
-    expect(panelSource).toContain("Create workspace");
+    expect(panelSource).toContain('useState<WorkspaceMode>("standard")');
     expect(panelSource).toContain("workspaceMode?: WorkspaceMode");
     expect(panelSource).toContain("Workspace name");
     expect(panelSource).toContain("Shown in the workspace list and tab");
@@ -204,7 +193,6 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("export function WorkspaceSetupView");
     expect(panelSource).toContain("onStartWorkspaceSetup");
     expect(panelSource).toContain("onClick={onStartWorkspaceSetup}");
-    expect(panelSource).not.toContain("DialogContent");
     expect(panelSource).not.toContain("WorkspaceSetupDialog");
     expect(panelSource).toContain("recentFolders");
     expect(panelSource).toContain("Recents");
@@ -230,12 +218,7 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).not.toContain("Split evenly");
     expect(panelSource).not.toContain("fillOneOfEachAgent");
     expect(panelSource).not.toContain("splitAgentsEvenly");
-    expect(panelSource).toContain("availableAgents");
-    expect(panelSource).toContain(
-      "const availableAgents = configuredAgentCliOptions",
-    );
     expect(panelSource).not.toContain("chatAgentOptions");
-    expect(panelSource).toContain("resolveAgentChatWorkspaceAgents");
     expect(panelSource).not.toContain("chatTransport !== undefined");
     expect(panelSource).not.toContain("installedAgents");
     expect(panelSource).not.toContain("Scanning installed agents");
@@ -299,7 +282,7 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain("initialCommands?: string[]");
     expect(panelSource).toContain('setSetupStep("agents")');
     expect(panelSource).toContain("Skip - no agents");
-    expect(panelSource).toContain("Launch ${terminalCount} terminals");
+    expect(panelSource).toContain("Launch {terminalCount} terminals");
     expect(panelSource).toContain("isEditableKeyboardTarget");
     expect(panelSource).toContain(
       'window.addEventListener("keydown", handleKeyboardShortcut)',
@@ -338,7 +321,6 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).toContain(
       "mt-2 flex flex-col gap-3 pt-2 sm:mt-3",
     );
-    expect(panelSource).toContain("Fork workspace message");
     expect(panelSource).toContain(
       "sm:flex-row sm:items-center sm:justify-between",
     );
@@ -348,14 +330,14 @@ describe("WorkspacesPanel", () => {
     expect(panelSource).not.toContain('git diff HEAD --shortstat');
     expect(panelSource).not.toContain("WorkspaceGitMeta");
     expect(panelSource).toContain("No workspaces yet");
-    expect(panelSource).toContain("onDoubleClick");
-    expect(panelSource).toContain("setRenaming(true)");
+    expect(panelSource).toContain("DropdownMenu");
+    expect(panelSource).toContain("setRenameDialogOpen(true)");
+    expect(panelSource).toContain("Rename Workspace");
     expect(panelSource).toContain("const handleRowSelect");
     expect(panelSource).toContain('target.closest("button")');
     expect(panelSource).toContain('target.closest("input")');
     expect(panelSource).toContain("onClick={handleRowSelect}");
     expect(panelSource).toContain('event.key === "Enter"');
-    expect(panelSource).toContain('event.key === "Escape"');
     expect(panelSource).toContain("onRenameWorkspace");
     expect(panelSource).toContain("WORKSPACE_ACCENT_COLORS");
     expect(panelSource).toContain("WorkspaceColorPicker");
@@ -424,9 +406,7 @@ describe("WorkspacesPanel", () => {
     expect(workspaceSelectionSource).toContain(
       'filter((node) => node.kind === "terminal")',
     );
-    expect(workspaceControllerSource).toContain('count: workspaceMode === "agent" ? agentTabIds.length : input.terminalCount');
     expect(workspaceControllerSource).toContain("workspaceMode === \"canvas\"");
-    expect(workspaceControllerSource).toContain("tabId: workspaceMode === \"canvas\" ? null : tabId");
     expect(workspaceControllerSource).toContain("initialCommands?: string[]");
     expect(workspaceControllerSource).toContain("requestedName?: string");
     expect(workspaceControllerSource).toContain("requestedColor?: string");
@@ -461,8 +441,6 @@ describe("WorkspacesPanel", () => {
       /<WorkspacesPanel[\s\S]*workspaces=\{workspaceItems\}[\s\S]*onRenameWorkspace=\{handleRenameWorkspace\}[\s\S]*onStartWorkspaceSetup=\{\(\) => setWorkspaceSetupOpen\(true\)\}/,
     );
     expect(appSource).toContain("recentWorkspaces={recentWorkspaces}");
-    expect(appSource).toContain("workingFolder={workspaceForkContext?.cwd ?? workspaceSetupFolder}");
-    expect(appSource).toContain("forkContext={workspaceForkContext}");
     expect(workspaceControllerContract).toContain("db_list_recent_workspaces");
     expect(workspaceControllerSource).toContain("db_save_recent_workspace");
     expect(workspaceControllerSource).toContain("saveRecentWorkspace(workspace)");

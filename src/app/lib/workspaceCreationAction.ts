@@ -23,8 +23,6 @@ export async function createWorkspaceAction(
     initialCommands: input.initialCommands,
     requestedName: input.requestedName,
     workspaceMode: input.workspaceMode,
-    workspaceAgent: input.workspaceAgent,
-    workspaceAgents: input.workspaceAgents,
     workspaces,
     nextWorkspaceName: input.nextWorkspaceName,
   });
@@ -37,46 +35,20 @@ export async function createWorkspaceAction(
     effectiveWorkingFolder,
     paneLaunchPlan,
     canvasDiagram,
-    agentProviders,
   } = plan;
   const name = plan.name ?? plan.fallbackName;
   if (!name) return null;
   const workspaceId = `workspace-tab-${Date.now()}-${Math.random()
     .toString(36)
     .slice(2, 9)}`;
-  const agentChatIds =
-    workspaceMode === "agent"
-      ? agentProviders.map((_, index) => `${workspaceId}:chat:${index + 1}`)
-      : [];
-  const agentTabIds =
-    workspaceMode === "agent"
-      ? agentProviders.map((provider, index) =>
-          input.newAgentChatTab({
-            title: `${name} · ${index + 1}`,
-            provider,
-            cwd: effectiveWorkingFolder ?? "",
-            nativeSessionId: null,
-            chatId: agentChatIds[index],
-            initialDraft: index === 0 ? input.initialAgentDraft : undefined,
-            initialHistoryAttachments:
-              index === 0 ? input.initialHistoryAttachments : undefined,
-          }),
-        )
-      : [];
   // A Standard workspace must not mount its terminals until the complete pane
   // plan is durable. Mounting first lets initial PTY callbacks race the
-  // per-pane writes and can leave the workspace with only the first agent.
-  const tabId =
-    workspaceMode === "canvas"
-      ? null
-      : workspaceMode === "agent"
-        ? agentTabIds[0] ?? null
-        : null;
+  // per-pane writes and can leave the workspace with only the first pane.
   const now = Date.now();
   const workspace: WorkspaceRecord = {
     id: workspaceId,
     name,
-    count: workspaceMode === "agent" ? agentTabIds.length : input.terminalCount,
+    count: input.terminalCount,
     accentColor: normalizeWorkspaceAccentColor(
       input.requestedColor,
       workspaceAccentForIndex(workspaces.length),
@@ -88,16 +60,9 @@ export async function createWorkspaceAction(
     paneLayout: canvasDiagram
       ? serializeCanvasWorkspaceDiagram(canvasDiagram)
       : null,
-    tabId: workspaceMode === "canvas" ? null : tabId,
+    tabId: null,
     canvasTabId: null,
     workspaceMode,
-    agentProvider: workspaceMode === "agent" ? input.workspaceAgent ?? null : null,
-    agentSessionId: null,
-    agentTabIds,
-    agentProviders,
-    agentSessionIds:
-      workspaceMode === "agent" ? agentProviders.map(() => null) : [],
-    agentChatIds,
   };
 
   saveRecentWorkspace(workspace);

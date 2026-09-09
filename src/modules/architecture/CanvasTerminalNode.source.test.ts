@@ -189,6 +189,9 @@ describe("CanvasTerminalNode", () => {
 
     expect(source).toContain("currentAgent={tabAgent ?? null}");
     expect(source).toContain("tab.id === activeTabId ? detectedAgent");
+    expect(source).toContain("onAgentCommandChange: (command?: string) => void");
+    expect(source).toContain("onAgentCommandChange(command ?? undefined)");
+    expect(source).toContain("setDetectedAgent(command ? detectCliAgent(command) : null)");
   });
 
   it("opens the agent picker from the add-terminal control", () => {

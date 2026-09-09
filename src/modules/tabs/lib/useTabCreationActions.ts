@@ -1,13 +1,10 @@
 import { useCallback } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
-import type { AgentChatHistoryAttachment } from "@/modules/ai/lib/agentChatTimeline";
 import {
   createPaneTree,
   type SavedPaneInfo,
 } from "./tabPaneModel";
 import {
-  createAgentChatTab,
   createArchitectureTab,
   createTerminalTab,
   createWorkspaceTab,
@@ -71,21 +68,6 @@ export function useTabCreationActions({
     }, [nextIdRef, setActiveId, setTabs],
   );
 
-  const newAgentChatTab = useCallback((input: {
-    title: string;
-    provider: CliAgent;
-    cwd: string;
-    chatId?: string;
-    nativeSessionId?: string | null;
-    initialDraft?: string;
-    initialHistoryAttachments?: AgentChatHistoryAttachment[];
-  }) => {
-    const id = nextIdRef.current++;
-    setTabs((tabs) => [...tabs, createAgentChatTab({ id, ...input })]);
-    setActiveId(id);
-    return id;
-  }, [nextIdRef, setActiveId, setTabs]);
-
   const newMarkdownTab = useCallback((path: string) => {
     let targetId: number | null = null;
     setTabs((tabs) => {
@@ -111,7 +93,6 @@ export function useTabCreationActions({
     newTab,
     newPrivateTab,
     newWorkspaceTab,
-    newAgentChatTab,
     newMarkdownTab,
     newArchitectureTab,
   };

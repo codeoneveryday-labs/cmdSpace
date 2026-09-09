@@ -27,7 +27,7 @@ function createFakeModelFactory(): VoiceCaptureModelFactory {
   });
 }
 
-const startOptions = (ownerKey: "floating" | `agent-chat:${string}`) => ({
+const startOptions = (ownerKey: "floating") => ({
   ownerKey,
   speechToTextModelId: "gpt-4o-transcribe",
   apiKeys: {},
@@ -43,7 +43,7 @@ describe("voice capture service", () => {
     });
 
     await expect(service.start(startOptions("floating"))).resolves.toBe(true);
-    await expect(service.start(startOptions("agent-chat:chat-2"))).resolves.toBe(false);
+    await expect(service.start(startOptions("floating"))).resolves.toBe(false);
     expect(service.getSnapshot().activeOwnerKey).toBe("floating");
   });
 
@@ -57,8 +57,8 @@ describe("voice capture service", () => {
     service.cancel("floating");
     await Promise.resolve();
 
-    await expect(service.start(startOptions("agent-chat:chat-2"))).resolves.toBe(true);
-    expect(service.getSnapshot().activeOwnerKey).toBe("agent-chat:chat-2");
+    await expect(service.start(startOptions("floating"))).resolves.toBe(true);
+    expect(service.getSnapshot().activeOwnerKey).toBe("floating");
   });
 
   it("binds the active owner's callbacks once and keeps native listeners shared", async () => {
@@ -88,7 +88,7 @@ describe("voice capture service", () => {
     expect(floatingResult).toHaveBeenCalledWith("hello");
     service.cancel("floating");
     await Promise.resolve();
-    await service.start(startOptions("agent-chat:chat-2"));
+    await service.start(startOptions("floating"));
     expect(bindCount).toBe(1);
   });
 });

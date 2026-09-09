@@ -12,6 +12,8 @@ describe("WorkspaceAgentAssignmentSummary contract", () => {
     expect(source).toContain("Isolate agent changes in Git worktrees");
     expect(source).toContain("Import existing session");
     expect(source).toContain("setSelectedImportSessions");
+    expect(source).not.toContain("Regular terminals");
+    expect(source).not.toContain("Unassigned slots open as normal shell terminals");
     expect(source).not.toContain("invoke(");
   });
 });

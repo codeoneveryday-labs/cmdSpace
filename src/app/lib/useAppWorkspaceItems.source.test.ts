@@ -12,7 +12,6 @@ describe("useAppWorkspaceItems contract", () => {
     expect(source).toContain("buildWorkspaceItems");
     expect(source).toContain("closePaneByLeaf");
     expect(source).toContain("closeCanvasTerminal");
-    expect(source).toContain("closeAgentTab");
     expect(source).toContain("activeCanvasTerminalIds");
   });
 });

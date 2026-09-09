@@ -6,17 +6,6 @@ macro_rules! cmdspace_commands {
             agent_usage::agent_usage_statuses,
             agent_usage::provider_limit_status,
             agent_usage::provider_limit_statuses,
-            // Structured CLI agent chat
-            agent_chat::commands::agent_chat_start,
-            agent_chat::commands::agent_chat_attach,
-            agent_chat::commands::agent_chat_detach,
-            agent_chat::commands::agent_chat_runtime_status,
-            agent_chat::commands::agent_chat_send,
-            agent_chat::commands::agent_chat_cancel,
-            agent_chat::commands::agent_chat_close,
-            agent_chat::commands::agent_chat_load_history,
-            agent_chat::commands::agent_chat_list_models,
-            agent_chat::commands::agent_chat_list_slash_options,
             // PTY
             pty::pty_open,
             pty::pty_write,
@@ -129,10 +118,6 @@ macro_rules! cmdspace_commands {
             db::db_save_recent_workspace,
             db::db_load_workspace_setup_custom_command,
             db::db_save_workspace_setup_custom_command,
-            db::db_load_agent_chat_config,
-            db::db_save_agent_chat_config,
-            db::db_load_agent_model_cache,
-            db::db_save_agent_model_cache,
         ]
     };
 }

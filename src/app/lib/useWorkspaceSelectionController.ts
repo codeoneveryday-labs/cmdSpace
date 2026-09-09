@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ArchitectureDiagram, Tab } from "@/modules/tabs";
-import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { WorkspaceSelectionPane } from "./useWorkspaceSelection";
 import {
   useWorkspaceSelection,
@@ -24,17 +23,10 @@ export type WorkspaceSelectionControllerInput = {
   updateTab: (tabId: number, patch: { diagram: ArchitectureDiagram }) => void;
   replaceWorkspace?: (
     workspaceId: string,
-    patch: Partial<Pick<WorkspaceRecord, "tabId" | "canvasTabId" | "agentTabIds" | "agentProviders" | "agentSessionIds" | "agentChatIds">>,
+    patch: Partial<Pick<WorkspaceRecord, "tabId" | "canvasTabId">>,
   ) => void;
   persistCanvasDiagram: (tabId: number, diagram: ArchitectureDiagram) => void;
   createCanvasTab: (diagram: ArchitectureDiagram, title: string) => number;
-  createAgentChatTab: (input: {
-    title: string;
-    provider: CliAgent;
-    cwd: string;
-    nativeSessionId: string | null;
-    chatId?: string;
-  }) => number;
   createWorkspaceTab: (
     workingFolder: string | undefined,
     count: number,
@@ -69,7 +61,6 @@ export function useWorkspaceSelectionController(
     replaceWorkspace,
     persistCanvasDiagram,
     createCanvasTab,
-    createAgentChatTab,
     createWorkspaceTab,
     syncWorkspacePaneNativeSessions,
     buildCanvasWorkspaceDiagram,
@@ -91,7 +82,6 @@ export function useWorkspaceSelectionController(
     updateCanvasTabDiagram: (tabId, diagram) => updateTab(tabId, { diagram }),
     persistCanvasDiagram,
     createCanvasTab,
-    createAgentChatTab,
     createWorkspaceTab,
     replaceWorkspace: replaceWorkspace ?? ((workspaceId, patch) => {
       workspacesRef.current = workspacesRef.current.map((workspace) =>

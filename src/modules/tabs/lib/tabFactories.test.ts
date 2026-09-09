@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAgentChatTab, createAiDiffTab, createArchitectureTab, createEditorTab, createGitCommitFileDiffTab, createGitDiffTab, createGitHistoryTab, createInitialTerminalTab, createMarkdownTab, createTerminalTab, createWorkspaceTab } from "./tabFactories";
+import { createAiDiffTab, createArchitectureTab, createEditorTab, createGitCommitFileDiffTab, createGitDiffTab, createGitHistoryTab, createInitialTerminalTab, createMarkdownTab, createTerminalTab, createWorkspaceTab } from "./tabFactories";
 
 describe("tabFactories", () => {
   it("creates terminal and private tabs with the expected pane metadata", () => {
@@ -13,12 +13,7 @@ describe("tabFactories", () => {
     expect(createTerminalTab({ id: 3, leafId: 4, privateTab: true }).paneTree).not.toHaveProperty("autoLaunch");
   });
 
-  it("creates agent-chat and editor tabs with normalized defaults", () => {
-    expect(createAgentChatTab({ id: 1, title: "Chat", provider: "codex", cwd: "/repo", chatId: "chat-1" })).toMatchObject({
-      kind: "agent-chat",
-      nativeSessionId: null,
-      chatId: "chat-1",
-    });
+  it("creates editor tabs with normalized defaults", () => {
     expect(createEditorTab({ id: 2, path: "/repo/README.md", preview: true })).toMatchObject({
       title: "README.md",
       preview: true,

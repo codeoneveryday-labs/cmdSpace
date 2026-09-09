@@ -7,7 +7,6 @@ export function useWorkspaceTerminalCreationAction({
   tabsRef,
   canvasTerminalCreators,
   appendTerminalPane,
-  newAgentChatTab,
   setActiveId,
   persistPaneRecord,
   persistedPaneFor,
@@ -21,7 +20,6 @@ export function useWorkspaceTerminalCreationAction({
   tabsRef: MutableRefObject<Tab[]>;
   canvasTerminalCreators: MutableRefObject<Map<number, (command?: string) => boolean>>;
   appendTerminalPane: CreateWorkspaceTerminalInput["appendTerminalPane"];
-  newAgentChatTab: CreateWorkspaceTerminalInput["newAgentChatTab"];
   setActiveId: CreateWorkspaceTerminalInput["setActiveId"];
   persistPaneRecord: CreateWorkspaceTerminalInput["persistPaneRecord"];
   persistedPaneFor: CreateWorkspaceTerminalInput["persistedPaneFor"];
@@ -39,7 +37,6 @@ export function useWorkspaceTerminalCreationAction({
         tabsRef,
         canvasTerminalCreators,
         appendTerminalPane,
-        newAgentChatTab,
         setActiveId,
         persistPaneRecord,
         persistedPaneFor,
@@ -55,7 +52,6 @@ export function useWorkspaceTerminalCreationAction({
       canvasTerminalCreators,
       createWorkspaceTerminal,
       markWorkspacePaneLaunch,
-      newAgentChatTab,
       persistPaneRecord,
       persistedPaneFor,
       saveRecentWorkspace,

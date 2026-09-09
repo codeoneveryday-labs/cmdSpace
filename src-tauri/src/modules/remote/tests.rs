@@ -262,11 +262,6 @@ fn remote_state_response_returns_workspace_rows() {
             display_order: 0,
             pane_layout: None,
             workspace_mode: Some("canvas".to_string()),
-            agent_provider: None,
-            agent_session_id: None,
-            agent_providers: None,
-            agent_session_ids: None,
-            agent_chat_ids: None,
         },
     )
     .unwrap();
