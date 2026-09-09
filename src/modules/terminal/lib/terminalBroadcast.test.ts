@@ -13,4 +13,10 @@ describe("resolveBroadcastTargets", () => {
   it("keeps the source writable when it was not explicitly selected", () => {
     expect(resolveBroadcastTargets(true, 1, [2], [1, 2])).toEqual([1, 2]);
   });
+
+  it("does not broadcast SGR mouse reports to other panes", () => {
+    expect(
+      resolveBroadcastTargets(true, 1, [2], [1, 2], "\x1b[<35;54;18M"),
+    ).toEqual([1]);
+  });
 });

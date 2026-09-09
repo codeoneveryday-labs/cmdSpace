@@ -8,6 +8,10 @@ const switcherSource = readFileSync(
   path.join(here, "TerminalAgentSwitcher.tsx"),
   "utf8",
 );
+const overlaySource = readFileSync(
+  path.join(here, "FloatingTerminalOverlay.tsx"),
+  "utf8",
+);
 
 describe("resolveAgentSwitchCommand", () => {
   it("prefers the Settings override", () => {
@@ -41,5 +45,12 @@ describe("TerminalAgentSwitcher debouncing and controlled menu", () => {
     expect(switcherSource).toContain("pendingSwitchRef.current = true;");
     expect(switcherSource).toContain("setOpen(false);");
     expect(switcherSource).toContain("<DropdownMenu open={open} onOpenChange={setOpen}>");
+  });
+
+  it("returns focus to the terminal after selecting an agent", () => {
+    expect(switcherSource).toContain("onFocusTerminal?: () => void;");
+    expect(switcherSource).toContain("onFocusTerminal?.();");
+    expect(switcherSource).toContain("requestAnimationFrame");
+    expect(overlaySource).toContain("onFocusTerminal={onFocusTerminal}");
   });
 });

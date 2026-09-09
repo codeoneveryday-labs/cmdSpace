@@ -128,6 +128,7 @@ configureRendererPool({
         for (const targetLeafId of broadcastTargetsForInput(
           leafId,
           [...sessions.keys()],
+          data,
         )) {
           const target = sessions.get(targetLeafId);
           if (target) writeToSessionPty(targetLeafId, target, data);

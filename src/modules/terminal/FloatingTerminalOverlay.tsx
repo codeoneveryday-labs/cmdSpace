@@ -184,6 +184,7 @@ export function FloatingTerminalOverlay({
       <TerminalAgentSwitcher
         currentAgent={cliAgent}
         onSelect={onSwitchAgent}
+        onFocusTerminal={onFocusTerminal}
       />
       {/* Compact dir label: the full directory + branch picker only appears
           after the header has room for the agent controls as well. */}
