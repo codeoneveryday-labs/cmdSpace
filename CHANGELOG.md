@@ -3,6 +3,22 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.108] - 2026-09-10
+
+### Fixed
+
+- Workspace terminal tabs now close immediately while pane and agent-session
+  reconciliation continues in the background.
+- macOS Vietnamese Telex input recovers after terminal or window focus is lost
+  during composition, without committing unfinished text.
+- Selecting a coding agent from the terminal header now returns focus to the
+  terminal instead of leaving the logo trigger active.
+
+### Known limitations
+
+- Manual Telex typing and tab-close timing were not rerun in a signed release
+  build; automated regression coverage and local packaged verification pass.
+
 ## [0.7.107] - 2026-09-09
 
 ### Added
