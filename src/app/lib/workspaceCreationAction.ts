@@ -63,6 +63,7 @@ export async function createWorkspaceAction(
     tabId: null,
     canvasTabId: null,
     workspaceMode,
+    pinned: false,
   };
 
   saveRecentWorkspace(workspace);

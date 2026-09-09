@@ -11,6 +11,8 @@ describe("WorkspaceRow contract", () => {
     expect(source).toContain("export function WorkspaceRow");
     expect(source).toContain("DropdownMenu");
     expect(source).toContain("MoreHorizontalIcon");
+    expect(source).toContain("PinIcon");
+    expect(source).toContain("onTogglePinned");
     expect(source).toContain("onSelect={() => setRenameDialogOpen(true)}");
     expect(source).toContain('className="w-36 min-w-0 rounded-lg p-1"');
     expect(source).toContain("Rename Workspace");

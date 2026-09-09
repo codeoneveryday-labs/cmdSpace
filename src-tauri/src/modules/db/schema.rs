@@ -166,13 +166,14 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
             updated_at INTEGER NOT NULL,
             display_order INTEGER NOT NULL DEFAULT 0,
             pane_layout TEXT,
-            workspace_mode TEXT
+            workspace_mode TEXT,
+            pinned INTEGER NOT NULL DEFAULT 0
         );",
         [],
     )
     .map_err(|e| format!("Failed to create table: {e}"))?;
 
-    let (has_accent_color, has_pane_layout, has_workspace_mode) = {
+    let (has_accent_color, has_pane_layout, has_workspace_mode, has_pinned) = {
         let mut stmt = conn
             .prepare("PRAGMA table_info(workspaces)")
             .map_err(|e| format!("Failed to inspect workspaces table: {e}"))?;
@@ -182,6 +183,7 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
         let mut found_accent_color = false;
         let mut found_pane_layout = false;
         let mut found_workspace_mode = false;
+        let mut found_pinned = false;
         for column in columns {
             match column
                 .map_err(|e| format!("Failed to read column name: {e}"))?
@@ -190,10 +192,16 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
                 "accent_color" => found_accent_color = true,
                 "pane_layout" => found_pane_layout = true,
                 "workspace_mode" => found_workspace_mode = true,
+                "pinned" => found_pinned = true,
                 _ => {}
             }
         }
-        (found_accent_color, found_pane_layout, found_workspace_mode)
+        (
+            found_accent_color,
+            found_pane_layout,
+            found_workspace_mode,
+            found_pinned,
+        )
     };
     if !has_accent_color {
         conn.execute("ALTER TABLE workspaces ADD COLUMN accent_color TEXT", [])
@@ -206,6 +214,13 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
     if !has_workspace_mode {
         conn.execute("ALTER TABLE workspaces ADD COLUMN workspace_mode TEXT", [])
             .map_err(|e| format!("Failed to add workspace_mode column: {e}"))?;
+    }
+    if !has_pinned {
+        conn.execute(
+            "ALTER TABLE workspaces ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| format!("Failed to add pinned column: {e}"))?;
     }
 
     // Agent chat was removed: drop its workspace columns and tables from

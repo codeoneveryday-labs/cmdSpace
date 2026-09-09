@@ -37,6 +37,7 @@ export function normalizeHydratedWorkspace(
       workspaceAccentForIndex(index),
     ),
     paneLayout: workspace.paneLayout ?? null,
+    pinned: workspace.pinned ?? false,
     tabId: null,
     canvasTabId: null,
     workspaceMode:

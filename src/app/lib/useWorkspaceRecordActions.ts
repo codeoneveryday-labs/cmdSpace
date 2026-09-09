@@ -66,6 +66,26 @@ export function useWorkspaceRecordActions({
     [setWorkspaces],
   );
 
+  const toggleWorkspacePinned = useCallback(
+    (workspaceId: string) => {
+      setWorkspaces((current) =>
+        current.map((workspace) => {
+          if (workspace.id !== workspaceId) return workspace;
+          const updated = {
+            ...workspace,
+            pinned: !workspace.pinned,
+            updatedAt: Date.now(),
+          };
+          void invoke("db_save_workspace", { workspace: updated }).catch((error) =>
+            console.error("Failed to save workspace pin state to SQLite:", error),
+          );
+          return updated;
+        }),
+      );
+    },
+    [setWorkspaces],
+  );
+
   const reorderWorkspaces = useCallback(
     (draggedId: string, targetId: string, position: "before" | "after") => {
       setWorkspaces((current) => {
@@ -90,6 +110,7 @@ export function useWorkspaceRecordActions({
   return {
     renameWorkspace,
     changeWorkspaceColor,
+    toggleWorkspacePinned,
     reorderWorkspaces,
   };
 }

@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import { MoreHorizontalIcon, PinIcon, PinOffIcon } from "@hugeicons/core-free-icons";
 import { truncateMiddle } from "@/lib/truncateMiddle";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
@@ -40,6 +40,7 @@ export function WorkspaceRow({
   onClose,
   onRename,
   onColorChange,
+  onTogglePinned,
   onDragStart,
   isDragging = false,
 }: {
@@ -51,6 +52,7 @@ export function WorkspaceRow({
   onClose: () => void;
   onRename: (name: string) => void;
   onColorChange: (accentColor: string) => void;
+  onTogglePinned: () => void;
   onDragStart?: (id: string, e: React.PointerEvent<HTMLDivElement>) => void;
   isDragging?: boolean;
 }) {
@@ -108,14 +110,26 @@ export function WorkspaceRow({
   );
 
   const workspaceActions = (
-    <DropdownMenu>
+    <div
+      className={cn(
+        "flex shrink-0 items-center gap-0.5",
+        !active && "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onTogglePinned}
+        className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        aria-label={workspace.pinned ? `Unpin ${workspace.name}` : `Pin ${workspace.name}`}
+        title={workspace.pinned ? `Unpin ${workspace.name}` : `Pin ${workspace.name}`}
+      >
+        <HugeiconsIcon icon={workspace.pinned ? PinOffIcon : PinIcon} size={15} strokeWidth={2} />
+      </button>
+      <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-            !active && "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-          )}
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           aria-label={`Workspace actions for ${workspace.name}`}
           title={`Workspace actions for ${workspace.name}`}
         >
@@ -138,7 +152,8 @@ export function WorkspaceRow({
           Delete workspace
         </DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenu>
+    </div>
   );
 
   const renameDialog = (

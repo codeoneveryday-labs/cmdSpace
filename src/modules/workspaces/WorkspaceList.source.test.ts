@@ -11,6 +11,12 @@ describe("WorkspaceList contract", () => {
     expect(source).toContain("WorkspaceList");
     expect(source).toContain("WorkspaceRow");
     expect(source).toContain("groupWorkspacesByDir");
+    expect(source).toContain("pinnedWorkspaces");
+    expect(source).toContain("Pinned workspaces");
+    expect(source).toContain("pinnedExpanded");
+    expect(source).toContain("setPinnedExpanded");
+    expect(source).toContain("aria-expanded={pinnedExpanded}");
+    expect(source).toContain("aria-controls=\"pinned-workspaces-list\"");
     expect(source).toContain("DragDropVerticalIcon");
     expect(source).toContain("onGroupDragStart");
     expect(source).toContain("data-workspace-group-id");

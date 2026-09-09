@@ -320,6 +320,7 @@ export default function App() {
     saveRecentWorkspace,
     renameWorkspace,
     changeWorkspaceColor,
+    toggleWorkspacePinned,
     reorderWorkspaces,
     deleteWorkspace: removeWorkspace,
     createWorkspace,
@@ -721,6 +722,10 @@ export default function App() {
   const handleChangeWorkspaceColor = useCallback(
     (workspaceId: string, color: string) => changeWorkspaceColor(workspaceId, color),
     [changeWorkspaceColor],
+  );
+  const handleToggleWorkspacePinned = useCallback(
+    (workspaceId: string) => toggleWorkspacePinned(workspaceId),
+    [toggleWorkspacePinned],
   );
   const handleReorderWorkspaces = useCallback(
     (draggedId: string, targetId: string, position: "before" | "after") =>
@@ -1158,6 +1163,7 @@ export default function App() {
       onCloseWorkspace={handleCloseWorkspace}
       onRenameWorkspace={handleRenameWorkspace}
       onChangeWorkspaceColor={handleChangeWorkspaceColor}
+      onToggleWorkspacePinned={handleToggleWorkspacePinned}
       onStartWorkspaceSetup={() => setWorkspaceSetupOpen(true)}
       onImportSession={() => setImportSessionOpen(true)}
       onReorderWorkspaces={handleReorderWorkspaces}
