@@ -40,6 +40,7 @@ export function WorkspaceDragOverlays({
             onClose={() => {}}
             onRename={() => {}}
             onColorChange={() => {}}
+            onTogglePinned={() => {}}
             isDragging={true}
           />
         </div>

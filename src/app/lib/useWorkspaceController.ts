@@ -106,6 +106,7 @@ export function useWorkspaceController({
   const {
     renameWorkspace,
     changeWorkspaceColor,
+    toggleWorkspacePinned,
     reorderWorkspaces,
   } = useWorkspaceRecordActions({
     workspaces,
@@ -322,6 +323,7 @@ export function useWorkspaceController({
     saveRecentWorkspace,
     renameWorkspace,
     changeWorkspaceColor,
+    toggleWorkspacePinned,
     reorderWorkspaces,
     createWorkspace,
     deleteWorkspace,

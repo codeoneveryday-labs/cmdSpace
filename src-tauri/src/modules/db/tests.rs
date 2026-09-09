@@ -43,6 +43,8 @@ fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
     assert_eq!(workspaces.len(), 1);
     assert_eq!(workspaces[0].id, "legacy");
     assert_eq!(workspaces[0].working_folder.as_deref(), Some("/tmp/legacy"));
+    assert!(!workspaces[0].pinned);
+    assert!(table_columns(&conn, "workspaces").contains(&"pinned".to_string()));
     assert_eq!(
         table_columns(&conn, "workspace_panes"),
         vec![
@@ -148,6 +150,7 @@ fn test_sqlite_crud_operations() {
         display_order: 0,
         pane_layout: Some("{\"kind\":\"leaf\",\"size\":100}".to_string()),
         workspace_mode: Some("canvas".to_string()),
+        pinned: true,
     };
     save_workspace_inner(&conn, &w1).expect("save workspace");
 
@@ -155,6 +158,7 @@ fn test_sqlite_crud_operations() {
     assert_eq!(list.len(), 1);
     assert_eq!(list[0], w1);
     assert_eq!(list[0].accent_color, Some("#10B981".to_string()));
+    assert!(list[0].pinned);
 
     // 3. Save panes for the workspace
     let p1 = WorkspacePaneRow {

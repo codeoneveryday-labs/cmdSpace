@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, String> {
     let mut stmt = conn
-        .prepare("SELECT id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode FROM workspaces ORDER BY display_order ASC, created_at ASC")
+        .prepare("SELECT id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode, pinned FROM workspaces ORDER BY display_order ASC, created_at ASC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -19,6 +19,7 @@ pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, Str
                 display_order: row.get(7)?,
                 pane_layout: row.get(8)?,
                 workspace_mode: row.get(9)?,
+                pinned: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -33,8 +34,8 @@ pub fn list_workspaces_inner(conn: &Connection) -> Result<Vec<WorkspaceRow>, Str
 
 pub fn save_workspace_inner(conn: &Connection, workspace: &WorkspaceRow) -> Result<(), String> {
     conn.execute(
-        "INSERT OR REPLACE INTO workspaces (id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT OR REPLACE INTO workspaces (id, name, terminal_count, accent_color, working_folder, created_at, updated_at, display_order, pane_layout, workspace_mode, pinned)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             workspace.id,
             workspace.name,
@@ -46,6 +47,7 @@ pub fn save_workspace_inner(conn: &Connection, workspace: &WorkspaceRow) -> Resu
             workspace.display_order,
             workspace.pane_layout,
             workspace.workspace_mode,
+            workspace.pinned,
         ],
     )
     .map_err(|e| format!("Failed to save workspace: {e}"))?;

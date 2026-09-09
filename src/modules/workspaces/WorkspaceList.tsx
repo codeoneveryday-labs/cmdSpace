@@ -31,6 +31,7 @@ export function WorkspaceList({
   onCloseWorkspace,
   onRenameWorkspace,
   onChangeWorkspaceColor,
+  onToggleWorkspacePinned,
   onDragStart,
   onReorderWorkspaces,
 }: {
@@ -45,6 +46,7 @@ export function WorkspaceList({
   onCloseWorkspace: (workspaceId: string) => void;
   onRenameWorkspace: (workspaceId: string, name: string) => void;
   onChangeWorkspaceColor: (workspaceId: string, accentColor: string) => void;
+  onToggleWorkspacePinned: (workspaceId: string) => void;
   onDragStart: (workspaceId: string, event: React.PointerEvent<HTMLDivElement>) => void;
   onReorderWorkspaces?: (
     draggedId: string,
@@ -55,9 +57,18 @@ export function WorkspaceList({
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const groupedWorkspaces = useMemo(
-    () => groupWorkspacesByDir(renderedWorkspaces),
+  const [pinnedExpanded, setPinnedExpanded] = useState(true);
+  const pinnedWorkspaces = useMemo(
+    () => renderedWorkspaces.filter((workspace) => workspace.pinned),
     [renderedWorkspaces],
+  );
+  const unpinnedWorkspaces = useMemo(
+    () => renderedWorkspaces.filter((workspace) => !workspace.pinned),
+    [renderedWorkspaces],
+  );
+  const groupedWorkspaces = useMemo(
+    () => groupWorkspacesByDir(unpinnedWorkspaces),
+    [unpinnedWorkspaces],
   );
   const activeGroupId = groupedWorkspaces.find((group) =>
     group.workspaces.some((workspace) => workspace.id === activeWorkspaceId),
@@ -66,7 +77,7 @@ export function WorkspaceList({
     () =>
       (draggedGroupId: string, targetGroupId: string, position: "before" | "after") => {
         const steps = buildWorkspaceGroupMoveSteps(
-          renderedWorkspaces,
+          unpinnedWorkspaces,
           draggedGroupId,
           targetGroupId,
           position,
@@ -75,7 +86,7 @@ export function WorkspaceList({
           onReorderWorkspaces?.(step.draggedId, step.targetId, step.position),
         );
       },
-    [onReorderWorkspaces, renderedWorkspaces],
+    [onReorderWorkspaces, unpinnedWorkspaces],
   );
   const { groupDragVisual, onGroupDragStart } = useWorkspaceGroupReorderDrag({
     groups: groupedWorkspaces,
@@ -120,6 +131,49 @@ export function WorkspaceList({
         </div>
       ) : (
         <>
+          {pinnedWorkspaces.length > 0 ? (
+            <section className="space-y-0.5 px-2 pb-2" aria-label="Pinned workspaces">
+              <button
+                type="button"
+                aria-expanded={pinnedExpanded}
+                aria-controls="pinned-workspaces-list"
+                onClick={() => setPinnedExpanded((expanded) => !expanded)}
+                className="flex h-8 w-full items-center gap-1.5 rounded-md px-1 text-left text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  Pinned workspaces ({pinnedWorkspaces.length})
+                </span>
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  size={12}
+                  strokeWidth={2}
+                  className={cn(
+                    "shrink-0 transition-transform",
+                    !pinnedExpanded && "-rotate-90",
+                  )}
+                />
+              </button>
+              {pinnedExpanded ? (
+                <div id="pinned-workspaces-list" className="space-y-0.5">
+                  {pinnedWorkspaces.map((workspace) => (
+                    <WorkspaceRow
+                      key={workspace.id}
+                      workspace={workspace}
+                      active={workspace.id === activeWorkspaceId}
+                      compact={compact}
+                      canClose={workspaces.length > 1}
+                      onSelect={() => onSelectWorkspace(workspace.id)}
+                      onClose={() => onCloseWorkspace(workspace.id)}
+                      onRename={(name) => onRenameWorkspace(workspace.id, name)}
+                      onColorChange={(color) => onChangeWorkspaceColor(workspace.id, color)}
+                      onTogglePinned={() => onToggleWorkspacePinned(workspace.id)}
+                      onDragStart={onDragStart}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
           {(groupDragVisual === null
             ? groupedWorkspaces
             : groupedWorkspaces.filter((group) => group.id !== groupDragVisual.id)
@@ -237,6 +291,7 @@ export function WorkspaceList({
                         onColorChange={(color) =>
                           onChangeWorkspaceColor(workspace.id, color)
                         }
+                        onTogglePinned={() => onToggleWorkspacePinned(workspace.id)}
                         onDragStart={onDragStart}
                       />
                     </div>,

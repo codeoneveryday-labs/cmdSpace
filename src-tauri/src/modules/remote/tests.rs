@@ -262,6 +262,7 @@ fn remote_state_response_returns_workspace_rows() {
             display_order: 0,
             pane_layout: None,
             workspace_mode: Some("canvas".to_string()),
+            pinned: false,
         },
     )
     .unwrap();

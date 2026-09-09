@@ -20,6 +20,8 @@ pub struct WorkspaceRow {
     pub pane_layout: Option<String>,
     #[serde(rename = "workspaceMode")]
     pub workspace_mode: Option<String>,
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

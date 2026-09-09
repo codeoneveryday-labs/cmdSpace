@@ -118,6 +118,7 @@ pub(super) fn create_remote_workspace(
         display_order: db::list_workspaces_inner(&conn)?.len() as i32,
         pane_layout: None,
         workspace_mode: Some("terminal".to_string()),
+        pinned: false,
     };
     db::save_workspace_inner(&conn, &workspace)?;
     for pane_index in 0..terminal_count {

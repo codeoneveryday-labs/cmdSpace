@@ -117,7 +117,7 @@ Tabs are tagged-union (`terminal` | `editor` | `ai-diff`) and hidden on switch
 `src-tauri/src/commands.rs` (invoked from `lib.rs::run()`). Modules under
 `src/modules/`: `pty/` (interactive shells via portable-pty), `shell/`
 (one-shot + session + background), `fs/` (tree, file, search, grep), `git/`,
-`agent_chat/` (structured CLI agent sessions), `secrets.rs` (OS keychain),
+`secrets.rs` (OS keychain),
 `speech.rs` (voice), `remote.rs` (WebSocket tunnel + auth), `net.rs` (AI HTTP
 proxy with SSRF guard), `db.rs` (SQLite workspaces/panes), `workspace.rs`,
 `agent_usage.rs`, `music.rs`, `sleep.rs` (sleep inhibition), `app_exit.rs`

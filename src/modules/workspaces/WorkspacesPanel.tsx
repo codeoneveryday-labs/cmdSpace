@@ -17,6 +17,7 @@ export type WorkspaceItem = {
   name: string;
   count: number;
   accentColor: string;
+  pinned?: boolean;
   workspaceMode?: WorkspaceMode;
   workingFolder?: string | null;
   updatedAt?: number;
@@ -47,6 +48,7 @@ type Props = {
   onCloseWorkspace: (workspaceId: string) => void;
   onRenameWorkspace: (workspaceId: string, name: string) => void;
   onChangeWorkspaceColor: (workspaceId: string, accentColor: string) => void;
+  onToggleWorkspacePinned: (workspaceId: string) => void;
   onStartWorkspaceSetup: () => void;
   onImportSession: () => void;
   onReorderWorkspaces?: (
@@ -64,6 +66,7 @@ export function WorkspacesPanel({
   onCloseWorkspace,
   onRenameWorkspace,
   onChangeWorkspaceColor,
+  onToggleWorkspacePinned,
   onStartWorkspaceSetup,
   onImportSession,
   onReorderWorkspaces,
@@ -120,6 +123,7 @@ export function WorkspacesPanel({
           onCloseWorkspace={onCloseWorkspace}
           onRenameWorkspace={onRenameWorkspace}
           onChangeWorkspaceColor={onChangeWorkspaceColor}
+          onToggleWorkspacePinned={onToggleWorkspacePinned}
           onDragStart={onDragStart}
           onReorderWorkspaces={onReorderWorkspaces}
         />
