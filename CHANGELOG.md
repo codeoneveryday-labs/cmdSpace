@@ -3,6 +3,25 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.107] - 2026-09-09
+
+### Added
+
+- Added persisted workspace pinning with a dedicated pinned section, compact
+  pin actions, workspace counts, and collapsible disclosure while preserving
+  directory grouping and reorder behavior.
+
+### Removed
+
+- Removed the unused in-app Agent Chat frontend, runtime, commands, persistence
+  tables, and workspace state while retaining terminal CLI agents, usage
+  tracking, session import, voice input, and standard/canvas terminal flows.
+
+### Known limitations
+
+- Manual desktop click-through for workspace pinning and the removed Agent Chat
+  surface was not covered in this release verification run.
+
 ## [0.7.106] - 2026-09-08
 
 ### Changed
