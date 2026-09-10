@@ -1,3 +1,4 @@
+use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -28,9 +29,24 @@ pub enum RemoteAuthError {
     System(String),
 }
 
-impl std::fmt::Display for RemoteAuthError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let message = match self {
+impl RemoteAuthError {
+    fn code(&self) -> &'static str {
+        match self {
+            Self::BootstrapExpired => "REMOTE_AUTH_BOOTSTRAP_EXPIRED",
+            Self::BootstrapInvalid => "REMOTE_AUTH_BOOTSTRAP_INVALID",
+            Self::BootstrapUsed => "REMOTE_AUTH_BOOTSTRAP_USED",
+            Self::InvalidPassword => "REMOTE_AUTH_PASSWORD_INVALID",
+            Self::PasswordAlreadyConfigured => "REMOTE_AUTH_PASSWORD_ALREADY_CONFIGURED",
+            Self::PasswordTooShort => "REMOTE_AUTH_PASSWORD_TOO_SHORT",
+            Self::InvalidToken => "REMOTE_AUTH_TOKEN_INVALID",
+            Self::TokenExpired => "REMOTE_AUTH_TOKEN_EXPIRED",
+            Self::RateLimited => "REMOTE_AUTH_RATE_LIMITED",
+            Self::System(_) => "REMOTE_AUTH_SYSTEM_UNAVAILABLE",
+        }
+    }
+
+    fn safe_message(&self) -> &'static str {
+        match self {
             Self::BootstrapExpired => "setup link has expired",
             Self::BootstrapInvalid => "setup link is invalid",
             Self::BootstrapUsed => "setup link has already been used",
@@ -40,13 +56,33 @@ impl std::fmt::Display for RemoteAuthError {
             Self::InvalidToken => "session token is invalid",
             Self::TokenExpired => "session token has expired",
             Self::RateLimited => "too many failed authentication attempts",
-            Self::System(error) => error,
-        };
-        formatter.write_str(message)
+            Self::System(detail) => {
+                let _ = detail;
+                "remote authentication system is unavailable"
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for RemoteAuthError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.safe_message())
     }
 }
 
 impl std::error::Error for RemoteAuthError {}
+
+impl Serialize for RemoteAuthError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("IpcError", 2)?;
+        state.serialize_field("code", self.code())?;
+        state.serialize_field("message", self.safe_message())?;
+        state.end()
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct RemoteSessionClaims {
