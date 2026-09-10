@@ -374,7 +374,7 @@ describe("App sidebar toggle", () => {
     expect(controllerSource).toContain("paneLayout: workspace.paneLayout ?? null");
     expect(appSource).toContain("useWorkspacePersistence<WorkspaceRecord>({");
     expect(appSource).toContain(
-      'persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace })',
+      "persistWorkspace: (workspace) => saveWorkspace(invoke, workspace)",
     );
     expect(appSource).toContain("onPaneTreeChange: handleTerminalPaneTreeChange");
     expect(paneActionsSource).toContain(
