@@ -52,7 +52,7 @@ describe("workspace session imports", () => {
     [
       "kiro",
       "session-123",
-      "kiro-cli chat --resume-id 'session-123'",
+      "kiro-cli --classic chat --resume-id 'session-123'",
     ],
     ["grok", "session-123", "grok --resume 'session-123'"],
     ["herdr", "work", "herdr session attach 'work'"],
