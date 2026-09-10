@@ -200,24 +200,33 @@ const grokLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; grok';
 const museLaunch =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.local/bin:$PATH"; muse';
-const piLaunch =
-  'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; command -v pi >/dev/null 2>&1 && pi || omp';
-
+// Migration-only. Older preferences, pane records, and workspace setup values
+// could store these zsh bootstraps as the launch command for the agent named by
+// the key. Keep every string byte-identical with what shipped so persisted
+// values still normalize; never normalize arbitrary user wrappers.
 const LEGACY_OMP_LAUNCH_COMMAND =
   'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; omp';
-const LEGACY_OMP_LAUNCH_COMMANDS = new Set([
-  LEGACY_OMP_LAUNCH_COMMAND,
-  piLaunch,
-]);
+const LEGACY_PI_FALLBACK_LAUNCH_COMMAND =
+  'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; command -v pi >/dev/null 2>&1 && pi || omp';
 
-/** Removes the pre-shell-integration OMP bootstrap from persisted preferences. */
+const LEGACY_BOOTSTRAP_LAUNCH_COMMANDS: Partial<
+  Record<CliAgent, ReadonlySet<string>>
+> = {
+  omp: new Set([LEGACY_OMP_LAUNCH_COMMAND, LEGACY_PI_FALLBACK_LAUNCH_COMMAND]),
+  pi: new Set([LEGACY_PI_FALLBACK_LAUNCH_COMMAND]),
+  kimi: new Set([kimiLaunch]),
+  grok: new Set([grokLaunch]),
+  muse: new Set([museLaunch]),
+};
+
+/** Collapses a pre-shell-integration bootstrap back to a bare launch command. */
 export function normalizeCliAgentLaunchCommand(
   agent: CliAgent,
   command: string,
 ): string {
   const trimmed = command.trim();
-  return agent === "omp" && LEGACY_OMP_LAUNCH_COMMANDS.has(trimmed)
-    ? "omp"
+  return LEGACY_BOOTSTRAP_LAUNCH_COMMANDS[agent]?.has(trimmed)
+    ? agent
     : trimmed;
 }
 
@@ -247,19 +256,22 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "copilot", name: "GitHub Copilot", executable: "copilot", command: "copilot", launch: "copilot", launchPolicy: "standard", bannerPatterns: [/\bgithub copilot\b/i, /\bcopilot cli\b/i] },
   { id: "cursor", name: "Cursor Agent", executable: "cursor-agent", command: "cursor-agent", launch: "cursor-agent", launchPolicy: "standard", bannerPatterns: [/\bcursor agent\b/i] },
   { id: "aider", name: "Aider", executable: "aider", command: "aider", launch: "aider", launchPolicy: "standard", bannerPatterns: [/\baider\b/i] },
-  { id: "pi", name: "Pi Coding Agent", executable: "pi", command: piLaunch, launch: piLaunch, launchPolicy: "standard", bannerPatterns: [/\bpi coding agent\b/i, /\boh-my-pi\b/i, /\bomp(?:\.sh)?\b/i] },
+  // Pi is only offered once it is installed, so it needs no PATH bootstrap and
+  // no `pi || omp` fallback. The initial command is echoed back by the shell,
+  // so a bare `pi` keeps the pane clean, exactly as OMP is launched.
+  { id: "pi", name: "Pi Coding Agent", executable: "pi", command: "pi", launch: "pi", launchPolicy: "standard", bannerPatterns: [/\bpi coding agent\b/i, /\boh-my-pi\b/i, /\bomp(?:\.sh)?\b/i] },
   { id: "omp", name: "omp", executable: "omp", command: "omp", launch: "omp", launchPolicy: "standard", chatTransport: "omp-rpc", bannerPatterns: [/\bomp(?:\.sh)?\b/i, /\boh-my-pi\b/i, /\bpi coding agent\b/i] },
-  { id: "muse", name: "Muse Code", executable: "muse", command: "muse", launch: museLaunch, launchPolicy: "standard", bannerPatterns: [/\bmuse code\b/i] },
+  { id: "muse", name: "Muse Code", executable: "muse", command: "muse", launch: "muse", launchPolicy: "standard", bannerPatterns: [/\bmuse code\b/i] },
   { id: "devin", name: "Devin CLI", executable: "devin", command: "devin", launch: "devin", launchPolicy: "standard", bannerPatterns: [/\bdevin(?: cli)?\b/i] },
   { id: "hermes", name: "Hermes", executable: "hermes", command: "hermes", launch: "hermes", launchPolicy: "standard", bannerPatterns: [/\bhermes\b/i] },
   { id: "amp", name: "Amp CLI", executable: "amp", command: "amp", launch: "amp", launchPolicy: "standard", bannerPatterns: [/\bamp cli\b/i, /\bsourcegraph amp\b/i] },
   { id: "cline", name: "Cline CLI", executable: "cline", command: "cline", launch: "cline", launchPolicy: "standard", bannerPatterns: [/\bcline cli\b/i] },
   { id: "goose", name: "Goose", executable: "goose", command: "goose", launch: "goose", launchPolicy: "standard", bannerPatterns: [/\bgoose\b/i] },
   { id: "qwen", name: "Qwen Code", executable: "qwen", command: "qwen", launch: "qwen", launchPolicy: "standard", bannerPatterns: [/\bqwen code\b/i] },
-  { id: "kimi", name: "Kimi Code", executable: "kimi", command: "kimi", launch: kimiLaunch, launchPolicy: "standard", bannerPatterns: [/\bkimi code\b/i] },
+  { id: "kimi", name: "Kimi Code", executable: "kimi", command: "kimi", launch: "kimi", launchPolicy: "standard", bannerPatterns: [/\bkimi code\b/i] },
   { id: "openhands", name: "OpenHands CLI", executable: "openhands", command: "openhands", launch: "openhands", launchPolicy: "standard", bannerPatterns: [/\bopenhands\b/i] },
   { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli", launch: "kiro-cli", launchPolicy: "standard", bannerPatterns: [/\bkiro cli\b/i] },
-  { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: grokLaunch, launchPolicy: "standard", bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
+  { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: "grok", launchPolicy: "standard", bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
   { id: "herdr", name: "Herdr", executable: "herdr", command: "herdr", launch: "herdr", launchPolicy: "standard", bannerPatterns: [/\bherdr\b/i] },
   { id: "cmd", name: "Command Code", executable: "cmd", command: commandCodeLaunch, launch: commandCodeLaunch, launchPolicy: "unattended", chatTransport: "command-code-json", bannerPatterns: [/\bcommand code\b/i] },
   { id: "auggie", name: "Auggie CLI", executable: "auggie", command: "auggie", launch: "auggie", launchPolicy: "standard", bannerPatterns: [/\bauggie(?: cli)?\b/i] },
