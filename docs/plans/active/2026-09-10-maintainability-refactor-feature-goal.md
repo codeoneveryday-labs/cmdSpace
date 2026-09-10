@@ -404,6 +404,13 @@ the extraction in the same prompt.
 **Proof:** reproducible report includes workload, p50/p95/p99, hardware/runtime,
 and a go/no-go decision with rejected alternatives.
 
+**Status:** complete. Decision 0014 keeps the mutex-backed connection because
+two same-host runs of the 4-worker/40-iteration harness remain below the
+explicit materiality thresholds (lock-wait p95 >1 ms or operation p95 >5 ms
+for three consecutive runs). The repeat run reported lock wait
+`42/167/783750 ns`, operation `15750/29791/44166 ns`, and schema startup
+`590167/719916/719916 ns`; no pool/worker is implemented in this prompt.
+
 ### Prompt 19 — Final verification and baseline re-pin
 
 **Owner seam:** repository validation and plan state.
@@ -465,7 +472,8 @@ result, and an explicit list of deferred work.
   and 7 error-module tests pass.
 - [x] Prompt 17 — Add structured context to the DB list boundary; 14 DB tests,
   fmt, and all-target Clippy pass.
-- [ ] Prompt 18 — Decide DB extraction from measured contention.
+- [x] Prompt 18 — Decide DB extraction from measured contention in Decision
+  0014; repeat harness and runtime metadata recorded.
 - [ ] Prompt 19 — Run final verification and re-pin metrics.
 - [ ] Prompt 20 — Deliver, merge, re-pull `main`, and close the plan.
 
