@@ -42,6 +42,22 @@ use std::{
 };
 use tungstenite::{Message, WebSocket};
 
+fn read_device_server_message(socket: &mut WebSocket<TcpStream>) -> DeviceServerMessage {
+    loop {
+        match socket.read() {
+            Ok(Message::Text(payload)) => {
+                return serde_json::from_str::<RemoteDeviceServerEnvelope>(payload.as_ref())
+                    .expect("decode device server message")
+                    .message;
+            }
+            Ok(message) => panic!("expected device text message, received {message:?}"),
+            Err(tungstenite::Error::Io(error))
+                if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(error) => panic!("failed to read device server message: {error}"),
+        }
+    }
+}
+
 #[test]
 fn remote_client_stream_reads_delayed_request_after_nonblocking_accept() {
     let listener = TcpListener::bind((IpAddr::from([127, 0, 0, 1]), 0)).unwrap();
@@ -725,12 +741,6 @@ fn native_device_websocket_pairs_authenticates_and_lists_remote_sessions() {
         .unwrap();
     let (mut socket, _) =
         tungstenite::client(format!("ws://{address}/api/remote/device/ws"), stream).unwrap();
-    let read = |socket: &mut WebSocket<TcpStream>| {
-        let Message::Text(payload) = socket.read().unwrap() else {
-            panic!("expected device text message")
-        };
-        serde_json::from_str::<RemoteDeviceServerEnvelope>(payload.as_ref()).unwrap()
-    };
     let send = |socket: &mut WebSocket<TcpStream>, message| {
         socket
             .send(Message::text(
@@ -738,7 +748,9 @@ fn native_device_websocket_pairs_authenticates_and_lists_remote_sessions() {
             ))
             .unwrap();
     };
-    let DeviceServerMessage::PairingChallenge { challenge } = read(&mut socket).message else {
+    let DeviceServerMessage::PairingChallenge { challenge } =
+        read_device_server_message(&mut socket)
+    else {
         panic!("expected pairing challenge")
     };
     send(
@@ -760,7 +772,7 @@ fn native_device_websocket_pairs_authenticates_and_lists_remote_sessions() {
         },
     );
     assert!(matches!(
-        read(&mut socket).message,
+        read_device_server_message(&mut socket),
         DeviceServerMessage::DeviceAuthenticated { .. }
     ));
     send(
@@ -770,7 +782,7 @@ fn native_device_websocket_pairs_authenticates_and_lists_remote_sessions() {
         },
     );
     assert!(matches!(
-        read(&mut socket).message,
+        read_device_server_message(&mut socket),
         DeviceServerMessage::Event {
             event: ServerMessage::Sessions { .. }
         }
@@ -822,13 +834,8 @@ fn native_device_websocket_reconnects_with_a_fresh_challenge_without_the_qr_gran
         .unwrap();
     let (mut socket, _) =
         tungstenite::client(format!("ws://{address}/api/remote/device/ws"), stream).unwrap();
-    let Message::Text(payload) = socket.read().unwrap() else {
-        panic!("expected device challenge")
-    };
-    let RemoteDeviceServerEnvelope {
-        message: DeviceServerMessage::PairingChallenge { challenge },
-        ..
-    } = serde_json::from_str(payload.as_ref()).unwrap()
+    let DeviceServerMessage::PairingChallenge { challenge } =
+        read_device_server_message(&mut socket)
     else {
         panic!("expected pairing challenge")
     };
@@ -840,13 +847,8 @@ fn native_device_websocket_reconnects_with_a_fresh_challenge_without_the_qr_gran
     ))
     .unwrap();
     socket.send(Message::text(payload)).unwrap();
-    let Message::Text(payload) = socket.read().unwrap() else {
-        panic!("expected authentication result")
-    };
     assert!(matches!(
-        serde_json::from_str::<RemoteDeviceServerEnvelope>(payload.as_ref())
-            .unwrap()
-            .message,
+        read_device_server_message(&mut socket),
         DeviceServerMessage::DeviceAuthenticated { .. }
     ));
     socket.close(None).unwrap();

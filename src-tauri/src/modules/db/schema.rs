@@ -1,3 +1,4 @@
+use super::{DbError, DbResult};
 use rusqlite::Connection;
 
 pub(super) fn get_db_path() -> std::path::PathBuf {
@@ -24,24 +25,24 @@ pub(super) fn get_db_path() -> std::path::PathBuf {
     }
 }
 
-fn drop_column_if_exists(conn: &Connection, table: &str, column: &str) -> Result<(), String> {
+fn drop_column_if_exists(conn: &Connection, table: &str, column: &str) -> DbResult<()> {
     let mut stmt = conn
         .prepare(&format!("PRAGMA table_info({table})"))
-        .map_err(|e| format!("Failed to inspect {table} table: {e}"))?;
+        .map_err(|e| DbError::migration("inspect schema columns", e))?;
     let columns = stmt
         .query_map([], |row| row.get::<_, String>(1))
-        .map_err(|e| format!("Failed to read {table} table columns: {e}"))?;
+        .map_err(|e| DbError::migration("read schema columns", e))?;
     for name in columns {
-        if name.map_err(|e| format!("Failed to read column name: {e}"))? == column {
+        if name.map_err(|e| DbError::migration("read schema column name", e))? == column {
             conn.execute_batch(&format!("ALTER TABLE {table} DROP COLUMN {column}"))
-                .map_err(|e| format!("Failed to drop {column}: {e}"))?;
+                .map_err(|e| DbError::migration("drop retired schema column", e))?;
             break;
         }
     }
     Ok(())
 }
 
-pub(super) fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
+pub(super) fn migrate_workspace_panes(conn: &Connection) -> DbResult<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS workspace_panes (
             workspace_id TEXT NOT NULL,
@@ -53,18 +54,18 @@ pub(super) fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
         );",
         [],
     )
-    .map_err(|e| format!("Failed to create workspace_panes table: {e}"))?;
+    .map_err(|e| DbError::migration("create workspace panes table", e))?;
 
     let columns = {
         let mut stmt = conn
             .prepare("PRAGMA table_info(workspace_panes)")
-            .map_err(|e| format!("Failed to inspect workspace_panes table: {e}"))?;
+            .map_err(|e| DbError::migration("inspect workspace panes schema", e))?;
         let columns = stmt
             .query_map([], |row| row.get::<_, String>(1))
-            .map_err(|e| format!("Failed to read workspace_panes table columns: {e}"))?;
+            .map_err(|e| DbError::migration("read workspace panes schema", e))?;
         let mut found = Vec::new();
         for column in columns {
-            found.push(column.map_err(|e| format!("Failed to read column name: {e}"))?);
+            found.push(column.map_err(|e| DbError::migration("read schema column name", e))?);
         }
         found
     };
@@ -74,21 +75,21 @@ pub(super) fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
             "ALTER TABLE workspace_panes ADD COLUMN auto_launch INTEGER NOT NULL DEFAULT 0",
             [],
         )
-        .map_err(|e| format!("Failed to add auto_launch column: {e}"))?;
+        .map_err(|e| DbError::migration("add workspace pane auto-launch column", e))?;
     }
     if !columns.iter().any(|column| column == "agent_provider") {
         conn.execute(
             "ALTER TABLE workspace_panes ADD COLUMN agent_provider TEXT",
             [],
         )
-        .map_err(|e| format!("Failed to add agent_provider column: {e}"))?;
+        .map_err(|e| DbError::migration("add workspace pane agent column", e))?;
     }
     if !columns.iter().any(|column| column == "native_session_id") {
         conn.execute(
             "ALTER TABLE workspace_panes ADD COLUMN native_session_id TEXT",
             [],
         )
-        .map_err(|e| format!("Failed to add native_session_id column: {e}"))?;
+        .map_err(|e| DbError::migration("add workspace pane session column", e))?;
     }
     if auto_launch_added {
         conn.execute(
@@ -114,12 +115,12 @@ pub(super) fn migrate_workspace_panes(conn: &Connection) -> Result<(), String> {
                 OR lower(trim(last_command)) LIKE 'cmd --%'",
             [],
         )
-        .map_err(|e| format!("Failed to migrate pane launch commands: {e}"))?;
+        .map_err(|e| DbError::migration("migrate pane launch commands", e))?;
     }
     Ok(())
 }
 
-pub(super) fn migrate_workspace_setup_preferences(conn: &Connection) -> Result<(), String> {
+pub(super) fn migrate_workspace_setup_preferences(conn: &Connection) -> DbResult<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS workspace_setup_preferences (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -127,11 +128,11 @@ pub(super) fn migrate_workspace_setup_preferences(conn: &Connection) -> Result<(
         );",
         [],
     )
-    .map_err(|e| format!("Failed to create workspace_setup_preferences table: {e}"))?;
+    .map_err(|e| DbError::migration("create workspace setup preferences table", e))?;
     Ok(())
 }
 
-pub fn init_mobile_workspace_schema(conn: &Connection) -> Result<(), String> {
+pub fn init_mobile_workspace_schema(conn: &Connection) -> DbResult<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS mobile_workspaces (
             id TEXT PRIMARY KEY,
@@ -143,17 +144,23 @@ pub fn init_mobile_workspace_schema(conn: &Connection) -> Result<(), String> {
         );",
         [],
     )
-    .map_err(|e| format!("Failed to create mobile_workspaces table: {e}"))?;
+    .map_err(|e| DbError::migration("create mobile workspaces table", e))?;
     conn.execute(
         "CREATE INDEX IF NOT EXISTS mobile_workspaces_owner_updated
          ON mobile_workspaces(owner_device_id, updated_at DESC);",
         [],
     )
-    .map_err(|e| format!("Failed to index mobile_workspaces table: {e}"))?;
+    .map_err(|e| DbError::migration("index mobile workspaces table", e))?;
     Ok(())
 }
 
-pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
+/// Applies the legacy, unversioned schema shape as migration 1.
+///
+/// The column checks remain intentionally defensive: databases created before
+/// `PRAGMA user_version` was introduced may be at different intermediate
+/// shapes. Once this migration completes, all future changes must use a new
+/// numbered step in `initialize_schema`.
+fn migrate_to_version_1(conn: &Connection) -> DbResult<()> {
     // Migrate workspaces table
     conn.execute(
         "CREATE TABLE IF NOT EXISTS workspaces (
@@ -171,22 +178,22 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
         );",
         [],
     )
-    .map_err(|e| format!("Failed to create table: {e}"))?;
+    .map_err(|e| DbError::migration("create workspaces table", e))?;
 
     let (has_accent_color, has_pane_layout, has_workspace_mode, has_pinned) = {
         let mut stmt = conn
             .prepare("PRAGMA table_info(workspaces)")
-            .map_err(|e| format!("Failed to inspect workspaces table: {e}"))?;
+            .map_err(|e| DbError::migration("inspect workspaces schema", e))?;
         let columns = stmt
             .query_map([], |row| row.get::<_, String>(1))
-            .map_err(|e| format!("Failed to read workspaces table columns: {e}"))?;
+            .map_err(|e| DbError::migration("read workspaces schema", e))?;
         let mut found_accent_color = false;
         let mut found_pane_layout = false;
         let mut found_workspace_mode = false;
         let mut found_pinned = false;
         for column in columns {
             match column
-                .map_err(|e| format!("Failed to read column name: {e}"))?
+                .map_err(|e| DbError::migration("read schema column name", e))?
                 .as_str()
             {
                 "accent_color" => found_accent_color = true,
@@ -205,22 +212,22 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
     };
     if !has_accent_color {
         conn.execute("ALTER TABLE workspaces ADD COLUMN accent_color TEXT", [])
-            .map_err(|e| format!("Failed to add accent_color column: {e}"))?;
+            .map_err(|e| DbError::migration("add workspace accent column", e))?;
     }
     if !has_pane_layout {
         conn.execute("ALTER TABLE workspaces ADD COLUMN pane_layout TEXT", [])
-            .map_err(|e| format!("Failed to add pane_layout column: {e}"))?;
+            .map_err(|e| DbError::migration("add workspace pane layout column", e))?;
     }
     if !has_workspace_mode {
         conn.execute("ALTER TABLE workspaces ADD COLUMN workspace_mode TEXT", [])
-            .map_err(|e| format!("Failed to add workspace_mode column: {e}"))?;
+            .map_err(|e| DbError::migration("add workspace mode column", e))?;
     }
     if !has_pinned {
         conn.execute(
             "ALTER TABLE workspaces ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
             [],
         )
-        .map_err(|e| format!("Failed to add pinned column: {e}"))?;
+        .map_err(|e| DbError::migration("add workspace pinned column", e))?;
     }
 
     // Agent chat was removed: drop its workspace columns and tables from
@@ -236,7 +243,7 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
     }
     for table in ["agent_chat_configs", "agent_model_cache"] {
         conn.execute_batch(&format!("DROP TABLE IF EXISTS {table}"))
-            .map_err(|e| format!("Failed to drop {table}: {e}"))?;
+            .map_err(|e| DbError::migration("drop retired table", e))?;
     }
 
     migrate_workspace_panes(conn)?;
@@ -253,14 +260,68 @@ pub(super) fn initialize_schema(conn: &Connection) -> Result<(), String> {
         );",
         [],
     )
-    .map_err(|e| format!("Failed to create recent_workspaces table: {e}"))?;
+    .map_err(|e| DbError::migration("create recent workspaces table", e))?;
 
     Ok(())
 }
 
-pub fn init_db() -> Result<Connection, String> {
+const CURRENT_SCHEMA_VERSION: i64 = 1;
+
+fn schema_version(conn: &Connection) -> DbResult<i64> {
+    conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+        .map_err(|e| DbError::migration("read schema version", e))
+}
+
+fn set_schema_version(conn: &Connection, version: i64) -> DbResult<()> {
+    conn.execute_batch(&format!("PRAGMA user_version = {version}"))
+        .map_err(|e| DbError::migration("write schema version", e))
+}
+
+/// Runs schema migrations exactly once per version and rejects future schemas.
+pub(super) fn initialize_schema(conn: &Connection) -> DbResult<()> {
+    let version = schema_version(conn)?;
+    match version {
+        CURRENT_SCHEMA_VERSION => return Ok(()),
+        found if found > CURRENT_SCHEMA_VERSION => {
+            return Err(DbError::UnsupportedVersion {
+                found,
+                supported: CURRENT_SCHEMA_VERSION,
+            });
+        }
+        0 => {}
+        _ => {
+            return Err(DbError::UnsupportedVersion {
+                found: version,
+                supported: CURRENT_SCHEMA_VERSION,
+            })
+        }
+    }
+
+    conn.execute_batch("BEGIN IMMEDIATE")
+        .map_err(|e| DbError::migration("begin schema migration", e))?;
+    let migration = if version == 0 {
+        migrate_to_version_1(conn)
+    } else {
+        Err(DbError::UnsupportedVersion {
+            found: version,
+            supported: CURRENT_SCHEMA_VERSION,
+        })
+    }
+    .and_then(|_| set_schema_version(conn, CURRENT_SCHEMA_VERSION));
+    match migration {
+        Ok(()) => conn
+            .execute_batch("COMMIT")
+            .map_err(|e| DbError::migration("commit schema migration", e)),
+        Err(error) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(error)
+        }
+    }
+}
+
+pub fn init_db() -> DbResult<Connection> {
     let db_path = get_db_path();
-    let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open DB: {e}"))?;
+    let conn = Connection::open(&db_path).map_err(|e| DbError::sqlite("open database", e))?;
     initialize_schema(&conn)?;
     Ok(conn)
 }
