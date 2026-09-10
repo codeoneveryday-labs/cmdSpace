@@ -32,6 +32,10 @@ describe("FloatingVoiceAgent", () => {
     expect(component).toContain("setPointerCapture");
     expect(component).toContain("onPointerMove={move}");
     expect(component).toContain("suppressClickRef");
+    expect(component).toContain('state.shortcuts');
+    expect(component).toContain('item.id === "voice.toggle"');
+    expect(component).toContain("getBindingTokens(bindings[0]).join(KEY_SEP)");
+    expect(component).not.toContain("⌘⇧V");
     expect(component).toContain('draggable={false}');
     expect(component).toContain("Toggle voice input");
     expect(app).toContain("captureVoiceTarget");
