@@ -331,6 +331,12 @@ round trips. Keep workspace/tab ownership in existing hooks.
 **Proof:** Rust + Vitest integration/model tests prove behavior without relying
 only on `readFileSync(...).toContain(...)`.
 
+**Status:** complete. Fresh in-memory schema hydration now has a dedicated
+round-trip test for pinned workspaces, pane layout, and pane launch metadata;
+legacy migration, future-schema rejection, and migration rollback remain
+executable Rust coverage. Frontend hydration tests also pin legacy defaults,
+persisted pinning/pane layout, and transient tab ownership reset.
+
 ### Prompt 15 — Convert remote/security structural claims
 
 **Owner seam:** `src-tauri/src/modules/remote/`, `src/remote/`, and security
@@ -430,8 +436,9 @@ result, and an explicit list of deferred work.
   eight focused IPC tests and typecheck pass.
 - [x] Prompt 13 — Convert terminal/IME structural claims to behavior proof;
   32 focused terminal/IME/broadcast tests and typecheck pass.
-- [ ] Prompts 14–15 — Convert persistence/workspace and remote/security
-  structural claims to behavior proof.
+- [x] Prompt 14 — Convert persistence/workspace structural claims to behavior
+  proof; 13 DB tests, 7 focused Vitest tests, fmt, and typecheck pass.
+- [ ] Prompt 15 — Convert remote/security structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
 - [ ] Prompt 19 — Run final verification and re-pin metrics.
 - [ ] Prompt 20 — Deliver, merge, re-pull `main`, and close the plan.

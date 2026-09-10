@@ -80,6 +80,52 @@ fn workspace_ipc_dto_round_trips_without_transient_state() {
 }
 
 #[test]
+fn fresh_schema_restores_pinned_workspace_and_pane_layout() {
+    let conn = Connection::open_in_memory().expect("open fresh database");
+    initialize_schema(&conn).expect("initialize fresh schema");
+
+    assert!(list_workspaces_inner(&conn)
+        .expect("list fresh workspaces")
+        .is_empty());
+
+    let workspace = WorkspaceRow {
+        id: "fresh-workspace".to_string(),
+        name: "Fresh workspace".to_string(),
+        count: 1,
+        accent_color: Some("#10B981".to_string()),
+        working_folder: Some("/tmp/fresh-workspace".to_string()),
+        created_at: 10,
+        updated_at: 11,
+        display_order: 0,
+        pane_layout: Some(r#"{"kind":"leaf","size":100}"#.to_string()),
+        workspace_mode: Some("standard".to_string()),
+        pinned: true,
+    };
+    save_workspace_inner(&conn, &workspace).expect("save fresh workspace");
+    save_pane_inner(
+        &conn,
+        &WorkspacePaneRow {
+            workspace_id: workspace.id.clone(),
+            pane_index: 0,
+            working_folder: workspace.working_folder.clone(),
+            last_command: Some("codex".to_string()),
+            auto_launch: true,
+            agent_provider: Some("codex".to_string()),
+            native_session_id: Some("session-1".to_string()),
+        },
+    )
+    .expect("save fresh pane");
+
+    let restored = list_workspaces_inner(&conn).expect("restore fresh workspace");
+    assert_eq!(restored, vec![workspace]);
+    let panes = list_panes_inner(&conn, "fresh-workspace").expect("restore fresh pane");
+    assert_eq!(panes.len(), 1);
+    assert_eq!(panes[0].last_command.as_deref(), Some("codex"));
+    assert!(panes[0].auto_launch);
+    assert_eq!(panes[0].native_session_id.as_deref(), Some("session-1"));
+}
+
+#[test]
 fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
     let conn = Connection::open_in_memory().expect("open in-memory database");
     conn.execute_batch(
