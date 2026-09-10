@@ -104,7 +104,9 @@ pub(super) fn session_allowed(
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::remote_devices::{DeviceCapability, TerminalPolicy};
     use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
 
     #[test]
     fn unknown_device_has_stable_authorization_code() {
@@ -113,5 +115,40 @@ mod tests {
 
         assert_eq!(error.code(), "REMOTE_DEVICE_UNKNOWN");
         assert_eq!(error.to_string(), "remote device is unknown");
+    }
+
+    #[test]
+    fn view_only_device_cannot_create_remote_terminals() {
+        let signing_key = SigningKey::from_bytes(&[3_u8; 32]);
+        let mut registry = DeviceRegistry::new_for_test([4_u8; 32]);
+        let grant = registry.issue_grant(
+            "viewer",
+            DeviceCapability {
+                workspace_id: REMOTE_WORKSPACE_ID.to_string(),
+                terminal_policy: TerminalPolicy::AnyOwnedSession,
+                can_view: true,
+                can_input: false,
+                can_create_terminal: false,
+                can_close_terminal: false,
+            },
+            10,
+            60,
+        );
+        let device = registry
+            .consume_grant_with_proof(
+                &grant.secret,
+                signing_key.verifying_key().to_bytes(),
+                signing_key.sign(grant.secret.as_bytes()).to_bytes(),
+                10,
+            )
+            .expect("pair view-only device");
+        let devices = Arc::new(Mutex::new(registry));
+
+        require_view(&devices, &device.id, "ignored").expect("view capability");
+        let error = require_create(&devices, &device.id, "ignored")
+            .expect_err("view-only device must not create");
+
+        assert_eq!(error.code(), "REMOTE_DEVICE_CAPABILITY_DENIED");
+        assert_eq!(error.to_string(), "remote device capability is denied");
     }
 }

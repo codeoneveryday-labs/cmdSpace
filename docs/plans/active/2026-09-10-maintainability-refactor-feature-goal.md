@@ -350,6 +350,13 @@ logs and fixtures.
 **Proof:** remote unit/integration tests exercise parsers/state transitions;
 source-guard count does not increase.
 
+**Status:** complete. Remote behavior coverage now includes explicit v2
+protocol rejection, browser token/authentication handling, view-only device
+capability denial, stale/out-of-order sequence suppression, and ready-tunnel
+versus degraded-LAN fallback. The remote Rust group passes 77 tests and the
+focused browser protocol/client suite passes 9 tests; no source guard was
+added.
+
 ### Prompt 16 — Add scoped Rust unwrap/expect enforcement
 
 **Owner seam:** touched native modules only.
@@ -438,8 +445,11 @@ result, and an explicit list of deferred work.
   32 focused terminal/IME/broadcast tests and typecheck pass.
 - [x] Prompt 14 — Convert persistence/workspace structural claims to behavior
   proof; 13 DB tests, 7 focused Vitest tests, fmt, and typecheck pass.
-- [ ] Prompt 15 — Convert remote/security structural claims to behavior proof.
-- [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
+- [x] Prompt 15 — Convert remote/security structural claims to behavior proof;
+  77 remote Rust tests, 9 browser protocol/client tests, fmt, Clippy, and
+  typecheck pass.
+- [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB
+  extraction.
 - [ ] Prompt 19 — Run final verification and re-pin metrics.
 - [ ] Prompt 20 — Deliver, merge, re-pull `main`, and close the plan.
 
