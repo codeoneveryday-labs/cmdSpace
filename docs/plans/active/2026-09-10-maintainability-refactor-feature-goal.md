@@ -278,6 +278,10 @@ small candidate family. Do not add Specta or another dependency by default.
 **Proof:** an ADR or plan decision names one chosen path, compatibility rules,
 and a concrete pilot; no command/payload drift occurs.
 
+**Status:** complete. Decision 0013 keeps manual typed DTOs plus executable
+contract tests until a second-family drift signal justifies code generation;
+Specta remains deferred without a compatibility/dependency proof.
+
 ### Prompt 12 — Expand IPC contract coverage to a second family
 
 **Owner seam:** `src/lib/tauriCommandRegistry.contract.test.ts` plus the
@@ -410,7 +414,8 @@ result, and an explicit list of deferred work.
   Clippy pass.
 - [x] Prompt 10 — Harden native-device authorization errors; 76 remote tests
   and Clippy pass.
-- [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
+- [x] Prompt 11 — Decide manual versus generated IPC typing in Decision 0013.
+- [ ] Prompt 12 — Add the filesystem response/error contract.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
 - [ ] Prompt 19 — Run final verification and re-pin metrics.
