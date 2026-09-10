@@ -4,7 +4,7 @@ Date: 2026-09-10
 
 ## Status
 
-Active
+Completed
 
 ## Outcome
 
@@ -453,6 +453,15 @@ merge only after CI, update `main`, and move this plan to
 **Proof:** merged PR URL, merge SHA, clean `main` fast-forward, updated plan
 result, and an explicit list of deferred work.
 
+**Status:** complete. PR [#458](https://github.com/codeoneveryday-labs/cmdSpace/pull/458)
+merged after frontend, Rust, and Windows Rust CI passed. Merge SHA is
+`549936de2ad585b5259552180eb072045e91c0d0`; local `main` was fast-forwarded
+and pulled to that SHA. This plan is now stored under `docs/plans/completed/`.
+Deferred work is limited to Windows native runtime/build validation, live relay
+or tunnel-provider behavior, a file-backed larger DB workload before revisiting
+the worker/pool threshold, and generated IPC bindings or broad unwrap cleanup
+if future drift/evidence justifies them.
+
 ## Progress
 
 - [x] Prompt 01 — Re-pin evidence and freeze ownership from `origin/main` at
@@ -494,7 +503,8 @@ result, and an explicit list of deferred work.
 - [x] Prompt 19 — Run final verification and re-pin metrics from candidate
   `28051f201`; all frontend/Rust gates pass and the warn-only quality baseline
   is recorded.
-- [ ] Prompt 20 — Deliver, merge, re-pull `main`, and close the plan.
+- [x] Prompt 20 — Deliver PR #458, merge at `549936de2`, fast-forward local
+  `main`, and move this plan to `docs/plans/completed/`.
 
 ## Acceptance criteria
 
@@ -536,6 +546,9 @@ Prompt 19: complete repository verification and fresh metrics.
 
 ## Result
 
-Prompt 01 complete. Evidence commands and values are recorded above; no source
-code was changed. This feature goal remains active across the remaining
-nineteen prompt turns.
+All twenty prompt slices are complete. The merged change preserves command and
+payload compatibility while adding typed native boundaries, executable
+terminal/persistence/remote proofs, scoped Rust quality enforcement, redacted
+DB diagnostics, and a measured no-pool decision. The post-merge baseline is
+`origin/main`/local `main` at `549936de2`; the pre-existing untracked
+`docs/reports/2026-09-09-codebase-review.md` remains intentionally untouched.
