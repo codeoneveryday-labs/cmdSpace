@@ -294,6 +294,10 @@ invariants, not implementation text.
 **Proof:** intentional command/payload/error drift fails a focused test; valid
 frontend/Rust contracts pass.
 
+**Status:** complete. `fs_read_file` now has an executable response parser,
+centralized `ReadResult` type, stable error handling, and invalid-wire-shape
+coverage. Eight focused IPC tests and TypeScript typecheck pass.
+
 ### Prompt 13 — Convert terminal/IME structural claims to behavior proof
 
 **Owner seam:** `src/modules/terminal/lib/rendererInput.ts`,
@@ -415,7 +419,8 @@ result, and an explicit list of deferred work.
 - [x] Prompt 10 — Harden native-device authorization errors; 76 remote tests
   and Clippy pass.
 - [x] Prompt 11 — Decide manual versus generated IPC typing in Decision 0013.
-- [ ] Prompt 12 — Add the filesystem response/error contract.
+- [x] Prompt 12 — Add filesystem response/error contract and parser tests;
+  eight focused IPC tests and typecheck pass.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
 - [ ] Prompt 19 — Run final verification and re-pin metrics.

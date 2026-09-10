@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { native } from "./native";
+import { native, parseReadResult } from "./native";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -42,5 +42,14 @@ describe("native filesystem IPC", () => {
       message: "filesystem stat: path was not found",
       name: "TauriIpcError",
     });
+  });
+
+  it("rejects an invalid filesystem response at the IPC boundary", () => {
+    expect(() => parseReadResult({ kind: "text", content: 42, size: 2 })).toThrowError(
+      expect.objectContaining({
+        code: "FS_RESPONSE_INVALID",
+        message: "filesystem response is invalid",
+      }),
+    );
   });
 });

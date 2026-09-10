@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { TauriIpcError } from "@/lib/tauriError";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import { toTauriIpcError } from "@/lib/tauriError";
 
@@ -6,6 +7,52 @@ export type ReadResult =
   | { kind: "text"; content: string; size: number }
   | { kind: "binary"; size: number }
   | { kind: "toolarge"; size: number; limit: number };
+
+function isFiniteSize(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/** Validate the discriminated response before it reaches filesystem callers. */
+export function parseReadResult(value: unknown): ReadResult {
+  if (typeof value !== "object" || value === null) {
+    throw new TauriIpcError({
+      code: "FS_RESPONSE_INVALID",
+      message: "filesystem response is invalid",
+    });
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (
+    candidate.kind === "text" &&
+    typeof candidate.content === "string" &&
+    isFiniteSize(candidate.size)
+  ) {
+    return {
+      kind: "text",
+      content: candidate.content,
+      size: candidate.size,
+    };
+  }
+  if (candidate.kind === "binary" && isFiniteSize(candidate.size)) {
+    return { kind: "binary", size: candidate.size };
+  }
+  if (
+    candidate.kind === "toolarge" &&
+    isFiniteSize(candidate.size) &&
+    isFiniteSize(candidate.limit)
+  ) {
+    return {
+      kind: "toolarge",
+      size: candidate.size,
+      limit: candidate.limit,
+    };
+  }
+
+  throw new TauriIpcError({
+    code: "FS_RESPONSE_INVALID",
+    message: "filesystem response is invalid",
+  });
+}
 
 export type DirEntry = {
   name: string;
@@ -134,11 +181,13 @@ export const native = {
     }),
   readFile: async (path: string) => {
     try {
-      return await invoke<ReadResult>("fs_read_file", {
+      const result = await invoke<unknown>("fs_read_file", {
         path,
         workspace: currentWorkspaceEnv(),
       });
+      return parseReadResult(result);
     } catch (reason) {
+      if (reason instanceof TauriIpcError) throw reason;
       throw toTauriIpcError(reason);
     }
   },
