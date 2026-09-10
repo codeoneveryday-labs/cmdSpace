@@ -84,3 +84,43 @@ fn resetting_password_revokes_sessions_and_creates_a_fresh_setup_secret() {
         .authenticate_password("replacement password", "phone", 1_005)
         .is_ok());
 }
+
+#[test]
+fn remote_auth_errors_serialize_stable_codes_without_secrets() {
+    let system = RemoteAuthError::System(
+        "failed to persist token super-secret at /private/remote-password.txt".to_string(),
+    );
+    let system_json = serde_json::to_value(system).expect("serialize system error");
+
+    assert_eq!(system_json["code"], "REMOTE_AUTH_SYSTEM_UNAVAILABLE");
+    assert_eq!(
+        system_json["message"],
+        "remote authentication system is unavailable"
+    );
+    let serialized = system_json.to_string();
+    assert!(!serialized.contains("super-secret"));
+    assert!(!serialized.contains("remote-password.txt"));
+
+    let cases = [
+        (
+            RemoteAuthError::BootstrapExpired,
+            "REMOTE_AUTH_BOOTSTRAP_EXPIRED",
+        ),
+        (
+            RemoteAuthError::BootstrapInvalid,
+            "REMOTE_AUTH_BOOTSTRAP_INVALID",
+        ),
+        (
+            RemoteAuthError::InvalidPassword,
+            "REMOTE_AUTH_PASSWORD_INVALID",
+        ),
+        (RemoteAuthError::TokenExpired, "REMOTE_AUTH_TOKEN_EXPIRED"),
+        (RemoteAuthError::RateLimited, "REMOTE_AUTH_RATE_LIMITED"),
+    ];
+    for (error, code) in cases {
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize auth error")["code"],
+            code
+        );
+    }
+}

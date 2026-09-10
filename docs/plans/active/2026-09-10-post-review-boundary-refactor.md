@@ -188,6 +188,17 @@ retry flags, rate limiting, and session revocation unchanged.
 **Exit proof:** auth tests assert stable codes and safe messages for each class;
 the WebSocket/HTTP adapters still emit their existing wire shapes.
 
+**Status:** complete. `RemoteAuthError` now serializes stable
+`REMOTE_AUTH_*` codes and safe messages for bootstrap, password, token,
+rate-limit, and system failure classes. The existing HTTP `{"error": ...}`
+and WebSocket error-message shapes still stringify the same safe messages, so
+browser v2/native device v3 contracts and retry behavior do not gain a wire
+schema change. Nine auth tests, 78 remote tests, all-target check, and Clippy
+pass.
+
+**Pattern impact:** the remote authentication Adapter gains a typed internal
+envelope; the protocol Bridge continues to own existing string error payloads.
+
 ### Prompt 05 — Add a typed frontend Git IPC facade
 
 **Owner:** `src/modules/ai/lib/native.ts`, source-control callers, and shared
@@ -336,7 +347,8 @@ this plan with the failed proof. Never use destructive reset/clean commands.
   PR 1 is ready for delivery.
 - [x] Prompt 03 — Type the secrets boundary; focused verification passes and
   PR 2 is ready for delivery.
-- [ ] Prompt 04 — Type one remote/auth family and ship PR 3.
+- [x] Prompt 04 — Type the remote authentication error family; focused
+  verification passes and PR 3 is ready for delivery.
 - [ ] Prompts 05–07 — Build the second IPC contract family and record the
   generation decision in PR 4.
 - [ ] Prompts 08–10 — Decide DB migration, evaluate the Git service seam, and
