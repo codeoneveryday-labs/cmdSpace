@@ -18,6 +18,7 @@ export function useBottomTerminalController({
   home,
   bottomTerminalOpen,
   bottomTerminalRef,
+  setBottomTerminalMounted,
   setBottomTerminalOpen,
   setBottomTerminalCwd,
 }: {
@@ -29,6 +30,7 @@ export function useBottomTerminalController({
   home: string | null;
   bottomTerminalOpen: boolean;
   bottomTerminalRef: MutableRefObject<BottomTerminalDrawerHandle | null>;
+  setBottomTerminalMounted: Dispatch<SetStateAction<boolean>>;
   setBottomTerminalOpen: Dispatch<SetStateAction<boolean>>;
   setBottomTerminalCwd: Dispatch<SetStateAction<string | null>>;
 }) {
@@ -45,6 +47,7 @@ export function useBottomTerminalController({
       home ??
       null;
     setBottomTerminalCwd(cwd);
+    setBottomTerminalMounted(true);
     setBottomTerminalOpen(true);
   }, [
     activeId,
@@ -53,6 +56,7 @@ export function useBottomTerminalController({
     home,
     launchCwd,
     setBottomTerminalCwd,
+    setBottomTerminalMounted,
     setBottomTerminalOpen,
     tabs,
   ]);

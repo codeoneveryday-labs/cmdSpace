@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  ArrowDown01Icon,
   Cancel01Icon,
   ComputerTerminal02Icon,
   PlusSignIcon,
@@ -55,7 +56,7 @@ export type BottomTerminalDrawerHandle = {
 
 type Props = {
   cwd?: string | null;
-  onClose: () => void;
+  onCollapse: () => void;
 };
 
 function tabLabel(tab: BottomTerminalTab): string {
@@ -63,7 +64,7 @@ function tabLabel(tab: BottomTerminalTab): string {
 }
 
 export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props>(
-  function BottomTerminalDrawer({ cwd: initialCwd, onClose }, ref) {
+  function BottomTerminalDrawer({ cwd: initialCwd, onCollapse }, ref) {
     const firstTabRef = useRef<BottomTerminalTab | null>(null);
     if (!firstTabRef.current) {
       firstTabRef.current = createTerminalTab(initialCwd ?? undefined);
@@ -267,11 +268,15 @@ export const BottomTerminalDrawer = forwardRef<BottomTerminalDrawerHandle, Props
           <button
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
-            onClick={onClose}
+            onClick={(event) => {
+              event.currentTarget.blur();
+              onCollapse();
+            }}
             className="ml-auto shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-            aria-label="Close bottom terminal"
+            aria-label="Collapse bottom terminal"
+            title="Collapse bottom terminal"
           >
-            <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={1.8} />
+            <HugeiconsIcon icon={ArrowDown01Icon} size={18} strokeWidth={1.8} />
           </button>
         </div>
         <div className="relative min-h-0 flex-1 overflow-hidden">

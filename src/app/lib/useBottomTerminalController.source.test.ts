@@ -15,5 +15,7 @@ describe("useBottomTerminalController contract", () => {
     expect(source).toContain("launchCwd");
     expect(source).toContain("bottomTerminalRef.current?.focus");
     expect(source).toContain("setBottomTerminalOpen");
+    expect(source).toContain("setBottomTerminalMounted");
+    expect(source).toContain("setBottomTerminalMounted(true)");
   });
 });
