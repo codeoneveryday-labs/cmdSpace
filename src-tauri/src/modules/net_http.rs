@@ -10,6 +10,7 @@ use tauri::ipc::Channel;
 use super::security::{
     build_safe_client, classify_and_collect_safe_ips, sanitize_headers, validate_url,
 };
+use super::{NetError, NetErrorKind, NetResult};
 
 #[derive(Debug, Serialize)]
 pub struct HttpResponse {
@@ -24,8 +25,9 @@ fn build_request(
     url: reqwest::Url,
     headers: Option<HashMap<String, String>>,
     body: Option<Vec<u8>>,
-) -> Result<reqwest::RequestBuilder, String> {
-    let method = Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
+) -> NetResult<reqwest::RequestBuilder> {
+    let method = Method::from_bytes(method.as_bytes())
+        .map_err(|_| NetError::new(NetErrorKind::MethodInvalid))?;
     let mut req = client.request(method, url);
     req = req.headers(sanitize_headers(headers)?);
     if let Some(body) = body {
@@ -51,22 +53,29 @@ pub async fn ai_http_request(
     headers: Option<HashMap<String, String>>,
     body: Option<Vec<u8>>,
     allow_private_network: Option<bool>,
-) -> Result<HttpResponse, String> {
+) -> NetResult<HttpResponse> {
     let allow_private = allow_private_network.unwrap_or(false);
     let parsed = validate_url(&url, allow_private)?;
     let host = parsed
         .host_str()
-        .ok_or_else(|| "missing host".to_string())?
+        .ok_or_else(|| NetError::new(NetErrorKind::MissingHost))?
         .to_string();
     let safe_ips = classify_and_collect_safe_ips(&host, allow_private).await?;
 
     let client = build_safe_client(allow_private, &[(host, safe_ips)])?;
     let req = build_request(&client, &method, parsed, headers, body)?;
-    let resp = req.send().await.map_err(|e| e.to_string())?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| NetError::new(NetErrorKind::RequestFailed))?;
 
     let status = resp.status().as_u16();
     let headers = header_map_to_strings(resp.headers());
-    let body = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
+    let body = resp
+        .bytes()
+        .await
+        .map_err(|_| NetError::new(NetErrorKind::ResponseReadFailed))?
+        .to_vec();
     Ok(HttpResponse {
         status,
         headers,
@@ -98,23 +107,22 @@ pub async fn ai_http_stream(
     body: Option<Vec<u8>>,
     allow_private_network: Option<bool>,
     on_event: Channel<AiStreamEvent>,
-) -> Result<(), String> {
+) -> NetResult<()> {
     let allow_private = allow_private_network.unwrap_or(false);
     let parsed = match validate_url(&url, allow_private) {
         Ok(parsed) => parsed,
         Err(error) => {
-            let _ = on_event.send(AiStreamEvent::Error {
-                message: error.clone(),
-            });
+            let message = error.to_string();
+            let _ = on_event.send(AiStreamEvent::Error { message });
             return Err(error);
         }
     };
     let host = match parsed.host_str() {
         Some(host) => host.to_string(),
         None => {
-            let error = "missing host".to_string();
+            let error = NetError::new(NetErrorKind::MissingHost);
             let _ = on_event.send(AiStreamEvent::Error {
-                message: error.clone(),
+                message: error.to_string(),
             });
             return Err(error);
         }
@@ -122,9 +130,8 @@ pub async fn ai_http_stream(
     let safe_ips = match classify_and_collect_safe_ips(&host, allow_private).await {
         Ok(ips) => ips,
         Err(error) => {
-            let _ = on_event.send(AiStreamEvent::Error {
-                message: error.clone(),
-            });
+            let message = error.to_string();
+            let _ = on_event.send(AiStreamEvent::Error { message });
             return Err(error);
         }
     };
@@ -138,7 +145,7 @@ pub async fn ai_http_stream(
             let _ = on_event.send(AiStreamEvent::Error {
                 message: message.clone(),
             });
-            return Err(message);
+            return Err(NetError::new(NetErrorKind::RequestFailed));
         }
     };
 
@@ -168,7 +175,7 @@ pub async fn ai_http_stream(
                 let _ = on_event.send(AiStreamEvent::Error {
                     message: message.clone(),
                 });
-                return Err(message);
+                return Err(NetError::new(NetErrorKind::StreamFailed));
             }
         }
     }

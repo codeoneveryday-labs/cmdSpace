@@ -4,6 +4,8 @@ use std::time::Duration;
 
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
+use super::error::{NetError, NetErrorKind, NetResult};
+
 const HEADER_BLOCKLIST: &[&str] = &[
     "host",
     "content-length",
@@ -74,7 +76,7 @@ enum IpKind {
 
 /// Resolve a host once and classify every returned address so the caller can
 /// pin the eventual HTTP client to the exact addresses that passed policy.
-async fn resolve_and_classify(host: &str) -> Result<(IpKind, Vec<IpAddr>), String> {
+async fn resolve_and_classify(host: &str) -> NetResult<(IpKind, Vec<IpAddr>)> {
     if let Ok(ip) = host.parse::<IpAddr>() {
         return Ok((ip_kind(ip), vec![ip]));
     }
@@ -85,10 +87,10 @@ async fn resolve_and_classify(host: &str) -> Result<(IpKind, Vec<IpAddr>), Strin
             .map(|it| it.map(|a| a.ip()).collect::<Vec<_>>())
     })
     .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("dns: {e}"))?;
+    .map_err(|_| NetError::new(NetErrorKind::DnsFailed))?
+    .map_err(|_| NetError::new(NetErrorKind::DnsFailed))?;
     if lookup.is_empty() {
-        return Err("dns: no addresses".into());
+        return Err(NetError::new(NetErrorKind::DnsFailed));
     }
     let mut worst = IpKind::Public;
     for ip in &lookup {
@@ -104,20 +106,20 @@ async fn resolve_and_classify(host: &str) -> Result<(IpKind, Vec<IpAddr>), Strin
     Ok((worst, lookup))
 }
 
-pub(crate) fn validate_url(url: &str, allow_private: bool) -> Result<reqwest::Url, String> {
-    let parsed = reqwest::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
+pub(crate) fn validate_url(url: &str, allow_private: bool) -> NetResult<reqwest::Url> {
+    let parsed = reqwest::Url::parse(url).map_err(|_| NetError::new(NetErrorKind::InvalidUrl))?;
     match parsed.scheme() {
         "http" | "https" => {}
-        s => return Err(format!("scheme not allowed: {s}")),
+        _ => return Err(NetError::new(NetErrorKind::SchemeNotAllowed)),
     }
     if !parsed.username().is_empty() || parsed.password().is_some() {
-        return Err("userinfo in url is not allowed".into());
+        return Err(NetError::new(NetErrorKind::UserinfoNotAllowed));
     }
     let host = parsed
         .host_str()
-        .ok_or_else(|| "missing host".to_string())?;
+        .ok_or_else(|| NetError::new(NetErrorKind::MissingHost))?;
     if is_blocked_host_name(host) {
-        return Err(format!("host not allowed: {host}"));
+        return Err(NetError::new(NetErrorKind::HostBlocked));
     }
     let _ = allow_private;
     Ok(parsed)
@@ -126,14 +128,12 @@ pub(crate) fn validate_url(url: &str, allow_private: bool) -> Result<reqwest::Ur
 pub(crate) async fn classify_and_collect_safe_ips(
     host: &str,
     allow_private: bool,
-) -> Result<Vec<IpAddr>, String> {
+) -> NetResult<Vec<IpAddr>> {
     let (worst, ips) = resolve_and_classify(host).await?;
     match worst {
-        IpKind::BlockedMetadata => return Err(format!("host not allowed: {host}")),
+        IpKind::BlockedMetadata => return Err(NetError::new(NetErrorKind::HostBlocked)),
         IpKind::Loopback | IpKind::Private if !allow_private => {
-            return Err(format!(
-                "host {host} resolves to a private/loopback address; this endpoint requires explicit opt-in",
-            ));
+            return Err(NetError::new(NetErrorKind::PrivateAddressBlocked));
         }
         _ => {}
     }
@@ -146,14 +146,12 @@ pub(crate) async fn classify_and_collect_safe_ips(
         })
         .collect();
     if safe.is_empty() {
-        return Err(format!("host {host}: no safe IPs"));
+        return Err(NetError::new(NetErrorKind::NoSafeAddresses));
     }
     Ok(safe)
 }
 
-pub(crate) fn sanitize_headers(
-    headers: Option<HashMap<String, String>>,
-) -> Result<HeaderMap, String> {
+pub(crate) fn sanitize_headers(headers: Option<HashMap<String, String>>) -> NetResult<HeaderMap> {
     let mut map = HeaderMap::new();
     let Some(headers) = headers else {
         return Ok(map);
@@ -161,17 +159,19 @@ pub(crate) fn sanitize_headers(
     for (key, value) in headers {
         let lower = key.to_ascii_lowercase();
         if HEADER_BLOCKLIST.contains(&lower.as_str()) {
-            return Err(format!("header not allowed: {key}"));
+            return Err(NetError::new(NetErrorKind::HeaderNotAllowed));
         }
         if value
             .as_bytes()
             .iter()
             .any(|byte| matches!(byte, 0 | b'\r' | b'\n'))
         {
-            return Err(format!("header value contains control bytes: {key}"));
+            return Err(NetError::new(NetErrorKind::HeaderInvalid));
         }
-        let name = HeaderName::from_bytes(key.as_bytes()).map_err(|e| e.to_string())?;
-        let header_value = HeaderValue::from_str(&value).map_err(|e| e.to_string())?;
+        let name = HeaderName::from_bytes(key.as_bytes())
+            .map_err(|_| NetError::new(NetErrorKind::HeaderInvalid))?;
+        let header_value = HeaderValue::from_str(&value)
+            .map_err(|_| NetError::new(NetErrorKind::HeaderInvalid))?;
         map.insert(name, header_value);
     }
     Ok(map)
@@ -180,7 +180,7 @@ pub(crate) fn sanitize_headers(
 pub(crate) fn build_safe_client(
     allow_private: bool,
     pinned: &[(String, Vec<IpAddr>)],
-) -> Result<reqwest::Client, String> {
+) -> NetResult<reqwest::Client> {
     let mut builder = reqwest::Client::builder().connect_timeout(Duration::from_secs(10));
     // Pin reqwest's resolver to the addresses already classified above to
     // prevent a second DNS lookup from crossing the security policy.
@@ -227,7 +227,7 @@ pub(crate) fn build_safe_client(
             attempt.follow()
         }))
         .build()
-        .map_err(|e| e.to_string())
+        .map_err(|_| NetError::new(NetErrorKind::ClientBuildFailed))
 }
 
 #[cfg(test)]
@@ -306,6 +306,22 @@ mod tests {
         assert!(validate_url("ftp://example.com/", true).is_err());
         assert!(validate_url("file:///etc/passwd", true).is_err());
         assert!(validate_url("javascript:alert(1)", true).is_err());
+    }
+
+    #[test]
+    fn security_errors_expose_stable_codes_without_host_details() {
+        let invalid = validate_url("ftp://example.com/", true).expect_err("scheme must fail");
+        let invalid_json = serde_json::to_value(invalid).expect("serialize invalid scheme");
+        assert_eq!(invalid_json["code"], "NET_SCHEME_NOT_ALLOWED");
+
+        let blocked = validate_url("http://metadata.google.internal/", true)
+            .expect_err("metadata host must fail");
+        let blocked_json = serde_json::to_value(blocked).expect("serialize blocked host");
+        assert_eq!(blocked_json["code"], "NET_HOST_BLOCKED");
+        assert!(!blocked_json["message"]
+            .as_str()
+            .expect("serialized message")
+            .contains("metadata"));
     }
 
     #[test]

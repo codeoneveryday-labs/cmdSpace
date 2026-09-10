@@ -232,6 +232,10 @@ Do not broaden allowed hosts or expose response bodies containing secrets.
 **Proof:** focused tests cover blocked private targets, allowed HTTPS, timeout,
 and upstream failure code mapping.
 
+**Status:** complete. Network URL/DNS/SSRF/header/client/request/stream
+failures now map to `NET_*` codes and safe messages; private-network and
+metadata-host policy is unchanged. Nine network security tests pass.
+
 ### Prompt 09 — Stabilize a PTY command error seam
 
 **Owner seam:** `src-tauri/src/modules/pty_commands.rs` and `pty_state.rs`.
@@ -391,7 +395,9 @@ result, and an explicit list of deferred work.
   fmt, and Clippy pass.
 - [x] Prompt 07 — Type workspace authorization/WSL validation errors; 24
   workspace-related tests, fmt, and Clippy pass.
-- [ ] Prompts 08–10 — Migrate bounded native error/IPC slices.
+- [x] Prompt 08 — Type network/SSRF error outcomes; 9 security tests, fmt, and
+  Clippy pass.
+- [ ] Prompts 09–10 — Migrate bounded native error/IPC slices.
 - [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
