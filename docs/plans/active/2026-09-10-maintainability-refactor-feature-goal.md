@@ -199,6 +199,11 @@ process cleanup. Keep one-shot shell execution distinct from PTY sessions.
 **Proof:** Rust tests cover each classification and timeout path; existing
 frontend `CommandOutput` success behavior is unchanged.
 
+**Status:** complete. `shell_run_command` now exposes stable `SHELL_*` errors
+for validation, cwd authorization, build/spawn/pipe/wait/worker failures;
+timeout and truncation remain explicit fields on `CommandOutput`. Shell tests
+cover success, timeout, truncation, and error serialization.
+
 ### Prompt 07 — Harden workspace authorization errors
 
 **Owner seam:** `src-tauri/src/modules/workspace_auth.rs` and WSL adapters.
@@ -377,7 +382,9 @@ result, and an explicit list of deferred work.
   fmt, and Clippy pass.
 - [x] Prompt 05 — Add the shared Tauri error parser and filesystem IPC facade;
   focused IPC tests and typecheck pass.
-- [ ] Prompts 06–10 — Migrate bounded native error/IPC slices.
+- [x] Prompt 06 — Type the one-shot shell command boundary; 13 shell tests,
+  fmt, and Clippy pass.
+- [ ] Prompts 07–10 — Migrate bounded native error/IPC slices.
 - [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
