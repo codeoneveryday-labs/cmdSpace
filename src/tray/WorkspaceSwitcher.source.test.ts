@@ -26,7 +26,7 @@ describe("menu bar workspace switcher wiring", () => {
       readFileSync(path.join(root, "src/tray/useTrayWorkspaceData.ts"), "utf8"),
     ].join("\n");
 
-    expect(source).toContain('invoke<TrayWorkspace[]>("db_list_workspaces")');
+    expect(source).toContain("listWorkspaces(invoke)");
     expect(source).toContain('listen("cmdspace:tray-opened"');
     expect(source).toContain("onFocusChanged");
     expect(source).toContain('invoke("hide_workspace_switcher")');

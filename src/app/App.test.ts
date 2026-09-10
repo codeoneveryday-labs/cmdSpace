@@ -493,6 +493,10 @@ describe("App sidebar toggle", () => {
       readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
       readFileSync(path.join(here, "lib/useWorkspaceHydration.ts"), "utf8"),
       readFileSync(workspaceRecordActionsPath, "utf8"),
+      readFileSync(
+        path.join(here, "../modules/workspaces/lib/workspaceIpc.ts"),
+        "utf8",
+      ),
     ].join("\n");
 
     expect(controller).toContain("accentColor?: string | null");
