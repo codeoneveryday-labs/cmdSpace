@@ -364,6 +364,29 @@ describe("workspace session imports", () => {
     );
   });
 
+  it("migrates a persisted Pi bootstrap before restoring a workspace pane", () => {
+    const legacyPiLaunch =
+      'source "$HOME/.zshrc" 2>/dev/null || true; hash -r 2>/dev/null || true; export PATH="$HOME/.bun/bin:$HOME/.local/bin:$PATH"; command -v pi >/dev/null 2>&1 && pi || omp';
+
+    expect(
+      assignSessionsToPanes(
+        [
+          {
+            paneIndex: 0,
+            workingFolder: "/repo",
+            autoLaunch: true,
+            lastCommand: legacyPiLaunch,
+          },
+        ],
+        [],
+        "/repo",
+      )[0],
+    ).toMatchObject({
+      lastCommand: "pi",
+      agentProvider: "pi",
+    });
+  });
+
   it("preserves a pane command when its native session is already live", () => {
     const panes = [{
       paneIndex: 0,
