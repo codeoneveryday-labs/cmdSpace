@@ -55,14 +55,12 @@ import { WorkspaceSurface } from "./WorkspaceSurface";
 import { AppShell } from "./AppShell";
 import { AppOverlays } from "./AppOverlays";
 import { useWorkspaceEnvStore } from "@/modules/workspace";
-import { SkillsCatalogView } from "@/modules/skills";
 import { WorkspacesPanel, WorkspaceSetupView } from "@/modules/workspaces";
 import { getAppStartupView } from "./lib/appStartupViewModel";
 import { invoke } from "@tauri-apps/api/core";
 import type { SearchAddon } from "@xterm/addon-search";
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -415,7 +413,6 @@ export default function App() {
     [markWorkspacePaneLaunch, persistPaneRecord, persistedPaneFor, scheduleWorkspacePaneSessionSync],
   );
   const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
-  const [skillsOpen, setSkillsOpen] = useState(false);
   const [savingWorkspaceSessions, setSavingWorkspaceSessions] = useState(false);
   const [importSessionOpen, setImportSessionOpen] = useState(false);
   const persistCanvasDiagramRef = useRef<
@@ -643,15 +640,6 @@ export default function App() {
     workspacesHydrated,
     workspacesLength: workspaces.length,
   });
-
-  const toggleSkillsCatalog = useCallback(() => {
-    setWorkspaceSetupOpen(false);
-    setSkillsOpen((open) => !open);
-  }, []);
-
-  useEffect(() => {
-    if (workspaceSetupOpen) setSkillsOpen(false);
-  }, [workspaceSetupOpen]);
 
   const {
     handleSelectWorkspace,
@@ -1113,60 +1101,48 @@ export default function App() {
     : tabs;
 
   const workspaceSurface = (
-    <div className="relative h-full min-h-0">
-      <div
-        className={`absolute inset-0${skillsOpen ? " invisible pointer-events-none" : ""}`}
-        aria-hidden={skillsOpen}
-      >
-        <WorkspaceSurface
-          tabs={tabs}
-          activeId={activeId}
-          hideBootstrapShell={hideBootstrapShell}
-          isTerminalTab={isTerminalTab}
-          isEditorTab={isEditorTab}
-          isMarkdownTab={isMarkdownTab}
-          isAiDiffTab={isAiDiffTab}
-          isGitDiffTab={isGitDiffTab}
-          isGitHistoryTab={isGitHistoryTab}
-          isArchitectureTab={isArchitectureTab}
-          canvasFocused={canvasFocused}
-          activeWorkspaceAccentColor={activeWorkspaceAccentColor}
-          workspaces={workspaces}
-          terminalProps={{
-            registerHandle: registerTerminalHandle,
-            onSearchReady: handleSearchReady,
-            onCwd: handleTerminalCwd,
-            onChangeDirectory: changeTerminalDirectory,
-            onExit: handleLeafExit,
-            onCommand: handleTerminalCommand,
-            onSwitchAgent: handleSwitchTerminalAgent,
-            onFocusLeaf: handleFocusLeaf,
-            onCloseLeaf: closePaneByLeaf,
-            onToggleMaximize: toggleMaximizePane,
-            onSplitPane: splitActivePaneInActiveTab,
-            onPaneTreeChange: handleTerminalPaneTreeChange,
-          }}
-          onDiagramChange={handleArchitectureDiagramChange}
-          onRegisterTerminalCreator={(tabId, creator) => {
-            if (creator) canvasTerminalCreatorRef.current.set(tabId, creator);
-            else canvasTerminalCreatorRef.current.delete(tabId);
-          }}
-          onTerminalHandleChange={onCanvasTerminalHandleChange}
-          onActiveTerminalChange={onActiveCanvasTerminalChange}
-          onToggleCanvasFocus={toggleCanvasFocus}
-          registerEditorHandle={registerEditorHandle}
-          onEditorDirty={handleEditorDirty}
-          onCloseEditorTab={disposeTab}
-          onOpenCommitFile={openCommitFileDiffTab}
-          onGitHistorySearchHandle={setGitHistoryHandle}
-        />
-      </div>
-      {skillsOpen ? (
-        <div className="absolute inset-0 z-30">
-          <SkillsCatalogView />
-        </div>
-      ) : null}
-    </div>
+    <WorkspaceSurface
+      tabs={tabs}
+      activeId={activeId}
+      hideBootstrapShell={hideBootstrapShell}
+      isTerminalTab={isTerminalTab}
+      isEditorTab={isEditorTab}
+      isMarkdownTab={isMarkdownTab}
+      isAiDiffTab={isAiDiffTab}
+      isGitDiffTab={isGitDiffTab}
+      isGitHistoryTab={isGitHistoryTab}
+      isArchitectureTab={isArchitectureTab}
+      canvasFocused={canvasFocused}
+      activeWorkspaceAccentColor={activeWorkspaceAccentColor}
+      workspaces={workspaces}
+      terminalProps={{
+        registerHandle: registerTerminalHandle,
+        onSearchReady: handleSearchReady,
+        onCwd: handleTerminalCwd,
+        onChangeDirectory: changeTerminalDirectory,
+        onExit: handleLeafExit,
+        onCommand: handleTerminalCommand,
+        onSwitchAgent: handleSwitchTerminalAgent,
+        onFocusLeaf: handleFocusLeaf,
+        onCloseLeaf: closePaneByLeaf,
+        onToggleMaximize: toggleMaximizePane,
+        onSplitPane: splitActivePaneInActiveTab,
+        onPaneTreeChange: handleTerminalPaneTreeChange,
+      }}
+      onDiagramChange={handleArchitectureDiagramChange}
+      onRegisterTerminalCreator={(tabId, creator) => {
+        if (creator) canvasTerminalCreatorRef.current.set(tabId, creator);
+        else canvasTerminalCreatorRef.current.delete(tabId);
+      }}
+      onTerminalHandleChange={onCanvasTerminalHandleChange}
+      onActiveTerminalChange={onActiveCanvasTerminalChange}
+      onToggleCanvasFocus={toggleCanvasFocus}
+      registerEditorHandle={registerEditorHandle}
+      onEditorDirty={handleEditorDirty}
+      onCloseEditorTab={disposeTab}
+      onOpenCommitFile={openCommitFileDiffTab}
+      onGitHistorySearchHandle={setGitHistoryHandle}
+    />
   );
 
   const workspacesPanel = (
@@ -1179,11 +1155,7 @@ export default function App() {
       onRenameWorkspace={handleRenameWorkspace}
       onChangeWorkspaceColor={handleChangeWorkspaceColor}
       onToggleWorkspacePinned={handleToggleWorkspacePinned}
-      onOpenSkills={toggleSkillsCatalog}
-      onStartWorkspaceSetup={() => {
-        setSkillsOpen(false);
-        setWorkspaceSetupOpen(true);
-      }}
+      onStartWorkspaceSetup={() => setWorkspaceSetupOpen(true)}
       onImportSession={() => setImportSessionOpen(true)}
       onReorderWorkspaces={handleReorderWorkspaces}
     />
