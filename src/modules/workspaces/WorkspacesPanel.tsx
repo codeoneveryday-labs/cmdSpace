@@ -5,6 +5,7 @@ import { WorkspacePanelHeader } from "./WorkspacePanelHeader";
 import { WorkspaceList } from "./WorkspaceList";
 import { WorkspaceDragOverlays } from "./WorkspaceDragOverlays";
 import { useWorkspaceReorderDrag } from "./lib/useWorkspaceReorderDrag";
+import { SkillsLauncher } from "@/modules/skills";
 export { WorkspaceSetupView } from "./WorkspaceSetupView";
 export {
   DEFAULT_WORKSPACE_ACCENT_COLOR,
@@ -49,6 +50,7 @@ type Props = {
   onRenameWorkspace: (workspaceId: string, name: string) => void;
   onChangeWorkspaceColor: (workspaceId: string, accentColor: string) => void;
   onToggleWorkspacePinned: (workspaceId: string) => void;
+  onOpenSkills: () => void;
   onStartWorkspaceSetup: () => void;
   onImportSession: () => void;
   onReorderWorkspaces?: (
@@ -67,6 +69,7 @@ export function WorkspacesPanel({
   onRenameWorkspace,
   onChangeWorkspaceColor,
   onToggleWorkspacePinned,
+  onOpenSkills,
   onStartWorkspaceSetup,
   onImportSession,
   onReorderWorkspaces,
@@ -104,6 +107,7 @@ export function WorkspacesPanel({
   return (
     <>
       <aside className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+        <SkillsLauncher compact={compact} onOpenSkills={onOpenSkills} />
         <WorkspacePanelHeader
           compact={compact}
           activeWorkspaceId={activeWorkspaceId}

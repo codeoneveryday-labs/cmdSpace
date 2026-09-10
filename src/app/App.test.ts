@@ -587,4 +587,20 @@ describe("App sidebar toggle", () => {
     expect(sidebarSource).not.toContain("sidebarView === \"browser\"");
     expect(appSource).not.toContain("sidebarBrowserUrl");
   });
+
+  it("mounts the skills catalog as a main-surface overlay without replacing workspaces", () => {
+    const source = readFileSync(appPath, "utf8");
+    const panel = readFileSync(
+      path.join(here, "../modules/workspaces/WorkspacesPanel.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain("SkillsCatalogView");
+    expect(source).toContain("skillsOpen");
+    expect(source).toContain("setSkillsOpen");
+    expect(source).toContain("<SkillsCatalogView />");
+    expect(source).toContain("toggleSkillsCatalog");
+    expect(panel).toContain("SkillsLauncher");
+    expect(panel).toContain("onOpenSkills");
+  });
 });

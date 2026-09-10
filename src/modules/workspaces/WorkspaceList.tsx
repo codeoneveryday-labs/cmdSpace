@@ -111,6 +111,7 @@ export function WorkspaceList({
       return next;
     });
   };
+  const workspaceRowInset = compact ? "mx-1.5" : "mx-2";
   return (
     <nav
       ref={containerRef}
@@ -132,13 +133,16 @@ export function WorkspaceList({
       ) : (
         <>
           {pinnedWorkspaces.length > 0 ? (
-            <section className="space-y-0.5 px-2 pb-2" aria-label="Pinned workspaces">
+            <section
+              className={cn("space-y-0.5 pb-2", workspaceRowInset)}
+              aria-label="Pinned workspaces"
+            >
               <button
                 type="button"
                 aria-expanded={pinnedExpanded}
                 aria-controls="pinned-workspaces-list"
                 onClick={() => setPinnedExpanded((expanded) => !expanded)}
-                className="flex h-8 w-full items-center gap-1.5 rounded-md px-1 text-left text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-left text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 <span className="min-w-0 flex-1 truncate">
                   Pinned workspaces ({pinnedWorkspaces.length})
@@ -271,7 +275,10 @@ export function WorkspaceList({
                           <div
                             key="drag-placeholder"
                             aria-hidden="true"
-                            className="h-9 shrink-0 rounded-md border border-dashed border-blue-500/35 bg-blue-500/5 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.12)] transition-[height,opacity] duration-150"
+                            className={cn(
+                              "h-9 shrink-0 rounded-md border border-dashed border-blue-500/35 bg-blue-500/5 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.12)] transition-[height,opacity] duration-150",
+                              workspaceRowInset,
+                            )}
                             style={{ height: dragVisual.height }}
                           />,
                         ]
@@ -279,7 +286,7 @@ export function WorkspaceList({
 
                   return [
                     ...workspacePlaceholder,
-                    <div key={workspace.id} className="ml-2">
+                    <div key={workspace.id} className={workspaceRowInset}>
                       <WorkspaceRow
                         workspace={workspace}
                         active={workspace.id === activeWorkspaceId}
@@ -305,7 +312,10 @@ export function WorkspaceList({
             placeholderIndex === renderedWorkspaces.length && (
               <div
                 aria-hidden="true"
-                className="h-9 shrink-0 rounded-md border border-dashed border-blue-500/35 bg-blue-500/5 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.12)] transition-[height,opacity] duration-150"
+                className={cn(
+                  "h-9 shrink-0 rounded-md border border-dashed border-blue-500/35 bg-blue-500/5 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.12)] transition-[height,opacity] duration-150",
+                  workspaceRowInset,
+                )}
                 style={{ height: dragVisual.height }}
               />
             )}
