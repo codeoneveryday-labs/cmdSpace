@@ -162,6 +162,20 @@ failure text. Preserve Linux 0600 storage and native keychain semantics.
 read/write/delete failure mapping, and redaction; no secret payload or path is
 returned through the IPC error envelope.
 
+**Status:** complete. All secrets command boundaries now return
+`SecretsResult<T>` with stable `SECRET_*` codes for state, Linux fallback
+storage, serialization, and keychain failures. Serialized errors exclude the
+service, account, secret value, storage path, and backend message; the existing
+service/account acceptance and best-effort batch-read semantics remain
+unchanged. The direct Tauri `Result<_, String>` surface is zero (the generic
+`SecretsResult<HashMap<String, String>>` is an inventory false-positive, not an
+untyped error). Two focused serialization/redaction tests, all-target Rust
+check/Clippy, command-registry contracts, and TypeScript typecheck pass.
+
+**Pattern impact:** the security Proxy/Tauri Bridge now carries a typed error
+envelope only; Keychain/Credential Manager, Linux 0600 fallback, cache, and
+command payload ownership remain unchanged.
+
 ### Prompt 04 — Finish one remote/auth error family
 
 **Owner:** `src-tauri/src/modules/remote/auth.rs` and the existing remote auth
@@ -320,7 +334,8 @@ this plan with the failed proof. Never use destructive reset/clean commands.
   `17f122cf4` and freeze Git, secrets, and remote auth as the next families.
 - [x] Prompt 02 — Type the Git error boundary; focused verification passes and
   PR 1 is ready for delivery.
-- [ ] Prompt 03 — Type the secrets boundary and ship PR 2.
+- [x] Prompt 03 — Type the secrets boundary; focused verification passes and
+  PR 2 is ready for delivery.
 - [ ] Prompt 04 — Type one remote/auth family and ship PR 3.
 - [ ] Prompts 05–07 — Build the second IPC contract family and record the
   generation decision in PR 4.
