@@ -20,6 +20,10 @@ describe("TrayWorkspaceRow", () => {
     expect(source).toContain("title={terminal.label}");
     expect(source).toContain("getWorkspaceModeIcon");
     expect(source).toContain("borderColor: workspace.accentColor");
+    expect(source).toContain("onOpenTerminal(terminal, paneIndex)");
+    expect(source).toContain("h-8 min-h-8");
+    expect(source).toContain("size-6 shrink-0");
+    expect(source).not.toContain("border-l border-border/60");
     expect(source).not.toContain("color: workspace.accentColor");
   });
 });
