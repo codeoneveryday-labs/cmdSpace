@@ -363,11 +363,10 @@ export const PROVIDERS: readonly ProviderInfo[] = [
   },
 ] as const;
 
-/** Keep the existing cloud choices visible after migrating to the catalog UI. */
+/** Keep the live cloud choices visible after migrating to the catalog UI. */
 export const DEFAULT_CONFIGURED_SPEECH_TO_TEXT_PROVIDER_IDS: ProviderId[] = [
   "openai",
   "groq",
-  "nvidia",
 ];
 
 export function normalizeSpeechToTextProviderIds(
