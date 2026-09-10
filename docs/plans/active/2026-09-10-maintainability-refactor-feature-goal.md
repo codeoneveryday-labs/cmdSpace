@@ -151,6 +151,11 @@ decision is durable, and the plan.
 **Proof:** serialization tests cover success, known error codes, and unknown
 future codes; no secret/path contents leak through messages.
 
+**Status:** complete. Decision 0012 records the namespaced-code/safe-message
+boundary, preserves command/payload compatibility, and rejects a premature
+global error crate or generated-binding dependency. Existing DB serialization
+tests are the first executable proof.
+
 ### Prompt 04 — Migrate one filesystem read vertical slice
 
 **Owner seam:** `src-tauri/src/modules/fs/file.rs` and `file_read.rs`.
@@ -357,7 +362,9 @@ result, and an explicit list of deferred work.
   `987078fc6`; tracked tree clean, inventory recorded, ownership frozen.
 - [x] Prompt 02 — Establish the SQLite contention measurement seam; 160-sample
   baseline recorded and DB tests/format/clippy pass.
-- [ ] Prompts 03–10 — Migrate bounded native error slices.
+- [x] Prompt 03 — Define the native error taxonomy boundary in Decision 0012;
+  existing DB envelope serialization tests remain green.
+- [ ] Prompts 04–10 — Migrate bounded native error slices.
 - [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
