@@ -168,6 +168,10 @@ command.
 **Proof:** tests cover text, binary, too-large, missing, unauthorized, and
 invalid-path outcomes; the frontend response shape is unchanged.
 
+**Status:** complete. `fs_read_file` now maps native I/O kinds to stable
+`FS_*` codes and safe messages; success discriminants remain unchanged. The
+FS test group passes with 19 tests.
+
 ### Prompt 05 — Lock the filesystem IPC response/error contract
 
 **Owner seam:** `src/modules/ai/lib/native.ts` and filesystem contract tests.
@@ -364,7 +368,9 @@ result, and an explicit list of deferred work.
   baseline recorded and DB tests/format/clippy pass.
 - [x] Prompt 03 — Define the native error taxonomy boundary in Decision 0012;
   existing DB envelope serialization tests remain green.
-- [ ] Prompts 04–10 — Migrate bounded native error slices.
+- [x] Prompt 04 — Migrate `fs_read_file` to stable FS errors; 19 FS tests,
+  fmt, and Clippy pass.
+- [ ] Prompts 05–10 — Migrate bounded native error/IPC slices.
 - [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
