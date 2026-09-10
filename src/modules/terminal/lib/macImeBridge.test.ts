@@ -50,6 +50,57 @@ describe("normalizeMacTerminalInput", () => {
   });
 });
 
+describe("macOS printable input routing", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubGlobal("navigator", { userAgent: "Macintosh" });
+  });
+
+  it("routes an unmodified printable key through the textarea path", async () => {
+    const { shouldUseMacTextInputPath } = await import("./macImeBridge");
+    const event = {
+      type: "keydown",
+      key: "a",
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+    } as KeyboardEvent;
+
+    expect(shouldUseMacTextInputPath(event)).toBe(true);
+  });
+
+  it("keeps control, modified, and navigation keys on xterm's key path", async () => {
+    const { shouldUseMacTextInputPath } = await import("./macImeBridge");
+    const base = {
+      type: "keydown",
+      key: "a",
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+    } as KeyboardEvent;
+
+    expect(shouldUseMacTextInputPath({ ...base, ctrlKey: true })).toBe(false);
+    expect(shouldUseMacTextInputPath({ ...base, metaKey: true })).toBe(false);
+    expect(shouldUseMacTextInputPath({ ...base, altKey: true })).toBe(false);
+    expect(shouldUseMacTextInputPath({ ...base, key: "ArrowLeft" })).toBe(false);
+    expect(shouldUseMacTextInputPath({ ...base, key: " " })).toBe(false);
+    expect(
+      shouldUseMacTextInputPath({ ...base, type: "keyup" }),
+    ).toBe(false);
+  });
+
+  it("drops only single printable xterm data on macOS", async () => {
+    const { shouldIgnoreMacPrintableTerminalData } = await import(
+      "./macImeBridge"
+    );
+
+    expect(shouldIgnoreMacPrintableTerminalData("a")).toBe(true);
+    expect(shouldIgnoreMacPrintableTerminalData("ab")).toBe(false);
+    expect(shouldIgnoreMacPrintableTerminalData("\r")).toBe(false);
+    expect(shouldIgnoreMacPrintableTerminalData("\x7f")).toBe(false);
+  });
+});
+
 type FakeTextarea = {
   value: string;
   addEventListener: (name: string, cb: (event: unknown) => void) => void;

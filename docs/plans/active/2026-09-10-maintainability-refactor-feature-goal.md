@@ -312,6 +312,13 @@ demonstrated.
 **Proof:** a regression test fails against the old behavior and passes after the
 change; standard and canvas terminal ownership remains distinct.
 
+**Status:** complete. Executable tests now cover macOS printable-key routing,
+modified/control/navigation-key fallthrough, single-character xterm filtering,
+textarea blur/refocus resynchronization, C1/NBSP normalization, composition
+duplicate suppression, Enter observation ordering, and mouse-report broadcast
+exclusion. The existing source guards remain as compatibility assertions and
+were not expanded.
+
 ### Prompt 14 — Convert persistence/workspace structural claims
 
 **Owner seam:** `src/app/lib/useWorkspaceHydration.ts`, workspace IPC, and DB
@@ -421,7 +428,10 @@ result, and an explicit list of deferred work.
 - [x] Prompt 11 — Decide manual versus generated IPC typing in Decision 0013.
 - [x] Prompt 12 — Add filesystem response/error contract and parser tests;
   eight focused IPC tests and typecheck pass.
-- [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
+- [x] Prompt 13 — Convert terminal/IME structural claims to behavior proof;
+  32 focused terminal/IME/broadcast tests and typecheck pass.
+- [ ] Prompts 14–15 — Convert persistence/workspace and remote/security
+  structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
 - [ ] Prompt 19 — Run final verification and re-pin metrics.
 - [ ] Prompt 20 — Deliver, merge, re-pull `main`, and close the plan.
