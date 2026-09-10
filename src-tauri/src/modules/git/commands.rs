@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Manager};
 
+use super::{GitError, GitResult};
 use crate::modules::git::operations;
 use crate::modules::git::types::{
     DiscardEntry, GitCommitFileChange, GitCommitResult, GitDiffContentResult, GitDiffResult,
@@ -7,9 +8,9 @@ use crate::modules::git::types::{
 };
 use crate::modules::workspace::{WorkspaceEnv, WorkspaceRegistry};
 
-async fn blocking<F, T>(app: AppHandle, f: F) -> Result<T, String>
+async fn blocking<F, T>(app: AppHandle, f: F) -> GitResult<T>
 where
-    F: FnOnce(&WorkspaceRegistry) -> Result<T, String> + Send + 'static,
+    F: FnOnce(&WorkspaceRegistry) -> GitResult<T> + Send + 'static,
     T: Send + 'static,
 {
     tauri::async_runtime::spawn_blocking(move || {
@@ -17,7 +18,7 @@ where
         f(&registry)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|_| GitError::WorkerUnavailable)?
 }
 
 #[tauri::command]
@@ -25,12 +26,9 @@ pub async fn git_resolve_repo(
     cwd: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<Option<GitRepoInfo>, String> {
+) -> GitResult<Option<GitRepoInfo>> {
     let workspace = WorkspaceEnv::from_option(workspace);
-    blocking(app, move |r| {
-        operations::resolve_repo(r, &cwd, &workspace).map_err(Into::into)
-    })
-    .await
+    blocking(app, move |r| operations::resolve_repo(r, &cwd, &workspace)).await
 }
 
 #[tauri::command]
@@ -38,10 +36,10 @@ pub async fn git_panel_snapshot(
     cwd: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<GitPanelSnapshot, String> {
+) -> GitResult<GitPanelSnapshot> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::panel_snapshot(r, &cwd, &workspace).map_err(Into::into)
+        operations::panel_snapshot(r, &cwd, &workspace)
     })
     .await
 }
@@ -51,12 +49,9 @@ pub async fn git_status(
     repo_root: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<GitStatusSnapshot, String> {
+) -> GitResult<GitStatusSnapshot> {
     let workspace = WorkspaceEnv::from_option(workspace);
-    blocking(app, move |r| {
-        operations::status(r, &repo_root, &workspace).map_err(Into::into)
-    })
-    .await
+    blocking(app, move |r| operations::status(r, &repo_root, &workspace)).await
 }
 
 #[tauri::command]
@@ -66,10 +61,10 @@ pub async fn git_diff(
     staged: bool,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<GitDiffResult, String> {
+) -> GitResult<GitDiffResult> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::diff(r, &repo_root, path.as_deref(), staged, &workspace).map_err(Into::into)
+        operations::diff(r, &repo_root, path.as_deref(), staged, &workspace)
     })
     .await
 }
@@ -82,7 +77,7 @@ pub async fn git_diff_content(
     original_path: Option<String>,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<GitDiffContentResult, String> {
+) -> GitResult<GitDiffContentResult> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
         operations::diff_content(
@@ -93,7 +88,6 @@ pub async fn git_diff_content(
             original_path.as_deref(),
             &workspace,
         )
-        .map_err(Into::into)
     })
     .await
 }
@@ -104,10 +98,10 @@ pub async fn git_stage(
     paths: Vec<String>,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<(), String> {
+) -> GitResult<()> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::stage(r, &repo_root, &paths, &workspace).map_err(Into::into)
+        operations::stage(r, &repo_root, &paths, &workspace)
     })
     .await
 }
@@ -118,10 +112,10 @@ pub async fn git_unstage(
     paths: Vec<String>,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<(), String> {
+) -> GitResult<()> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::unstage(r, &repo_root, &paths, &workspace).map_err(Into::into)
+        operations::unstage(r, &repo_root, &paths, &workspace)
     })
     .await
 }
@@ -132,10 +126,10 @@ pub async fn git_discard(
     entries: Vec<DiscardEntry>,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<(), String> {
+) -> GitResult<()> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::discard(r, &repo_root, &entries, &workspace).map_err(Into::into)
+        operations::discard(r, &repo_root, &entries, &workspace)
     })
     .await
 }
@@ -146,10 +140,10 @@ pub async fn git_commit(
     message: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<GitCommitResult, String> {
+) -> GitResult<GitCommitResult> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::commit(r, &repo_root, &message, &workspace).map_err(Into::into)
+        operations::commit(r, &repo_root, &message, &workspace)
     })
     .await
 }
@@ -159,12 +153,9 @@ pub async fn git_fetch(
     repo_root: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<(), String> {
+) -> GitResult<()> {
     let workspace = WorkspaceEnv::from_option(workspace);
-    blocking(app, move |r| {
-        operations::fetch(r, &repo_root, &workspace).map_err(Into::into)
-    })
-    .await
+    blocking(app, move |r| operations::fetch(r, &repo_root, &workspace)).await
 }
 
 #[tauri::command]
@@ -172,10 +163,10 @@ pub async fn git_pull_ff_only(
     repo_root: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<(), String> {
+) -> GitResult<()> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::pull_ff_only(r, &repo_root, &workspace).map_err(Into::into)
+        operations::pull_ff_only(r, &repo_root, &workspace)
     })
     .await
 }
@@ -185,12 +176,9 @@ pub async fn git_push(
     repo_root: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<GitPushResult, String> {
+) -> GitResult<GitPushResult> {
     let workspace = WorkspaceEnv::from_option(workspace);
-    blocking(app, move |r| {
-        operations::push(r, &repo_root, &workspace).map_err(Into::into)
-    })
-    .await
+    blocking(app, move |r| operations::push(r, &repo_root, &workspace)).await
 }
 
 #[tauri::command]
@@ -200,7 +188,7 @@ pub async fn git_log(
     before_sha: Option<String>,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<Vec<GitLogEntry>, String> {
+) -> GitResult<Vec<GitLogEntry>> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
         operations::log(
@@ -210,7 +198,6 @@ pub async fn git_log(
             before_sha.as_deref(),
             &workspace,
         )
-        .map_err(Into::into)
     })
     .await
 }
@@ -221,10 +208,10 @@ pub async fn git_show_commit(
     sha: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<GitDiffResult, String> {
+) -> GitResult<GitDiffResult> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::show_commit_diff(r, &repo_root, &sha, &workspace).map_err(Into::into)
+        operations::show_commit_diff(r, &repo_root, &sha, &workspace)
     })
     .await
 }
@@ -235,10 +222,10 @@ pub async fn git_commit_files(
     sha: String,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<Vec<GitCommitFileChange>, String> {
+) -> GitResult<Vec<GitCommitFileChange>> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::commit_files(r, &repo_root, &sha, &workspace).map_err(Into::into)
+        operations::commit_files(r, &repo_root, &sha, &workspace)
     })
     .await
 }
@@ -251,7 +238,7 @@ pub async fn git_commit_file_diff(
     original_path: Option<String>,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<GitDiffContentResult, String> {
+) -> GitResult<GitDiffContentResult> {
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
         operations::commit_file_diff(
@@ -262,7 +249,6 @@ pub async fn git_commit_file_diff(
             original_path.as_deref(),
             &workspace,
         )
-        .map_err(Into::into)
     })
     .await
 }
@@ -273,11 +259,11 @@ pub async fn git_remote_url(
     name: Option<String>,
     workspace: Option<WorkspaceEnv>,
     app: AppHandle,
-) -> Result<Option<String>, String> {
+) -> GitResult<Option<String>> {
     let remote = name.unwrap_or_else(|| "origin".to_string());
     let workspace = WorkspaceEnv::from_option(workspace);
     blocking(app, move |r| {
-        operations::remote_url(r, &repo_root, &remote, &workspace).map_err(Into::into)
+        operations::remote_url(r, &repo_root, &remote, &workspace)
     })
     .await
 }
