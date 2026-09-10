@@ -3,24 +3,32 @@
 All notable changes to cmdSpace are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.7.109] - 2026-09-10
+
+### Fixed
+
+- Terminal tabs now close immediately while workspace-session reconciliation
+  continues in the background.
+- The bottom terminal collapses without closing its running terminal sessions,
+  and panel resize separators now provide hover and keyboard-focus feedback.
+- The floating Space voice pill now displays the configured `voice.toggle`
+  shortcut, including custom and unassigned bindings.
+- Existing workspace panes migrate the old Pi agent bootstrap to the concise
+  `pi` launch command during restore while preserving custom commands.
+- Pi, Kimi, Grok, and Muse launch without replaying their legacy zsh bootstrap;
+  Pi no longer falls back to `omp`.
 
 ### Changed
 
-- Launching a CLI coding agent from the terminal header no longer replays the
-  legacy zsh PATH bootstrap. Pi, Kimi, Grok, and Muse now launch the bare
-  executable, matching how OMP was already launched. The initial command is
-  written to the terminal and echoed back by the shell, so a short command keeps
-  the pane clean.
-- Persisted launch commands that still use one of the old bootstraps are
-  normalized back to the bare executable, so existing preferences and workspace
-  records are unaffected. Custom commands are left untouched.
+- Updated repository guidance, context examples, and tracked tooling paths to
+  use the current cmdSpace project name.
 
 ### Known limitations
 
-- An agent installed into a directory that is not on the shell `PATH` and not
-  declared in `.zshrc` or `.zshenv` can no longer be launched from the header
-  until it is reachable on `PATH`.
+- Agents installed outside the shell `PATH` or `.zshrc`/`.zshenv` still need to
+  be made reachable there before a bare launch command can find them.
+- Manual packaged-release click-through was not performed locally; CI covers
+  frontend, Rust, and Windows Rust builds.
 
 ## [0.7.108] - 2026-09-10
 
