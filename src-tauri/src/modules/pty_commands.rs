@@ -31,9 +31,8 @@ pub async fn pty_open(
 ) -> Result<u32, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
     let open_t0 = std::time::Instant::now();
-    authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace).map_err(|e| {
+    authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace).inspect_err(|e| {
         log::warn!("pty_open: cwd rejected: {e}");
-        e
     })?;
     let metadata_cwd = cwd.clone();
     let id = state.next_id.fetch_add(1, Ordering::Relaxed);

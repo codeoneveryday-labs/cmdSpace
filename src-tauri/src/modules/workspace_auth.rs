@@ -1,5 +1,5 @@
 use super::launch::resolve_launch_dir;
-use super::{resolve_path, WorkspaceEnv};
+use super::{resolve_path, WorkspaceEnv, WorkspaceError, WorkspaceErrorKind, WorkspaceResult};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -75,20 +75,21 @@ pub fn authorize_spawn_cwd(
     registry: &WorkspaceRegistry,
     cwd: Option<&str>,
     workspace: &WorkspaceEnv,
-) -> Result<Option<PathBuf>, String> {
+) -> WorkspaceResult<Option<PathBuf>> {
     let Some(cwd) = cwd.map(str::trim).filter(|s| !s.is_empty()) else {
         return Ok(None);
     };
     let resolved = resolve_path(cwd, workspace);
-    let canonical =
-        std::fs::canonicalize(&resolved).map_err(|e| format!("cwd not accessible: {e}"))?;
+    let canonical = std::fs::canonicalize(&resolved).map_err(|error| {
+        log::debug!("workspace cwd canonicalization failed: {error}");
+        WorkspaceError::new(WorkspaceErrorKind::CwdNotAccessible)
+    })?;
     if !canonical.is_dir() {
-        return Err(format!("cwd is not a directory: {}", canonical.display()));
+        return Err(WorkspaceError::new(WorkspaceErrorKind::CwdNotDirectory));
     }
     if !registry.is_authorized(&canonical) {
-        return Err(format!(
-            "cwd is outside the authorized workspace: {}",
-            canonical.display()
+        return Err(WorkspaceError::new(
+            WorkspaceErrorKind::OutsideAuthorizedWorkspace,
         ));
     }
     Ok(Some(canonical))
@@ -106,19 +107,25 @@ pub async fn workspace_authorize(
     path: String,
     workspace: Option<WorkspaceEnv>,
     registry: tauri::State<'_, WorkspaceRegistry>,
-) -> Result<String, String> {
+) -> WorkspaceResult<String> {
     let workspace = WorkspaceEnv::from_option(workspace);
     let resolved = resolve_path(&path, &workspace);
-    let canonical = registry.authorize(&resolved).map_err(|e| e.to_string())?;
+    let canonical = registry.authorize(&resolved).map_err(|error| {
+        log::warn!("workspace authorization failed: {error}");
+        WorkspaceError::new(WorkspaceErrorKind::AuthorizationFailed)
+    })?;
     Ok(canonical.to_string_lossy().replace('\\', "/"))
 }
 
 #[tauri::command]
 pub async fn workspace_current_dir(
     registry: tauri::State<'_, WorkspaceRegistry>,
-) -> Result<String, String> {
+) -> WorkspaceResult<String> {
     let launch = resolve_launch_dir();
-    let canonical = registry.authorize(&launch).map_err(|e| e.to_string())?;
+    let canonical = registry.authorize(&launch).map_err(|error| {
+        log::warn!("workspace launch authorization failed: {error}");
+        WorkspaceError::new(WorkspaceErrorKind::AuthorizationFailed)
+    })?;
     Ok(canonical.to_string_lossy().replace('\\', "/"))
 }
 

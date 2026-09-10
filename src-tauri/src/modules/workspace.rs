@@ -6,6 +6,8 @@ use serde::Deserialize;
 
 #[path = "workspace_auth.rs"]
 mod auth;
+#[path = "workspace_error.rs"]
+mod error;
 #[path = "workspace_launch.rs"]
 mod launch;
 #[path = "workspace_wsl.rs"]
@@ -15,6 +17,8 @@ pub use auth::{
     app_dev_repo_root, authorize_spawn_cwd, bootstrap_registry, workspace_authorize,
     workspace_current_dir, WorkspaceRegistry,
 };
+pub(crate) use error::WorkspaceErrorKind;
+pub use error::{WorkspaceError, WorkspaceResult};
 pub use wsl::{__cmd__wsl_default_distro, __cmd__wsl_home, __cmd__wsl_list_distros};
 #[cfg(windows)]
 pub use wsl::{
@@ -174,7 +178,10 @@ mod auth_tests {
         let s = foreign.to_string_lossy().into_owned();
         let err = authorize_spawn_cwd(&reg, Some(&s), &WorkspaceEnv::Local)
             .expect_err("should reject unauthorized cwd");
-        assert!(err.contains("outside"), "got: {err}");
+        assert_eq!(
+            err,
+            WorkspaceError::new(WorkspaceErrorKind::OutsideAuthorizedWorkspace)
+        );
     }
 
     #[test]
@@ -192,7 +199,10 @@ mod auth_tests {
         let s = missing.to_string_lossy().into_owned();
         let err = authorize_spawn_cwd(&reg, Some(&s), &WorkspaceEnv::Local)
             .expect_err("should reject missing path");
-        assert!(err.contains("cwd not accessible"), "got: {err}");
+        assert_eq!(
+            err,
+            WorkspaceError::new(WorkspaceErrorKind::CwdNotAccessible)
+        );
     }
 
     #[test]
@@ -209,6 +219,9 @@ mod auth_tests {
         let s = link.to_string_lossy().into_owned();
         let err = authorize_spawn_cwd(&reg, Some(&s), &WorkspaceEnv::Local)
             .expect_err("symlink-escape must be rejected");
-        assert!(err.contains("outside"), "got: {err}");
+        assert_eq!(
+            err,
+            WorkspaceError::new(WorkspaceErrorKind::OutsideAuthorizedWorkspace)
+        );
     }
 }

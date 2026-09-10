@@ -26,11 +26,13 @@ fn is_safe_distro_name(name: &str) -> bool {
 }
 
 #[cfg(windows)]
-pub fn validate_wsl_distro_name(distro: &str) -> Result<(), String> {
+pub fn validate_wsl_distro_name(distro: &str) -> super::WorkspaceResult<()> {
     if is_safe_distro_name(distro) {
         Ok(())
     } else {
-        Err(format!("unsafe WSL distro name: {distro}"))
+        Err(super::WorkspaceError::new(
+            super::WorkspaceErrorKind::InvalidWslDistro,
+        ))
     }
 }
 

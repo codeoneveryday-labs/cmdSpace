@@ -215,6 +215,11 @@ directory. Preserve the security decision and platform-specific path rules.
 **Proof:** existing authorization tests plus new code-serialization assertions
 prove no unauthorized spawn path is widened.
 
+**Status:** complete. Workspace cwd failures now classify as inaccessible,
+not-a-directory, or outside-authorized-root; WSL validation has a stable
+invalid-distro code. Existing callers retain a safe string compatibility path,
+and the authorization test group passes without widening any root.
+
 ### Prompt 08 — Classify outbound AI/network errors
 
 **Owner seam:** `src-tauri/src/modules/net.rs`, `net_http.rs`,
@@ -384,7 +389,9 @@ result, and an explicit list of deferred work.
   focused IPC tests and typecheck pass.
 - [x] Prompt 06 — Type the one-shot shell command boundary; 13 shell tests,
   fmt, and Clippy pass.
-- [ ] Prompts 07–10 — Migrate bounded native error/IPC slices.
+- [x] Prompt 07 — Type workspace authorization/WSL validation errors; 24
+  workspace-related tests, fmt, and Clippy pass.
+- [ ] Prompts 08–10 — Migrate bounded native error/IPC slices.
 - [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
