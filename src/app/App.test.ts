@@ -131,6 +131,10 @@ describe("App sidebar toggle", () => {
 
     expect(source).toContain("BottomTerminalDrawer");
     expect(source).toContain("bottomTerminalOpen");
+    expect(source).toContain("bottomTerminalMounted");
+    expect(source).toContain('"visible translate-y-0 opacity-100"');
+    expect(source).toContain('"invisible translate-y-full opacity-0"');
+    expect(source).toContain("onCollapse={() => setBottomTerminalOpen(false)}");
     expect(source).toContain('"terminal.bottom": actions.toggleBottomTerminal');
     expect(source).not.toContain("data-ai-input-bar");
     expect(source).not.toContain("<AiInputBar />");
@@ -191,6 +195,10 @@ describe("App sidebar toggle", () => {
 
     expect(source).toContain("after:inset-y-0 after:left-1/2 after:w-px");
     expect(source).toContain("after:bg-border/70");
+    expect(source).toContain("after:transition-[background-color,box-shadow]");
+    expect(source).toContain("hover:after:bg-primary/80");
+    expect(source).toContain("hover:after:shadow-[0_0_6px_var(--primary)]");
+    expect(source).toContain("focus-visible:after:bg-primary");
   });
 
   it("opens the bottom terminal from the active workspace folder", () => {

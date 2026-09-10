@@ -20,6 +20,14 @@ const tabDragSource = readFileSync(
 const drawerInteractionSource = `${source}\n${resizeSource}\n${tabDragSource}`;
 
 describe("BottomTerminalDrawer", () => {
+  it("collapses the drawer without closing its running terminal sessions", () => {
+    expect(source).toContain("ArrowDown01Icon");
+    expect(source).toContain("onCollapse: () => void;");
+    expect(source).toContain('aria-label="Collapse bottom terminal"');
+    expect(source).toContain('title="Collapse bottom terminal"');
+    expect(source).not.toContain('aria-label="Close bottom terminal"');
+  });
+
   it("uses the shared terminal lifecycle for every bottom tab", () => {
     expect(source).toContain("import { TerminalPane");
     expect(source).toContain("type TerminalPaneHandle");

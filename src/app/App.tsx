@@ -1,5 +1,6 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import type {
   FloatingVoiceAgentHandle,
   SpeechInputTarget,
@@ -433,6 +434,7 @@ export default function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [newEditorOpen, setNewEditorOpen] = useState(false);
   const [bottomTerminalOpen, setBottomTerminalOpen] = useState(false);
+  const [bottomTerminalMounted, setBottomTerminalMounted] = useState(false);
   const [bottomTerminalCwd, setBottomTerminalCwd] = useState<string | null>(
     null,
   );
@@ -594,6 +596,7 @@ export default function App() {
     home,
     bottomTerminalOpen,
     bottomTerminalRef,
+    setBottomTerminalMounted,
     setBottomTerminalOpen,
     setBottomTerminalCwd,
   });
@@ -1187,13 +1190,21 @@ export default function App() {
     </div>
   ) : null;
 
-  const bottomTerminal = bottomTerminalOpen ? (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
+  const bottomTerminal = bottomTerminalMounted ? (
+    <div
+      aria-hidden={!bottomTerminalOpen}
+      className={cn(
+        "pointer-events-none absolute inset-x-0 bottom-0 z-40 transition-[opacity,transform,visibility] duration-200 ease-out motion-reduce:transition-none",
+        bottomTerminalOpen
+          ? "visible translate-y-0 opacity-100"
+          : "invisible translate-y-full opacity-0",
+      )}
+    >
       <div className="pointer-events-auto">
         <BottomTerminalDrawer
           ref={bottomTerminalRef}
           cwd={bottomTerminalCwd}
-          onClose={() => setBottomTerminalOpen(false)}
+          onCollapse={() => setBottomTerminalOpen(false)}
         />
       </div>
     </div>

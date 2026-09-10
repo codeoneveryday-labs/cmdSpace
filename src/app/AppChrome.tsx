@@ -5,6 +5,9 @@ import {
   WORKSPACES_PANEL_MAX_WIDTH,
 } from "./constants";
 
+const PANEL_SEPARATOR_CLASS =
+  "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 after:transition-[background-color,box-shadow] after:duration-200 after:ease-out hover:after:bg-primary/80 hover:after:shadow-[0_0_6px_var(--primary)] focus-visible:ring-1 focus-visible:ring-ring focus-visible:after:bg-primary focus-visible:after:shadow-[0_0_6px_var(--primary)]";
+
 export type AppChromeProps = {
   sidebarSplitRef: RefObject<HTMLDivElement | null>;
   workspaceRef: RefObject<HTMLDivElement | null>;
@@ -81,7 +84,7 @@ export function AppChrome({
             onPointerDown={onWorkspacesPanelResizeStart}
             onKeyDown={onWorkspacesPanelResizeKeyDown}
             className={cn(
-              "relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 focus-visible:ring-1 focus-visible:ring-ring",
+              PANEL_SEPARATOR_CLASS,
               workspacesPanelCompact && "cursor-default focus-visible:ring-0",
             )}
           />
@@ -121,7 +124,7 @@ export function AppChrome({
               tabIndex={0}
               onPointerDown={onSidebarResizeStart}
               onKeyDown={onSidebarResizeKeyDown}
-              className="relative z-50 -mx-2 flex w-4 shrink-0 cursor-col-resize touch-none select-none bg-transparent outline-none after:pointer-events-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-border/70 focus-visible:ring-1 focus-visible:ring-ring"
+              className={PANEL_SEPARATOR_CLASS}
             />
             <aside
               className={cn(
