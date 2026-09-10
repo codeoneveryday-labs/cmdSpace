@@ -385,6 +385,13 @@ new logging dependency or redesign all logging in one pass.
 **Proof:** focused tests or log-capture checks prove stable fields and redaction;
 manual review confirms no user input is logged raw.
 
+**Status:** complete. `db_list_workspaces` now emits one existing-log-target
+event with stable domain/operation/outcome/duration fields. The formatter takes
+only a fixed operation name, safe error code, and duration, so paths, tokens,
+workspace payloads, and prompt contents cannot enter this event. A DB unit test
+pins the shape and redaction-by-construction; 14 DB tests and all-target
+Clippy pass.
+
 ### Prompt 18 — Make the DB extraction decision from measurements
 
 **Owner seam:** DB measurement harness and plan/ADR.
@@ -456,7 +463,9 @@ result, and an explicit list of deferred work.
   typecheck pass.
 - [x] Prompt 16 — Add scoped Rust unwrap/expect enforcement; all-target Clippy
   and 7 error-module tests pass.
-- [ ] Prompts 17–18 — Add structured logging and decide DB extraction.
+- [x] Prompt 17 — Add structured context to the DB list boundary; 14 DB tests,
+  fmt, and all-target Clippy pass.
+- [ ] Prompt 18 — Decide DB extraction from measured contention.
 - [ ] Prompt 19 — Run final verification and re-pin metrics.
 - [ ] Prompt 20 — Deliver, merge, re-pull `main`, and close the plan.
 

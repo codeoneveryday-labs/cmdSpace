@@ -53,6 +53,18 @@ fn database_errors_serialize_as_stable_ipc_envelopes() {
 }
 
 #[test]
+fn database_log_context_has_stable_fields_without_payloads() {
+    let message = format_db_operation_log("list_workspaces", "DB_OPERATION_FAILED", 7);
+
+    assert_eq!(
+        message,
+        "domain=db operation=list_workspaces outcome=DB_OPERATION_FAILED duration_ms=7"
+    );
+    assert!(!message.contains("/"));
+    assert!(!message.contains("token"));
+}
+
+#[test]
 fn workspace_ipc_dto_round_trips_without_transient_state() {
     let row = WorkspaceRow {
         id: "workspace-1".to_string(),
