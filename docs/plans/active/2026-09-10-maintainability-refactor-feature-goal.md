@@ -35,7 +35,7 @@ Prompt 01 baseline evidence (2026-09-10):
 | Signal | Observed value | Scope / interpretation |
 |---|---:|---|
 | `HEAD` and `origin/main` | `987078fc6` | tracked tree is aligned with remote main |
-| Registered Tauri command entries | 104 | parsed from `cmdspace_commands!` in `src-tauri/src/commands.rs` |
+| Registered Tauri command entries | 103 | entry-only parse of `cmdspace_commands!` in `src-tauri/src/commands.rs` |
 | Frontend files calling `invoke()` | 46 | production/test source search under `src/` |
 | Rust `Result<_, String>` lines | 241 | remaining migration surface under `src-tauri/src` |
 | Rust test attributes | 283 | `#[test]` and `#[tokio::test]` search under `src-tauri/src` |
@@ -47,6 +47,10 @@ Prompt 01 baseline evidence (2026-09-10):
 The tracked tree has no diff against `origin/main`. Two untracked artifacts
 remain unstaged and must not be swept into later commits:
 `docs/reports/2026-09-09-codebase-review.md` and this feature-goal plan.
+
+Prompt 19 corrected the initial command inventory parser: the entry-only count
+is 103 (the earlier 104 figure included one non-entry macro line). This is a
+measurement correction, not a command-registry change.
 
 Ownership freeze for the remaining prompts:
 
@@ -424,6 +428,19 @@ Re-measure command/error/test taxonomy from the clean candidate SHA.
 **Proof:** all required checks pass, the plan records exact outputs/counts,
 and no known error remains hidden behind a claim of completion.
 
+**Status:** complete. Candidate verification ran from tracked commit
+`28051f2014ad67b3846eb52585ff37c201cf8933` with only the pre-existing
+untracked codebase report outside the staged scope. `pnpm exec tsc --noEmit`,
+`pnpm test` (447 Vitest files / 1,244 tests plus 6 relay tests), `pnpm build`
+(2,774 modules), `cargo check --all-targets --locked`, `cargo test
+--all-targets --locked` (281 tests), `cargo clippy --all-targets --locked --
+-D warnings`, `cargo fmt --all -- --check`, and `git diff --check` all pass.
+`pnpm quality:warn` exits 0 with five existing warn-only tool/baseline
+warnings. The candidate taxonomy is: 103 registered commands, 46 frontend
+invoke files, 165 `Result<_, String>` lines, 303 Rust test attributes, 443
+frontend `*.test.ts(x)` files, 247 source guards, 1 IPC contract test, and 285
+rough unwrap/expect hits (inventory-only, including inline test modules).
+
 ### Prompt 20 — Delivery and closeout
 
 **Owner seam:** issue branch, PR, plan lifecycle.
@@ -474,7 +491,9 @@ result, and an explicit list of deferred work.
   fmt, and all-target Clippy pass.
 - [x] Prompt 18 — Decide DB extraction from measured contention in Decision
   0014; repeat harness and runtime metadata recorded.
-- [ ] Prompt 19 — Run final verification and re-pin metrics.
+- [x] Prompt 19 — Run final verification and re-pin metrics from candidate
+  `28051f201`; all frontend/Rust gates pass and the warn-only quality baseline
+  is recorded.
 - [ ] Prompt 20 — Deliver, merge, re-pull `main`, and close the plan.
 
 ## Acceptance criteria
