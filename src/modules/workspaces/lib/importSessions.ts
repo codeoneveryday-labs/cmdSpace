@@ -65,7 +65,7 @@ export function buildSessionResumeCommand(
     case "openhands":
       return `openhands --resume ${id}`;
     case "kiro":
-      return `kiro-cli chat --resume-id ${id}`;
+      return `kiro-cli --classic chat --resume-id ${id}`;
     case "grok":
       return `grok --resume ${id}`;
     case "herdr":

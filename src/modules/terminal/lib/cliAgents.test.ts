@@ -128,6 +128,16 @@ describe("CLI agent registry", () => {
     });
   });
 
+  it("launches Kiro through the classic UI for stable PTY keyboard input", () => {
+    const kiro = CLI_AGENT_DEFINITIONS.find(({ id }) => id === "kiro");
+
+    expect(kiro).toMatchObject({
+      command: "kiro-cli --classic",
+      launch: "kiro-cli --classic",
+      launchPolicy: "standard",
+    });
+  });
+
   it("launches OMP through the shell integration without replaying user zsh startup", () => {
     const omp = CLI_AGENT_DEFINITIONS.find(({ id }) => id === "omp");
 

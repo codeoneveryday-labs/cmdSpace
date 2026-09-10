@@ -270,7 +270,11 @@ export const CLI_AGENT_DEFINITIONS: readonly CliAgentDefinition[] = [
   { id: "qwen", name: "Qwen Code", executable: "qwen", command: "qwen", launch: "qwen", launchPolicy: "standard", bannerPatterns: [/\bqwen code\b/i] },
   { id: "kimi", name: "Kimi Code", executable: "kimi", command: "kimi", launch: "kimi", launchPolicy: "standard", bannerPatterns: [/\bkimi code\b/i] },
   { id: "openhands", name: "OpenHands CLI", executable: "openhands", command: "openhands", launch: "openhands", launchPolicy: "standard", bannerPatterns: [/\bopenhands\b/i] },
-  { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli", launch: "kiro-cli", launchPolicy: "standard", bannerPatterns: [/\bkiro cli\b/i] },
+  // Kiro's rich TUI is the default in current releases, but its keyboard
+  // ownership is not reliable inside cmdSpace's xterm PTY. Keep the classic
+  // interface as the stable launch path; users can still override it in
+  // settings when they explicitly want the TUI.
+  { id: "kiro", name: "Kiro CLI", executable: "kiro-cli", command: "kiro-cli --classic", launch: "kiro-cli --classic", launchPolicy: "standard", bannerPatterns: [/\bkiro cli\b/i] },
   { id: "grok", name: "Grok CLI", executable: "grok", command: "grok", launch: "grok", launchPolicy: "standard", bannerPatterns: [/\bgrok(?: code| cli)\b/i] },
   { id: "herdr", name: "Herdr", executable: "herdr", command: "herdr", launch: "herdr", launchPolicy: "standard", bannerPatterns: [/\bherdr\b/i] },
   { id: "cmd", name: "Command Code", executable: "cmd", command: commandCodeLaunch, launch: commandCodeLaunch, launchPolicy: "unattended", chatTransport: "command-code-json", bannerPatterns: [/\bcommand code\b/i] },
