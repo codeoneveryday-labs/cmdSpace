@@ -1,4 +1,4 @@
-# CODEBASE MAP — cmdSpace (`terax-ai`)
+# CODEBASE MAP — cmdSpace (`cmdSpace`)
 
 > Tài liệu onboarding do agent sinh ra sau khi đọc toàn bộ repo (2026-09-08).
 > Mục đích: cho người mới (hoặc agent) biết **đọc cái gì, theo thứ tự nào, và
@@ -60,7 +60,7 @@ post-removal tree at `82e439a8c`.
 5. **Orchestration canvas đã bị loại bỏ có chủ đích** trong `fd4a61f81`; không
    khôi phục các module, command, UI hoặc plan đã xóa. Những hạng mục còn lại
    trong §7 là các rủi ro độc lập.
-6. **Product là `cmdSpace`, thư mục là `terax-ai`**, bundle id
+6. **Product và thư mục là `cmdSpace`**, bundle id
    `app.tranhoangpich.cmdspace`, package `cmdspace` v0.7.105. Đừng bối rối.
 
 ---
@@ -321,7 +321,7 @@ tree divergence.
 | `ai/`, `settings/`, `git/` thiếu barrel `index.ts` | không nhất quán với các module khác |
 | Test xanh nhưng không test hành vi | 280 `*.source.test.ts` chỉ assert text |
 | `tsconfig.tsbuildinfo` committed | dated 2026-07, cũ hơn source 2026-09 |
-| Tên | folder `terax-ai` vs product `cmdSpace` vs crate `cmdspace_lib` |
+| Tên | folder `cmdSpace` vs product `cmdSpace` vs crate `cmdspace_lib` |
 
 ---
 

@@ -3,7 +3,7 @@ import { developerVocabularyFromWorkspace } from "./developerVocabulary";
 
 describe("developerVocabularyFromWorkspace", () => {
   it("derives a bounded technical vocabulary from workspace manifests", () => {
-    const vocabulary = developerVocabularyFromWorkspace("/work/terax-ai", [
+    const vocabulary = developerVocabularyFromWorkspace("/work/cmdSpace", [
       {
         name: "package.json",
         content: JSON.stringify({
@@ -19,7 +19,7 @@ describe("developerVocabularyFromWorkspace", () => {
       },
     ]);
 
-    expect(vocabulary).toContain("terax-ai");
+    expect(vocabulary).toContain("cmdSpace");
     expect(vocabulary).toContain("cmdspace");
     expect(vocabulary).toContain("@tauri-apps/api");
     expect(vocabulary).toContain("portable-pty");

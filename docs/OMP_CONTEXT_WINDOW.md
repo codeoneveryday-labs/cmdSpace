@@ -42,7 +42,7 @@ Each line represents an event. Message response turns follow this structure:
 {
   "type": "turn_finish",
   "sessionId": "pi_session_4f9a...",
-  "cwd": "/Users/username/dev/terax-ai",
+  "cwd": "/Users/username/dev/cmdSpace",
   "model": "claude-3-5-sonnet",
   "usage": {
     "input": 1820,

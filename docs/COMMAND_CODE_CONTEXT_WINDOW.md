@@ -43,7 +43,7 @@ Each line represents an event. The message response event records:
 {
   "type": "message",
   "sessionId": "ses_98fbc102",
-  "cwd": "/Users/username/dev/terax-ai",
+  "cwd": "/Users/username/dev/cmdSpace",
   "model": "claude-3-5-sonnet",
   "usage": {
     "inputTokens": 1450,
