@@ -368,6 +368,12 @@ do not turn the whole historical codebase red in one prompt.
 **Proof:** touched modules pass `cargo clippy -- -D warnings` with the scoped
 policy; every remaining exception is documented and bounded.
 
+**Status:** complete. The six typed native error seams now deny
+`clippy::unwrap_used` and `clippy::expect_used` locally; test-only serializer
+fixtures are the only explicitly allowed exceptions. The policy is scoped to
+new boundary modules and does not turn historical command/session code red.
+All-target Clippy and the seven scoped error-module tests pass.
+
 ### Prompt 17 — Add structured context to one existing log boundary
 
 **Owner seam:** DB or remote command boundary, using existing `log` support.
@@ -448,8 +454,9 @@ result, and an explicit list of deferred work.
 - [x] Prompt 15 — Convert remote/security structural claims to behavior proof;
   77 remote Rust tests, 9 browser protocol/client tests, fmt, Clippy, and
   typecheck pass.
-- [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB
-  extraction.
+- [x] Prompt 16 — Add scoped Rust unwrap/expect enforcement; all-target Clippy
+  and 7 error-module tests pass.
+- [ ] Prompts 17–18 — Add structured logging and decide DB extraction.
 - [ ] Prompt 19 — Run final verification and re-pin metrics.
 - [ ] Prompt 20 — Deliver, merge, re-pull `main`, and close the plan.
 

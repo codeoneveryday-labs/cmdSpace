@@ -1,3 +1,5 @@
+#![deny(clippy::expect_used, clippy::unwrap_used)]
+
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt::{Display, Formatter};
 
@@ -76,6 +78,7 @@ impl From<WorkspaceError> for String {
 pub type WorkspaceResult<T> = std::result::Result<T, WorkspaceError>;
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

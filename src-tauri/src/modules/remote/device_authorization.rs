@@ -1,3 +1,5 @@
+#![deny(clippy::expect_used, clippy::unwrap_used)]
+
 use super::super::remote_devices::DeviceRegistry;
 use std::sync::{Arc, Mutex};
 
@@ -103,6 +105,7 @@ pub(super) fn session_allowed(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::super::super::remote_devices::{DeviceCapability, TerminalPolicy};
     use super::*;

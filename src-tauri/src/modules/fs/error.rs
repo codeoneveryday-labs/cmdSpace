@@ -1,3 +1,5 @@
+#![deny(clippy::expect_used, clippy::unwrap_used)]
+
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt::{Display, Formatter};
 
@@ -77,6 +79,7 @@ impl Serialize for FsError {
 pub type FsResult<T> = std::result::Result<T, FsError>;
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
 
