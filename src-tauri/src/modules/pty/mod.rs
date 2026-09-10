@@ -3,6 +3,8 @@ mod cli_probe;
 #[path = "../pty_commands.rs"]
 mod commands;
 mod da_filter;
+#[path = "../pty_error.rs"]
+mod error;
 #[cfg(windows)]
 mod job;
 mod session;
@@ -12,6 +14,8 @@ pub(crate) mod shell_init;
 #[path = "../pty_state.rs"]
 mod state;
 
+pub(crate) use error::PtyErrorKind;
+pub use error::{PtyError, PtyResult};
 pub use state::{PtySessionInfo, PtyState};
 
 pub use cli_probe::{__cmd__check_agent_clis, check_agent_clis};

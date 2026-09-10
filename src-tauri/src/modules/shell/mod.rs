@@ -1,6 +1,9 @@
 pub mod background;
+mod error;
 pub mod ringbuffer;
 pub mod session;
+
+pub use error::{ShellError, ShellResult};
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -19,6 +22,7 @@ use crate::modules::workspace::validate_wsl_distro_name;
 use crate::modules::workspace::{authorize_spawn_cwd, WorkspaceEnv, WorkspaceRegistry};
 
 use background::{BackgroundLogResponse, BackgroundProc, BackgroundProcInfo};
+use error::ShellErrorKind;
 use session::{SessionRunOutput, ShellSession};
 
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
@@ -45,14 +49,17 @@ pub async fn shell_run_command(
     timeout_secs: Option<u64>,
     workspace: Option<WorkspaceEnv>,
     registry: tauri::State<'_, WorkspaceRegistry>,
-) -> Result<CommandOutput, String> {
+) -> ShellResult<CommandOutput> {
     let trimmed = command.trim().to_string();
     if trimmed.is_empty() {
-        return Err("empty command".into());
+        return Err(ShellError::new(ShellErrorKind::EmptyCommand));
     }
 
     let workspace = WorkspaceEnv::from_option(workspace);
-    authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace)?;
+    authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace).map_err(|error| {
+        log::warn!("shell_run_command cwd rejected: {error}");
+        ShellError::new(ShellErrorKind::CwdRejected)
+    })?;
     let cwd_path = cwd
         .as_deref()
         .map(str::trim)
@@ -67,12 +74,13 @@ pub async fn shell_run_command(
 
     // The blocking spawn + wait runs on a worker thread so the Tauri async
     // runtime stays unblocked.
-    let (tx, rx) = mpsc::channel::<Result<CommandOutput, String>>();
+    let (tx, rx) = mpsc::channel::<ShellResult<CommandOutput>>();
     thread::spawn(move || {
         let _ = tx.send(run_blocking(trimmed, cwd_path, workspace, dur));
     });
 
-    rx.recv().map_err(|e| e.to_string())?
+    rx.recv()
+        .map_err(|_| ShellError::new(ShellErrorKind::WorkerUnavailable))?
 }
 
 pub(crate) fn run_blocking_inner(
@@ -81,7 +89,7 @@ pub(crate) fn run_blocking_inner(
     workspace: WorkspaceEnv,
     dur: Duration,
 ) -> Result<CommandOutput, String> {
-    run_blocking(command, cwd, workspace, dur)
+    run_blocking(command, cwd, workspace, dur).map_err(|error| error.to_string())
 }
 
 fn run_blocking(
@@ -89,8 +97,11 @@ fn run_blocking(
     cwd: Option<String>,
     workspace: WorkspaceEnv,
     dur: Duration,
-) -> Result<CommandOutput, String> {
-    let mut cmd = build_oneshot_command(&command, &workspace, cwd.as_deref())?;
+) -> ShellResult<CommandOutput> {
+    let mut cmd = build_oneshot_command(&command, &workspace, cwd.as_deref()).map_err(|error| {
+        log::warn!("shell_run_command command build failed: {error}");
+        ShellError::new(ShellErrorKind::CommandBuild)
+    })?;
     if let (WorkspaceEnv::Local, Some(dir)) = (&workspace, cwd) {
         cmd.current_dir(dir);
     }
@@ -101,15 +112,15 @@ fn run_blocking(
 
     let child = Arc::new(SharedChild::spawn(&mut cmd).map_err(|e| {
         log::warn!("shell_run_command spawn failed: {e}");
-        e.to_string()
+        ShellError::new(ShellErrorKind::Spawn)
     })?);
     let mut stdout_pipe = child.take_stdout().ok_or_else(|| {
         let _ = child.kill();
-        "no stdout pipe".to_string()
+        ShellError::new(ShellErrorKind::MissingPipe)
     })?;
     let mut stderr_pipe = child.take_stderr().ok_or_else(|| {
         let _ = child.kill();
-        "no stderr pipe".to_string()
+        ShellError::new(ShellErrorKind::MissingPipe)
     })?;
 
     let stdout_handle = thread::spawn(move || drain(&mut stdout_pipe));
@@ -123,14 +134,17 @@ fn run_blocking(
 
     let (exit_code, timed_out) = match rx.recv_timeout(dur) {
         Ok(Ok(status)) => (status.code(), false),
-        Ok(Err(e)) => return Err(e.to_string()),
+        Ok(Err(e)) => {
+            log::warn!("shell_run_command wait failed: {e}");
+            return Err(ShellError::new(ShellErrorKind::Wait));
+        }
         Err(mpsc::RecvTimeoutError::Timeout) => {
             let _ = child.kill();
             let _ = child.wait();
             (None, true)
         }
         Err(mpsc::RecvTimeoutError::Disconnected) => {
-            return Err("shell wait thread disconnected".into());
+            return Err(ShellError::new(ShellErrorKind::Wait));
         }
     };
 
@@ -345,4 +359,49 @@ fn drain<R: Read>(reader: &mut R) -> (Vec<u8>, bool) {
         }
     }
     (out, truncated)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_shot_command_preserves_success_output_shape() {
+        let output = run_blocking_inner(
+            "echo shell-ok".to_string(),
+            None,
+            WorkspaceEnv::Local,
+            Duration::from_secs(5),
+        )
+        .expect("run one-shot command");
+
+        assert_eq!(output.exit_code, Some(0));
+        assert_eq!(output.stdout.trim(), "shell-ok");
+        assert!(!output.timed_out);
+        assert!(!output.truncated);
+    }
+
+    #[test]
+    fn drain_reports_output_truncation_without_growing_the_buffer() {
+        let mut reader = std::io::Cursor::new(vec![b'x'; MAX_OUTPUT_BYTES + 1]);
+        let (output, truncated) = drain(&mut reader);
+
+        assert_eq!(output.len(), MAX_OUTPUT_BYTES);
+        assert!(truncated);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn one_shot_command_reports_timeout_without_changing_the_result_shape() {
+        let output = run_blocking_inner(
+            "sleep 1".to_string(),
+            None,
+            WorkspaceEnv::Local,
+            Duration::from_millis(10),
+        )
+        .expect("timeout is a structured command result");
+
+        assert!(output.timed_out);
+        assert_eq!(output.exit_code, None);
+    }
 }

@@ -1,3 +1,6 @@
+mod error;
+pub use error::{FsError, FsResult};
+
 pub mod file;
 pub mod grep;
 pub mod mutate;

@@ -26,4 +26,31 @@ describe("useWorkspaceHydration", () => {
       canvasTabId: null,
     });
   });
+
+  it("restores persisted pinning and pane layout while defaulting legacy fields", () => {
+    const workspace = normalizeHydratedWorkspace(
+      {
+        id: "workspace-legacy",
+        name: "Legacy workspace",
+        count: 1,
+        workingFolder: "/repo",
+        createdAt: 1,
+        updatedAt: 2,
+        displayOrder: 0,
+        paneLayout: '{"kind":"leaf","size":100}',
+        accentColor: null,
+        workspaceMode: null,
+        pinned: true,
+      } as never,
+      1,
+    );
+
+    expect(workspace).toMatchObject({
+      pinned: true,
+      paneLayout: '{"kind":"leaf","size":100}',
+      workspaceMode: "standard",
+      tabId: null,
+      canvasTabId: null,
+    });
+  });
 });

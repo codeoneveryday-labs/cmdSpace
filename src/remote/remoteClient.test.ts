@@ -83,6 +83,30 @@ describe("RemoteTerminalClient", () => {
     });
   });
 
+  it("drops out-of-order output without dropping the next sequence", () => {
+    const sockets: FakeSocket[] = [];
+    const client = new RemoteTerminalClient({
+      token: "token",
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+    });
+    const output: string[] = [];
+
+    client.connect();
+    client.subscribeTerminal(7, (data) => output.push(data));
+    sockets[0]?.receive({ type: "hello", authenticated: false, runtimeId: 1 });
+    sockets[0]?.receive({ type: "authenticated" });
+    sockets[0]?.receive({ type: "output", sessionId: 7, sequence: 4, data: "four" });
+    sockets[0]?.receive({ type: "output", sessionId: 7, sequence: 2, data: "stale" });
+    sockets[0]?.receive({ type: "output", sessionId: 7, sequence: 5, data: "five" });
+
+    expect(output).toEqual(["four", "five"]);
+    client.dispose();
+  });
+
   it("keeps connect and dispose idempotent across repeated lifecycle edges", () => {
     const sockets: FakeSocket[] = [];
     const client = new RemoteTerminalClient({

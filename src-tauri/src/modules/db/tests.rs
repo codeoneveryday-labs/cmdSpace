@@ -1,4 +1,7 @@
 use super::*;
+use std::sync::{Arc, Barrier, Mutex};
+use std::thread;
+use std::time::Instant;
 
 fn table_columns(conn: &Connection, table: &str) -> Vec<String> {
     let mut statement = conn
@@ -50,6 +53,18 @@ fn database_errors_serialize_as_stable_ipc_envelopes() {
 }
 
 #[test]
+fn database_log_context_has_stable_fields_without_payloads() {
+    let message = format_db_operation_log("list_workspaces", "DB_OPERATION_FAILED", 7);
+
+    assert_eq!(
+        message,
+        "domain=db operation=list_workspaces outcome=DB_OPERATION_FAILED duration_ms=7"
+    );
+    assert!(!message.contains("/"));
+    assert!(!message.contains("token"));
+}
+
+#[test]
 fn workspace_ipc_dto_round_trips_without_transient_state() {
     let row = WorkspaceRow {
         id: "workspace-1".to_string(),
@@ -74,6 +89,52 @@ fn workspace_ipc_dto_round_trips_without_transient_state() {
         .expect("workspace object")
         .contains_key("tabId"));
     assert_eq!(WorkspaceRow::from(dto), row);
+}
+
+#[test]
+fn fresh_schema_restores_pinned_workspace_and_pane_layout() {
+    let conn = Connection::open_in_memory().expect("open fresh database");
+    initialize_schema(&conn).expect("initialize fresh schema");
+
+    assert!(list_workspaces_inner(&conn)
+        .expect("list fresh workspaces")
+        .is_empty());
+
+    let workspace = WorkspaceRow {
+        id: "fresh-workspace".to_string(),
+        name: "Fresh workspace".to_string(),
+        count: 1,
+        accent_color: Some("#10B981".to_string()),
+        working_folder: Some("/tmp/fresh-workspace".to_string()),
+        created_at: 10,
+        updated_at: 11,
+        display_order: 0,
+        pane_layout: Some(r#"{"kind":"leaf","size":100}"#.to_string()),
+        workspace_mode: Some("standard".to_string()),
+        pinned: true,
+    };
+    save_workspace_inner(&conn, &workspace).expect("save fresh workspace");
+    save_pane_inner(
+        &conn,
+        &WorkspacePaneRow {
+            workspace_id: workspace.id.clone(),
+            pane_index: 0,
+            working_folder: workspace.working_folder.clone(),
+            last_command: Some("codex".to_string()),
+            auto_launch: true,
+            agent_provider: Some("codex".to_string()),
+            native_session_id: Some("session-1".to_string()),
+        },
+    )
+    .expect("save fresh pane");
+
+    let restored = list_workspaces_inner(&conn).expect("restore fresh workspace");
+    assert_eq!(restored, vec![workspace]);
+    let panes = list_panes_inner(&conn, "fresh-workspace").expect("restore fresh pane");
+    assert_eq!(panes.len(), 1);
+    assert_eq!(panes[0].last_command.as_deref(), Some("codex"));
+    assert!(panes[0].auto_launch);
+    assert_eq!(panes[0].native_session_id.as_deref(), Some("session-1"));
 }
 
 #[test]
@@ -416,4 +477,152 @@ fn mobile_workspaces_are_scoped_to_the_paired_device_and_do_not_use_desktop_work
     assert!(mobile_workspace_inner(&conn, "iphone-a", "ios-two")
         .unwrap()
         .is_none());
+}
+
+#[derive(Clone, Copy)]
+struct DbContentionSample {
+    wait_ns: u128,
+    operation_ns: u128,
+}
+
+fn percentile_ns(samples: &[u128], numerator: usize, denominator: usize) -> u128 {
+    assert!(!samples.is_empty(), "percentile requires samples");
+    let mut sorted = samples.to_vec();
+    sorted.sort_unstable();
+    let rank = (sorted.len() - 1) * numerator / denominator;
+    sorted[rank]
+}
+
+fn db_contention_percentiles(
+    samples: &[DbContentionSample],
+) -> (u128, u128, u128, u128, u128, u128) {
+    let waits: Vec<_> = samples.iter().map(|sample| sample.wait_ns).collect();
+    let operations: Vec<_> = samples.iter().map(|sample| sample.operation_ns).collect();
+    (
+        percentile_ns(&waits, 50, 100),
+        percentile_ns(&waits, 95, 100),
+        percentile_ns(&waits, 99, 100),
+        percentile_ns(&operations, 50, 100),
+        percentile_ns(&operations, 95, 100),
+        percentile_ns(&operations, 99, 100),
+    )
+}
+
+#[test]
+fn db_mutex_contention_baseline_reports_lock_and_operation_percentiles() {
+    const WORKERS: usize = 4;
+    const ITERATIONS: usize = 40;
+    const SCHEMA_SAMPLES: usize = 8;
+
+    let schema_startup_samples = (0..SCHEMA_SAMPLES)
+        .map(|_| {
+            let started = Instant::now();
+            let conn = Connection::open_in_memory().expect("open schema baseline database");
+            initialize_schema(&conn).expect("initialize schema baseline database");
+            started.elapsed().as_nanos()
+        })
+        .collect::<Vec<_>>();
+
+    let conn = Connection::open_in_memory().expect("open contention database");
+    initialize_schema(&conn).expect("initialize contention database");
+    save_workspace_inner(
+        &conn,
+        &WorkspaceRow {
+            id: "contention-workspace".to_string(),
+            name: "Contention baseline".to_string(),
+            count: 4,
+            accent_color: Some("#10B981".to_string()),
+            working_folder: Some("/tmp/contention".to_string()),
+            created_at: 1,
+            updated_at: 1,
+            display_order: 0,
+            pane_layout: None,
+            workspace_mode: Some("standard".to_string()),
+            pinned: false,
+        },
+    )
+    .expect("seed contention workspace");
+
+    let db = Arc::new(Mutex::new(conn));
+    let start = Arc::new(Barrier::new(WORKERS));
+    let handles = (0..WORKERS)
+        .map(|worker_id| {
+            let db = Arc::clone(&db);
+            let start = Arc::clone(&start);
+            thread::spawn(move || {
+                start.wait();
+                let mut samples = Vec::with_capacity(ITERATIONS);
+                for iteration in 0..ITERATIONS {
+                    let wait_started = Instant::now();
+                    let conn = db.lock().expect("contention database mutex");
+                    let wait_ns = wait_started.elapsed().as_nanos();
+                    let operation_started = Instant::now();
+
+                    match (worker_id + iteration) % 4 {
+                        0 => {
+                            list_workspaces_inner(&conn).expect("list workspaces");
+                        }
+                        1 => {
+                            list_panes_inner(&conn, "contention-workspace")
+                                .expect("list workspace panes");
+                        }
+                        2 => {
+                            save_recent_workspace_inner(
+                                &conn,
+                                &RecentWorkspaceRow {
+                                    id: format!("recent-{worker_id}-{iteration}"),
+                                    name: "Contention recent".to_string(),
+                                    count: 1,
+                                    working_folder: "/tmp/contention".to_string(),
+                                    updated_at: i64::try_from(iteration).expect("iteration fits"),
+                                },
+                            )
+                            .expect("save recent workspace");
+                        }
+                        _ => {
+                            save_pane_inner(
+                                &conn,
+                                &WorkspacePaneRow {
+                                    workspace_id: "contention-workspace".to_string(),
+                                    pane_index: i32::try_from((worker_id + iteration) % 4)
+                                        .expect("pane index fits"),
+                                    working_folder: Some("/tmp/contention".to_string()),
+                                    last_command: Some("echo contention".to_string()),
+                                    auto_launch: false,
+                                    agent_provider: None,
+                                    native_session_id: None,
+                                },
+                            )
+                            .expect("save workspace pane");
+                        }
+                    }
+
+                    samples.push(DbContentionSample {
+                        wait_ns,
+                        operation_ns: operation_started.elapsed().as_nanos(),
+                    });
+                }
+                samples
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let samples = handles
+        .into_iter()
+        .flat_map(|handle| handle.join().expect("contention worker"))
+        .collect::<Vec<_>>();
+    assert_eq!(samples.len(), WORKERS * ITERATIONS);
+
+    let (wait_p50, wait_p95, wait_p99, operation_p50, operation_p95, operation_p99) =
+        db_contention_percentiles(&samples);
+    let schema_p50 = percentile_ns(&schema_startup_samples, 50, 100);
+    let schema_p95 = percentile_ns(&schema_startup_samples, 95, 100);
+    let schema_p99 = percentile_ns(&schema_startup_samples, 99, 100);
+    eprintln!(
+        "[db-contention] workers={WORKERS} iterations={ITERATIONS} samples={} wait_ns(p50/p95/p99)={wait_p50}/{wait_p95}/{wait_p99} operation_ns(p50/p95/p99)={operation_p50}/{operation_p95}/{operation_p99} schema_startup_ns(samples={SCHEMA_SAMPLES},p50/p95/p99)={schema_p50}/{schema_p95}/{schema_p99}",
+        samples.len(),
+    );
+    assert!(wait_p50 <= wait_p95 && wait_p95 <= wait_p99);
+    assert!(operation_p50 <= operation_p95 && operation_p95 <= operation_p99);
+    assert!(schema_p50 <= schema_p95 && schema_p95 <= schema_p99);
 }

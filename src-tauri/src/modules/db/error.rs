@@ -32,7 +32,7 @@ impl DbError {
         Self::Migration { context, source }
     }
 
-    fn code(&self) -> &'static str {
+    pub(crate) fn code(&self) -> &'static str {
         match self {
             Self::MutexPoisoned => "DB_MUTEX_POISONED",
             Self::Sqlite { .. } => "DB_OPERATION_FAILED",

@@ -1,10 +1,27 @@
 use rusqlite::Connection;
 use std::sync::Mutex;
+use std::time::Instant;
 
 mod error;
 pub use error::{DbError, DbResult};
 
 pub struct DbState(pub Mutex<Connection>);
+
+fn format_db_operation_log(operation: &str, outcome: &str, duration_ms: u128) -> String {
+    format!("domain=db operation={operation} outcome={outcome} duration_ms={duration_ms}")
+}
+
+fn log_db_operation<T>(operation: &'static str, result: &DbResult<T>, started: Instant) {
+    let outcome = result
+        .as_ref()
+        .map(|_| "ok")
+        .unwrap_or_else(|error| error.code());
+    log::debug!(
+        target: "cmdspace::db",
+        "{}",
+        format_db_operation_log(operation, outcome, started.elapsed().as_millis())
+    );
+}
 
 mod models;
 pub use models::*;
@@ -34,8 +51,17 @@ pub use recent::{
 // Tauri Command wrappers
 #[tauri::command]
 pub fn db_list_workspaces(state: tauri::State<'_, DbState>) -> DbResult<Vec<WorkspaceDto>> {
-    let conn = state.0.lock().map_err(|_| DbError::MutexPoisoned)?;
-    list_workspaces_inner(&conn).map(|rows| rows.into_iter().map(WorkspaceDto::from).collect())
+    let started = Instant::now();
+    let result = state
+        .0
+        .lock()
+        .map_err(|_| DbError::MutexPoisoned)
+        .and_then(|conn| {
+            list_workspaces_inner(&conn)
+                .map(|rows| rows.into_iter().map(WorkspaceDto::from).collect())
+        });
+    log_db_operation("list_workspaces", &result, started);
+    result
 }
 
 #[tauri::command]
