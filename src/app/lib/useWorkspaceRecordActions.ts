@@ -1,6 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useCallback } from "react";
-import { normalizeWorkspaceAccentColor } from "@/modules/workspaces";
+import { normalizeWorkspaceAccentColor, saveWorkspace } from "@/modules/workspaces";
+import { invoke } from "@tauri-apps/api/core";
 import type { WorkspaceRecord } from "./workspaceControllerTypes";
 import {
   reorderWorkspaceRecords,
@@ -30,7 +30,7 @@ export function useWorkspaceRecordActions({
             updateTab(workspace.canvasTabId, { title: nextName });
           }
           const updated = { ...workspace, name: nextName, updatedAt: Date.now() };
-          void invoke("db_save_workspace", { workspace: updated }).catch((error) =>
+          void saveWorkspace(invoke, updated).catch((error) =>
             console.error("Failed to save renamed workspace to SQLite:", error),
           );
           return updated;
@@ -56,7 +56,7 @@ export function useWorkspaceRecordActions({
             accentColor: nextAccentColor,
             updatedAt: Date.now(),
           };
-          void invoke("db_save_workspace", { workspace: updated }).catch((error) =>
+          void saveWorkspace(invoke, updated).catch((error) =>
             console.error("Failed to save workspace color to SQLite:", error),
           );
           return updated;
@@ -76,7 +76,7 @@ export function useWorkspaceRecordActions({
             pinned: !workspace.pinned,
             updatedAt: Date.now(),
           };
-          void invoke("db_save_workspace", { workspace: updated }).catch((error) =>
+          void saveWorkspace(invoke, updated).catch((error) =>
             console.error("Failed to save workspace pin state to SQLite:", error),
           );
           return updated;

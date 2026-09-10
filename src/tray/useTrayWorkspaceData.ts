@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { detectCliAgent, type CliAgent } from "@/modules/terminal/lib/cliAgents";
+import { listWorkspaces } from "@/modules/workspaces";
 import type { TrayTerminal, TrayWorkspace } from "./workspaces";
 
 type TrayPane = {
@@ -18,7 +19,7 @@ export function useTrayWorkspaceData() {
     setLoading(true);
     setError(null);
     try {
-      const next = await invoke<TrayWorkspace[]>("db_list_workspaces");
+      const next = await listWorkspaces(invoke);
       const hydrated = await Promise.all(
         next.map(async (workspace) => ({
           ...workspace,

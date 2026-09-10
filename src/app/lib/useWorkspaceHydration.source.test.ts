@@ -9,7 +9,7 @@ const source = readFileSync(
 describe("useWorkspaceHydration contract", () => {
   it("owns workspace, recent-workspace and pane hydration through an invoke adapter", () => {
     expect(source).toContain("useWorkspaceHydration");
-    expect(source).toContain('"db_list_workspaces"');
+    expect(source).toContain("listWorkspaces(invoke)");
     expect(source).toContain('"db_list_recent_workspaces"');
     expect(source).toContain('"db_list_panes"');
     expect(source).toContain("setWorkspacesHydrated");
