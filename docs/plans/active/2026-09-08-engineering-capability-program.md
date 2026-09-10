@@ -119,6 +119,14 @@ contract in `design-patterns.md` (already mandatory), the IPC contract test
 (already detects frontend/Rust drift), and the exec-plan workflow in
 `docs/WORKFLOW.md`. This plan fills gaps; it does not build parallel process.
 
+### Current technical execution track
+
+The concrete Rust/Tauri boundary work is sequenced in
+[`2026-09-10-maintainability-boundary-hardening.md`](2026-09-10-maintainability-boundary-hardening.md).
+That execution plan owns the incremental CI, typed-error, SQLite migration,
+workspace DTO/IPC, and behavior-proof slices; this program remains the parent
+roadmap for the broader tooling, coverage, ownership, and capability work.
+
 ---
 
 ## Assumptions

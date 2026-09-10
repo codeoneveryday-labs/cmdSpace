@@ -33,20 +33,14 @@ use std::path::{Path, PathBuf};
 /// Finds a resumable native agent session file by its session id, skipping
 /// checkpoint sidecar files. Relocated from the removed `agent_chat` module;
 /// used by the terminal agent-usage tracker to resolve exact sessions.
-pub(crate) fn find_resumable_session_file(
-    root: &Path,
-    session_id: &str,
-) -> Option<PathBuf> {
+pub(crate) fn find_resumable_session_file(root: &Path, session_id: &str) -> Option<PathBuf> {
     find_native_session_file(root, session_id)
         .ok()
         .flatten()
         .filter(|path| std::fs::metadata(path).is_ok_and(|metadata| metadata.len() > 0))
 }
 
-fn find_native_session_file(
-    root: &Path,
-    session_id: &str,
-) -> Result<Option<PathBuf>, String> {
+fn find_native_session_file(root: &Path, session_id: &str) -> Result<Option<PathBuf>, String> {
     let entries = std::fs::read_dir(root).map_err(|error| error.to_string())?;
     for entry in entries {
         let entry = entry.map_err(|error| error.to_string())?;

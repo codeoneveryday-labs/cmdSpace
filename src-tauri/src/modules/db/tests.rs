@@ -12,6 +12,71 @@ fn table_columns(conn: &Connection, table: &str) -> Vec<String> {
 }
 
 #[test]
+fn database_errors_serialize_as_stable_ipc_envelopes() {
+    let mutex_error = serde_json::to_value(DbError::MutexPoisoned).expect("serialize mutex error");
+    assert_eq!(
+        mutex_error,
+        serde_json::json!({
+            "code": "DB_MUTEX_POISONED",
+            "message": "database state is unavailable",
+        })
+    );
+
+    let sqlite_error = serde_json::to_value(DbError::sqlite(
+        "load workspace",
+        rusqlite::Error::InvalidQuery,
+    ))
+    .expect("serialize sqlite error");
+    assert_eq!(sqlite_error["code"], "DB_OPERATION_FAILED");
+    assert_eq!(
+        sqlite_error["message"],
+        "database operation failed: load workspace"
+    );
+    assert!(!sqlite_error["message"]
+        .as_str()
+        .expect("serialized message")
+        .contains("Query is not read-only"));
+
+    let future_error = serde_json::to_value(DbError::UnsupportedVersion {
+        found: 9,
+        supported: 1,
+    })
+    .expect("serialize future schema error");
+    assert_eq!(future_error["code"], "DB_SCHEMA_UNSUPPORTED");
+    assert_eq!(
+        future_error["message"],
+        "database schema is newer than supported version 1"
+    );
+}
+
+#[test]
+fn workspace_ipc_dto_round_trips_without_transient_state() {
+    let row = WorkspaceRow {
+        id: "workspace-1".to_string(),
+        name: "Workspace".to_string(),
+        count: 2,
+        accent_color: Some("#10B981".to_string()),
+        working_folder: Some("/tmp/workspace".to_string()),
+        created_at: 1,
+        updated_at: 2,
+        display_order: 0,
+        pane_layout: Some("{}".to_string()),
+        workspace_mode: Some("standard".to_string()),
+        pinned: true,
+    };
+
+    let dto = WorkspaceDto::from(row.clone());
+    let encoded = serde_json::to_value(&dto).expect("serialize workspace DTO");
+    assert_eq!(encoded["accentColor"], "#10B981");
+    assert_eq!(encoded["workspaceMode"], "standard");
+    assert!(!encoded
+        .as_object()
+        .expect("workspace object")
+        .contains_key("tabId"));
+    assert_eq!(WorkspaceRow::from(dto), row);
+}
+
+#[test]
 fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
     let conn = Connection::open_in_memory().expect("open in-memory database");
     conn.execute_batch(
@@ -38,6 +103,11 @@ fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
 
     initialize_schema(&conn).expect("upgrade legacy schema");
     initialize_schema(&conn).expect("repeat upgrade");
+
+    let version = conn
+        .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+        .expect("read schema version");
+    assert_eq!(version, 1);
 
     let workspaces = list_workspaces_inner(&conn).expect("list upgraded workspaces");
     assert_eq!(workspaces.len(), 1);
@@ -72,6 +142,56 @@ fn schema_upgrade_preserves_legacy_workspace_rows_and_is_idempotent() {
             "{table} should exist after schema initialization"
         );
     }
+}
+
+#[test]
+fn newer_schema_versions_are_rejected_without_downgrading() {
+    let conn = Connection::open_in_memory().expect("open in-memory database");
+    conn.execute_batch("PRAGMA user_version = 9;")
+        .expect("set future schema version");
+
+    let error = initialize_schema(&conn).expect_err("reject unsupported schema version");
+    assert!(matches!(
+        error,
+        DbError::UnsupportedVersion {
+            found: 9,
+            supported: 1
+        }
+    ));
+
+    let version = conn
+        .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+        .expect("read schema version");
+    assert_eq!(version, 9);
+}
+
+#[test]
+fn failed_schema_migration_rolls_back_partial_legacy_changes() {
+    let conn = Connection::open_in_memory().expect("open in-memory database");
+    conn.execute_batch(
+        "CREATE TABLE workspaces (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            terminal_count INTEGER NOT NULL,
+            working_folder TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            display_order INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE VIEW workspace_panes AS
+            SELECT 1 AS workspace_id, 0 AS pane_index;
+        ",
+    )
+    .expect("create invalid legacy shape");
+
+    let error = initialize_schema(&conn).expect_err("migration should fail for a view");
+    assert!(matches!(error, DbError::Migration { .. }));
+    assert!(!table_columns(&conn, "workspaces").contains(&"pinned".to_string()));
+
+    let version = conn
+        .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+        .expect("read schema version");
+    assert_eq!(version, 0);
 }
 
 #[test]

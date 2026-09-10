@@ -87,9 +87,17 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
 
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
       - name: cargo check
         working-directory: src-tauri
         run: cargo check --all-targets --locked
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --all-targets --locked
 
       - name: cargo clippy
         working-directory: src-tauri
@@ -122,6 +130,10 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
           key: windows-rust
+
+      - name: cargo fmt (Windows)
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
 
       - name: cargo check (Windows)
         working-directory: src-tauri
