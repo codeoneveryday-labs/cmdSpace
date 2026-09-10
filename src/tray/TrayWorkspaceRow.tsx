@@ -36,7 +36,7 @@ export function TrayWorkspaceRow({
       <button
         aria-selected={selected}
         className={cn(
-          "group flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-2 text-left outline-none transition-colors",
+          "group flex h-8 min-h-8 w-full items-center gap-2 rounded-lg px-2.5 py-0 text-left outline-none transition-colors",
           selected
             ? "bg-accent text-accent-foreground"
             : "hover:bg-muted/70 focus-visible:bg-muted/70",
@@ -62,7 +62,7 @@ export function TrayWorkspaceRow({
           />
         </span>
         <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-foreground shadow-sm ring-1 ring-border/70"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-foreground shadow-sm ring-1 ring-border/70"
           style={{ borderColor: workspace.accentColor ?? undefined }}
         >
           {primaryAgent ? (
@@ -75,12 +75,12 @@ export function TrayWorkspaceRow({
             />
           )}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium" title={workspace.name}>
+        <span className="min-w-0 flex-1 leading-none">
+          <span className="block truncate text-xs font-medium leading-4" title={workspace.name}>
             {truncateMiddle(workspace.name, 28)}
           </span>
           <span
-            className="mt-0.5 block truncate text-xs text-muted-foreground"
+            className="block truncate text-[10px] leading-3 text-muted-foreground"
             title={workspaceSubtitle(workspace)}
           >
             {workspaceSubtitle(workspace)}
@@ -91,7 +91,7 @@ export function TrayWorkspaceRow({
         </span>
       </button>
       {expanded ? (
-        <div className="ml-5 space-y-0.5 border-l border-border/60 pl-2">
+        <div className="ml-5 space-y-0.5 pl-2">
           {(workspace.terminals ?? []).map((terminal, index) => {
             const agent = terminal.agent ?? detectCliAgent(terminal.label);
             const paneIndex = terminal.paneIndex ?? index;

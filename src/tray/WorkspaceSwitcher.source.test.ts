@@ -144,4 +144,19 @@ describe("menu bar workspace switcher wiring", () => {
     );
     expect(tauri).not.toContain("app.default_window_icon().cloned()");
   });
+
+  it("keeps workspace rows compact and sends the selected pane index", () => {
+    const source = readFileSync(
+      path.join(root, "src/tray/WorkspaceSwitcher.tsx"),
+      "utf8",
+    );
+    const tauri = readFileSync(
+      path.join(root, "src-tauri/src/window_workspace_switcher.rs"),
+      "utf8",
+    );
+
+    expect(tauri).toContain("WORKSPACE_SWITCHER_HEIGHT: f64 = 520.0");
+    expect(source).toContain("openWorkspace(workspace.id, paneIndex)");
+    expect(source).toContain("onOpenTerminal={(_terminal, paneIndex)");
+  });
 });

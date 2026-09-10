@@ -212,6 +212,15 @@ describe("App sidebar toggle", () => {
     expect(source).toContain("activeWorkspaceFolder ??");
   });
 
+  it("wires tray terminal focus through workspace selection", () => {
+    const source = readFileSync(appPath, "utf8");
+
+    expect(source).toContain("useWorkspaceTerminalSelection({");
+    expect(source).toContain("pendingWorkspaceTerminalRef");
+    expect(source).toContain("setCanvasTerminalSelectionVersion");
+    expect(source).toContain("focusPane,");
+  });
+
   it("refreshes provider keys when the main window becomes active again", () => {
     const source = [
       readFileSync(appPath, "utf8"),

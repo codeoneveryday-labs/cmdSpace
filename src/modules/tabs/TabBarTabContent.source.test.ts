@@ -13,6 +13,7 @@ describe("TabBarTabContent contract", () => {
     expect(source).toContain("AgentCliIcon");
     expect(source).toContain("agentCommands");
     expect(source).toContain("detectTrackedCliAgent");
+    expect(source).toContain("getWorkspaceCliAgent");
     expect(source).toContain("getWorkspaceModeIcon");
     expect(source).toContain('getWorkspaceModeIcon("canvas")');
     expect(source).toContain("Unsaved changes");

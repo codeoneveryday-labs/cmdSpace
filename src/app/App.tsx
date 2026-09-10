@@ -129,6 +129,7 @@ import { useAppVoiceIntegration } from "./lib/useAppVoiceIntegration";
 import { useAppWindowEvents } from "./lib/useAppWindowEvents";
 import { useWorkspaceEnvironmentSwitch } from "./lib/useWorkspaceEnvironmentSwitch";
 import { useSplitPanePersistence } from "./lib/useSplitPanePersistence";
+import { useWorkspaceTerminalSelection } from "./lib/useWorkspaceTerminalSelection";
 
 function canvasTerminalRefKey(tabId: number, terminalId: string): string {
   return `${tabId}:${terminalId}`;
@@ -204,6 +205,10 @@ export default function App() {
   const bottomTerminalRef = useRef<BottomTerminalDrawerHandle | null>(null);
   const canvasTerminalRefs = useRef<Map<string, CanvasTerminalHandle>>(new Map());
   const activeCanvasTerminalIds = useRef<Map<number, string>>(new Map());
+  const pendingWorkspaceTerminalRef = useRef<{
+    workspaceId: string;
+    leafId: number;
+  } | null>(null);
   const [canvasTerminalSelectionVersion, setCanvasTerminalSelectionVersion] = useState(0);
   const pendingVoiceDraftsRef = useRef<Map<number, string>>(new Map());
   const voiceAgentRef = useRef<FloatingVoiceAgentHandle | null>(null);
@@ -676,6 +681,19 @@ export default function App() {
     createWorkspaceTab: newWorkspaceTab,
     syncWorkspacePaneNativeSessions,
     buildCanvasWorkspaceDiagram,
+  });
+
+  useWorkspaceTerminalSelection({
+    activeCanvasTerminalIds,
+    pendingWorkspaceTerminalRef,
+    tabsRef,
+    workspacesRef,
+    tabs,
+    workspaces,
+    setActiveId,
+    setCanvasTerminalSelectionVersion,
+    focusPane,
+    handleSelectWorkspace,
   });
 
   const initialWorkspaceActivationHandledRef = {

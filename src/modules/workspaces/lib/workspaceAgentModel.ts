@@ -1,8 +1,9 @@
 import type { CliAgent } from "@/modules/terminal/lib/cliAgents";
-import type { WorkspaceTerminalItem } from "../WorkspacesPanel";
+
+type AgentTerminal = { agent?: CliAgent | null };
 
 export function getWorkspaceCliAgent(
-  terminals: readonly Pick<WorkspaceTerminalItem, "agent">[] | undefined,
+  terminals: readonly AgentTerminal[] | undefined,
 ): CliAgent | null {
   const firstAgent = terminals?.[0]?.agent;
   if (!firstAgent) return null;

@@ -56,4 +56,22 @@ describe("menu bar workspace helpers", () => {
       "second-api",
     ]);
   });
+
+  it("preserves the database workspace order across directory groups", () => {
+    const grouped = groupTrayWorkspacesByDir([
+      {
+        ...workspaces[1],
+        id: "first-in-display-order",
+      },
+      {
+        ...workspaces[0],
+        id: "second-in-display-order",
+      },
+    ]);
+
+    expect(grouped.map((group) => group.workspaces[0]?.id)).toEqual([
+      "first-in-display-order",
+      "second-in-display-order",
+    ]);
+  });
 });

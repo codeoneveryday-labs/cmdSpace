@@ -66,7 +66,7 @@ export function groupTrayWorkspacesByDir(
     if (existing) existing.workspaces.push(workspace);
     else groups.set(id, { id, label, workspaces: [workspace] });
   }
-  return [...groups.values()].sort((left, right) =>
-    left.label.localeCompare(right.label),
-  );
+  // db_list_workspaces already returns display_order. Preserve that order so
+  // the tray mirrors the main workspace pane instead of re-sorting by folder.
+  return [...groups.values()];
 }

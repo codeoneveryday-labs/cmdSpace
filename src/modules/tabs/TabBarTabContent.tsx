@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { fileIconUrl } from "@/modules/explorer/lib/iconResolver";
+import { getWorkspaceCliAgent } from "@/modules/workspaces/lib/workspaceAgentModel";
 import { getWorkspaceModeIcon } from "@/modules/workspaces/workspaceModeIcons";
 import { AgentStateDot, type AgentDisplayState } from "@/modules/terminal/AgentStateDot";
 import { findLeafLastCommand, leafIds } from "@/modules/terminal/lib/panes";
@@ -67,14 +68,15 @@ function TabIcon({
   agentCommands: ReadonlyMap<number, string>;
 }) {
   if (tab.kind === "terminal") {
-    const agent = leafIds(tab.paneTree)
-      .map((leafId) =>
-        detectTrackedCliAgent(
+    const agent = getWorkspaceCliAgent(
+      leafIds(tab.paneTree).map((leafId) => {
+        const detected = detectTrackedCliAgent(
           agentCommands.get(leafId),
           findLeafLastCommand(tab.paneTree, leafId),
-        ),
-      )
-      .find((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+        );
+        return detected ? { agent: detected } : {};
+      }),
+    );
     if (agent) return <AgentCliIcon agent={agent} size="xxs" className="shrink-0" />;
   }
   if (tab.kind === "terminal" && tab.title === "Music CLI") {
