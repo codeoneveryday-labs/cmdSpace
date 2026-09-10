@@ -36,8 +36,11 @@ import { useSpeechToTextHealth } from "./useSpeechToTextHealth";
 type KeysMap = Awaited<ReturnType<typeof getAllKeys>>;
 const MIN_KEYS_SKELETON_MS = 500;
 
+const STT_MODELS = SPEECH_TO_TEXT_MODELS.filter(
+  ({ developmentOnly }) => !developmentOnly,
+);
 const STT_PROVIDERS = PROVIDERS.filter((provider) =>
-  SPEECH_TO_TEXT_MODELS.some((model) => model.provider === provider.id),
+  STT_MODELS.some((model) => model.provider === provider.id),
 );
 
 export function ModelsSection() {
@@ -291,9 +294,7 @@ function ConfiguredProviderRow({
   onClear: () => Promise<void>;
 }) {
   const status = currentKey
-    ? provider.speechToText.developmentOnly
-      ? { label: "Key saved · unavailable", dot: "bg-amber-500" }
-      : { label: "Key saved", dot: "bg-emerald-500" }
+    ? { label: "Key saved", dot: "bg-emerald-500" }
     : { label: "Needs key", dot: "bg-amber-500" };
 
   return (
@@ -316,7 +317,6 @@ function ConfiguredProviderRow({
           </div>
           <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
             {provider.speechToText.label}
-            {provider.speechToText.developmentOnly ? " · staged" : ""}
           </p>
         </div>
         <Button
@@ -374,9 +374,6 @@ function CatalogProviderRow({
                Recommended
              </span>
            ) : null}
-           {provider.speechToText.developmentOnly ? (
-            <span className="shrink-0 text-[9.5px] text-muted-foreground">staged</span>
-          ) : null}
         </div>
         <p className="truncate text-[10.5px] text-muted-foreground">
           {provider.speechToText.description}
@@ -403,17 +400,17 @@ function SpeechToTextRow({
     ({ id }) => configured.has(id) && !disabled.has(id),
   );
   const currentModel =
-    SPEECH_TO_TEXT_MODELS.find((model) => model.modelId === modelId) ??
-    SPEECH_TO_TEXT_MODELS.find(
+    STT_MODELS.find((model) => model.modelId === modelId) ??
+    STT_MODELS.find(
       (model) => model.modelId === DEFAULT_SPEECH_TO_TEXT_MODEL_ID,
     )!;
   const connected = !!keys[currentModel.provider];
   const providerLabel = getProvider(currentModel.provider).label;
   const fallbackModel = enabledProviders
     .flatMap((provider) =>
-      SPEECH_TO_TEXT_MODELS.filter((model) => model.provider === provider.id),
+      STT_MODELS.filter((model) => model.provider === provider.id),
     )
-    .find((model) => !model.developmentOnly && !!keys[model.provider]);
+    .find((model) => !!keys[model.provider]);
   const { health, request, retry } = useSpeechToTextHealth({
     currentModel,
     fallbackModel,
@@ -435,9 +432,6 @@ function SpeechToTextRow({
               <span className="flex items-center gap-2 truncate">
                 <ProviderIcon provider={currentModel.provider} size={11} />
                 <span className="truncate">{currentModel.label}</span>
-                {currentModel.developmentOnly ? (
-                  <span className="text-muted-foreground">· staged</span>
-                ) : null}
               </span>
               <HugeiconsIcon
                 icon={ArrowDown01Icon}
@@ -449,7 +443,7 @@ function SpeechToTextRow({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" collisionPadding={12} className="min-w-70 p-1">
             {enabledProviders.map((provider) => {
-              const models = SPEECH_TO_TEXT_MODELS.filter(
+              const models = STT_MODELS.filter(
                 (model) => model.provider === provider.id,
               );
               const providerConnected = !!keys[provider.id];
@@ -472,10 +466,9 @@ function SpeechToTextRow({
                   {models.map((model) => (
                     <DropdownMenuItem
                       key={model.modelId}
-                      disabled={!providerConnected || model.developmentOnly}
+                      disabled={!providerConnected}
                       onSelect={() =>
                         providerConnected &&
-                        !model.developmentOnly &&
                         void setSpeechToTextModelId(model.modelId)
                       }
                       className={cn(
@@ -487,7 +480,6 @@ function SpeechToTextRow({
                         <span>{model.label}</span>
                         <span className="text-[10px] text-muted-foreground">
                           {model.description}
-                          {model.developmentOnly ? " · unavailable" : ""}
                         </span>
                       </span>
                     </DropdownMenuItem>
@@ -498,11 +490,7 @@ function SpeechToTextRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </FieldRow>
-      {currentModel.developmentOnly ? (
-        <p className="pl-19 text-[10.5px] text-muted-foreground">
-          {providerLabel} is staged for its provider adapter; native speech stays active until then.
-        </p>
-      ) : !configured.has(currentModel.provider) ? (
+      {!configured.has(currentModel.provider) ? (
         <p className="pl-19 text-[10.5px] text-muted-foreground">
           Add {providerLabel} below to make it available in this picker.
         </p>
