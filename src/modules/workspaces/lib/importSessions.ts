@@ -1,6 +1,7 @@
 import {
   CLI_AGENT_BY_ID,
   detectCliAgent,
+  normalizeCliAgentLaunchCommand,
   type CliAgent,
 } from "@/modules/terminal/lib/cliAgents";
 
@@ -179,6 +180,20 @@ export function assignSessionsToPanes(
   const sessionsById = new Map(sessions.map((session) => [session.sessionId, session]));
 
   for (const pane of next) {
+    if (pane.lastCommand) {
+      const provider =
+        pane.agentProvider ?? detectCliAgent(pane.lastCommand) ?? null;
+      if (provider) {
+        const normalizedCommand = normalizeCliAgentLaunchCommand(
+          provider,
+          pane.lastCommand,
+        );
+        if (normalizedCommand !== pane.lastCommand) {
+          pane.lastCommand = normalizedCommand;
+          pane.agentProvider = pane.agentProvider ?? provider;
+        }
+      }
+    }
     if (!pane.nativeSessionId && isResumeCommand(pane.lastCommand)) {
       pane.nativeSessionId = sessionIdFromResumeCommand(pane.lastCommand);
       pane.agentProvider = pane.agentProvider ?? detectCliAgent(pane.lastCommand ?? undefined);
