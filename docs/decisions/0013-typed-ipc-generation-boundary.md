@@ -52,3 +52,18 @@ names and payload keys remain unchanged.
 - Prompt 12: add the filesystem response/error contract and parser tests.
 - Re-evaluate generation after at least two independent DTO families have
   measurable duplication or drift failures.
+
+## Re-evaluation: Git status contract (2026-09-10)
+
+The Git status adapter is the second independent family: it validates the
+response DTO at runtime, preserves `GIT_*` error codes through `TauriIpcError`,
+and has request/response/error contract tests. The filesystem and Git adapters
+share only the generic error utility; their discriminated response validation
+is domain-specific and small.
+
+No manual drift defect or repeated validator extraction has appeared across the
+two families, so generated bindings remain deferred. Re-open this decision only
+when a third independent family demonstrates duplicated validator/DTO work, or
+when a real Rust/frontend contract drift reaches a focused test or production
+report. Any generator evaluation must first record build, packaging, license,
+and generated-output ownership evidence in a new ADR.
