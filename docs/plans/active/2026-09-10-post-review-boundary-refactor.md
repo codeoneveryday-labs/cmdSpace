@@ -212,6 +212,12 @@ existing `TauriIpcError` type. Do not duplicate DTOs in feature components.
 preserved, and source-control callers continue to receive the existing success
 shape.
 
+**Status:** complete. `native.gitStatus` now invokes as `unknown`, validates
+the full status/changed-file DTO, and rejects malformed responses with
+`GIT_RESPONSE_INVALID`; native `GIT_*` envelopes continue through
+`TauriIpcError`. Existing source-control callers receive the unchanged
+`GitStatusSnapshot` success shape.
+
 ### Prompt 06 — Expand executable IPC contract coverage
 
 **Owner:** `src/lib/tauriCommandRegistry.contract.test.ts` and focused Git
@@ -224,6 +230,11 @@ registry/wire invariants; behavior assertions must exercise parsers or models.
 **Exit proof:** intentional command/payload/response drift fails a focused test;
 valid Rust/frontend contracts pass; no new source-only behavior guard is added.
 
+**Status:** complete. `gitStatus.contract.test.ts` locks the command name,
+camelCase request key, valid response DTO, and stable `GIT_TIMED_OUT` code.
+The existing registry test still proves the Rust command name and parameters;
+the new test is executable rather than a source-only guard.
+
 ### Prompt 07 — Re-evaluate generated IPC bindings with evidence
 
 **Owner:** Decision 0013 and the two typed IPC families.
@@ -235,6 +246,12 @@ adding any generator; do not add Specta in the same prompt as implementation.
 
 **Exit proof:** one explicit decision, rejected alternatives, compatibility
 impact, and a pilot family; no unreviewed dependency lands.
+
+**Status:** complete. Decision 0013 now records Git status as the second
+manual contract family and reaffirms manual typed DTOs/parsers: two small,
+domain-specific validators have no measured drift defect or shared validator
+pressure. Specta/codegen remains deferred until a third family or an actual
+contract-drift report supplies compatibility/build evidence.
 
 ### Prompt 08 — Decide the database migration seam
 
@@ -349,8 +366,8 @@ this plan with the failed proof. Never use destructive reset/clean commands.
   PR 2 is ready for delivery.
 - [x] Prompt 04 — Type the remote authentication error family; focused
   verification passes and PR 3 is ready for delivery.
-- [ ] Prompts 05–07 — Build the second IPC contract family and record the
-  generation decision in PR 4.
+- [x] Prompts 05–07 — Build the Git status IPC contract family and reaffirm
+  the manual generation decision; PR 4 is ready for delivery.
 - [ ] Prompts 08–10 — Decide DB migration, evaluate the Git service seam, and
   ratchet scoped quality in PR 5.
 - [ ] Prompts 11–12 — Verify, deliver final PR, merge, update `main`, and

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { native, parseReadResult } from "./native";
+import { native, parseGitStatusSnapshot, parseReadResult } from "./native";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -49,6 +49,76 @@ describe("native filesystem IPC", () => {
       expect.objectContaining({
         code: "FS_RESPONSE_INVALID",
         message: "filesystem response is invalid",
+      }),
+    );
+  });
+});
+
+describe("native Git IPC", () => {
+  beforeEach(() => {
+    mockedInvoke.mockReset();
+  });
+
+  it("keeps the Git status success shape unchanged", async () => {
+    const status = {
+      repoRoot: "/repo",
+      branch: "main",
+      upstream: "origin/main",
+      ahead: 1,
+      behind: 0,
+      isDetached: false,
+      truncated: false,
+      changedFiles: [
+        {
+          path: "src/main.rs",
+          originalPath: null,
+          indexStatus: "M",
+          worktreeStatus: " ",
+          staged: true,
+          unstaged: false,
+          untracked: false,
+          statusLabel: "Modified",
+        },
+      ],
+    };
+    mockedInvoke.mockResolvedValueOnce(status);
+
+    await expect(native.gitStatus("/repo")).resolves.toEqual(status);
+    expect(mockedInvoke).toHaveBeenCalledWith("git_status", {
+      repoRoot: "/repo",
+      workspace: { kind: "local" },
+    });
+  });
+
+  it("normalizes structured Git errors without losing Error semantics", async () => {
+    mockedInvoke.mockRejectedValueOnce({
+      code: "GIT_PATH_NOT_AUTHORIZED",
+      message: "Git path is not authorized",
+    });
+
+    await expect(native.gitStatus("/private/repo")).rejects.toMatchObject({
+      code: "GIT_PATH_NOT_AUTHORIZED",
+      message: "Git path is not authorized",
+      name: "TauriIpcError",
+    });
+  });
+
+  it("rejects an invalid Git status response at the IPC boundary", () => {
+    expect(() =>
+      parseGitStatusSnapshot({
+        repoRoot: "/repo",
+        branch: "main",
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        isDetached: false,
+        truncated: false,
+        changedFiles: [{ path: 42 }],
+      }),
+    ).toThrowError(
+      expect.objectContaining({
+        code: "GIT_RESPONSE_INVALID",
+        message: "Git status response is invalid",
       }),
     );
   });

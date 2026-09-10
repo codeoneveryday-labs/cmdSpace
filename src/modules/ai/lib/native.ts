@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { TauriIpcError } from "@/lib/tauriError";
+import { TauriIpcError, toTauriIpcError } from "@/lib/tauriError";
 import { currentWorkspaceEnv } from "@/modules/workspace";
-import { toTauriIpcError } from "@/lib/tauriError";
 
 export type ReadResult =
   | { kind: "text"; content: string; size: number }
@@ -113,6 +112,72 @@ export type GitStatusSnapshot = {
   truncated: boolean;
   changedFiles: GitChangedFile[];
 };
+
+function isStringOrNull(value: unknown): value is string | null {
+  return typeof value === "string" || value === null;
+}
+
+function invalidGitStatusResponse(): never {
+  throw new TauriIpcError({
+    code: "GIT_RESPONSE_INVALID",
+    message: "Git status response is invalid",
+  });
+}
+
+function parseGitChangedFile(value: unknown): GitChangedFile {
+  if (typeof value !== "object" || value === null) invalidGitStatusResponse();
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.path !== "string" ||
+    !isStringOrNull(candidate.originalPath) ||
+    typeof candidate.indexStatus !== "string" ||
+    typeof candidate.worktreeStatus !== "string" ||
+    typeof candidate.staged !== "boolean" ||
+    typeof candidate.unstaged !== "boolean" ||
+    typeof candidate.untracked !== "boolean" ||
+    typeof candidate.statusLabel !== "string"
+  ) {
+    invalidGitStatusResponse();
+  }
+  return {
+    path: candidate.path,
+    originalPath: candidate.originalPath,
+    indexStatus: candidate.indexStatus,
+    worktreeStatus: candidate.worktreeStatus,
+    staged: candidate.staged,
+    unstaged: candidate.unstaged,
+    untracked: candidate.untracked,
+    statusLabel: candidate.statusLabel,
+  };
+}
+
+/** Validate the Git status wire shape before source-control state consumes it. */
+export function parseGitStatusSnapshot(value: unknown): GitStatusSnapshot {
+  if (typeof value !== "object" || value === null) invalidGitStatusResponse();
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.repoRoot !== "string" ||
+    typeof candidate.branch !== "string" ||
+    !isStringOrNull(candidate.upstream) ||
+    !isFiniteSize(candidate.ahead) ||
+    !isFiniteSize(candidate.behind) ||
+    typeof candidate.isDetached !== "boolean" ||
+    typeof candidate.truncated !== "boolean" ||
+    !Array.isArray(candidate.changedFiles)
+  ) {
+    invalidGitStatusResponse();
+  }
+  return {
+    repoRoot: candidate.repoRoot,
+    branch: candidate.branch,
+    upstream: candidate.upstream,
+    ahead: candidate.ahead,
+    behind: candidate.behind,
+    isDetached: candidate.isDetached,
+    truncated: candidate.truncated,
+    changedFiles: candidate.changedFiles.map(parseGitChangedFile),
+  };
+}
 
 export type GitDiffResult = {
   diffText: string;
@@ -311,11 +376,18 @@ export const native = {
       cwd,
       workspace: currentWorkspaceEnv(),
     }),
-  gitStatus: (repoRoot: string) =>
-    invoke<GitStatusSnapshot>("git_status", {
-      repoRoot,
-      workspace: currentWorkspaceEnv(),
-    }),
+  gitStatus: async (repoRoot: string) => {
+    try {
+      const status = await invoke<unknown>("git_status", {
+        repoRoot,
+        workspace: currentWorkspaceEnv(),
+      });
+      return parseGitStatusSnapshot(status);
+    } catch (reason) {
+      if (reason instanceof TauriIpcError) throw reason;
+      throw toTauriIpcError(reason);
+    }
+  },
   gitDiff: (repoRoot: string, path: string | null, staged: boolean) =>
     invoke<GitDiffResult>("git_diff", {
       repoRoot,
