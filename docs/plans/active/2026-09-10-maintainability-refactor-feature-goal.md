@@ -183,6 +183,11 @@ Keep the two-process rule and workspace environment forwarding explicit.
 **Proof:** frontend contract tests verify command name, payload keys, response
 discriminants, and error-code handling; `tauriCommandRegistry` stays green.
 
+**Status:** complete. A shared `TauriIpcError` parser now preserves stable
+codes while remaining an `Error`, `native.readFile` wraps structured FS
+failures, and workspace IPC keeps its existing parser export for compatibility.
+Seven focused tests and TypeScript typecheck pass.
+
 ### Prompt 06 — Migrate one shell command vertical slice
 
 **Owner seam:** `src-tauri/src/modules/shell/mod.rs`.
@@ -370,7 +375,9 @@ result, and an explicit list of deferred work.
   existing DB envelope serialization tests remain green.
 - [x] Prompt 04 — Migrate `fs_read_file` to stable FS errors; 19 FS tests,
   fmt, and Clippy pass.
-- [ ] Prompts 05–10 — Migrate bounded native error/IPC slices.
+- [x] Prompt 05 — Add the shared Tauri error parser and filesystem IPC facade;
+  focused IPC tests and typecheck pass.
+- [ ] Prompts 06–10 — Migrate bounded native error/IPC slices.
 - [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.

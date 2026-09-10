@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { currentWorkspaceEnv } from "@/modules/workspace";
+import { toTauriIpcError } from "@/lib/tauriError";
 
 export type ReadResult =
   | { kind: "text"; content: string; size: number }
@@ -131,11 +132,16 @@ export const native = {
       path,
       workspace: currentWorkspaceEnv(),
     }),
-  readFile: (path: string) =>
-    invoke<ReadResult>("fs_read_file", {
-      path,
-      workspace: currentWorkspaceEnv(),
-    }),
+  readFile: async (path: string) => {
+    try {
+      return await invoke<ReadResult>("fs_read_file", {
+        path,
+        workspace: currentWorkspaceEnv(),
+      });
+    } catch (reason) {
+      throw toTauriIpcError(reason);
+    }
+  },
   writeFile: (path: string, content: string) =>
     invoke<void>("fs_write_file", {
       path,

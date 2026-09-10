@@ -1,3 +1,6 @@
+export { parseIpcError } from "@/lib/tauriError";
+export type { IpcError } from "@/lib/tauriError";
+
 /**
  * Stable workspace payload exchanged with the Rust DB commands.
  *
@@ -39,11 +42,6 @@ export type WorkspaceInvoke = <T>(
   args?: Record<string, unknown>,
 ) => Promise<T>;
 
-export type IpcError = {
-  code: string;
-  message: string;
-};
-
 export function toWorkspaceDto(workspace: WorkspaceDtoInput): WorkspaceDto {
   return {
     id: workspace.id,
@@ -82,20 +80,4 @@ export function saveWorkspace(
   return invoke<void>("db_save_workspace", {
     workspace: toWorkspaceDto(workspace),
   });
-}
-
-export function parseIpcError(reason: unknown): IpcError {
-  if (typeof reason === "object" && reason !== null) {
-    const candidate = reason as { code?: unknown; message?: unknown };
-    if (
-      typeof candidate.code === "string" &&
-      typeof candidate.message === "string"
-    ) {
-      return { code: candidate.code, message: candidate.message };
-    }
-    if (reason instanceof Error) {
-      return { code: "UNKNOWN", message: reason.message };
-    }
-  }
-  return { code: "UNKNOWN", message: String(reason) };
 }
