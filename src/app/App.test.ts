@@ -374,7 +374,7 @@ describe("App sidebar toggle", () => {
     expect(controllerSource).toContain("paneLayout: workspace.paneLayout ?? null");
     expect(appSource).toContain("useWorkspacePersistence<WorkspaceRecord>({");
     expect(appSource).toContain(
-      'persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace })',
+      "persistWorkspace: (workspace) => saveWorkspace(invoke, workspace)",
     );
     expect(appSource).toContain("onPaneTreeChange: handleTerminalPaneTreeChange");
     expect(paneActionsSource).toContain(
@@ -493,6 +493,10 @@ describe("App sidebar toggle", () => {
       readFileSync(path.join(here, "lib/useWorkspaceController.ts"), "utf8"),
       readFileSync(path.join(here, "lib/useWorkspaceHydration.ts"), "utf8"),
       readFileSync(workspaceRecordActionsPath, "utf8"),
+      readFileSync(
+        path.join(here, "../modules/workspaces/lib/workspaceIpc.ts"),
+        "utf8",
+      ),
     ].join("\n");
 
     expect(controller).toContain("accentColor?: string | null");

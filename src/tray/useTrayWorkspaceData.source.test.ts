@@ -11,7 +11,7 @@ describe("useTrayWorkspaceData", () => {
   it("owns workspace hydration and terminal fallback loading", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain('invoke<TrayWorkspace[]>("db_list_workspaces")');
+    expect(source).toContain("listWorkspaces(invoke)");
     expect(source).toContain('invoke<TrayPane[]>("db_list_panes"');
     expect(source).toContain("JSON.parse(workspace.paneLayout)");
     expect(source).toContain("setLoading(false)");

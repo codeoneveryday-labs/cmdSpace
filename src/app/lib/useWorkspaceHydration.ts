@@ -1,30 +1,26 @@
 import { useEffect, type Dispatch, type SetStateAction } from "react";
 import {
+  listWorkspaces,
   normalizeWorkspaceAccentColor,
+  parseIpcError,
   type WorkspaceItem,
   type WorkspaceMode,
+  type WorkspaceDto,
+  type WorkspaceInvoke,
 } from "@/modules/workspaces";
 import type { WorkspaceSelectionPane } from "./useWorkspaceSelection";
 import type { WorkspaceRecord } from "./useWorkspaceController";
 import { workspaceAccentForIndex } from "./workspaceCreationModel";
 import { buildRecentWorkspaceItem } from "./workspaceRecordModel";
 
-export type PersistedWorkspaceRecord = Omit<
-  WorkspaceRecord,
-  "accentColor" | "tabId" | "canvasTabId"
-> & {
-  accentColor?: string | null;
-};
+export type PersistedWorkspaceRecord = WorkspaceDto;
 
 type PersistedRecentWorkspaceRecord = WorkspaceItem & {
   workingFolder: string;
   updatedAt: number;
 };
 
-type Invoke = <T>(
-  command: string,
-  args?: Record<string, unknown>,
-) => Promise<T>;
+type Invoke = WorkspaceInvoke;
 
 export function normalizeHydratedWorkspace(
   workspace: PersistedWorkspaceRecord,
@@ -63,7 +59,7 @@ export function useWorkspaceHydration({
   setWorkspacesHydrated: Dispatch<SetStateAction<boolean>>;
 }): void {
   useEffect(() => {
-    void invoke<PersistedWorkspaceRecord[]>("db_list_workspaces")
+    void listWorkspaces(invoke)
       .then((list) => {
         const hydrated = list.map(normalizeHydratedWorkspace);
         setWorkspaces(hydrated);
@@ -83,7 +79,11 @@ export function useWorkspaceHydration({
         ).then((entries) => setPersistedWorkspacePanes(Object.fromEntries(entries)));
       })
       .catch((error) => {
-        console.error("Failed to load workspaces from SQLite:", error);
+        const ipcError = parseIpcError(error);
+        console.error(
+          `Failed to load workspaces from SQLite [${ipcError.code}]:`,
+          ipcError.message,
+        );
         setWorkspacesHydrated(true);
       });
 
@@ -104,7 +104,11 @@ export function useWorkspaceHydration({
         );
       })
       .catch((error) => {
-        console.error("Failed to load recent workspaces from SQLite:", error);
+        const ipcError = parseIpcError(error);
+        console.error(
+          `Failed to load recent workspaces from SQLite [${ipcError.code}]:`,
+          ipcError.message,
+        );
       });
   }, [invoke, setPersistedWorkspacePanes, setRecentWorkspaces, setWorkspaces, setWorkspacesHydrated]);
 }

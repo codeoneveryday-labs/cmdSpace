@@ -56,7 +56,11 @@ import { WorkspaceSurface } from "./WorkspaceSurface";
 import { AppShell } from "./AppShell";
 import { AppOverlays } from "./AppOverlays";
 import { useWorkspaceEnvStore } from "@/modules/workspace";
-import { WorkspacesPanel, WorkspaceSetupView } from "@/modules/workspaces";
+import {
+  saveWorkspace,
+  WorkspacesPanel,
+  WorkspaceSetupView,
+} from "@/modules/workspaces";
 import { getAppStartupView } from "./lib/appStartupViewModel";
 import { invoke } from "@tauri-apps/api/core";
 import type { SearchAddon } from "@xterm/addon-search";
@@ -833,7 +837,7 @@ export default function App() {
     workspacesRef,
     setWorkspaces,
     persistWorkspace: (workspace) => {
-      void invoke("db_save_workspace", { workspace });
+      void saveWorkspace(invoke, workspace);
     },
     persistPaneRecord,
     persistedPaneFor,
@@ -1024,7 +1028,7 @@ export default function App() {
       setTerminalPaneTree,
       updateTab,
       setWorkspaces,
-      persistWorkspace: (workspace) => invoke("db_save_workspace", { workspace }),
+      persistWorkspace: (workspace) => saveWorkspace(invoke, workspace),
       persistCanvasPanes,
       persistTerminalPanes: (workspace, paneTree) => {
         const paneIds = leafIds(paneTree);

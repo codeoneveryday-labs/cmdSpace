@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useRef, useState } from "react";
-import type { WorkspaceItem } from "@/modules/workspaces";
+import { saveWorkspace, type WorkspaceItem } from "@/modules/workspaces";
 import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
 import type { WorkspaceSelectionPane } from "./useWorkspaceSelection";
 import type { ArchitectureDiagram } from "@/modules/tabs";
@@ -163,7 +163,7 @@ export function useWorkspaceController({
       );
       input.saveRecentWorkspace(updated);
       void Promise.all([
-        invoke("db_save_workspace", { workspace: updated }),
+        saveWorkspace(invoke, updated),
         ...leafIds(paneTree).map((leafId, paneIndex) =>
           input.persistPaneRecord(
             input.buildPaneRecord(
@@ -267,7 +267,7 @@ export function useWorkspaceController({
       input.saveRecentWorkspace(updated);
       const paneIds = leafIds(paneTree);
       void Promise.all([
-        invoke("db_save_workspace", { workspace: updated }),
+        saveWorkspace(invoke, updated),
         ...paneIds.map((leafId, paneIndex) =>
           input.persistPaneRecord(
             input.buildPaneRecord(

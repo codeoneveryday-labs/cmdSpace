@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { normalizeWorkspaceAccentColor } from "@/modules/workspaces";
+import { normalizeWorkspaceAccentColor, saveWorkspace } from "@/modules/workspaces";
 import { detectCliAgent } from "@/modules/terminal/lib/cliAgents";
 import { serializeCanvasWorkspaceDiagram } from "@/modules/architecture";
 import { resolveWorkspaceCreationPlan, workspaceAccentForIndex } from "./workspaceCreationModel";
@@ -85,7 +85,7 @@ export async function createWorkspaceAction(
     );
   }
   try {
-    await invoke("db_save_workspace", { workspace });
+    await saveWorkspace(invoke, workspace);
   } catch (error) {
     console.error("Failed to save workspace to SQLite:", error);
   }

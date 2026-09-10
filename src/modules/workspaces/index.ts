@@ -14,3 +14,16 @@ export type {
   AgentSessionProvider,
   ImportableAgentSession,
 } from "./lib/importSessions";
+export {
+  listWorkspaces,
+  parseIpcError,
+  saveWorkspace,
+  toWorkspaceDto,
+} from "./lib/workspaceIpc";
+export type {
+  IpcError,
+  WorkspaceDto,
+  WorkspaceDtoInput,
+  WorkspaceModeValue,
+  WorkspaceInvoke,
+} from "./lib/workspaceIpc";
