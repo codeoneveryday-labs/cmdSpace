@@ -65,7 +65,8 @@ pub(super) fn remote_session_input(
             .map_err(|e| e.to_string());
         return result;
     }
-    pty_state.write_remote(desktop_session_id(id)?, &input.data)
+    pty_state.write_remote(desktop_session_id(id)?, &input.data)?;
+    Ok(())
 }
 
 pub(super) fn remote_session_resize(
@@ -100,7 +101,8 @@ pub(super) fn remote_session_resize(
     // resize it would change the desktop's wrapping width and make the local
     // pane look empty on the right. The desktop owns dimensions for attached
     // sessions; remote-created sessions still use the requested size above.
-    pty_state.restore_desktop_size(desktop_session_id(id)?)
+    pty_state.restore_desktop_size(desktop_session_id(id)?)?;
+    Ok(())
 }
 
 pub(super) fn close_remote_session(runtime: &Arc<Mutex<RemoteRuntime>>, id: u64) {

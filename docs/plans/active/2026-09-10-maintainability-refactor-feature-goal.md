@@ -247,6 +247,10 @@ session ownership, Windows Job Object behavior, and `SPAWN_LOCK` semantics.
 **Proof:** Rust tests cover unknown-session and success paths; terminal bridge
 contract tests confirm command/payload compatibility.
 
+**Status:** complete. PTY write/resize/metadata/state/remote helper failures
+now classify as `PTY_*` errors with safe messages; raw output channels and
+session cleanup remain unchanged. The PTY test group passes with 57 tests.
+
 ### Prompt 10 — Harden remote boundary errors
 
 **Owner seam:** `src-tauri/src/modules/remote/` and `remote_auth*`.
@@ -397,7 +401,9 @@ result, and an explicit list of deferred work.
   workspace-related tests, fmt, and Clippy pass.
 - [x] Prompt 08 — Type network/SSRF error outcomes; 9 security tests, fmt, and
   Clippy pass.
-- [ ] Prompts 09–10 — Migrate bounded native error/IPC slices.
+- [x] Prompt 09 — Type PTY command/state errors; 57 PTY-related tests and
+  Clippy pass.
+- [ ] Prompt 10 — Harden remote boundary errors.
 - [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.

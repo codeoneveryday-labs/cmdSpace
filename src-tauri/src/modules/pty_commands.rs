@@ -6,7 +6,7 @@ use portable_pty::PtySize;
 use tauri::ipc::{Channel, Response};
 
 use super::{session, session_import, shell_init};
-use super::{PtySessionInfo, PtyState};
+use super::{PtyError, PtyErrorKind, PtyResult, PtySessionInfo, PtyState};
 use crate::modules::workspace::{authorize_spawn_cwd, WorkspaceEnv, WorkspaceRegistry};
 
 #[tauri::command]
@@ -79,7 +79,7 @@ pub async fn pty_open(
 }
 
 #[tauri::command]
-pub fn pty_write(state: tauri::State<PtyState>, id: u32, data: String) -> Result<(), String> {
+pub fn pty_write(state: tauri::State<PtyState>, id: u32, data: String) -> PtyResult<()> {
     let session = state
         .sessions
         .read()
@@ -88,7 +88,7 @@ pub fn pty_write(state: tauri::State<PtyState>, id: u32, data: String) -> Result
         .cloned()
         .ok_or_else(|| {
             log::warn!("pty_write: unknown id={id}");
-            "no session".to_string()
+            PtyError::new(PtyErrorKind::SessionNotFound)
         })?;
     let result = session
         .writer
@@ -97,7 +97,7 @@ pub fn pty_write(state: tauri::State<PtyState>, id: u32, data: String) -> Result
         .write_all(data.as_bytes())
         .map_err(|e| {
             log::debug!("pty_write id={id} failed: {e}");
-            e.to_string()
+            PtyError::new(PtyErrorKind::WriteFailed)
         });
     result
 }
@@ -114,12 +114,7 @@ pub fn pty_trace_input(source: String, data: String) {
 }
 
 #[tauri::command]
-pub fn pty_resize(
-    state: tauri::State<PtyState>,
-    id: u32,
-    cols: u16,
-    rows: u16,
-) -> Result<(), String> {
+pub fn pty_resize(state: tauri::State<PtyState>, id: u32, cols: u16, rows: u16) -> PtyResult<()> {
     let session = state
         .sessions
         .read()
@@ -128,7 +123,7 @@ pub fn pty_resize(
         .cloned()
         .ok_or_else(|| {
             log::warn!("pty_resize: unknown id={id}");
-            "no session".to_string()
+            PtyError::new(PtyErrorKind::SessionNotFound)
         })?;
     let result = session
         .master
@@ -142,7 +137,7 @@ pub fn pty_resize(
         })
         .map_err(|e| {
             log::warn!("pty_resize id={id} failed: {e}");
-            e.to_string()
+            PtyError::new(PtyErrorKind::ResizeFailed)
         });
     if result.is_ok() {
         state.sizes.write().unwrap().insert(id, (cols, rows));
@@ -151,7 +146,7 @@ pub fn pty_resize(
 }
 
 #[tauri::command]
-pub fn pty_close(state: tauri::State<PtyState>, id: u32) -> Result<(), String> {
+pub fn pty_close(state: tauri::State<PtyState>, id: u32) -> PtyResult<()> {
     let session = state.sessions.write().unwrap().remove(&id);
     state.metadata.write().unwrap().remove(&id);
     state.sizes.write().unwrap().remove(&id);
@@ -172,7 +167,7 @@ pub fn pty_close(state: tauri::State<PtyState>, id: u32) -> Result<(), String> {
                     t0.elapsed().as_millis()
                 );
             })
-            .expect("spawn pty drop thread");
+            .map_err(|_| PtyError::new(PtyErrorKind::CloseFailed))?;
     } else {
         log::debug!("pty_close: unknown id={id}");
     }
@@ -186,11 +181,11 @@ pub fn pty_register_metadata(
     title: Option<String>,
     cwd: Option<String>,
     agent: Option<String>,
-) -> Result<(), String> {
+) -> PtyResult<()> {
     let mut metadata = state.metadata.write().unwrap();
     let entry = metadata
         .get_mut(&id)
-        .ok_or_else(|| "no session".to_string())?;
+        .ok_or_else(|| PtyError::new(PtyErrorKind::MetadataNotFound))?;
     if let Some(title) = title.filter(|value| !value.trim().is_empty()) {
         entry.title = title;
     }
