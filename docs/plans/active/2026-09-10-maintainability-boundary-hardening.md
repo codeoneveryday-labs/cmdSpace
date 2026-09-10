@@ -264,8 +264,8 @@ tests identified by the source-contract inventory.
   inventory already covers the priority voice, terminal, canvas, remote, and
   persistence behaviors, and this slice adds direct workspace IPC coverage.
 - [ ] Measure DB contention before considering extraction or pooling.
-- [ ] Isolate these changes into reviewable issue branches/PRs without staging
-  unrelated worktree edits.
+- [x] Isolate these changes into reviewable issue branches/PRs without staging
+  unrelated worktree edits: native/CI in PR #452 and workspace IPC in PR #454.
 - [ ] Run final full verification on the isolated change groups and record the
   result before moving this plan to `docs/plans/completed/`.
 
@@ -298,10 +298,12 @@ tests identified by the source-contract inventory.
   `cargo fmt --all -- --check`, and `git diff --check` passed on the current
   worktree. `pnpm quality:warn` also passes with its existing five warnings
   (stale test baseline, missing optional lint/format/coverage tools, and no
-  lint script). Isolated PR verification remains pending.
+  lint script). Isolated PR #452 and PR #454 CI are green; post-merge
+  verification and baseline re-pinning remain pending.
 
 ## Result
 
-Phases 0–4 have a verified local implementation in the current worktree. The
-remaining source-proof conversion, contention measurement, and isolated PR
-delivery are still pending.
+Phases 0–5 have a verified local implementation and are isolated in PRs #452
+and #454. Both PRs have green frontend, Rust, and Windows Rust CI. The plan
+remains active until those PRs are merged and the post-merge baseline is
+re-pinned; contention measurement and optional extraction remain deferred.
