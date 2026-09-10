@@ -262,6 +262,11 @@ transport errors. Keep browser v2 and native device v3 contracts separate.
 **Proof:** focused remote tests cover auth rejection, retryable transport, and
 capability denial without turning relay outage into authentication failure.
 
+**Status:** complete. Native device authorization now distinguishes unknown,
+revoked, registry-unavailable, and capability-denied states with stable
+internal codes while preserving protocol responses and retry flags. The remote
+test group passes with 76 tests.
+
 ### Prompt 11 — Decide manual versus generated IPC typing
 
 **Owner seam:** existing workspace IPC and command registry contract.
@@ -403,7 +408,8 @@ result, and an explicit list of deferred work.
   Clippy pass.
 - [x] Prompt 09 — Type PTY command/state errors; 57 PTY-related tests and
   Clippy pass.
-- [ ] Prompt 10 — Harden remote boundary errors.
+- [x] Prompt 10 — Harden native-device authorization errors; 76 remote tests
+  and Clippy pass.
 - [ ] Prompts 11–12 — Strengthen IPC response/error contracts.
 - [ ] Prompts 13–15 — Convert high-value structural claims to behavior proof.
 - [ ] Prompts 16–18 — Enforce scoped quality/logging policy and decide DB extraction.
