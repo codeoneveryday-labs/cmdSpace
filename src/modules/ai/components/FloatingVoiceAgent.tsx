@@ -1,9 +1,12 @@
 import { cn } from "@/lib/utils";
+import { KEY_SEP } from "@/lib/platform";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { getBindingTokens, SHORTCUTS } from "@/modules/shortcuts/shortcuts";
 import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -50,6 +53,14 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
     ref,
   ) {
     const enabled = usePreferencesStore((state) => state.floatingVoiceAgentEnabled);
+    const userShortcuts = usePreferencesStore((state) => state.shortcuts);
+    const voiceShortcut = useMemo(() => {
+      const shortcut = SHORTCUTS.find((item) => item.id === "voice.toggle");
+      if (!shortcut) return "";
+      const bindings = userShortcuts[shortcut.id] ?? shortcut.defaultBindings;
+      if (!bindings || bindings.length === 0) return "";
+      return getBindingTokens(bindings[0]).join(KEY_SEP);
+    }, [userShortcuts]);
     const { status, message, toggle, start, stop, busyElsewhere, audioLevel } = useSpeechToTextInput({
       apiKeys,
       captureTarget,
@@ -261,7 +272,11 @@ export const FloatingVoiceAgent = forwardRef<FloatingVoiceAgentHandle, Props>(
           ))}
         </span>
         <span className="min-w-0 flex-1 truncate whitespace-nowrap">{visibleLabel}</span>
-        <span className="hidden shrink-0 font-mono text-[10px] text-muted-foreground sm:inline">⌘⇧V</span>
+        {voiceShortcut ? (
+          <span className="hidden shrink-0 font-mono text-[10px] text-muted-foreground sm:inline">
+            {voiceShortcut}
+          </span>
+        ) : null}
       </button>
     );
   },
